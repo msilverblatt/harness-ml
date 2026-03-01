@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from easyml.runner.schema import (
     BacktestConfig,
+    ColumnCleaningRule,
     DataConfig,
     EnsembleDef,
     ExperimentDef,
@@ -18,6 +19,7 @@ from easyml.runner.schema import (
     ProjectConfig,
     ServerDef,
     ServerToolDef,
+    SourceConfig,
     SourceDecl,
 )
 
@@ -635,3 +637,101 @@ class TestBacktestConfigExtensions:
         assert bt.window_size is None
         assert bt.n_folds is None
         assert bt.purge_gap == 1
+
+
+class TestColumnCleaningRule:
+    """ColumnCleaningRule schema and defaults."""
+
+    def test_defaults(self):
+        rule = ColumnCleaningRule()
+        assert rule.null_strategy == "median"
+        assert rule.null_fill_value is None
+        assert rule.coerce_numeric is False
+        assert rule.clip_outliers is None
+        assert rule.log_transform is False
+        assert rule.normalize == "none"
+
+    def test_custom_values(self):
+        rule = ColumnCleaningRule(
+            null_strategy="constant",
+            null_fill_value=0,
+            coerce_numeric=True,
+            clip_outliers=(1.0, 99.0),
+            log_transform=True,
+            normalize="zscore",
+        )
+        assert rule.null_strategy == "constant"
+        assert rule.null_fill_value == 0
+        assert rule.clip_outliers == (1.0, 99.0)
+
+    def test_invalid_null_strategy(self):
+        with pytest.raises(ValidationError):
+            ColumnCleaningRule(null_strategy="invalid")
+
+    def test_invalid_normalize(self):
+        with pytest.raises(ValidationError):
+            ColumnCleaningRule(normalize="invalid")
+
+
+class TestSourceConfig:
+    """SourceConfig schema and defaults."""
+
+    def test_defaults(self):
+        src = SourceConfig(name="test_source")
+        assert src.path is None
+        assert src.format == "auto"
+        assert src.join_on is None
+        assert src.columns is None
+        assert src.temporal_safety == "unknown"
+        assert src.enabled is True
+
+    def test_with_columns(self):
+        src = SourceConfig(
+            name="kenpom",
+            path="data/raw/kenpom.csv",
+            format="csv",
+            join_on=["team_id", "season"],
+            columns={
+                "adj_oe": ColumnCleaningRule(null_strategy="zero"),
+                "adj_de": ColumnCleaningRule(coerce_numeric=True),
+            },
+            temporal_safety="pre_tournament",
+        )
+        assert src.columns["adj_oe"].null_strategy == "zero"
+        assert src.columns["adj_de"].coerce_numeric is True
+
+    def test_invalid_format(self):
+        with pytest.raises(ValidationError):
+            SourceConfig(name="bad", format="jsonl")
+
+    def test_invalid_temporal_safety(self):
+        with pytest.raises(ValidationError):
+            SourceConfig(name="bad", temporal_safety="future")
+
+
+class TestDataConfigSources:
+    """DataConfig with sources section."""
+
+    def test_data_config_with_sources(self):
+        d = DataConfig(
+            sources={
+                "kenpom": SourceConfig(
+                    name="kenpom",
+                    path="data/raw/kenpom.csv",
+                    temporal_safety="pre_tournament",
+                ),
+            },
+            default_cleaning=ColumnCleaningRule(null_strategy="zero"),
+        )
+        assert "kenpom" in d.sources
+        assert d.default_cleaning.null_strategy == "zero"
+
+    def test_data_config_sources_default_empty(self):
+        d = DataConfig()
+        assert d.sources == {}
+        assert d.default_cleaning.null_strategy == "median"
+
+    def test_backward_compat_no_sources(self):
+        """Existing configs without sources still validate."""
+        d = DataConfig(raw_dir="data/raw", features_dir="data/features")
+        assert d.sources == {}

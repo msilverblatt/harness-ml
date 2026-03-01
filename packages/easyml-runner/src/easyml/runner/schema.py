@@ -50,6 +50,37 @@ class FeaturesConfig(BaseModel):
 
 
 # -----------------------------------------------------------------------
+# Data cleaning & source config
+# -----------------------------------------------------------------------
+
+class ColumnCleaningRule(BaseModel):
+    """Per-column cleaning configuration with cascade support.
+
+    Rules cascade: column-level > source-level > global-level.
+    """
+
+    null_strategy: Literal["median", "mode", "zero", "drop", "ffill", "constant"] = "median"
+    null_fill_value: Any | None = None
+    coerce_numeric: bool = False
+    clip_outliers: tuple[float, float] | None = None
+    log_transform: bool = False
+    normalize: Literal["none", "zscore", "minmax"] = "none"
+
+
+class SourceConfig(BaseModel):
+    """A declared data source in the pipeline."""
+
+    name: str
+    path: str | None = None
+    format: Literal["csv", "parquet", "excel", "auto"] = "auto"
+    join_on: list[str] | None = None
+    columns: dict[str, ColumnCleaningRule] | None = None
+    default_cleaning: ColumnCleaningRule = ColumnCleaningRule()
+    temporal_safety: Literal["pre_tournament", "post_tournament", "mixed", "unknown"] = "unknown"
+    enabled: bool = True
+
+
+# -----------------------------------------------------------------------
 # Data config
 # -----------------------------------------------------------------------
 
@@ -70,6 +101,10 @@ class DataConfig(BaseModel):
     time_column: str | None = None              # for temporal CV splits
     exclude_columns: list[str] = []             # columns to never use as features
     team_features_path: str | None = None       # path to team-level features parquet
+
+    # Data pipeline
+    sources: dict[str, SourceConfig] = {}
+    default_cleaning: ColumnCleaningRule = ColumnCleaningRule()
 
 
 # -----------------------------------------------------------------------
