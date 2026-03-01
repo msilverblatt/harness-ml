@@ -286,10 +286,13 @@ class TestBacktestConfig:
         assert config.backtest.seasons == [2016, 2017, 2018]
 
     def test_auto_detect_seasons(self, project):
+        """Auto-detect with default min_train_seasons=3 reserves first 3."""
         project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
         project.configure_backtest()
         config = project.build()
-        assert 2015 in config.backtest.seasons
+        # Data has 5 seasons (2015-2019), min_train=3 → holdout [2018, 2019]
+        assert 2015 not in config.backtest.seasons
+        assert 2018 in config.backtest.seasons
         assert 2019 in config.backtest.seasons
 
 
@@ -508,3 +511,102 @@ class TestProviderModels:
         )
         config = project.build()
         assert config.models["survival"].provider_isolation == "per_season"
+
+
+# -----------------------------------------------------------------------
+# Tests: preset support
+# -----------------------------------------------------------------------
+
+class TestPresetSupport:
+    """add_model with preset= expands and validates correctly."""
+
+    def test_preset_creates_model(self, project):
+        project.add_model(
+            "xgb_core",
+            preset="xgboost_classifier",
+            features=["diff_seed_num"],
+        )
+        config = project.build()
+        assert config.models["xgb_core"].type == "xgboost"
+        assert config.models["xgb_core"].mode == "classifier"
+        assert config.models["xgb_core"].params["max_depth"] == 4
+
+    def test_preset_with_param_override(self, project):
+        project.add_model(
+            "xgb_custom",
+            preset="xgboost_classifier",
+            features=["diff_seed_num"],
+            params={"learning_rate": 0.05},
+        )
+        config = project.build()
+        # Overridden
+        assert config.models["xgb_custom"].params["learning_rate"] == 0.05
+        # Preserved from preset
+        assert config.models["xgb_custom"].params["max_depth"] == 4
+
+    def test_preset_with_mode_override(self, project):
+        project.add_model(
+            "lr_mod",
+            preset="logistic_regression",
+            features=["diff_seed_num"],
+            n_seeds=3,
+        )
+        config = project.build()
+        assert config.models["lr_mod"].n_seeds == 3
+
+    def test_preset_regressor(self, project):
+        project.add_model(
+            "xgb_reg",
+            preset="xgboost_regressor",
+            features=["diff_seed_num", "diff_scoring_margin"],
+        )
+        config = project.build()
+        assert config.models["xgb_reg"].mode == "regressor"
+        assert config.models["xgb_reg"].prediction_type == "margin"
+
+    def test_no_type_and_no_preset_raises(self, project):
+        with pytest.raises(ValueError, match="type.*preset"):
+            project.add_model("bad", features=["diff_seed_num"])
+
+    def test_unknown_preset_raises(self, project):
+        with pytest.raises(KeyError, match="Unknown preset"):
+            project.add_model(
+                "bad",
+                preset="nonexistent_preset",
+                features=["diff_seed_num"],
+            )
+
+
+# -----------------------------------------------------------------------
+# Tests: auto-detect seasons with min_train_seasons
+# -----------------------------------------------------------------------
+
+class TestAutoDetectSeasons:
+    """configure_backtest auto-detects holdout seasons."""
+
+    def test_auto_detect_excludes_early_seasons(self, project):
+        """With 5 seasons and min_train=3, first 3 are excluded."""
+        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.configure_backtest(min_train_seasons=3)
+        config = project.build()
+        # Data has seasons 2015-2019, min_train=3 → holdout = [2018, 2019]
+        assert config.backtest.seasons == [2018, 2019]
+
+    def test_auto_detect_min_train_2(self, project):
+        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.configure_backtest(min_train_seasons=2)
+        config = project.build()
+        assert config.backtest.seasons == [2017, 2018, 2019]
+
+    def test_explicit_seasons_override_auto(self, project):
+        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.configure_backtest(seasons=[2018])
+        config = project.build()
+        assert config.backtest.seasons == [2018]
+
+    def test_auto_detect_returns_empty_when_all_needed_for_training(self, project):
+        """If min_train_seasons >= total seasons, returns empty."""
+        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.configure_backtest(min_train_seasons=10)
+        config = project.build()
+        assert config.backtest.seasons == []

@@ -79,7 +79,7 @@ def _setup_project(
     Returns the config directory path.
     """
     config_dir = tmp_path / "config"
-    config_dir.mkdir()
+    config_dir.mkdir(parents=True, exist_ok=True)
 
     # Pipeline config
     features_dir = tmp_path / "data" / "features"
@@ -709,3 +709,349 @@ class TestProviderModelsBacktest:
             upstream_fingerprints={"provider": provider_fp},
         )
         assert fp1 == fp2
+
+
+# -----------------------------------------------------------------------
+# Tests — prediction cache integration
+# -----------------------------------------------------------------------
+
+class TestPredictionCacheIntegration:
+    """PredictionCache wired into PipelineRunner backtest."""
+
+    def test_first_run_all_misses(self, tmp_path):
+        """First backtest with cache → all misses, no hits."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        # 4 seasons → LOSO with min_train=1 gives 3 holdout folds
+        # (first season has no prior data to train on)
+        config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        cache = PredictionCache(tmp_path / "cache")
+
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        stats = runner.cache_stats
+        assert stats["hits"] == 0
+        # 1 model x 3 holdout seasons = 3 misses
+        assert stats["misses"] == 3
+
+    def test_second_run_all_hits(self, tmp_path):
+        """Second backtest with same cache → all hits, no misses."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        cache = PredictionCache(tmp_path / "cache")
+
+        # First run — fills cache
+        runner1 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner1.load()
+        runner1.backtest()
+
+        # Second run — should hit cache for all models
+        runner2 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner2.load()
+        result2 = runner2.backtest()
+
+        assert result2["status"] == "success"
+        stats2 = runner2.cache_stats
+        assert stats2["hits"] == 3  # 1 model x 3 holdout seasons
+        assert stats2["misses"] == 0
+
+    def test_cache_produces_same_metrics(self, tmp_path):
+        """Cached predictions produce identical metrics to uncached run."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        cache = PredictionCache(tmp_path / "cache")
+
+        # First run
+        runner1 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner1.load()
+        result1 = runner1.backtest()
+
+        # Second run (cached)
+        runner2 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner2.load()
+        result2 = runner2.backtest()
+
+        # Metrics should be identical
+        for metric in result1["metrics"]:
+            assert result1["metrics"][metric] == pytest.approx(
+                result2["metrics"][metric], abs=1e-6
+            ), f"Metric {metric} differs"
+
+    def test_different_model_config_misses(self, tmp_path):
+        """Changing model config causes cache misses."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        cache = PredictionCache(tmp_path / "cache")
+        n_folds = 3  # 4 seasons, LOSO, first skipped → 3 folds
+
+        # First config
+        models_v1 = {
+            "logreg": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 1.0},
+                "active": True,
+            },
+        }
+        config_dir1 = _setup_project(
+            tmp_path / "v1", models=models_v1, n_rows=300, n_seasons=4,
+        )
+        runner1 = PipelineRunner(
+            project_dir=str(tmp_path / "v1"),
+            config_dir=str(config_dir1),
+            prediction_cache=cache,
+        )
+        runner1.load()
+        runner1.backtest()
+        assert runner1.cache_stats["misses"] == n_folds
+
+        # Second config — different C value → different fingerprint
+        models_v2 = {
+            "logreg": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 0.1},
+                "active": True,
+            },
+        }
+        config_dir2 = _setup_project(
+            tmp_path / "v2", models=models_v2, n_rows=300, n_seasons=4,
+        )
+        runner2 = PipelineRunner(
+            project_dir=str(tmp_path / "v2"),
+            config_dir=str(config_dir2),
+            prediction_cache=cache,
+        )
+        runner2.load()
+        runner2.backtest()
+        # Different model config → all misses again
+        assert runner2.cache_stats["hits"] == 0
+        assert runner2.cache_stats["misses"] == n_folds
+
+    def test_multi_model_partial_cache(self, tmp_path):
+        """With 2 models, changing one causes misses only for that model."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        cache = PredictionCache(tmp_path / "cache")
+        n_folds = 3  # 4 seasons, LOSO, first skipped → 3 folds
+
+        models_v1 = {
+            "logreg_a": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 1.0},
+                "active": True,
+            },
+            "logreg_b": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 0.5},
+                "active": True,
+            },
+        }
+
+        config_dir = _setup_project(
+            tmp_path, models=models_v1, n_rows=300, n_seasons=4,
+        )
+        runner1 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner1.load()
+        runner1.backtest()
+        # 2 models x 3 folds = 6 misses
+        assert runner1.cache_stats["misses"] == 2 * n_folds
+
+        # Change only model B's C value
+        models_v2 = {
+            "logreg_a": models_v1["logreg_a"],  # unchanged
+            "logreg_b": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 0.1},
+                "active": True,
+            },
+        }
+        _write_yaml(
+            tmp_path / "config" / "models.yaml",
+            {"models": models_v2},
+        )
+        runner2 = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(tmp_path / "config"),
+            prediction_cache=cache,
+        )
+        runner2.load()
+        runner2.backtest()
+        # Model A: n_folds hits (unchanged), Model B: n_folds misses (changed)
+        assert runner2.cache_stats["hits"] == n_folds
+        assert runner2.cache_stats["misses"] == n_folds
+
+    def test_no_cache_by_default(self, tmp_path):
+        """Without prediction_cache, no caching happens."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        runner.backtest()
+        assert runner.cache_stats == {"hits": 0, "misses": 0}
+
+    def test_provider_not_cached(self, tmp_path):
+        """Provider models are always retrained (not cached)."""
+        from easyml.runner.prediction_cache import PredictionCache
+
+        cache = PredictionCache(tmp_path / "cache")
+        models = {
+            "provider": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200},
+                "active": True,
+                "provides": ["score"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "consumer": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_score"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+        }
+        # 4 seasons → 3 LOSO folds (first season skipped, no prior data)
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=400, n_seasons=4,
+            include_seed=True,
+        )
+
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            prediction_cache=cache,
+        )
+        runner.load()
+        runner.backtest()
+
+        # Only consumer gets cached (3 misses), provider skips cache
+        assert runner.cache_stats["misses"] == 3
+        assert runner.cache_stats["hits"] == 0
+
+
+# -----------------------------------------------------------------------
+# Tests — reporting integration
+# -----------------------------------------------------------------------
+
+
+class TestBacktestReporting:
+    """Backtest result includes report and diagnostics."""
+
+    def test_backtest_includes_report(self, tmp_path):
+        """Backtest result has a 'report' key with markdown content."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert "report" in result
+        assert "# Backtest Report" in result["report"]
+        assert "Top-Line Metrics" in result["report"]
+
+    def test_backtest_includes_diagnostics(self, tmp_path):
+        """Backtest result has a 'diagnostics' key with per-season data."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert "diagnostics" in result
+        assert isinstance(result["diagnostics"], list)
+        assert len(result["diagnostics"]) > 0
+        assert "season" in result["diagnostics"][0]
+
+    def test_backtest_exports_artifacts_to_run_dir(self, tmp_path):
+        """When run_dir is set, artifacts are exported."""
+        config_dir = _setup_project(tmp_path)
+        run_dir = tmp_path / "output" / "run_001"
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+            run_dir=str(run_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result.get("run_dir") == str(run_dir)
+        assert (run_dir / "diagnostics" / "report.md").exists()
+        assert (run_dir / "diagnostics" / "pooled_metrics.json").exists()
+        assert (run_dir / "diagnostics" / "diagnostics.parquet").exists()
+
+    def test_backtest_no_run_dir_no_export(self, tmp_path):
+        """Without run_dir, no artifacts are exported."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert "run_dir" not in result
+        assert "report" in result  # report is always generated
+
+    def test_report_has_per_season_breakdown(self, tmp_path):
+        """Report includes per-season breakdown section."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert "Per-Season Breakdown" in result["report"]
+
+    def test_report_has_pick_analysis(self, tmp_path):
+        """Report includes pick analysis section."""
+        config_dir = _setup_project(tmp_path)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert "Pick Analysis" in result["report"]

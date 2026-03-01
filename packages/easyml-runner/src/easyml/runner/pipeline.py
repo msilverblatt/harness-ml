@@ -22,6 +22,8 @@ from easyml.models.orchestrator import TrainOrchestrator
 from easyml.models.registry import ModelRegistry
 from easyml.runner.cv_strategies import generate_cv_folds
 from easyml.runner.dag import build_provider_map, infer_dependencies, topological_waves
+from easyml.runner.fingerprint import compute_fingerprint
+from easyml.runner.prediction_cache import PredictionCache
 from easyml.runner.meta_learner import train_meta_learner_loso
 from easyml.runner.postprocessing import apply_ensemble_postprocessing
 from easyml.runner.schema import ModelDef, ProjectConfig
@@ -216,18 +218,28 @@ class PipelineRunner:
         overlay: dict | None = None,
         enable_guards: bool = True,
         config: ProjectConfig | None = None,
+        prediction_cache: PredictionCache | None = None,
+        run_dir: str | Path | None = None,
     ) -> None:
         self.project_dir = Path(project_dir)
         self.config_dir = Path(config_dir) if config_dir else None
         self.variant = variant
         self.overlay = overlay
         self.enable_guards = enable_guards
+        self.run_dir = Path(run_dir) if run_dir else None
 
         self.config: ProjectConfig | None = config
         self._registry: ModelRegistry | None = None
         self._df: pd.DataFrame | None = None
         self._team_df: pd.DataFrame | None = None
         self._guards: PipelineGuards | None = None
+        self._pred_cache = prediction_cache
+        self._cache_stats: dict[str, int] = {"hits": 0, "misses": 0}
+
+    @property
+    def cache_stats(self) -> dict[str, int]:
+        """Return a copy of the cache hit/miss stats."""
+        return dict(self._cache_stats)
 
     def load(self) -> None:
         """Validate config and set up ModelRegistry.
@@ -418,10 +430,7 @@ class PipelineRunner:
                     )
 
                     # Compute fingerprint including upstream dependencies
-                    from easyml.runner.fingerprint import (
-                        compute_fingerprint,
-                        save_fingerprint,
-                    )
+                    from easyml.runner.fingerprint import save_fingerprint
                     upstream_fps = {
                         dep: model_fingerprints[dep]
                         for dep in model_deps
@@ -771,7 +780,68 @@ class PipelineRunner:
                         season_data[holdout][prob_cols].mean(axis=1)
                     )
 
-        return self._compute_backtest_metrics(season_data, active_model_names)
+        result = self._compute_backtest_metrics(season_data, active_model_names)
+
+        # Generate reporting artifacts
+        result = self._generate_report(result, season_data)
+
+        return result
+
+    def _generate_report(
+        self,
+        result: dict[str, Any],
+        season_data: dict[int, pd.DataFrame],
+    ) -> dict[str, Any]:
+        """Generate diagnostics report, pick log, and markdown report.
+
+        If ``run_dir`` is set, exports all artifacts to that directory.
+        """
+        from easyml.runner.reporting import (
+            build_diagnostics_report,
+            build_pick_log,
+            export_backtest_artifacts,
+            generate_markdown_report,
+        )
+
+        # Build per-season diagnostics
+        diagnostics_df = build_diagnostics_report(season_data)
+
+        # Build combined pick log across seasons
+        pick_logs = []
+        for season, df in sorted(season_data.items()):
+            if "prob_ensemble" in df.columns:
+                pick_logs.append(build_pick_log(df, season))
+        pick_log = pd.concat(pick_logs, ignore_index=True) if pick_logs else pd.DataFrame()
+
+        # Wrap pooled metrics for generate_markdown_report
+        pooled_for_report = {"ensemble": result.get("metrics", {})}
+
+        # Extract meta-learner coefficients if available
+        meta_coefficients = result.get("meta_coefficients")
+
+        report_md = generate_markdown_report(
+            pooled_for_report,
+            diagnostics_df=diagnostics_df if len(diagnostics_df) > 0 else None,
+            pick_log=pick_log if len(pick_log) > 0 else None,
+            meta_coefficients=meta_coefficients,
+        )
+
+        result["report"] = report_md
+        result["diagnostics"] = diagnostics_df.to_dict(orient="records") if len(diagnostics_df) > 0 else []
+
+        # Export artifacts to run_dir if configured
+        if self.run_dir is not None:
+            export_backtest_artifacts(
+                run_dir=self.run_dir,
+                season_data=season_data,
+                pooled_metrics=pooled_for_report,
+                diagnostics_df=diagnostics_df,
+                pick_log=pick_log,
+                report_md=report_md,
+            )
+            result["run_dir"] = str(self.run_dir)
+
+        return result
 
     def run_full(self) -> dict[str, Any]:
         """Run load + train + backtest."""
@@ -871,12 +941,41 @@ class PipelineRunner:
         waves = topological_waves(deps)
 
         context = ProviderContext()
+        model_fingerprints: dict[str, str] = {}
 
         # Train and predict in wave order (providers before consumers)
         for wave in waves:
             for model_name in wave:
                 model_def = resolved_models[model_name]
                 model_deps = deps.get(model_name, set())
+
+                # Compute fingerprint (includes upstream provider fingerprints)
+                upstream_fps = {
+                    dep: model_fingerprints[dep]
+                    for dep in model_deps
+                    if dep in model_fingerprints
+                }
+                fp = compute_fingerprint(
+                    model_config=model_def.model_dump(),
+                    upstream_fingerprints=upstream_fps or None,
+                )
+                model_fingerprints[model_name] = fp
+
+                # Check prediction cache (non-provider models only)
+                if (
+                    self._pred_cache is not None
+                    and not model_def.provides
+                ):
+                    cached = self._pred_cache.lookup(
+                        model_name, test_season, fp,
+                    )
+                    if cached is not None and "prediction" in cached.columns:
+                        self._cache_stats["hits"] += 1
+                        if model_def.include_in_ensemble:
+                            preds_df[f"prob_{model_name}"] = (
+                                cached["prediction"].values
+                            )
+                        continue
 
                 # Inject provider features from upstream models
                 model_train_df = context.inject(
@@ -928,6 +1027,17 @@ class PipelineRunner:
                                 "injection requires team_df",
                                 model_name,
                             )
+
+                    # Store in prediction cache (non-provider models only)
+                    if (
+                        self._pred_cache is not None
+                        and not model_def.provides
+                    ):
+                        cache_df = pd.DataFrame({"prediction": probs})
+                        self._pred_cache.store(
+                            model_name, test_season, fp, cache_df,
+                        )
+                        self._cache_stats["misses"] += 1
 
                     # Only add to ensemble predictions if included
                     if model_def.include_in_ensemble:

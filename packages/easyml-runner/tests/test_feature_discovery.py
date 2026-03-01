@@ -1,0 +1,234 @@
+"""Tests for feature discovery tools."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from easyml.runner.feature_discovery import (
+    compute_feature_correlations,
+    compute_feature_importance,
+    detect_redundant_features,
+    format_discovery_report,
+    suggest_feature_groups,
+    suggest_features,
+)
+
+
+# -----------------------------------------------------------------------
+# Fixtures
+# -----------------------------------------------------------------------
+
+@pytest.fixture()
+def sample_df():
+    """Dataset with known feature properties."""
+    rng = np.random.default_rng(42)
+    n = 200
+
+    seed = rng.normal(0, 3, n)
+    result = (seed + rng.normal(0, 1, n) > 0).astype(float)
+
+    return pd.DataFrame({
+        "result": result,
+        "Season": np.repeat([2020, 2021, 2022, 2023], 50),
+        "diff_seed_num": seed,
+        "diff_strong_signal": seed * 2 + rng.normal(0, 0.1, n),
+        "diff_weak_signal": rng.normal(0, 10, n),
+        "diff_redundant_a": seed * 1.5,
+        "diff_redundant_b": seed * 1.5 + rng.normal(0, 0.01, n),  # near-perfect correlation
+        "diff_noise": rng.normal(0, 1, n),
+        "diff_bt_barthag": rng.normal(0, 1, n),
+        "diff_bt_adj_o": rng.normal(0, 1, n),
+        "diff_sr_srs": rng.normal(0, 1, n),
+        "diff_sr_sos": rng.normal(0, 1, n),
+        "non_diff_col": rng.normal(0, 1, n),  # should be excluded by prefix filter
+    })
+
+
+# -----------------------------------------------------------------------
+# compute_feature_correlations
+# -----------------------------------------------------------------------
+
+class TestCorrelations:
+    def test_returns_sorted_by_abs_correlation(self, sample_df):
+        result = compute_feature_correlations(sample_df)
+        assert list(result.columns) == ["feature", "correlation", "abs_correlation"]
+        # Should be sorted descending
+        assert result["abs_correlation"].is_monotonic_decreasing
+
+    def test_only_diff_features(self, sample_df):
+        result = compute_feature_correlations(sample_df)
+        assert all(f.startswith("diff_") for f in result["feature"])
+        assert "non_diff_col" not in result["feature"].values
+
+    def test_strong_signal_ranks_high(self, sample_df):
+        result = compute_feature_correlations(sample_df, top_n=3)
+        top_features = result["feature"].tolist()
+        # diff_strong_signal and diff_seed_num should be near the top
+        assert "diff_strong_signal" in top_features or "diff_seed_num" in top_features
+
+    def test_top_n_limits_output(self, sample_df):
+        result = compute_feature_correlations(sample_df, top_n=3)
+        assert len(result) == 3
+
+    def test_top_n_zero_returns_all(self, sample_df):
+        result = compute_feature_correlations(sample_df, top_n=0)
+        diff_cols = [c for c in sample_df.columns if c.startswith("diff_")]
+        assert len(result) == len(diff_cols)
+
+    def test_empty_df_returns_empty(self):
+        df = pd.DataFrame({"result": [1, 0], "non_diff": [1.0, 2.0]})
+        result = compute_feature_correlations(df)
+        assert len(result) == 0
+
+
+# -----------------------------------------------------------------------
+# compute_feature_importance
+# -----------------------------------------------------------------------
+
+class TestImportance:
+    def test_xgboost_method_returns_sorted(self, sample_df):
+        result = compute_feature_importance(sample_df, method="xgboost")
+        assert list(result.columns) == ["feature", "importance"]
+        assert result["importance"].is_monotonic_decreasing
+
+    def test_mutual_info_method(self, sample_df):
+        result = compute_feature_importance(sample_df, method="mutual_info")
+        assert len(result) > 0
+        assert all(result["importance"] >= 0)
+
+    def test_importances_sum_to_one(self, sample_df):
+        result = compute_feature_importance(sample_df, method="xgboost", top_n=0)
+        assert result["importance"].sum() == pytest.approx(1.0, abs=0.01)
+
+    def test_top_n_limits(self, sample_df):
+        result = compute_feature_importance(sample_df, top_n=3)
+        assert len(result) == 3
+
+    def test_invalid_method_raises(self, sample_df):
+        with pytest.raises(ValueError, match="Unknown importance method"):
+            compute_feature_importance(sample_df, method="invalid")
+
+    def test_only_diff_features(self, sample_df):
+        result = compute_feature_importance(sample_df, top_n=0)
+        assert all(f.startswith("diff_") for f in result["feature"])
+
+
+# -----------------------------------------------------------------------
+# detect_redundant_features
+# -----------------------------------------------------------------------
+
+class TestRedundancy:
+    def test_finds_near_perfect_correlation(self, sample_df):
+        pairs = detect_redundant_features(sample_df, threshold=0.95)
+        pair_features = {(a, b) for a, b, _ in pairs}
+        # redundant_a and redundant_b should be flagged
+        assert any(
+            ("diff_redundant_a" in {a, b} and "diff_redundant_b" in {a, b})
+            for a, b in pair_features
+        )
+
+    def test_high_threshold_finds_fewer(self, sample_df):
+        pairs_low = detect_redundant_features(sample_df, threshold=0.8)
+        pairs_high = detect_redundant_features(sample_df, threshold=0.99)
+        assert len(pairs_high) <= len(pairs_low)
+
+    def test_sorted_by_abs_correlation(self, sample_df):
+        pairs = detect_redundant_features(sample_df, threshold=0.5)
+        if len(pairs) > 1:
+            abs_corrs = [abs(r) for _, _, r in pairs]
+            assert abs_corrs == sorted(abs_corrs, reverse=True)
+
+    def test_no_duplicates(self, sample_df):
+        pairs = detect_redundant_features(sample_df, threshold=0.5)
+        # Each pair should appear only once (upper triangle)
+        seen = set()
+        for a, b, _ in pairs:
+            key = tuple(sorted([a, b]))
+            assert key not in seen, f"Duplicate pair: {key}"
+            seen.add(key)
+
+    def test_empty_with_few_features(self):
+        df = pd.DataFrame({"diff_a": [1.0, 2.0], "result": [0, 1]})
+        pairs = detect_redundant_features(df)
+        assert pairs == []
+
+
+# -----------------------------------------------------------------------
+# suggest_feature_groups
+# -----------------------------------------------------------------------
+
+class TestFeatureGroups:
+    def test_groups_by_prefix(self, sample_df):
+        groups = suggest_feature_groups(sample_df)
+        assert "bt" in groups  # diff_bt_barthag, diff_bt_adj_o
+        assert "sr" in groups  # diff_sr_srs, diff_sr_sos
+        assert "seed" in groups  # diff_seed_num
+
+    def test_bt_group_has_both(self, sample_df):
+        groups = suggest_feature_groups(sample_df)
+        assert "diff_bt_barthag" in groups["bt"]
+        assert "diff_bt_adj_o" in groups["bt"]
+
+    def test_no_non_diff_features(self, sample_df):
+        groups = suggest_feature_groups(sample_df)
+        all_features = [f for feats in groups.values() for f in feats]
+        assert all(f.startswith("diff_") for f in all_features)
+
+
+# -----------------------------------------------------------------------
+# suggest_features
+# -----------------------------------------------------------------------
+
+class TestSuggestFeatures:
+    def test_returns_requested_count(self, sample_df):
+        features = suggest_features(sample_df, count=5)
+        assert len(features) == 5
+
+    def test_excludes_specified(self, sample_df):
+        features = suggest_features(
+            sample_df, count=5, exclude=["diff_seed_num"]
+        )
+        assert "diff_seed_num" not in features
+
+    def test_filters_redundant(self, sample_df):
+        features = suggest_features(sample_df, count=10)
+        # Should not include both redundant_a and redundant_b
+        has_a = "diff_redundant_a" in features
+        has_b = "diff_redundant_b" in features
+        assert not (has_a and has_b), "Both redundant features should not be suggested"
+
+
+# -----------------------------------------------------------------------
+# format_discovery_report
+# -----------------------------------------------------------------------
+
+class TestFormatReport:
+    def test_produces_markdown(self, sample_df):
+        corr = compute_feature_correlations(sample_df)
+        imp = compute_feature_importance(sample_df, method="mutual_info")
+        red = detect_redundant_features(sample_df, threshold=0.95)
+        groups = suggest_feature_groups(sample_df)
+
+        report = format_discovery_report(corr, imp, red, groups)
+        assert "## Feature Discovery Report" in report
+        assert "### Target Correlations" in report
+        assert "### Feature Importance" in report
+        assert "### Feature Groups" in report
+
+    def test_includes_redundancy_section_when_present(self, sample_df):
+        corr = compute_feature_correlations(sample_df)
+        imp = compute_feature_importance(sample_df, method="mutual_info")
+        red = detect_redundant_features(sample_df, threshold=0.95)
+        groups = suggest_feature_groups(sample_df)
+
+        report = format_discovery_report(corr, imp, red, groups)
+        assert "Redundant Pairs" in report
+
+    def test_no_redundancy_section_when_empty(self, sample_df):
+        corr = compute_feature_correlations(sample_df)
+        imp = compute_feature_importance(sample_df, method="mutual_info")
+        groups = suggest_feature_groups(sample_df)
+
+        report = format_discovery_report(corr, imp, [], groups)
+        assert "Redundant Pairs" not in report

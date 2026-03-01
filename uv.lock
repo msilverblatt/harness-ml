@@ -22,6 +22,7 @@ members = [
     "easyml-features",
     "easyml-guardrails",
     "easyml-models",
+    "easyml-plugin",
     "easyml-runner",
     "easyml-schemas",
 ]
@@ -647,6 +648,21 @@ requires-dist = [
     { name = "xgboost", marker = "extra == 'xgboost'", specifier = ">=1.7" },
 ]
 provides-extras = ["xgboost", "catboost", "lightgbm", "torch", "all"]
+
+[[package]]
+name = "easyml-plugin"
+version = "0.1.0"
+source = { editable = "packages/easyml-plugin" }
+dependencies = [
+    { name = "easyml-runner" },
+    { name = "mcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "easyml-runner", editable = "packages/easyml-runner" },
+    { name = "mcp", specifier = ">=1.0" },
+]
 
 [[package]]
 name = "easyml-runner"

@@ -1,19 +1,27 @@
-"""Tests for experiment change detection and smart execution."""
+"""Tests for experiment change detection, lifecycle, and smart execution."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from easyml.runner.experiment import (
     ChangeSet,
     ExperimentResult,
+    _rank_sweep_results,
+    auto_log_result,
+    auto_next_id,
     compute_deltas,
     detect_experiment_changes,
     format_change_summary,
     format_delta_table,
+    format_sweep_summary,
     load_baseline_metrics,
+    promote_experiment,
+    run_sweep,
+    save_frozen_config,
 )
 
 
@@ -315,3 +323,556 @@ class TestFormatDeltaTable:
         # Should only have header rows
         lines = table.strip().split("\n")
         assert len(lines) == 2
+
+
+# -----------------------------------------------------------------------
+# auto_next_id
+# -----------------------------------------------------------------------
+
+class TestAutoNextId:
+    """Tests for auto_next_id experiment numbering."""
+
+    def test_empty_dir_returns_001(self, tmp_path):
+        assert auto_next_id(tmp_path) == "exp-001"
+
+    def test_nonexistent_dir_returns_001(self, tmp_path):
+        assert auto_next_id(tmp_path / "doesnt_exist") == "exp-001"
+
+    def test_increments_from_existing(self, tmp_path):
+        (tmp_path / "exp-001-baseline").mkdir()
+        (tmp_path / "exp-002-lr-sweep").mkdir()
+        assert auto_next_id(tmp_path) == "exp-003"
+
+    def test_handles_gaps(self, tmp_path):
+        (tmp_path / "exp-001-a").mkdir()
+        (tmp_path / "exp-005-b").mkdir()
+        assert auto_next_id(tmp_path) == "exp-006"
+
+    def test_ignores_files(self, tmp_path):
+        (tmp_path / "exp-003-readme.md").touch()
+        (tmp_path / "exp-001-real").mkdir()
+        assert auto_next_id(tmp_path) == "exp-002"
+
+    def test_custom_prefix(self, tmp_path):
+        (tmp_path / "exp-002-test").mkdir()
+        assert auto_next_id(tmp_path, prefix="w-exp") == "w-exp-003"
+
+    def test_recognizes_prefixed_dirs(self, tmp_path):
+        (tmp_path / "w-exp-004-women").mkdir()
+        assert auto_next_id(tmp_path) == "exp-005"
+
+
+# -----------------------------------------------------------------------
+# auto_log_result
+# -----------------------------------------------------------------------
+
+class TestAutoLogResult:
+    """Tests for auto_log_result experiment logging."""
+
+    def test_creates_file_if_missing(self, tmp_path):
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test hypothesis", "changed lr",
+            {"accuracy": 0.76, "brier_score": 0.17},
+            {"accuracy": 0.75, "brier_score": 0.18},
+            "improved",
+        )
+        assert log_path.exists()
+        content = log_path.read_text()
+        assert "# Experiment Log" in content
+        assert "exp-001" in content
+
+    def test_appends_to_existing(self, tmp_path):
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "h1", "c1",
+            {"accuracy": 0.75}, {}, "neutral",
+        )
+        auto_log_result(
+            log_path, "exp-002", "h2", "c2",
+            {"accuracy": 0.76}, {"accuracy": 0.75}, "improved",
+        )
+        content = log_path.read_text()
+        assert "exp-001" in content
+        assert "exp-002" in content
+
+    def test_includes_deltas(self, tmp_path):
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test", "changes",
+            {"brier_score": 0.17}, {"brier_score": 0.18},
+            "improved",
+        )
+        content = log_path.read_text()
+        assert "-0.0100" in content  # delta
+
+    def test_missing_metrics_show_dash(self, tmp_path):
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test", "changes",
+            {}, {}, "neutral",
+        )
+        content = log_path.read_text()
+        assert "| - |" in content
+
+
+# -----------------------------------------------------------------------
+# save_frozen_config
+# -----------------------------------------------------------------------
+
+class TestSaveFrozenConfig:
+    """Tests for save_frozen_config."""
+
+    def test_writes_json(self, tmp_path):
+        exp_dir = tmp_path / "exp-001"
+        path = save_frozen_config(
+            exp_dir,
+            resolved_config={"models": {"m1": {"type": "xgboost"}}},
+            production_run_id="20240301_120000",
+            features_hash="abc123",
+            cache_stats={"hits": 3, "misses": 1},
+        )
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert data["production_run_id"] == "20240301_120000"
+        assert data["features_hash"] == "abc123"
+        assert data["cache_stats"]["hits"] == 3
+        assert "resolved_config" in data
+        assert "frozen_at" in data
+
+    def test_creates_dir_if_needed(self, tmp_path):
+        exp_dir = tmp_path / "nested" / "exp-001"
+        path = save_frozen_config(exp_dir, resolved_config={})
+        assert path.exists()
+
+    def test_default_values(self, tmp_path):
+        path = save_frozen_config(tmp_path / "exp", resolved_config={"x": 1})
+        data = json.loads(path.read_text())
+        assert data["production_run_id"] is None
+        assert data["features_hash"] == ""
+        assert data["cache_stats"] == {}
+
+
+# -----------------------------------------------------------------------
+# promote_experiment
+# -----------------------------------------------------------------------
+
+class TestPromoteExperiment:
+    """Tests for promote_experiment with safety checks."""
+
+    def _setup_experiment(self, tmp_path, exp_metrics, base_metrics, overlay=None):
+        """Helper to create experiment dir with results and overlay."""
+        experiments_dir = tmp_path / "experiments"
+        config_dir = tmp_path / "config"
+        exp_dir = experiments_dir / "exp-001"
+        exp_dir.mkdir(parents=True)
+        config_dir.mkdir(parents=True)
+
+        results = {
+            "metrics": exp_metrics,
+            "baseline_metrics": base_metrics,
+        }
+        (exp_dir / "results.json").write_text(json.dumps(results))
+
+        overlay = overlay or {"models": {"m1": {"params": {"lr": 0.05}}}}
+        (exp_dir / "overlay.yaml").write_text(yaml.dump(overlay))
+
+        # Create existing models.yaml
+        (config_dir / "models.yaml").write_text(
+            yaml.dump({"models": {"m1": {"type": "xgboost", "params": {"lr": 0.01}}}})
+        )
+
+        return experiments_dir, config_dir
+
+    def test_promotes_on_improvement(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.16},
+            base_metrics={"brier_score": 0.18},
+        )
+        result = promote_experiment("exp-001", experiments_dir, config_dir)
+        assert result["promoted"] is True
+        assert "improvement" in result
+
+    def test_rejects_regression(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.20},
+            base_metrics={"brier_score": 0.18},
+        )
+        result = promote_experiment("exp-001", experiments_dir, config_dir)
+        assert result["promoted"] is False
+        assert "No improvement" in result["reason"]
+
+    def test_flags_suspicious_improvement(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.08},  # way too good
+            base_metrics={"brier_score": 0.18},
+        )
+        result = promote_experiment(
+            "exp-001", experiments_dir, config_dir, max_improvement=0.05
+        )
+        assert result["promoted"] is False
+        assert result["reason"] == "suspicious_improvement"
+        assert "leakage" in result["warning"].lower()
+
+    def test_accuracy_higher_is_better(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"accuracy": 0.78},
+            base_metrics={"accuracy": 0.75},
+        )
+        result = promote_experiment(
+            "exp-001", experiments_dir, config_dir, primary_metric="accuracy"
+        )
+        assert result["promoted"] is True
+
+    def test_accuracy_regression_rejected(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"accuracy": 0.70},
+            base_metrics={"accuracy": 0.75},
+        )
+        result = promote_experiment(
+            "exp-001", experiments_dir, config_dir, primary_metric="accuracy"
+        )
+        assert result["promoted"] is False
+
+    def test_missing_results_file(self, tmp_path):
+        experiments_dir = tmp_path / "experiments"
+        (experiments_dir / "exp-001").mkdir(parents=True)
+        result = promote_experiment(
+            "exp-001", experiments_dir, tmp_path / "config"
+        )
+        assert result["promoted"] is False
+        assert "No results.json" in result["reason"]
+
+    def test_missing_baseline(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.16},
+            base_metrics={},
+        )
+        result = promote_experiment("exp-001", experiments_dir, config_dir)
+        assert result["promoted"] is False
+        assert "No baseline" in result["reason"]
+
+    def test_applies_overlay_to_config(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.16},
+            base_metrics={"brier_score": 0.18},
+            overlay={"models": {"m1": {"params": {"lr": 0.05}}}},
+        )
+        result = promote_experiment("exp-001", experiments_dir, config_dir)
+        assert result["promoted"] is True
+
+        # Verify config was updated
+        updated = yaml.safe_load((config_dir / "models.yaml").read_text())
+        assert updated["models"]["m1"]["params"]["lr"] == 0.05
+
+    def test_applies_ensemble_overlay(self, tmp_path):
+        experiments_dir, config_dir = self._setup_experiment(
+            tmp_path,
+            exp_metrics={"brier_score": 0.16},
+            base_metrics={"brier_score": 0.18},
+            overlay={"ensemble": {"temperature": 1.1}},
+        )
+        result = promote_experiment("exp-001", experiments_dir, config_dir)
+        assert result["promoted"] is True
+        assert any("ensemble" in c.lower() for c in result["changes"])
+
+
+# -----------------------------------------------------------------------
+# run_sweep
+# -----------------------------------------------------------------------
+
+class TestRunSweep:
+    """Tests for sweep execution via run_sweep()."""
+
+    def _setup_sweep_project(self, tmp_path, overlay):
+        """Create minimal project with sweep overlay."""
+        import numpy as np
+        import pandas as pd
+
+        # Create data
+        project_dir = tmp_path / "project"
+        features_dir = project_dir / "data" / "features"
+        features_dir.mkdir(parents=True)
+
+        rng = np.random.default_rng(42)
+        n = 200
+        seasons = rng.choice([2022, 2023, 2024], size=n)
+        df = pd.DataFrame({
+            "season": seasons,
+            "result": rng.integers(0, 2, size=n),
+            "diff_x": rng.standard_normal(n),
+            "diff_seed_num": rng.integers(-15, 16, size=n).astype(float),
+        })
+        df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+
+        # Config
+        config_dir = project_dir / "config"
+        config_dir.mkdir(parents=True)
+        pipeline_yaml = {
+            "data": {
+                "raw_dir": "data/raw",
+                "processed_dir": "data/processed",
+                "features_dir": str(features_dir),
+            },
+            "backtest": {
+                "cv_strategy": "leave_one_season_out",
+                "seasons": [2022, 2023, 2024],
+                "metrics": ["brier", "accuracy"],
+                "min_train_folds": 1,
+            },
+        }
+        (config_dir / "pipeline.yaml").write_text(
+            yaml.dump(pipeline_yaml, default_flow_style=False)
+        )
+        (config_dir / "models.yaml").write_text(
+            yaml.dump({
+                "models": {
+                    "logreg": {
+                        "type": "logistic_regression",
+                        "features": ["diff_x"],
+                        "params": {"max_iter": 200, "C": 1.0},
+                        "active": True,
+                    },
+                },
+            }, default_flow_style=False)
+        )
+        (config_dir / "ensemble.yaml").write_text(
+            yaml.dump({"ensemble": {"method": "average"}}, default_flow_style=False)
+        )
+
+        # Experiment dir + overlay
+        experiments_dir = project_dir / "experiments"
+        exp_dir = experiments_dir / "exp-001"
+        exp_dir.mkdir(parents=True)
+        overlay_path = exp_dir / "overlay.yaml"
+        overlay_path.write_text(
+            yaml.dump(overlay, default_flow_style=False)
+        )
+
+        return project_dir, config_dir, experiments_dir, overlay_path
+
+    def test_non_sweep_returns_flag(self, tmp_path):
+        """Overlay without sweep key returns is_sweep=False."""
+        overlay = {"models": {"logreg": {"params": {"C": 0.5}}}}
+        project_dir, config_dir, experiments_dir, overlay_path = (
+            self._setup_sweep_project(tmp_path, overlay)
+        )
+        result = run_sweep(
+            overlay_path=overlay_path,
+            config_dir=config_dir,
+            project_dir=project_dir,
+            experiments_dir=experiments_dir,
+            experiment_id="exp-001",
+        )
+        assert result["is_sweep"] is False
+
+    def test_sweep_creates_variants(self, tmp_path):
+        """Sweep creates sub-experiment dirs with results."""
+        overlay = {
+            "sweep": {
+                "key": "models.logreg.params.C",
+                "values": [0.1, 1.0],
+            },
+            "description": "C sweep",
+        }
+        project_dir, config_dir, experiments_dir, overlay_path = (
+            self._setup_sweep_project(tmp_path, overlay)
+        )
+        result = run_sweep(
+            overlay_path=overlay_path,
+            config_dir=config_dir,
+            project_dir=project_dir,
+            experiments_dir=experiments_dir,
+            experiment_id="exp-001",
+        )
+
+        assert result["is_sweep"] is True
+        assert result["n_variants"] == 2
+        assert len(result["results"]) == 2
+
+        # Verify sub-dirs exist
+        assert (experiments_dir / "exp-001-v00").exists()
+        assert (experiments_dir / "exp-001-v01").exists()
+
+        # Each variant should have results.json and frozen_config.json
+        for i in range(2):
+            vdir = experiments_dir / f"exp-001-v{i:02d}"
+            assert (vdir / "results.json").exists()
+            assert (vdir / "frozen_config.json").exists()
+            assert (vdir / "overlay.yaml").exists()
+
+    def test_sweep_ranks_results(self, tmp_path):
+        """Results are ranked by primary metric."""
+        overlay = {
+            "sweep": {
+                "key": "models.logreg.params.C",
+                "values": [0.01, 0.1, 1.0],
+            },
+        }
+        project_dir, config_dir, experiments_dir, overlay_path = (
+            self._setup_sweep_project(tmp_path, overlay)
+        )
+        result = run_sweep(
+            overlay_path=overlay_path,
+            config_dir=config_dir,
+            project_dir=project_dir,
+            experiments_dir=experiments_dir,
+            experiment_id="exp-001",
+            primary_metric="brier",
+        )
+
+        ranked = result["results"]
+        assert ranked[0].get("rank") == 1
+        # Brier scores should be in ascending order (lower = better)
+        briers = [
+            r["metrics"].get("brier")
+            for r in ranked
+            if "error" not in r and r["metrics"].get("brier") is not None
+        ]
+        assert briers == sorted(briers)
+
+    def test_sweep_uses_prediction_cache(self, tmp_path):
+        """Unchanged models should get cache hits across variants."""
+        overlay = {
+            "sweep": {
+                "key": "models.logreg.params.C",
+                "values": [0.1, 1.0],
+            },
+        }
+        project_dir, config_dir, experiments_dir, overlay_path = (
+            self._setup_sweep_project(tmp_path, overlay)
+        )
+        result = run_sweep(
+            overlay_path=overlay_path,
+            config_dir=config_dir,
+            project_dir=project_dir,
+            experiments_dir=experiments_dir,
+            experiment_id="exp-001",
+        )
+
+        # Both variants change the model config, so all entries are misses.
+        # But at least the cache stats should be tracked.
+        stats = result.get("total_cache_stats", {})
+        total = stats.get("hits", 0) + stats.get("misses", 0)
+        assert total > 0
+
+    def test_best_variant_populated(self, tmp_path):
+        """Best variant is populated with the top-ranked result."""
+        overlay = {
+            "sweep": {
+                "key": "models.logreg.params.C",
+                "values": [0.1, 1.0],
+            },
+        }
+        project_dir, config_dir, experiments_dir, overlay_path = (
+            self._setup_sweep_project(tmp_path, overlay)
+        )
+        result = run_sweep(
+            overlay_path=overlay_path,
+            config_dir=config_dir,
+            project_dir=project_dir,
+            experiments_dir=experiments_dir,
+            experiment_id="exp-001",
+            primary_metric="brier",
+        )
+
+        assert result["best"] is not None
+        assert result["best"]["rank"] == 1
+        assert "metrics" in result["best"]
+
+
+# -----------------------------------------------------------------------
+# _rank_sweep_results
+# -----------------------------------------------------------------------
+
+class TestRankSweepResults:
+    """Tests for _rank_sweep_results helper."""
+
+    def test_ranks_brier_ascending(self):
+        """Lower brier = better = rank 1."""
+        results = [
+            {"variant_id": "v0", "metrics": {"brier_score": 0.25}},
+            {"variant_id": "v1", "metrics": {"brier_score": 0.20}},
+            {"variant_id": "v2", "metrics": {"brier_score": 0.22}},
+        ]
+        ranked = _rank_sweep_results(results, "brier_score")
+        assert ranked[0]["variant_id"] == "v1"
+        assert ranked[0]["rank"] == 1
+        assert ranked[1]["variant_id"] == "v2"
+        assert ranked[2]["variant_id"] == "v0"
+
+    def test_ranks_accuracy_descending(self):
+        """Higher accuracy = better = rank 1."""
+        results = [
+            {"variant_id": "v0", "metrics": {"accuracy": 0.72}},
+            {"variant_id": "v1", "metrics": {"accuracy": 0.75}},
+            {"variant_id": "v2", "metrics": {"accuracy": 0.70}},
+        ]
+        ranked = _rank_sweep_results(results, "accuracy")
+        assert ranked[0]["variant_id"] == "v1"
+        assert ranked[0]["rank"] == 1
+
+    def test_errored_variants_appended(self):
+        """Error variants go at the end of ranked results."""
+        results = [
+            {"variant_id": "v0", "metrics": {"brier_score": 0.25}},
+            {"variant_id": "v1", "error": "training failed"},
+            {"variant_id": "v2", "metrics": {"brier_score": 0.20}},
+        ]
+        ranked = _rank_sweep_results(results, "brier_score")
+        assert ranked[-1]["variant_id"] == "v1"
+        assert "error" in ranked[-1]
+
+    def test_empty_results(self):
+        """Empty results list returns empty."""
+        assert _rank_sweep_results([], "brier_score") == []
+
+
+# -----------------------------------------------------------------------
+# format_sweep_summary
+# -----------------------------------------------------------------------
+
+class TestFormatSweepSummary:
+    """Tests for format_sweep_summary."""
+
+    def test_produces_markdown(self):
+        sweep_result = {
+            "is_sweep": True,
+            "experiment_id": "exp-001",
+            "n_variants": 2,
+            "results": [
+                {
+                    "variant_id": "exp-001-v00",
+                    "description": "C=0.1",
+                    "metrics": {"brier_score": 0.20, "accuracy": 0.75},
+                    "rank": 1,
+                },
+                {
+                    "variant_id": "exp-001-v01",
+                    "description": "C=1.0",
+                    "metrics": {"brier_score": 0.22, "accuracy": 0.73},
+                    "rank": 2,
+                },
+            ],
+            "best": {
+                "variant_id": "exp-001-v00",
+                "description": "C=0.1",
+                "rank": 1,
+            },
+            "total_cache_stats": {"hits": 3, "misses": 6},
+        }
+        summary = format_sweep_summary(sweep_result)
+        assert "## Sweep Results" in summary
+        assert "exp-001-v00" in summary
+        assert "Cache:" in summary
+        assert "hits" in summary.lower()
+
+    def test_non_sweep_message(self):
+        assert "Not a sweep" in format_sweep_summary({"is_sweep": False})

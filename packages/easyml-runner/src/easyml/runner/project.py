@@ -257,19 +257,20 @@ class Project:
     def add_model(
         self,
         name: str,
-        type: str,
-        features: list[str],
+        type: str | None = None,
+        features: list[str] | None = None,
         params: dict[str, Any] | None = None,
-        mode: str = "classifier",
+        mode: str | None = None,
         active: bool = True,
-        n_seeds: int = 1,
+        n_seeds: int | None = None,
         pre_calibration: str | None = None,
         cdf_scale: float | None = None,
-        train_seasons: str = "all",
+        train_seasons: str | None = None,
         provides: list[str] | None = None,
-        provides_level: str = "matchup",
+        provides_level: str | None = None,
         include_in_ensemble: bool = True,
-        provider_isolation: str = "none",
+        provider_isolation: str | None = None,
+        preset: str | None = None,
     ) -> "Project":
         """Add a model to the pipeline.
 
@@ -279,6 +280,10 @@ class Project:
 
         Parameters
         ----------
+        preset : str | None
+            Name of a model preset (e.g., "xgboost_classifier").  The preset
+            provides default values for type, mode, params, etc.  Explicit
+            keyword arguments override preset values.
         provides : list[str] | None
             Feature columns this model outputs for downstream models.
         provides_level : str
@@ -291,21 +296,56 @@ class Project:
             "none" or "per_season". "per_season" retrains provider per
             training season for leak-free features.
         """
-        self._models[name] = ModelDef(
-            type=type,
-            features=features,
-            params=params or {},
-            mode=mode,
-            active=active,
-            n_seeds=n_seeds,
-            pre_calibration=pre_calibration,
-            cdf_scale=cdf_scale,
-            train_seasons=train_seasons,
-            provides=provides or [],
-            provides_level=provides_level,
-            include_in_ensemble=include_in_ensemble,
-            provider_isolation=provider_isolation,
-        )
+        if preset is not None:
+            from easyml.runner.presets import apply_preset
+
+            # Build overrides from explicit kwargs
+            overrides: dict[str, Any] = {}
+            if type is not None:
+                overrides["type"] = type
+            if features is not None:
+                overrides["features"] = features
+            if params is not None:
+                overrides["params"] = params
+            if mode is not None:
+                overrides["mode"] = mode
+            if n_seeds is not None:
+                overrides["n_seeds"] = n_seeds
+            if train_seasons is not None:
+                overrides["train_seasons"] = train_seasons
+            if pre_calibration is not None:
+                overrides["pre_calibration"] = pre_calibration
+            if cdf_scale is not None:
+                overrides["cdf_scale"] = cdf_scale
+            if provides is not None:
+                overrides["provides"] = provides
+            if provides_level is not None:
+                overrides["provides_level"] = provides_level
+            if provider_isolation is not None:
+                overrides["provider_isolation"] = provider_isolation
+            overrides["active"] = active
+            overrides["include_in_ensemble"] = include_in_ensemble
+
+            config = apply_preset(preset, overrides)
+            self._models[name] = ModelDef(**config)
+        else:
+            if type is None:
+                raise ValueError("Either 'type' or 'preset' must be specified.")
+            self._models[name] = ModelDef(
+                type=type,
+                features=features or [],
+                params=params or {},
+                mode=mode or "classifier",
+                active=active,
+                n_seeds=n_seeds or 1,
+                pre_calibration=pre_calibration,
+                cdf_scale=cdf_scale,
+                train_seasons=train_seasons or "all",
+                provides=provides or [],
+                provides_level=provides_level or "matchup",
+                include_in_ensemble=include_in_ensemble,
+                provider_isolation=provider_isolation or "none",
+            )
         return self
 
     def remove_model(self, name: str) -> "Project":
@@ -367,14 +407,23 @@ class Project:
         seasons: list[int] | None = None,
         metrics: list[str] | None = None,
         min_train_folds: int = 1,
+        min_train_seasons: int = 3,
     ) -> "Project":
         """Configure the backtest strategy.
 
-        If seasons is not provided and data is available, auto-detects
-        seasons from the parquet file.
+        If *seasons* is not provided and data is available, auto-detects
+        holdout-eligible seasons from the parquet file, reserving the
+        first *min_train_seasons* as training-only.
+
+        Parameters
+        ----------
+        min_train_seasons : int
+            When auto-detecting, the earliest N seasons are reserved for
+            training and excluded from the holdout list.  Ignored when
+            *seasons* is provided explicitly.
         """
         if seasons is None:
-            seasons = self._auto_detect_seasons()
+            seasons = self._auto_detect_seasons(min_train_seasons=min_train_seasons)
 
         self._backtest = BacktestConfig(
             cv_strategy=cv_strategy,
@@ -384,8 +433,12 @@ class Project:
         )
         return self
 
-    def _auto_detect_seasons(self) -> list[int]:
-        """Try to detect available seasons from the data."""
+    def _auto_detect_seasons(self, min_train_seasons: int = 3) -> list[int]:
+        """Detect holdout-eligible seasons from the data.
+
+        Returns all unique seasons after reserving the first
+        *min_train_seasons* for training.
+        """
         parquet_path = (
             self.project_dir / self._data.features_dir / "matchup_features.parquet"
         )
@@ -407,7 +460,10 @@ class Project:
         if season_col is None:
             return []
 
-        return sorted(df[season_col].dropna().unique().astype(int).tolist())
+        all_seasons = sorted(df[season_col].dropna().unique().astype(int).tolist())
+        if len(all_seasons) <= min_train_seasons:
+            return []
+        return all_seasons[min_train_seasons:]
 
     # ------------------------------------------------------------------
     # Build / validate

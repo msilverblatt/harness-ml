@@ -1,0 +1,7 @@
+{
+  "easyml": {
+    "command": "uv",
+    "args": ["run", "python", "-m", "easyml.plugin.mcp_server"],
+    "cwd": "${CLAUDE_PLUGIN_ROOT}/../.."
+  }
+}

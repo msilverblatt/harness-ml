@@ -149,6 +149,11 @@ def _server_yaml(project_name: str) -> dict:
                 "list_models",
                 "list_features",
                 "list_experiments",
+                "profile_data",
+                "available_features",
+                "list_runs",
+                "list_presets",
+                "discover_features",
             ],
         },
     }

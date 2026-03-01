@@ -292,9 +292,19 @@ def experiment_list(ctx: click.Context) -> None:
 @experiment.command("run")
 @click.argument("experiment_id")
 @click.option("--ensemble-only", is_flag=True, help="Only re-ensemble, skip model training.")
+@click.option("--primary-metric", default="brier", help="Metric for sweep ranking.")
 @click.pass_context
-def experiment_run(ctx: click.Context, experiment_id: str, ensemble_only: bool) -> None:
-    """Run an experiment: load overlay, train, backtest, compare to baseline."""
+def experiment_run(
+    ctx: click.Context,
+    experiment_id: str,
+    ensemble_only: bool,
+    primary_metric: str,
+) -> None:
+    """Run an experiment: load overlay, train, backtest, compare to baseline.
+
+    If the overlay contains a sweep key, automatically runs a sweep
+    across all variant configurations and ranks by primary metric.
+    """
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
 
@@ -305,7 +315,9 @@ def experiment_run(ctx: click.Context, experiment_id: str, ensemble_only: bool) 
         detect_experiment_changes,
         format_change_summary,
         format_delta_table,
+        format_sweep_summary,
         load_baseline_metrics,
+        run_sweep,
     )
     from easyml.runner.pipeline import PipelineRunner
 
@@ -326,6 +338,27 @@ def experiment_run(ctx: click.Context, experiment_id: str, ensemble_only: bool) 
         with open(overlay_path) as f:
             overlay = _yaml.safe_load(f) or {}
 
+    # Route to sweep runner if overlay has a sweep key
+    if "sweep" in overlay:
+        click.echo(f"Sweep detected in overlay. Running sweep for {experiment_id}...")
+        try:
+            variant = "w" if gender.upper() == "W" else None
+            experiments_dir = Path(exp_cfg.experiments_dir or "experiments")
+            sweep_result = run_sweep(
+                overlay_path=overlay_path,
+                config_dir=Path(config_dir),
+                project_dir=Path("."),
+                experiments_dir=experiments_dir,
+                experiment_id=experiment_id,
+                variant=variant,
+                primary_metric=primary_metric,
+            )
+            click.echo(format_sweep_summary(sweep_result))
+        except Exception as exc:
+            click.echo(f"Sweep {experiment_id} failed: {exc}", err=True)
+            raise SystemExit(1)
+        return
+
     # Detect changes between production config and overlay
     production_dict = result.config.model_dump()
     change_set = detect_experiment_changes(production_dict, overlay)
@@ -345,7 +378,13 @@ def experiment_run(ctx: click.Context, experiment_id: str, ensemble_only: bool) 
     try:
         runner.load()
         bt_result = runner.backtest()
-        click.echo(json.dumps(bt_result, indent=2, default=str))
+
+        # Print markdown report if available, else raw JSON
+        report = bt_result.get("report") if isinstance(bt_result, dict) else None
+        if report:
+            click.echo(report)
+        else:
+            click.echo(json.dumps(bt_result, indent=2, default=str))
 
         # Try to compare against baseline metrics
         data_cfg = result.config.data
@@ -394,8 +433,10 @@ def run_train(ctx: click.Context, run_id: str | None) -> None:
 
 
 @run.command("backtest")
+@click.option("--run-dir", default=None, help="Save artifacts to this run directory.")
+@click.option("--json-output", is_flag=True, help="Output raw JSON instead of markdown.")
 @click.pass_context
-def run_backtest(ctx: click.Context) -> None:
+def run_backtest(ctx: click.Context, run_dir: str | None, json_output: bool) -> None:
     """Run backtesting across all configured seasons."""
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
@@ -407,10 +448,19 @@ def run_backtest(ctx: click.Context) -> None:
         project_dir=".",
         config_dir=config_dir,
         variant=variant,
+        run_dir=run_dir,
     )
     runner.load()
     result = runner.backtest()
-    click.echo(json.dumps(result, indent=2, default=str))
+
+    if json_output:
+        click.echo(json.dumps(result, indent=2, default=str))
+    else:
+        report = result.get("report")
+        if report:
+            click.echo(report)
+        else:
+            click.echo(json.dumps(result, indent=2, default=str))
 
 
 @run.command("predict")
@@ -452,6 +502,57 @@ def run_pipeline(ctx: click.Context) -> None:
     )
     result = runner.run_full()
     click.echo(json.dumps(result, indent=2, default=str))
+
+
+@run.command("list")
+@click.pass_context
+def run_list(ctx: click.Context) -> None:
+    """List all pipeline runs."""
+    config_dir = ctx.obj["config_dir"]
+    gender = ctx.obj["gender"]
+    result = _load_config(config_dir, gender)
+
+    from easyml.runner.run_manager import RunManager
+
+    outputs_dir = result.config.data.outputs_dir
+    if not outputs_dir:
+        click.echo("No outputs_dir configured in pipeline.yaml.", err=True)
+        raise SystemExit(1)
+
+    mgr = RunManager(Path(outputs_dir))
+    runs = mgr.list_runs()
+    if not runs:
+        click.echo("No runs found.")
+        return
+
+    for r in runs:
+        marker = " (current)" if r["is_current"] else ""
+        click.echo(f"  {r['run_id']}{marker}")
+
+
+@run.command("promote")
+@click.argument("run_id")
+@click.pass_context
+def run_promote(ctx: click.Context, run_id: str) -> None:
+    """Promote a run to 'current' via symlink."""
+    config_dir = ctx.obj["config_dir"]
+    gender = ctx.obj["gender"]
+    result = _load_config(config_dir, gender)
+
+    from easyml.runner.run_manager import RunManager
+
+    outputs_dir = result.config.data.outputs_dir
+    if not outputs_dir:
+        click.echo("No outputs_dir configured in pipeline.yaml.", err=True)
+        raise SystemExit(1)
+
+    mgr = RunManager(Path(outputs_dir))
+    try:
+        mgr.promote(run_id)
+        click.echo(f"Promoted run: {run_id}")
+    except (FileNotFoundError, ValueError) as exc:
+        click.echo(f"Error: {exc}", err=True)
+        raise SystemExit(1)
 
 
 # -----------------------------------------------------------------------
