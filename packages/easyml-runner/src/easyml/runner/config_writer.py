@@ -270,13 +270,14 @@ def add_dataset(
 def profile_data(project_dir: Path, category: str | None = None) -> str:
     """Profile the features dataset."""
     from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
         parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = project_dir / "data" / "features" / "features.parquet"
+        parquet_path = get_features_path(project_dir, DataConfig())
 
     if not parquet_path.exists():
         return f"**Error**: Data file not found: {parquet_path}"
@@ -293,13 +294,14 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
 def available_features(project_dir: Path, prefix: str | None = None) -> str:
     """List available feature columns from the dataset."""
     from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
         parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = project_dir / "data" / "features" / "features.parquet"
+        parquet_path = get_features_path(project_dir, DataConfig())
 
     import pandas as pd
 
@@ -382,13 +384,14 @@ def discover_features(
 ) -> str:
     """Run feature discovery analysis."""
     from easyml.runner.data_utils import get_feature_columns, get_features_path, load_data_config
+    from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
         parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = project_dir / "data" / "features" / "features.parquet"
+        parquet_path = get_features_path(project_dir, DataConfig())
         config = None
 
     import pandas as pd
@@ -708,6 +711,67 @@ def run_backtest(
         return _format_backtest_result(result, run_id=run_id)
     except Exception as exc:
         return f"**Backtest failed**: {exc}"
+
+
+def run_predict(
+    project_dir: Path,
+    season: int,
+    *,
+    run_id: str | None = None,
+    variant: str | None = None,
+) -> str:
+    """Generate predictions for a target season.
+
+    Trains on all historical data before the target season,
+    then predicts every row in the target season.
+
+    Returns markdown-formatted prediction summary.
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    try:
+        from easyml.runner.pipeline import PipelineRunner
+
+        runner = PipelineRunner(
+            project_dir=project_dir,
+            config_dir=config_dir,
+            variant=variant,
+        )
+        runner.load()
+        preds_df = runner.predict(season, run_id=run_id)
+
+        if preds_df is None or len(preds_df) == 0:
+            return f"**No predictions**: No data found for season {season}."
+
+        prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
+        lines = [f"## Predictions for Season {season}\n"]
+        lines.append(f"- **Rows predicted**: {len(preds_df)}")
+        lines.append(f"- **Models**: {len(prob_cols)}")
+
+        if "prob_ensemble" in preds_df.columns:
+            ens_probs = preds_df["prob_ensemble"]
+            lines.append(f"\n### Ensemble Probability Distribution\n")
+            lines.append(f"- Mean: {ens_probs.mean():.4f}")
+            lines.append(f"- Std: {ens_probs.std():.4f}")
+            lines.append(f"- Min: {ens_probs.min():.4f}")
+            lines.append(f"- Max: {ens_probs.max():.4f}")
+
+            preds_df["_confidence"] = (preds_df["prob_ensemble"] - 0.5).abs()
+            top = preds_df.nlargest(10, "_confidence")
+
+            lines.append(f"\n### Top 10 Most Confident Predictions\n")
+            lines.append("| Row | Ensemble Prob | Confidence |")
+            lines.append("|-----|---------------|------------|")
+            for idx, row in top.iterrows():
+                lines.append(
+                    f"| {idx} | {row['prob_ensemble']:.4f} | {row['_confidence']:.4f} |"
+                )
+
+        return "\n".join(lines)
+
+    except Exception as exc:
+        return f"**Prediction failed**: {exc}"
 
 
 def run_experiment(
