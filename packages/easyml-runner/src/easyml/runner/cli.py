@@ -152,7 +152,7 @@ def inspect_features(ctx: click.Context) -> None:
 )
 @click.pass_context
 def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
-    """Profile the matchup features dataset.
+    """Profile the features dataset.
 
     Shows shape, seasons, null rates, and summary statistics.
     """
@@ -160,8 +160,8 @@ def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
     gender = ctx.obj["gender"]
     result = _load_config(config_dir, gender)
 
-    features_dir = result.config.data.features_dir
-    parquet_path = Path(features_dir) / "matchup_features.parquet"
+    from easyml.runner.data_utils import get_features_path
+    parquet_path = get_features_path(Path.cwd(), result.config.data)
 
     if not parquet_path.exists():
         click.echo(f"Data file not found: {parquet_path}", err=True)
