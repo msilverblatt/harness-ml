@@ -85,3 +85,32 @@ def test_get_nonexistent_raises():
     registry = FeatureRegistry()
     with pytest.raises(KeyError):
         registry.get_metadata("nonexistent")
+
+
+def test_discover_modules(tmp_path):
+    import sys
+
+    # Create a temporary Python package with feature modules
+    pkg_dir = tmp_path / "my_features"
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").write_text("")
+    (pkg_dir / "offense.py").write_text(
+        '''
+from easyml.features.registry import FeatureRegistry
+
+_registry = None
+
+def register_features(registry):
+    @registry.register(name="discovered_feat", category="offense", level="team", output_columns=["x"])
+    def compute(df, config):
+        return df
+'''
+    )
+
+    sys.path.insert(0, str(tmp_path))
+    try:
+        registry = FeatureRegistry()
+        registry.discover("my_features")
+        assert "discovered_feat" in registry
+    finally:
+        sys.path.pop(0)

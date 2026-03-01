@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import inspect
+import pkgutil
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -111,6 +113,25 @@ class FeatureRegistry:
                 continue
             results.append(defn.meta)
         return results
+
+    # ------------------------------------------------------------------
+    # Auto-discovery
+    # ------------------------------------------------------------------
+
+    def discover(self, package_name: str) -> None:
+        """Import all modules in *package_name* and call ``register_features(self)``.
+
+        Each module that exposes a ``register_features(registry)`` callable
+        will be invoked with this registry instance.
+        """
+        package = importlib.import_module(package_name)
+        for importer, modname, ispkg in pkgutil.walk_packages(
+            package.__path__, prefix=package.__name__ + "."
+        ):
+            module = importlib.import_module(modname)
+            register_fn = getattr(module, "register_features", None)
+            if callable(register_fn):
+                register_fn(self)
 
     # ------------------------------------------------------------------
     # Container protocol
