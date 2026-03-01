@@ -288,21 +288,20 @@ class PipelineRunner:
         self._load_data()
 
     def _load_data(self) -> None:
-        """Read matchup_features.parquet and normalize column names.
+        """Read features parquet and normalize column names.
 
-        Also loads team_features.parquet if any model has
+        Also loads team features if any model has
         ``provides_level="team"``.
         """
-        features_dir = Path(self.config.data.features_dir)
-        parquet_path = features_dir / "matchup_features.parquet"
+        from easyml.runner.data_utils import get_features_path
 
-        # Try relative to project_dir if not found at absolute/relative path
-        if not parquet_path.exists():
-            parquet_path = self.project_dir / features_dir / "matchup_features.parquet"
+        parquet_path = get_features_path(self.project_dir, self.config.data)
 
         if not parquet_path.exists():
             raise FileNotFoundError(
-                f"matchup_features.parquet not found at {parquet_path}"
+                f"Features file not found at {parquet_path}. "
+                f"Configured: features_dir={self.config.data.features_dir}, "
+                f"features_file={self.config.data.features_file}"
             )
 
         self._df = pd.read_parquet(parquet_path)
@@ -315,7 +314,7 @@ class PipelineRunner:
         )
         if has_team_providers and self.config.data.team_features_path:
             team_path = Path(self.config.data.team_features_path)
-            if not team_path.exists():
+            if not team_path.is_absolute():
                 team_path = self.project_dir / team_path
             if team_path.exists():
                 self._team_df = pd.read_parquet(team_path)
@@ -765,8 +764,9 @@ class PipelineRunner:
         ]
 
         # Pass 2: meta-learner + post-processing
+        meta_coefficients = None
         if ensemble_config["method"] == "stacked":
-            self._apply_stacked_ensemble(season_data, ensemble_config, active_model_names)
+            meta_coefficients = self._apply_stacked_ensemble(season_data, ensemble_config, active_model_names)
         else:
             # Simple average
             for holdout in season_data:
@@ -781,6 +781,9 @@ class PipelineRunner:
                     )
 
         result = self._compute_backtest_metrics(season_data, active_model_names)
+
+        if meta_coefficients is not None:
+            result["meta_coefficients"] = meta_coefficients
 
         # Generate reporting artifacts
         result = self._generate_report(result, season_data)
@@ -1066,13 +1069,17 @@ class PipelineRunner:
         season_data: dict[int, pd.DataFrame],
         ensemble_config: dict,
         active_model_names: list[str],
-    ) -> None:
+    ) -> dict[str, float] | None:
         """Apply stacked meta-learner via LOSO to all holdout seasons.
 
         For each holdout season, train the meta-learner on all OTHER
         holdout seasons' predictions, then predict the holdout.
+
+        Returns the meta-learner coefficients from the last fold,
+        or None if no meta-learner was trained.
         """
         holdout_seasons = sorted(season_data.keys())
+        last_meta = None
 
         for holdout in holdout_seasons:
             # Train meta-learner on all seasons except this one
@@ -1095,6 +1102,7 @@ class PipelineRunner:
                 season_data, ensemble_config, active_model_names,
                 holdout, train_seasons,
             )
+            last_meta = meta
 
             season_data[holdout] = apply_ensemble_postprocessing(
                 season_data[holdout],
@@ -1103,6 +1111,14 @@ class PipelineRunner:
                 ensemble_config,
                 pre_calibrators=pre_cals,
             )
+
+        # Extract coefficients from the last trained meta-learner
+        if last_meta is not None:
+            try:
+                return last_meta.get_coefficients()
+            except Exception:
+                return None
+        return None
 
     def _train_meta_for_season(
         self,
