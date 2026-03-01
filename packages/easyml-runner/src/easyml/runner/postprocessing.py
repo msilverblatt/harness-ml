@@ -31,7 +31,7 @@ def apply_ensemble_postprocessing(
     5. Apply post-calibration
     6. Temperature scaling
     7. Probability clipping
-    8. Availability adjustment (if team_features provided and strength > 0)
+    8. Availability adjustment (if strength > 0)
     9. Seed-proximity compression (if configured and > 0)
 
     Adds 'prob_ensemble' column to preds DataFrame and returns it.
@@ -39,7 +39,7 @@ def apply_ensemble_postprocessing(
     # Step 1: Extract base model prob columns
     prob_cols = [
         c for c in preds.columns
-        if c.startswith("prob_") and c != "prob_logreg_seed"
+        if c.startswith("prob_") and c != "prob_ensemble"
     ]
 
     # Step 2: Filter out excluded models
@@ -96,8 +96,8 @@ def apply_ensemble_postprocessing(
 
     # Step 8: Availability adjustment
     av_strength = ensemble_config.get("availability_adjustment", 0.0)
-    if team_features is not None and av_strength > 0:
-        probs = apply_availability_adjustment(probs, preds, team_features, av_strength)
+    if av_strength > 0:
+        probs = apply_availability_adjustment(probs, preds, ensemble_config, av_strength)
 
     # Step 9: Seed-proximity compression
     compression = ensemble_config.get("seed_compression", 0.0)
@@ -113,17 +113,59 @@ def apply_ensemble_postprocessing(
 def apply_availability_adjustment(
     probs: np.ndarray,
     preds: pd.DataFrame,
-    team_features: pd.DataFrame,
+    ensemble_config: dict,
     strength: float,
 ) -> np.ndarray:
-    """Placeholder - adjust based on team availability metrics.
+    """Adjust ensemble probabilities based on model availability.
 
-    This is a placeholder for project-specific availability logic.
-    Returns probabilities unchanged until a concrete availability
-    metric is defined.
+    When some models have no prediction for certain games (NaN in prob_*
+    columns), pulls ensemble predictions toward 0.5 proportional to the
+    fraction of missing models and the strength parameter.
+
+    Parameters
+    ----------
+    probs : np.ndarray
+        Ensemble probabilities (from meta-learner).
+    preds : pd.DataFrame
+        Predictions DataFrame with prob_* columns for each model.
+    ensemble_config : dict
+        Ensemble configuration (needs exclude_models list).
+    strength : float
+        Adjustment strength (0.0 = no adjustment, 1.0 = full pull to 0.5).
+
+    Returns
+    -------
+    np.ndarray
+        Adjusted probabilities.
     """
-    # Placeholder: return unchanged
-    return probs.copy()
+    # Identify all prob_* columns, excluding prob_ensemble
+    prob_cols = [
+        c for c in preds.columns
+        if c.startswith("prob_") and c != "prob_ensemble"
+    ]
+
+    # Filter out excluded models
+    exclude = set(ensemble_config.get("exclude_models", []))
+    active_cols = [
+        c for c in prob_cols
+        if c.replace("prob_", "", 1) not in exclude
+    ]
+
+    n_total_active = len(active_cols)
+    if n_total_active == 0:
+        return probs.copy()
+
+    # Count non-NaN values per row across active model columns
+    active_data = preds[active_cols]
+    n_available = active_data.notna().sum(axis=1).values
+
+    # Compute coverage and pull factor
+    coverage_ratio = n_available / n_total_active
+    pull_factor = strength * (1.0 - coverage_ratio)
+
+    # Apply: adjusted = probs * (1 - pull_factor) + 0.5 * pull_factor
+    adjusted = probs * (1.0 - pull_factor) + 0.5 * pull_factor
+    return adjusted
 
 
 def apply_seed_compression(

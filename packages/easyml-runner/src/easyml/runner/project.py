@@ -1,0 +1,601 @@
+"""Programmatic project builder API.
+
+Provides a fluent Python interface for building ML pipeline configs
+without manually writing YAML.  YAML becomes an optional persistence
+format rather than the required authoring interface.
+
+Example
+-------
+>>> project = Project("my_project")
+>>> project.set_data(features_dir="data/features")
+>>> project.add_model("logreg_seed", "logistic_regression", features=["diff_seed_num"])
+>>> project.configure_backtest(seasons=[2015, 2016, 2017, 2018, 2019])
+>>> results = project.backtest()
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from easyml.runner.schema import (
+    BacktestConfig,
+    DataConfig,
+    EnsembleDef,
+    ModelDef,
+    ProjectConfig,
+    SourceDecl,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _LeakageWarning:
+    """A leakage concern found during validation."""
+
+    model_name: str
+    feature: str
+    source_name: str
+    temporal_safety: str
+    note: str
+
+
+class Project:
+    """Programmatic project builder.
+
+    Build configs via method calls instead of YAML editing.
+    Validates features against actual data, checks leakage at build time,
+    and can serialize to YAML for reproducibility.
+
+    Parameters
+    ----------
+    project_dir : str | Path
+        Root project directory (must contain data/features/matchup_features.parquet).
+    """
+
+    def __init__(self, project_dir: str | Path) -> None:
+        self.project_dir = Path(project_dir)
+
+        # Config components — built up via method calls
+        self._data = DataConfig(
+            raw_dir="data/raw",
+            processed_dir="data/processed",
+            features_dir="data/features",
+        )
+        self._models: dict[str, ModelDef] = {}
+        self._ensemble = EnsembleDef(method="stacked")
+        self._backtest = BacktestConfig(
+            cv_strategy="leave_one_season_out",
+            metrics=["brier", "accuracy", "ece", "log_loss"],
+        )
+        self._sources: dict[str, SourceDecl] = {}
+
+        # Data awareness
+        self._data_columns: set[str] | None = None
+        self._data_profile = None
+
+    # ------------------------------------------------------------------
+    # Data configuration
+    # ------------------------------------------------------------------
+
+    def set_data(
+        self,
+        features_dir: str = "data/features",
+        raw_dir: str = "data/raw",
+        processed_dir: str = "data/processed",
+        gender: str = "M",
+        team_features_path: str | None = None,
+    ) -> "Project":
+        """Configure data directories.
+
+        Parameters
+        ----------
+        team_features_path : str | None
+            Path to team-level features parquet (relative to project_dir).
+            Required when any model has provides_level="team".
+        """
+        self._data = DataConfig(
+            raw_dir=raw_dir,
+            processed_dir=processed_dir,
+            features_dir=features_dir,
+            gender=gender,
+            team_features_path=team_features_path,
+        )
+        # Reset data awareness cache when data config changes
+        self._data_columns = None
+        self._data_profile = None
+        return self
+
+    def _ensure_data_loaded(self) -> None:
+        """Lazily load data column names from parquet."""
+        if self._data_columns is not None:
+            return
+
+        parquet_path = self.project_dir / self._data.features_dir / "matchup_features.parquet"
+        if not parquet_path.exists():
+            logger.warning("Data file not found: %s", parquet_path)
+            self._data_columns = set()
+            return
+
+        import pandas as pd
+
+        # Read only metadata — no need to load full data
+        pf = pd.read_parquet(parquet_path, columns=[])
+        # Actually, read_parquet with empty columns list doesn't give us column names
+        # Read the schema instead
+        import pyarrow.parquet as pq
+
+        schema = pq.read_schema(parquet_path)
+        self._data_columns = set(schema.names)
+
+    def available_features(self, prefix: str | None = None) -> list[str]:
+        """List feature columns available in the dataset.
+
+        Parameters
+        ----------
+        prefix : str | None
+            Filter to columns starting with this prefix (e.g., "diff_").
+
+        Returns
+        -------
+        list[str]
+            Sorted list of available column names.
+        """
+        self._ensure_data_loaded()
+        cols = self._data_columns or set()
+        if prefix:
+            cols = {c for c in cols if c.startswith(prefix)}
+        return sorted(cols)
+
+    def profile(self):
+        """Profile the dataset. Returns a DataProfile object."""
+        if self._data_profile is None:
+            from easyml.runner.data_profiler import profile_dataset
+
+            parquet_path = (
+                self.project_dir / self._data.features_dir / "matchup_features.parquet"
+            )
+            self._data_profile = profile_dataset(parquet_path)
+        return self._data_profile
+
+    # ------------------------------------------------------------------
+    # Source / leakage tracking
+    # ------------------------------------------------------------------
+
+    def add_source(
+        self,
+        name: str,
+        *,
+        temporal_safety: str,
+        outputs: list[str],
+        module: str = "",
+        function: str = "",
+        category: str = "unknown",
+        leakage_notes: str = "",
+    ) -> "Project":
+        """Declare a data source with temporal safety classification.
+
+        Parameters
+        ----------
+        name : str
+            Source identifier.
+        temporal_safety : str
+            One of: "pre_tournament", "post_tournament", "mixed", "unknown".
+        outputs : list[str]
+            Column names this source produces.
+        leakage_notes : str
+            Human-readable explanation of the temporal safety assessment.
+        """
+        self._sources[name] = SourceDecl(
+            module=module or f"sources.{name}",
+            function=function or f"load_{name}",
+            category=category,
+            temporal_safety=temporal_safety,
+            outputs=outputs,
+            leakage_notes=leakage_notes,
+        )
+        return self
+
+    def _build_feature_lineage(self) -> dict[str, tuple[str, str, str]]:
+        """Build feature→(source_name, temporal_safety, leakage_notes) map."""
+        lineage: dict[str, tuple[str, str, str]] = {}
+        for source_name, source_decl in self._sources.items():
+            for col in source_decl.outputs:
+                lineage[col] = (
+                    source_name,
+                    source_decl.temporal_safety,
+                    source_decl.leakage_notes,
+                )
+                # Also map diff_ variants
+                lineage[f"diff_{col}"] = (
+                    source_name,
+                    source_decl.temporal_safety,
+                    source_decl.leakage_notes,
+                )
+        return lineage
+
+    def check_leakage(self) -> list[_LeakageWarning]:
+        """Check all models for potential data leakage.
+
+        Returns
+        -------
+        list[_LeakageWarning]
+            Any leakage concerns found. Empty list means all clear.
+        """
+        if not self._sources:
+            return []
+
+        lineage = self._build_feature_lineage()
+        warnings: list[_LeakageWarning] = []
+
+        for model_name, model_def in self._models.items():
+            for feat in model_def.features:
+                if feat not in lineage:
+                    continue  # Unknown source — can't check
+                source_name, safety, notes = lineage[feat]
+                if safety in ("post_tournament", "mixed", "unknown"):
+                    warnings.append(
+                        _LeakageWarning(
+                            model_name=model_name,
+                            feature=feat,
+                            source_name=source_name,
+                            temporal_safety=safety,
+                            note=notes,
+                        )
+                    )
+
+        return warnings
+
+    # ------------------------------------------------------------------
+    # Model management
+    # ------------------------------------------------------------------
+
+    def add_model(
+        self,
+        name: str,
+        type: str,
+        features: list[str],
+        params: dict[str, Any] | None = None,
+        mode: str = "classifier",
+        active: bool = True,
+        n_seeds: int = 1,
+        pre_calibration: str | None = None,
+        cdf_scale: float | None = None,
+        train_seasons: str = "all",
+        provides: list[str] | None = None,
+        provides_level: str = "matchup",
+        include_in_ensemble: bool = True,
+        provider_isolation: str = "none",
+    ) -> "Project":
+        """Add a model to the pipeline.
+
+        Feature validation is deferred to build() so that provider models
+        can be added in any order (provider-generated features are resolved
+        after all models are declared).
+
+        Parameters
+        ----------
+        provides : list[str] | None
+            Feature columns this model outputs for downstream models.
+        provides_level : str
+            "matchup" for per-matchup outputs, "team" for per-team outputs
+            that get differenced into matchup pairs.
+        include_in_ensemble : bool
+            If False, model trains and provides features but its prob_*
+            column is excluded from the meta-learner.
+        provider_isolation : str
+            "none" or "per_season". "per_season" retrains provider per
+            training season for leak-free features.
+        """
+        self._models[name] = ModelDef(
+            type=type,
+            features=features,
+            params=params or {},
+            mode=mode,
+            active=active,
+            n_seeds=n_seeds,
+            pre_calibration=pre_calibration,
+            cdf_scale=cdf_scale,
+            train_seasons=train_seasons,
+            provides=provides or [],
+            provides_level=provides_level,
+            include_in_ensemble=include_in_ensemble,
+            provider_isolation=provider_isolation,
+        )
+        return self
+
+    def remove_model(self, name: str) -> "Project":
+        """Remove a model from the config."""
+        self._models.pop(name, None)
+        return self
+
+    def exclude_model(self, name: str) -> "Project":
+        """Add a model to the ensemble exclude list (keep config, skip in backtest)."""
+        excludes = list(self._ensemble.exclude_models)
+        if name not in excludes:
+            excludes.append(name)
+        self._ensemble = self._ensemble.model_copy(
+            update={"exclude_models": excludes}
+        )
+        return self
+
+    # ------------------------------------------------------------------
+    # Ensemble configuration
+    # ------------------------------------------------------------------
+
+    def configure_ensemble(
+        self,
+        method: str = "stacked",
+        C: float | None = None,
+        temperature: float = 1.0,
+        calibration: str = "spline",
+        spline_n_bins: int = 20,
+        spline_prob_max: float = 0.985,
+        availability_adjustment: float = 0.1,
+        pre_calibration: dict[str, str] | None = None,
+        exclude_models: list[str] | None = None,
+    ) -> "Project":
+        """Configure the ensemble strategy."""
+        meta_learner = {}
+        if C is not None:
+            meta_learner["C"] = C
+
+        self._ensemble = EnsembleDef(
+            method=method,
+            meta_learner=meta_learner,
+            temperature=temperature,
+            calibration=calibration,
+            spline_n_bins=spline_n_bins,
+            spline_prob_max=spline_prob_max,
+            availability_adjustment=availability_adjustment,
+            pre_calibration=pre_calibration or {},
+            exclude_models=exclude_models or list(self._ensemble.exclude_models),
+        )
+        return self
+
+    # ------------------------------------------------------------------
+    # Backtest configuration
+    # ------------------------------------------------------------------
+
+    def configure_backtest(
+        self,
+        cv_strategy: str = "leave_one_season_out",
+        seasons: list[int] | None = None,
+        metrics: list[str] | None = None,
+        min_train_folds: int = 1,
+    ) -> "Project":
+        """Configure the backtest strategy.
+
+        If seasons is not provided and data is available, auto-detects
+        seasons from the parquet file.
+        """
+        if seasons is None:
+            seasons = self._auto_detect_seasons()
+
+        self._backtest = BacktestConfig(
+            cv_strategy=cv_strategy,
+            seasons=seasons or [],
+            metrics=metrics or ["brier", "accuracy", "ece", "log_loss"],
+            min_train_folds=min_train_folds,
+        )
+        return self
+
+    def _auto_detect_seasons(self) -> list[int]:
+        """Try to detect available seasons from the data."""
+        parquet_path = (
+            self.project_dir / self._data.features_dir / "matchup_features.parquet"
+        )
+        if not parquet_path.exists():
+            return []
+
+        import pandas as pd
+
+        # Read only the season column
+        season_col = None
+        for candidate in ["Season", "season"]:
+            try:
+                df = pd.read_parquet(parquet_path, columns=[candidate])
+                season_col = candidate
+                break
+            except (KeyError, Exception):
+                continue
+
+        if season_col is None:
+            return []
+
+        return sorted(df[season_col].dropna().unique().astype(int).tolist())
+
+    # ------------------------------------------------------------------
+    # Build / validate
+    # ------------------------------------------------------------------
+
+    def build(self) -> ProjectConfig:
+        """Build and validate the ProjectConfig.
+
+        Performs two-pass feature validation so provider-generated features
+        are recognized. Checks for dependency cycles and leakage.
+
+        Raises ValueError if validation fails, cycles exist, or leakage
+        is detected.
+        """
+        if not self._models:
+            raise ValueError("No models configured. Call add_model() first.")
+
+        # Two-pass feature validation
+        self._validate_features()
+
+        # Check for dependency cycles
+        self._validate_dependency_graph()
+
+        config = ProjectConfig(
+            data=self._data,
+            models=self._models,
+            ensemble=self._ensemble,
+            backtest=self._backtest,
+            sources=self._sources if self._sources else None,
+        )
+
+        # Check leakage
+        leakage = self.check_leakage()
+        if leakage:
+            msgs = []
+            for w in leakage:
+                msgs.append(
+                    f"  {w.model_name}.{w.feature}: source={w.source_name}, "
+                    f"temporal_safety={w.temporal_safety} — {w.note}"
+                )
+            raise ValueError(
+                "Leakage detected in model features:\n" + "\n".join(msgs)
+            )
+
+        return config
+
+    def _validate_features(self) -> None:
+        """Two-pass feature validation.
+
+        Pass 1: Collect all provider-generated columns.
+        Pass 2: Validate each model's features against data + provider columns.
+        """
+        self._ensure_data_loaded()
+        if not self._data_columns:
+            return  # No data available to validate against
+
+        # Pass 1: collect provider-generated columns
+        provider_columns: set[str] = set()
+        for model_def in self._models.values():
+            for col in model_def.provides:
+                provider_columns.add(col)
+                provider_columns.add(f"diff_{col}")
+
+        valid_columns = self._data_columns | provider_columns
+
+        # Pass 2: validate each model's features
+        for model_name, model_def in self._models.items():
+            missing = [f for f in model_def.features if f not in valid_columns]
+            if missing:
+                available_diff = sorted(
+                    c for c in self._data_columns if c.startswith("diff_")
+                )
+                raise ValueError(
+                    f"Model '{model_name}': features not found in data: {missing}\n"
+                    f"Available diff_ features ({len(available_diff)}): "
+                    f"{available_diff[:10]}..."
+                )
+
+    def _validate_dependency_graph(self) -> None:
+        """Check for cycles in the model dependency graph."""
+        from easyml.runner.dag import (
+            build_provider_map,
+            infer_dependencies,
+            topological_waves,
+        )
+
+        has_providers = any(m.provides for m in self._models.values())
+        if not has_providers:
+            return
+
+        provider_map = build_provider_map(self._models)
+        deps = infer_dependencies(self._models, provider_map)
+        topological_waves(deps)  # raises ValueError on cycle
+
+        # Check that team-level providers have team_features_path configured
+        has_team_providers = any(
+            m.provides and m.provides_level == "team"
+            for m in self._models.values()
+        )
+        if has_team_providers and not self._data.team_features_path:
+            raise ValueError(
+                "Team-level provider models require team_features_path. "
+                "Call set_data(team_features_path='path/to/team_features.parquet')."
+            )
+
+    # ------------------------------------------------------------------
+    # Run pipeline
+    # ------------------------------------------------------------------
+
+    def backtest(self) -> dict[str, Any]:
+        """Build config and run backtest.
+
+        Returns dict with status, metrics, per_fold, models_trained.
+        """
+        config = self.build()
+
+        from easyml.runner.pipeline import PipelineRunner
+
+        runner = PipelineRunner(
+            project_dir=self.project_dir,
+            config_dir=str(self.project_dir / "config"),  # Needed for guards path
+            config=config,
+        )
+        runner.load()
+        return runner.backtest()
+
+    def train(self, run_id: str | None = None) -> dict[str, Any]:
+        """Build config and run training."""
+        config = self.build()
+
+        from easyml.runner.pipeline import PipelineRunner
+
+        runner = PipelineRunner(
+            project_dir=self.project_dir,
+            config_dir=str(self.project_dir / "config"),
+            config=config,
+        )
+        runner.load()
+        return runner.train(run_id=run_id)
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+
+    def save_to_yaml(self, config_dir: str | Path | None = None) -> Path:
+        """Save current config to YAML files for reproducibility.
+
+        Parameters
+        ----------
+        config_dir : str | Path | None
+            Target directory. Defaults to {project_dir}/config.
+
+        Returns
+        -------
+        Path
+            The config directory path.
+        """
+        config = self.build()
+        config_dir = Path(config_dir or self.project_dir / "config")
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        _write_yaml(
+            config_dir / "pipeline.yaml",
+            {
+                "data": config.data.model_dump(),
+                "backtest": config.backtest.model_dump(),
+            },
+        )
+
+        _write_yaml(
+            config_dir / "models.yaml",
+            {"models": {k: v.model_dump() for k, v in config.models.items()}},
+        )
+
+        _write_yaml(
+            config_dir / "ensemble.yaml",
+            {"ensemble": config.ensemble.model_dump()},
+        )
+
+        if config.sources:
+            _write_yaml(
+                config_dir / "sources.yaml",
+                {"sources": {k: v.model_dump() for k, v in config.sources.items()}},
+            )
+
+        return config_dir
+
+
+def _write_yaml(path: Path, data: dict) -> None:
+    """Write a dict as YAML."""
+    path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))

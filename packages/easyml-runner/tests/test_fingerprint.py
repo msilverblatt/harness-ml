@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from easyml.runner.fingerprint import (
+    compute_feature_schema,
     compute_fingerprint,
     compute_meta_fingerprint,
     is_cached,
@@ -156,3 +157,79 @@ class TestMetaCacheRoundTrip:
     def test_miss_on_no_cache(self, tmp_path):
         result = load_meta_cache(tmp_path / "nonexistent", "abc123")
         assert result is None
+
+
+# -----------------------------------------------------------------------
+# Tests: compute_feature_schema
+# -----------------------------------------------------------------------
+
+class TestComputeFeatureSchema:
+    """Test compute_feature_schema reads parquet metadata."""
+
+    def test_compute_feature_schema_reads_parquet(self, tmp_path):
+        import pandas as pd
+
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0], "c": ["x", "y", "z"]})
+        pq_path = tmp_path / "features.parquet"
+        df.to_parquet(pq_path, index=False)
+
+        schema = compute_feature_schema(pq_path)
+        assert schema is not None
+        assert schema["columns"] == ["a", "b", "c"]
+        assert "a" in schema["dtypes"]
+        assert "b" in schema["dtypes"]
+        assert "c" in schema["dtypes"]
+        assert schema["row_count"] == 3
+
+    def test_compute_feature_schema_returns_none_missing_file(self, tmp_path):
+        result = compute_feature_schema(tmp_path / "nonexistent.parquet")
+        assert result is None
+
+    def test_compute_feature_schema_includes_null_counts(self, tmp_path):
+        import numpy as np
+        import pandas as pd
+
+        df = pd.DataFrame({
+            "x": [1.0, np.nan, 3.0, np.nan],
+            "y": [10, 20, 30, 40],
+        })
+        pq_path = tmp_path / "with_nulls.parquet"
+        df.to_parquet(pq_path, index=False)
+
+        schema = compute_feature_schema(pq_path)
+        assert schema is not None
+        assert "null_counts" in schema
+        assert schema["null_counts"]["x"] == 2
+        assert schema["null_counts"]["y"] == 0
+
+
+# -----------------------------------------------------------------------
+# Tests: compute_fingerprint with feature_schema
+# -----------------------------------------------------------------------
+
+class TestFingerprintWithSchema:
+    """Test compute_fingerprint feature_schema integration."""
+
+    def test_fingerprint_with_schema_changes_hash(self):
+        config = {"type": "xgboost", "params": {"n_estimators": 100}}
+        schema_a = {
+            "columns": ["a", "b"],
+            "dtypes": {"a": "int64", "b": "double"},
+            "null_counts": {"a": 0, "b": 0},
+            "row_count": 100,
+        }
+        schema_b = {
+            "columns": ["a", "b", "c"],
+            "dtypes": {"a": "int64", "b": "double", "c": "string"},
+            "null_counts": {"a": 0, "b": 0, "c": 5},
+            "row_count": 100,
+        }
+        fp_a = compute_fingerprint(config, data_mtime=1000.0, feature_schema=schema_a)
+        fp_b = compute_fingerprint(config, data_mtime=1000.0, feature_schema=schema_b)
+        assert fp_a != fp_b
+
+    def test_fingerprint_none_schema_backward_compatible(self):
+        config = {"type": "xgboost", "params": {"n_estimators": 100}}
+        fp_without = compute_fingerprint(config, data_mtime=1234567890.0)
+        fp_with_none = compute_fingerprint(config, data_mtime=1234567890.0, feature_schema=None)
+        assert fp_without == fp_with_none

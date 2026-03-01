@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.runner.matchups import generate_pairwise_matchups, predict_all_matchups
-from easyml.runner.schema import ModelDef
+from easyml.runner.matchups import compute_interactions, generate_pairwise_matchups, predict_all_matchups
+from easyml.runner.schema import InteractionDef, ModelDef
 
 
 # -----------------------------------------------------------------------
@@ -311,3 +311,113 @@ class TestPredictAllMatchups:
         result = predict_all_matchups(matchups, models, model_defs)
         assert "TeamA" in result.columns
         assert "diff_y" in result.columns
+
+
+# -----------------------------------------------------------------------
+# Tests: compute_interactions
+# -----------------------------------------------------------------------
+
+class TestComputeInteractions:
+    """Test interaction feature computation."""
+
+    def test_multiply(self):
+        df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [4.0, 5.0, 6.0]})
+        interactions = {"a_times_b": InteractionDef(left="a", right="b", op="multiply")}
+        result = compute_interactions(df, interactions)
+        assert "a_times_b" in result.columns
+        np.testing.assert_array_almost_equal(result["a_times_b"].values, [4.0, 10.0, 18.0])
+
+    def test_add(self):
+        df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": [4.0, 5.0, 6.0]})
+        interactions = {"a_plus_b": InteractionDef(left="a", right="b", op="add")}
+        result = compute_interactions(df, interactions)
+        assert "a_plus_b" in result.columns
+        np.testing.assert_array_almost_equal(result["a_plus_b"].values, [5.0, 7.0, 9.0])
+
+    def test_subtract(self):
+        df = pd.DataFrame({"a": [10.0, 20.0, 30.0], "b": [3.0, 5.0, 7.0]})
+        interactions = {"a_minus_b": InteractionDef(left="a", right="b", op="subtract")}
+        result = compute_interactions(df, interactions)
+        assert "a_minus_b" in result.columns
+        np.testing.assert_array_almost_equal(result["a_minus_b"].values, [7.0, 15.0, 23.0])
+
+    def test_divide_with_zero(self):
+        df = pd.DataFrame({"a": [1.0, 2.0], "b": [0.0, 4.0]})
+        interactions = {"a_div_b": InteractionDef(left="a", right="b", op="divide")}
+        result = compute_interactions(df, interactions)
+        assert result["a_div_b"].iloc[0] == 0.0  # zero-div handled
+        assert result["a_div_b"].iloc[1] == 0.5
+
+    def test_abs_diff(self):
+        df = pd.DataFrame({"a": [1.0, 5.0, 3.0], "b": [4.0, 2.0, 3.0]})
+        interactions = {"a_abs_b": InteractionDef(left="a", right="b", op="abs_diff")}
+        result = compute_interactions(df, interactions)
+        assert "a_abs_b" in result.columns
+        np.testing.assert_array_almost_equal(result["a_abs_b"].values, [3.0, 3.0, 0.0])
+
+    def test_missing_column_raises(self):
+        df = pd.DataFrame({"a": [1.0]})
+        interactions = {"x": InteractionDef(left="a", right="missing", op="multiply")}
+        with pytest.raises(KeyError):
+            compute_interactions(df, interactions)
+
+    def test_missing_left_column_raises(self):
+        df = pd.DataFrame({"b": [1.0]})
+        interactions = {"x": InteractionDef(left="missing", right="b", op="multiply")}
+        with pytest.raises(KeyError):
+            compute_interactions(df, interactions)
+
+    def test_multiple_interactions(self):
+        df = pd.DataFrame({"a": [2.0, 3.0], "b": [4.0, 5.0]})
+        interactions = {
+            "prod": InteractionDef(left="a", right="b", op="multiply"),
+            "total": InteractionDef(left="a", right="b", op="add"),
+        }
+        result = compute_interactions(df, interactions)
+        assert "prod" in result.columns
+        assert "total" in result.columns
+        np.testing.assert_array_almost_equal(result["prod"].values, [8.0, 15.0])
+        np.testing.assert_array_almost_equal(result["total"].values, [6.0, 8.0])
+
+    def test_does_not_mutate_input(self):
+        df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
+        original_cols = list(df.columns)
+        interactions = {"c": InteractionDef(left="a", right="b", op="multiply")}
+        result = compute_interactions(df, interactions)
+        # Original df unchanged
+        assert list(df.columns) == original_cols
+        assert "c" not in df.columns
+        # Result has new column
+        assert "c" in result.columns
+
+
+class TestGenerateMatchupsWithInteractions:
+    """Test generate_pairwise_matchups with interactions parameter."""
+
+    def test_interactions_applied(self):
+        team_feats = pd.DataFrame({
+            "team_id": [1, 2],
+            "season": [2024, 2024],
+            "adj_oe": [110.0, 100.0],
+            "adj_de": [90.0, 95.0],
+        })
+        seeds = _make_seeds([1, 2])
+        interactions = {
+            "net_eff": InteractionDef(left="diff_adj_oe", right="diff_adj_de", op="subtract"),
+        }
+        matchups = generate_pairwise_matchups(
+            team_feats, seeds, season=2024, interactions=interactions,
+        )
+        assert "net_eff" in matchups.columns
+        # diff_adj_oe = 110-100 = 10, diff_adj_de = 90-95 = -5
+        # net_eff = 10 - (-5) = 15
+        assert matchups.iloc[0]["net_eff"] == pytest.approx(15.0)
+
+    def test_no_interactions_unchanged(self):
+        team_feats = _make_team_features(n_teams=3)
+        seeds = _make_seeds([1, 2, 3])
+        result_none = generate_pairwise_matchups(team_feats, seeds, season=2024)
+        result_empty = generate_pairwise_matchups(
+            team_feats, seeds, season=2024, interactions={},
+        )
+        assert list(result_none.columns) == list(result_empty.columns)

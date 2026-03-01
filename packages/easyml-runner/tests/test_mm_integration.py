@@ -453,7 +453,9 @@ class TestMmBacktestSmoke:
         assert result["metrics"]["brier"] <= 1.0
         assert result["metrics"]["accuracy"] >= 0
         assert result["metrics"]["accuracy"] <= 1.0
-        assert len(result["per_fold"]) == 3
+        # LOSO skips the first season (2022) since it has no prior
+        # training seasons, so we get 2 folds (2023, 2024)
+        assert len(result["per_fold"]) == 2
         assert len(result["models_trained"]) == 3
 
     def test_backtest_with_stacked_calibration(self, tmp_path):

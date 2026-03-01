@@ -311,7 +311,8 @@ class TestStackedEnsembleBacktest:
         assert "accuracy" in result["metrics"]
         assert result["metrics"]["brier"] >= 0
         assert result["metrics"]["brier"] <= 1.0
-        assert len(result["per_fold"]) == 3
+        # LOSO skips first season (no prior training data), so 2 folds
+        assert len(result["per_fold"]) == 2
 
 
 class TestExcludeModels:
@@ -466,3 +467,245 @@ class TestTrainSeasonsFiltering:
 
         assert result["status"] == "success"
         assert "brier" in result["metrics"]
+
+
+# -----------------------------------------------------------------------
+# Tests — provider model dependencies
+# -----------------------------------------------------------------------
+
+class TestProviderModelsBacktest:
+    """Provider models trained before consumers, outputs injected as features."""
+
+    def test_matchup_provider_backtest(self, tmp_path):
+        """Matchup-level provider → consumer backtest runs end-to-end."""
+        models = {
+            "provider": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200},
+                "active": True,
+                "provides": ["predicted_prob"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "consumer": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_predicted_prob"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+        }
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=300, n_seasons=3,
+            include_seed=True,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        assert "brier" in result["metrics"]
+        # Provider not in ensemble, only consumer
+        assert "consumer" in result["models_trained"]
+        # Provider should not be in the ensemble model list
+        # (include_in_ensemble=False means no prob_provider column)
+
+    def test_provider_include_in_ensemble_true(self, tmp_path):
+        """Provider with include_in_ensemble=True contributes to ensemble."""
+        models = {
+            "provider": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 2.0},
+                "active": True,
+                "provides": ["score"],
+                "provides_level": "matchup",
+                "include_in_ensemble": True,
+            },
+            "consumer": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_score"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+        }
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=300, n_seasons=3,
+            include_seed=True,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        # Both models in ensemble
+        assert "provider" in result["models_trained"]
+        assert "consumer" in result["models_trained"]
+
+    def test_chained_providers(self, tmp_path):
+        """Provider A → provider B → consumer C (3-wave chain)."""
+        models = {
+            "base": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200},
+                "active": True,
+                "provides": ["base_score"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "mid": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_base_score"],
+                "params": {"max_iter": 200},
+                "active": True,
+                "provides": ["mid_score"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "top": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_mid_score"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+        }
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=300, n_seasons=3,
+            include_seed=True,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        assert "brier" in result["metrics"]
+        # Only "top" is in ensemble
+        assert "top" in result["models_trained"]
+
+    def test_provider_with_independent_models(self, tmp_path):
+        """Provider + independent models all work together."""
+        models = {
+            "provider": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 2.0},
+                "active": True,
+                "provides": ["predicted_prob"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "consumer": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_predicted_prob"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+            "independent": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200, "C": 0.5},
+                "active": True,
+            },
+        }
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=300, n_seasons=3,
+            include_seed=True,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        # consumer and independent in ensemble, provider excluded
+        assert "consumer" in result["models_trained"]
+        assert "independent" in result["models_trained"]
+
+    def test_provider_train_method(self, tmp_path):
+        """train() also respects wave ordering for providers."""
+        models = {
+            "provider": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200},
+                "active": True,
+                "provides": ["score"],
+                "provides_level": "matchup",
+                "include_in_ensemble": False,
+            },
+            "consumer": {
+                "type": "logistic_regression",
+                "features": ["diff_x", "diff_score"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+        }
+        config_dir = _setup_project(
+            tmp_path, models=models, n_rows=300, n_seasons=3,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.train()
+
+        assert result["status"] == "success"
+        assert "provider" in result["models_trained"]
+        assert "consumer" in result["models_trained"]
+
+    def test_fingerprint_propagation(self, tmp_path):
+        """Provider fingerprint changes propagate to dependents."""
+        from easyml.runner.fingerprint import compute_fingerprint
+
+        provider_config = {"type": "logistic_regression", "features": ["diff_x"]}
+        consumer_config = {"type": "logistic_regression", "features": ["diff_x", "diff_score"]}
+
+        # Compute fingerprints with same upstream
+        provider_fp_v1 = compute_fingerprint(provider_config)
+        consumer_fp_v1 = compute_fingerprint(
+            consumer_config,
+            upstream_fingerprints={"provider": provider_fp_v1},
+        )
+
+        # Change provider config → different provider fingerprint
+        provider_config_v2 = {**provider_config, "params": {"C": 0.5}}
+        provider_fp_v2 = compute_fingerprint(provider_config_v2)
+        consumer_fp_v2 = compute_fingerprint(
+            consumer_config,
+            upstream_fingerprints={"provider": provider_fp_v2},
+        )
+
+        # Provider fingerprint changed
+        assert provider_fp_v1 != provider_fp_v2
+        # Consumer fingerprint also changed (even though its own config didn't)
+        assert consumer_fp_v1 != consumer_fp_v2
+
+    def test_fingerprint_stable_without_upstream_change(self, tmp_path):
+        """Consumer fingerprint stable when provider fingerprint is unchanged."""
+        from easyml.runner.fingerprint import compute_fingerprint
+
+        provider_fp = compute_fingerprint({"type": "logistic_regression"})
+        consumer_config = {"type": "logistic_regression", "features": ["diff_score"]}
+
+        fp1 = compute_fingerprint(
+            consumer_config,
+            upstream_fingerprints={"provider": provider_fp},
+        )
+        fp2 = compute_fingerprint(
+            consumer_config,
+            upstream_fingerprints={"provider": provider_fp},
+        )
+        assert fp1 == fp2

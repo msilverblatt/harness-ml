@@ -14,9 +14,67 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def compute_feature_schema(parquet_path: str | Path) -> dict | None:
+    """Compute a lightweight schema dict from a parquet file.
+
+    Reads parquet metadata without loading full data into memory.
+
+    Parameters
+    ----------
+    parquet_path : str | Path
+        Path to the parquet file.
+
+    Returns
+    -------
+    dict or None
+        Schema dict with keys: columns, dtypes, null_counts, row_count.
+        Returns None if the file doesn't exist or can't be read.
+    """
+    try:
+        parquet_path = Path(parquet_path)
+        if not parquet_path.exists():
+            return None
+
+        import pyarrow.parquet as pq
+
+        pf = pq.ParquetFile(parquet_path)
+        schema = pf.schema_arrow
+        metadata = pf.metadata
+
+        columns = [schema.field(i).name for i in range(len(schema))]
+        dtypes = {
+            schema.field(i).name: str(schema.field(i).type)
+            for i in range(len(schema))
+        }
+
+        row_count = metadata.num_rows
+
+        # Aggregate null counts across all row groups
+        null_counts: dict[str, int] = {}
+        for col_idx in range(metadata.num_columns):
+            col_name = columns[col_idx] if col_idx < len(columns) else str(col_idx)
+            total_nulls = 0
+            for rg_idx in range(metadata.num_row_groups):
+                col_meta = metadata.row_group(rg_idx).column(col_idx)
+                if col_meta.is_stats_set and col_meta.statistics.null_count is not None:
+                    total_nulls += col_meta.statistics.null_count
+            null_counts[col_name] = total_nulls
+
+        return {
+            "columns": columns,
+            "dtypes": dtypes,
+            "null_counts": null_counts,
+            "row_count": row_count,
+        }
+    except Exception:
+        return None
+
+
 def compute_fingerprint(
     model_config: dict,
     data_mtime: float | None = None,
+    feature_schema: dict | None = None,
+    upstream_fingerprints: dict[str, str] | None = None,
 ) -> str:
     """Compute SHA-256 hash of model config + data modification time.
 
@@ -26,6 +84,14 @@ def compute_fingerprint(
         Model configuration dict (serialized deterministically).
     data_mtime : float | None
         Modification time of the training data file.
+    feature_schema : dict | None
+        Feature schema dict from compute_feature_schema(). When provided,
+        included in the hash payload for schema-aware cache invalidation.
+    upstream_fingerprints : dict[str, str] | None
+        Fingerprints of provider models this model depends on.
+        When a provider is retrained (fingerprint changes), all
+        downstream dependents automatically get new fingerprints
+        and are retrained.
 
     Returns
     -------
@@ -36,6 +102,10 @@ def compute_fingerprint(
         "config": model_config,
         "data_mtime": data_mtime,
     }
+    if feature_schema is not None:
+        payload["feature_schema"] = feature_schema
+    if upstream_fingerprints:
+        payload["upstream_fingerprints"] = upstream_fingerprints
     canonical = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 

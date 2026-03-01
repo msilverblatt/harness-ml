@@ -12,6 +12,8 @@ from easyml.runner.schema import (
     FeatureDecl,
     FeaturesConfig,
     GuardrailDef,
+    InjectionDef,
+    InteractionDef,
     ModelDef,
     ProjectConfig,
     ServerDef,
@@ -489,3 +491,128 @@ class TestOldFormatStillValidates:
         assert cfg.data.raw_dir == "data/raw"
         assert cfg.models["xgb_core"].type == "xgboost"
         assert cfg.ensemble.method == "stacked"
+
+
+class TestInteractionDef:
+    """InteractionDef parsing and validation."""
+
+    def test_interaction_def_valid(self):
+        for op in ("multiply", "add", "subtract", "divide", "abs_diff"):
+            i = InteractionDef(left="feat_a", right="feat_b", op=op)
+            assert i.left == "feat_a"
+            assert i.right == "feat_b"
+            assert i.op == op
+
+    def test_interaction_def_invalid_op(self):
+        with pytest.raises(ValidationError) as exc_info:
+            InteractionDef(left="a", right="b", op="power")
+        assert "power" in str(exc_info.value)
+
+
+class TestInjectionDef:
+    """InjectionDef parsing and validation."""
+
+    def test_injection_def_parquet(self):
+        inj = InjectionDef(
+            source_type="parquet",
+            path_pattern="data/external/{season}_travel.parquet",
+            merge_keys=["team_id", "season"],
+            columns=["travel_distance_mi", "travel_time_zones"],
+        )
+        assert inj.source_type == "parquet"
+        assert inj.path_pattern == "data/external/{season}_travel.parquet"
+        assert inj.merge_keys == ["team_id", "season"]
+        assert inj.columns == ["travel_distance_mi", "travel_time_zones"]
+        assert inj.fill_na == 0.0
+        assert inj.callable_module is None
+        assert inj.callable_function is None
+
+    def test_injection_def_callable(self):
+        inj = InjectionDef(
+            source_type="callable",
+            merge_keys=["team_id"],
+            columns=["elo_rating"],
+            callable_module="my_project.elo",
+            callable_function="compute_elo",
+            fill_na=-1.0,
+        )
+        assert inj.source_type == "callable"
+        assert inj.path_pattern is None
+        assert inj.callable_module == "my_project.elo"
+        assert inj.callable_function == "compute_elo"
+        assert inj.fill_na == -1.0
+
+
+class TestProjectConfigInteractionsAndInjections:
+    """ProjectConfig with interactions and injections sections."""
+
+    def test_project_config_with_interactions(self):
+        proj = _minimal_project()
+        proj["interactions"] = {
+            "seed_x_margin": {
+                "left": "diff_seed_num",
+                "right": "diff_scoring_margin",
+                "op": "multiply",
+            }
+        }
+        cfg = ProjectConfig(**proj)
+        assert cfg.interactions is not None
+        assert "seed_x_margin" in cfg.interactions
+        inter = cfg.interactions["seed_x_margin"]
+        assert inter.left == "diff_seed_num"
+        assert inter.op == "multiply"
+
+    def test_project_config_with_injections(self):
+        proj = _minimal_project()
+        proj["injections"] = {
+            "travel": {
+                "source_type": "csv",
+                "path_pattern": "data/travel_{season}.csv",
+                "merge_keys": ["team_id", "season"],
+                "columns": ["travel_distance"],
+                "fill_na": 0.0,
+            }
+        }
+        cfg = ProjectConfig(**proj)
+        assert cfg.injections is not None
+        assert "travel" in cfg.injections
+        inj = cfg.injections["travel"]
+        assert inj.source_type == "csv"
+        assert inj.columns == ["travel_distance"]
+
+
+class TestBacktestConfigExtensions:
+    """BacktestConfig with sliding_window and purged_kfold fields."""
+
+    def test_backtest_config_sliding_window(self):
+        bt = BacktestConfig(
+            cv_strategy="sliding_window",
+            seasons=[2020, 2021, 2022, 2023, 2024],
+            window_size=5,
+        )
+        assert bt.cv_strategy == "sliding_window"
+        assert bt.window_size == 5
+        assert bt.n_folds is None
+        assert bt.purge_gap == 1
+
+    def test_backtest_config_purged_kfold(self):
+        bt = BacktestConfig(
+            cv_strategy="purged_kfold",
+            seasons=[2015, 2016, 2017, 2018, 2019],
+            n_folds=5,
+            purge_gap=2,
+        )
+        assert bt.cv_strategy == "purged_kfold"
+        assert bt.n_folds == 5
+        assert bt.purge_gap == 2
+        assert bt.window_size is None
+
+    def test_existing_configs_still_valid(self):
+        """Existing BacktestConfig without new fields still validates."""
+        bt = BacktestConfig(
+            cv_strategy="leave_one_season_out",
+            seasons=[2023, 2024],
+        )
+        assert bt.window_size is None
+        assert bt.n_folds is None
+        assert bt.purge_gap == 1

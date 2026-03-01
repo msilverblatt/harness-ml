@@ -256,6 +256,54 @@ def compute_pooled_metrics(
     return metrics
 
 
+def compute_model_agreement(preds_df: pd.DataFrame) -> np.ndarray:
+    """Compute fraction of individual models agreeing with ensemble direction.
+
+    For each row, counts how many prob_* models (excluding prob_logreg_seed
+    and prob_ensemble) agree with the ensemble on prediction direction
+    (both > 0.5 or both <= 0.5).
+
+    Parameters
+    ----------
+    preds_df : pd.DataFrame
+        Predictions with prob_* columns including prob_ensemble.
+
+    Returns
+    -------
+    np.ndarray
+        Agreement fraction per row (0.0 to 1.0).
+    """
+    if "prob_ensemble" not in preds_df.columns:
+        return np.ones(len(preds_df))
+
+    ensemble_direction = preds_df["prob_ensemble"].values > 0.5
+
+    # Find individual model columns (exclude ensemble and logreg_seed)
+    exclude = {"prob_ensemble", "prob_logreg_seed"}
+    model_cols = [
+        c for c in preds_df.columns
+        if c.startswith("prob_") and c not in exclude
+    ]
+
+    if not model_cols:
+        return np.ones(len(preds_df))
+
+    n_rows = len(preds_df)
+    agreement_count = np.zeros(n_rows)
+
+    n_available = np.zeros(n_rows)
+    for col in model_cols:
+        values = preds_df[col].values
+        valid = ~np.isnan(values.astype(float))
+        model_direction = values > 0.5
+        agreement_count += ((model_direction == ensemble_direction) & valid).astype(float)
+        n_available += valid.astype(float)
+
+    # Avoid division by zero: if no models available, return 1.0
+    n_available = np.maximum(n_available, 1.0)
+    return agreement_count / n_available
+
+
 def _compute_accuracy(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     """Compute accuracy from probabilities (threshold 0.5)."""
     predictions = (y_prob >= 0.5).astype(float)

@@ -63,6 +63,31 @@ class DataConfig(BaseModel):
     predictions_dir: str | None = None
     survival_dir: str | None = None
     outputs_dir: str | None = None
+    team_features_path: str | None = None
+
+
+# -----------------------------------------------------------------------
+# Interaction & injection definitions
+# -----------------------------------------------------------------------
+
+class InteractionDef(BaseModel):
+    """Defines a feature computed from two existing columns at predict time."""
+
+    left: str
+    right: str
+    op: Literal["multiply", "add", "subtract", "divide", "abs_diff"]
+
+
+class InjectionDef(BaseModel):
+    """Defines an external feature source to merge into matchup data."""
+
+    source_type: Literal["parquet", "csv", "callable"]
+    path_pattern: str | None = None
+    merge_keys: list[str]
+    columns: list[str]
+    fill_na: float = 0.0
+    callable_module: str | None = None
+    callable_function: str | None = None
 
 
 # -----------------------------------------------------------------------
@@ -100,6 +125,12 @@ class ModelDef(BaseModel):
     pre_calibration: str | None = None
     cdf_scale: float | None = None
     training_filter: dict[str, Any] | None = None
+
+    # Provider fields — model A's output becomes features for model B
+    provides: list[str] = []
+    provides_level: Literal["matchup", "team"] = "matchup"
+    include_in_ensemble: bool = True
+    provider_isolation: Literal["none", "per_season"] = "none"
 
     @field_validator("type")
     @classmethod
@@ -157,8 +188,11 @@ class BacktestConfig(BaseModel):
 
     cv_strategy: str
     seasons: list[int] = []
-    metrics: list[str] = ["brier", "accuracy", "ece", "logloss"]
+    metrics: list[str] = ["brier", "accuracy", "ece", "log_loss"]
     min_train_folds: int = 1
+    window_size: int | None = None
+    n_folds: int | None = None
+    purge_gap: int = 1
 
     @field_validator("cv_strategy")
     @classmethod
@@ -233,6 +267,8 @@ class ProjectConfig(BaseModel):
     feature_config: FeaturesConfig | None = None
     features: dict[str, FeatureDecl] | None = None
     sources: dict[str, SourceDecl] | None = None
+    interactions: dict[str, InteractionDef] | None = None
+    injections: dict[str, InjectionDef] | None = None
     experiments: ExperimentDef | None = None
     guardrails: GuardrailDef | None = None
     server: ServerDef | None = None

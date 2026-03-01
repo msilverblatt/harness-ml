@@ -140,6 +140,45 @@ def inspect_features(ctx: click.Context) -> None:
         )
 
 
+@inspect.command("data")
+@click.option(
+    "--columns", default=None,
+    type=click.Choice(["diff", "non_diff", "high_null", "all"]),
+    help="Show detailed column profiles for a category.",
+)
+@click.option(
+    "--nulls", is_flag=True,
+    help="Show columns grouped by null percentage tier.",
+)
+@click.pass_context
+def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
+    """Profile the matchup features dataset.
+
+    Shows shape, seasons, null rates, and summary statistics.
+    """
+    config_dir = ctx.obj["config_dir"]
+    gender = ctx.obj["gender"]
+    result = _load_config(config_dir, gender)
+
+    features_dir = result.config.data.features_dir
+    parquet_path = Path(features_dir) / "matchup_features.parquet"
+
+    if not parquet_path.exists():
+        click.echo(f"Data file not found: {parquet_path}", err=True)
+        raise SystemExit(1)
+
+    from easyml.runner.data_profiler import profile_dataset
+
+    profile = profile_dataset(parquet_path)
+
+    if columns:
+        click.echo(profile.format_columns(category=columns))
+    elif nulls:
+        click.echo(profile.format_null_tiers())
+    else:
+        click.echo(profile.format_summary())
+
+
 # -----------------------------------------------------------------------
 # experiment subgroup
 # -----------------------------------------------------------------------
@@ -252,14 +291,22 @@ def experiment_list(ctx: click.Context) -> None:
 
 @experiment.command("run")
 @click.argument("experiment_id")
+@click.option("--ensemble-only", is_flag=True, help="Only re-ensemble, skip model training.")
 @click.pass_context
-def experiment_run(ctx: click.Context, experiment_id: str) -> None:
+def experiment_run(ctx: click.Context, experiment_id: str, ensemble_only: bool) -> None:
     """Run an experiment: load overlay, train, backtest, compare to baseline."""
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
 
     import yaml as _yaml
 
+    from easyml.runner.experiment import (
+        compute_deltas,
+        detect_experiment_changes,
+        format_change_summary,
+        format_delta_table,
+        load_baseline_metrics,
+    )
     from easyml.runner.pipeline import PipelineRunner
 
     result = _load_config(config_dir, gender)
@@ -279,6 +326,14 @@ def experiment_run(ctx: click.Context, experiment_id: str) -> None:
         with open(overlay_path) as f:
             overlay = _yaml.safe_load(f) or {}
 
+    # Detect changes between production config and overlay
+    production_dict = result.config.model_dump()
+    change_set = detect_experiment_changes(production_dict, overlay)
+    click.echo(format_change_summary(change_set))
+
+    if ensemble_only or change_set.ensemble_only:
+        click.echo("Ensemble-only mode: skipping model training.")
+
     variant = "w" if gender.upper() == "W" else None
     runner = PipelineRunner(
         project_dir=".",
@@ -291,6 +346,16 @@ def experiment_run(ctx: click.Context, experiment_id: str) -> None:
         runner.load()
         bt_result = runner.backtest()
         click.echo(json.dumps(bt_result, indent=2, default=str))
+
+        # Try to compare against baseline metrics
+        data_cfg = result.config.data
+        outputs_dir = data_cfg.outputs_dir
+        if outputs_dir:
+            baseline = load_baseline_metrics(Path(outputs_dir))
+            if baseline and isinstance(bt_result, dict):
+                deltas = compute_deltas(bt_result, baseline)
+                if deltas:
+                    click.echo("\n" + format_delta_table(bt_result, baseline, deltas))
     except Exception as exc:
         click.echo(f"Experiment {experiment_id} failed: {exc}", err=True)
         raise SystemExit(1)

@@ -4,10 +4,13 @@ Orchestrates model training, backtesting, and evaluation by loading
 ProjectConfig and delegating to easyml-models components.  Supports
 real ensemble backtesting with stacked meta-learner and per-model
 feature subsets, training season filtering, and regressor models.
+Provider models (whose outputs become features for downstream models)
+are trained in dependency order using topological wave sorting.
 """
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +18,14 @@ import numpy as np
 import pandas as pd
 
 from easyml.models.backtest import BacktestRunner
-from easyml.models.cv import LeaveOneSeasonOut
 from easyml.models.orchestrator import TrainOrchestrator
 from easyml.models.registry import ModelRegistry
+from easyml.runner.cv_strategies import generate_cv_folds
+from easyml.runner.dag import build_provider_map, infer_dependencies, topological_waves
 from easyml.runner.meta_learner import train_meta_learner_loso
 from easyml.runner.postprocessing import apply_ensemble_postprocessing
 from easyml.runner.schema import ModelDef, ProjectConfig
+from easyml.runner.stage_guards import PipelineGuards
 from easyml.runner.training import (
     predict_single_model,
     train_single_model,
@@ -35,6 +40,157 @@ _COLUMN_RENAMES = {
     "TeamAMargin": "margin",
     "Season": "season",
 }
+
+
+# -----------------------------------------------------------------------
+# ProviderContext — in-memory store for provider outputs during a fold
+# -----------------------------------------------------------------------
+
+@dataclass
+class ProviderContext:
+    """In-memory store for provider model outputs during a single fold.
+
+    Matchup-level providers store raw prediction arrays keyed by
+    column name and split (train/test).  Team-level providers store
+    team-season DataFrames that get differenced into matchup pairs
+    at injection time.
+    """
+
+    # {provider_name: {col_name: {"train": array, "test": array}}}
+    matchup: dict[str, dict[str, dict[str, np.ndarray]]] = field(
+        default_factory=dict
+    )
+
+    # {provider_name: DataFrame with team-season rows}
+    team: dict[str, pd.DataFrame] = field(default_factory=dict)
+
+    def store_matchup(
+        self,
+        model_name: str,
+        provides: list[str],
+        train_values: np.ndarray,
+        test_values: np.ndarray,
+    ) -> None:
+        """Store matchup-level provider predictions for both splits."""
+        self.matchup[model_name] = {}
+        for col in provides:
+            self.matchup[model_name][col] = {
+                "train": train_values,
+                "test": test_values,
+            }
+
+    def store_team(
+        self,
+        model_name: str,
+        team_df: pd.DataFrame,
+    ) -> None:
+        """Store team-level provider predictions (team-season rows)."""
+        self.team[model_name] = team_df
+
+    def inject(
+        self,
+        df: pd.DataFrame,
+        deps: set[str],
+        models: dict[str, ModelDef],
+        split: str,
+    ) -> pd.DataFrame:
+        """Inject upstream provider features into a DataFrame.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Source DataFrame to inject features into.
+        deps : set[str]
+            Provider model names this consumer depends on.
+        models : dict[str, ModelDef]
+            All model definitions (to look up provides/provides_level).
+        split : str
+            "train" or "test" — which stored predictions to use.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with provider feature columns added.
+        """
+        if not deps:
+            return df
+
+        df = df.copy()
+
+        for dep_name in sorted(deps):
+            dep_def = models[dep_name]
+
+            if dep_def.provides_level == "team" and dep_name in self.team:
+                df = self._inject_team(df, dep_name, dep_def)
+            elif dep_name in self.matchup:
+                for col in dep_def.provides:
+                    if col in self.matchup[dep_name]:
+                        values = self.matchup[dep_name][col][split]
+                        # Matchup-level: value IS the diff already
+                        df[col] = values
+                        df[f"diff_{col}"] = values
+
+        return df
+
+    def _inject_team(
+        self,
+        df: pd.DataFrame,
+        provider_name: str,
+        provider_def: ModelDef,
+    ) -> pd.DataFrame:
+        """Inject team-level features via TeamA/TeamB lookup + differencing."""
+        team_df = self.team[provider_name]
+
+        # Detect team ID and season column names
+        team_id_col = next(
+            (c for c in ("team_id", "TeamID") if c in team_df.columns),
+            None,
+        )
+        season_col = next(
+            (c for c in ("season", "Season") if c in team_df.columns),
+            None,
+        )
+        if not team_id_col or not season_col:
+            logger.warning(
+                "Team provider %s output missing team_id/season columns, "
+                "skipping injection",
+                provider_name,
+            )
+            return df
+
+        # Detect matchup team columns
+        team_a_col = next(
+            (c for c in ("TeamA", "team_a") if c in df.columns), None
+        )
+        team_b_col = next(
+            (c for c in ("TeamB", "team_b") if c in df.columns), None
+        )
+        df_season_col = "season" if "season" in df.columns else "Season"
+
+        if not team_a_col or not team_b_col:
+            logger.warning(
+                "Cannot inject team-level features: missing team columns"
+            )
+            return df
+
+        for col in provider_def.provides:
+            if col not in team_df.columns:
+                continue
+
+            lookup = team_df.set_index([team_id_col, season_col])[col].to_dict()
+
+            a_vals = [
+                lookup.get((row[team_a_col], row[df_season_col]), 0.0)
+                for _, row in df.iterrows()
+            ]
+            b_vals = [
+                lookup.get((row[team_b_col], row[df_season_col]), 0.0)
+                for _, row in df.iterrows()
+            ]
+
+            df[f"diff_{col}"] = np.array(a_vals) - np.array(b_vals)
+
+        return df
 
 
 class PipelineRunner:
@@ -55,38 +211,82 @@ class PipelineRunner:
     def __init__(
         self,
         project_dir: str | Path,
-        config_dir: str | Path,
+        config_dir: str | Path | None = None,
         variant: str | None = None,
         overlay: dict | None = None,
+        enable_guards: bool = True,
+        config: ProjectConfig | None = None,
     ) -> None:
         self.project_dir = Path(project_dir)
-        self.config_dir = Path(config_dir)
+        self.config_dir = Path(config_dir) if config_dir else None
         self.variant = variant
         self.overlay = overlay
+        self.enable_guards = enable_guards
 
-        self.config: ProjectConfig | None = None
+        self.config: ProjectConfig | None = config
         self._registry: ModelRegistry | None = None
         self._df: pd.DataFrame | None = None
+        self._team_df: pd.DataFrame | None = None
+        self._guards: PipelineGuards | None = None
 
     def load(self) -> None:
-        """Validate config and set up ModelRegistry."""
-        result = validate_project(
-            self.config_dir,
-            overlay=self.overlay,
-            variant=self.variant,
-        )
-        if not result.valid:
-            raise ValueError(
-                f"Config validation failed:\n{result.format()}"
+        """Validate config and set up ModelRegistry.
+
+        If a ProjectConfig was provided at construction time, uses it
+        directly without loading YAML from disk.
+        """
+        if self.config is None:
+            # Load from YAML files on disk
+            if self.config_dir is None:
+                raise ValueError(
+                    "Either config_dir or config must be provided"
+                )
+            result = validate_project(
+                self.config_dir,
+                overlay=self.overlay,
+                variant=self.variant,
             )
-        self.config = result.config
+            if not result.valid:
+                raise ValueError(
+                    f"Config validation failed:\n{result.format()}"
+                )
+            self.config = result.config
+
         self._registry = ModelRegistry.with_defaults()
+        self._guards = PipelineGuards(
+            self.config.data,
+            self.project_dir,
+            enabled=self.enable_guards,
+        )
+
+        # Validate model features against declared feature registry
+        if self.config.features:
+            from easyml.runner.feature_utils import validate_model_features
+            for model_name, model_def in self.config.models.items():
+                warnings = validate_model_features(model_def, self.config.features, model_name)
+                for w in warnings:
+                    logger.warning(w)
+
+        # Validate model types against model registry
+        from easyml.runner.feature_utils import validate_registry_coverage
+        registry_warnings = validate_registry_coverage(self.config, self._registry)
+        for w in registry_warnings:
+            logger.warning(w)
+
         self._load_data()
 
     def _load_data(self) -> None:
-        """Read matchup_features.parquet and normalize column names."""
+        """Read matchup_features.parquet and normalize column names.
+
+        Also loads team_features.parquet if any model has
+        ``provides_level="team"``.
+        """
         features_dir = Path(self.config.data.features_dir)
         parquet_path = features_dir / "matchup_features.parquet"
+
+        # Try relative to project_dir if not found at absolute/relative path
+        if not parquet_path.exists():
+            parquet_path = self.project_dir / features_dir / "matchup_features.parquet"
 
         if not parquet_path.exists():
             raise FileNotFoundError(
@@ -96,11 +296,55 @@ class PipelineRunner:
         self._df = pd.read_parquet(parquet_path)
         self._normalize_columns()
 
+        # Load team features if any model has provides_level="team"
+        has_team_providers = any(
+            m.provides and m.provides_level == "team"
+            for m in self.config.models.values()
+        )
+        if has_team_providers and self.config.data.team_features_path:
+            team_path = Path(self.config.data.team_features_path)
+            if not team_path.exists():
+                team_path = self.project_dir / team_path
+            if team_path.exists():
+                self._team_df = pd.read_parquet(team_path)
+                logger.info("Loaded team features: %s", team_path)
+            else:
+                logger.warning(
+                    "Team features path configured but not found: %s",
+                    team_path,
+                )
+
+        # Apply feature injections if configured
+        if self.config.injections:
+            self._apply_injections()
+
+        # Apply interaction features if configured
+        if self.config.interactions:
+            from easyml.runner.matchups import compute_interactions
+            self._df = compute_interactions(self._df, self.config.interactions)
+
     def _normalize_columns(self) -> None:
         """Auto-detect mm-style columns and rename to easyml convention."""
         for old_name, new_name in _COLUMN_RENAMES.items():
             if old_name in self._df.columns and new_name not in self._df.columns:
                 self._df = self._df.rename(columns={old_name: new_name})
+
+    def _apply_injections(self) -> None:
+        """Apply configured feature injections to the loaded data."""
+        from easyml.runner.feature_utils import inject_features
+
+        for inj_name, inj_def in self.config.injections.items():
+            if "{season}" in (inj_def.path_pattern or ""):
+                # Per-season injection
+                for season in self._df["season"].unique():
+                    mask = self._df["season"] == season
+                    season_df = self._df[mask].copy()
+                    injected = inject_features(season_df, inj_def, season=int(season))
+                    for col in inj_def.columns:
+                        if col in injected.columns:
+                            self._df.loc[mask, col] = injected[col].values
+            else:
+                self._df = inject_features(self._df, inj_def)
 
     def _get_active_models(self) -> dict[str, ModelDef]:
         """Return active models, excluding those in ensemble.exclude_models."""
@@ -113,6 +357,12 @@ class PipelineRunner:
 
     def train(self, run_id: str | None = None) -> dict[str, Any]:
         """Train all active models on the full dataset.
+
+        Models are trained in dependency order: providers first,
+        then consumers.  When fingerprint caching is active,
+        retraining a provider automatically invalidates all
+        downstream dependents (upstream fingerprints are included
+        in each model's cache key).
 
         Parameters
         ----------
@@ -127,47 +377,89 @@ class PipelineRunner:
         if self.config is None:
             raise RuntimeError("Call load() before train()")
 
+        if self._guards:
+            self._guards.guard_train()
+
         output_dir = self.project_dir / "models"
         if run_id:
             output_dir = output_dir / run_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Build model configs dict for TrainOrchestrator
-        model_configs = self._build_model_configs()
+        active_models = self._get_active_models()
+        if not active_models:
+            raise ValueError("No active models to train.")
 
-        # Determine feature columns from active models
-        all_features: set[str] = set()
-        for model_def in self.config.models.values():
-            if model_def.active:
-                all_features.update(model_def.features)
-        available = set(self._df.columns)
-        feature_columns = sorted(f for f in all_features if f in available)
+        # Compute dependency waves for training order
+        pmap = build_provider_map(active_models)
+        deps = infer_dependencies(active_models, pmap)
+        waves = topological_waves(deps)
 
-        if not feature_columns:
-            raise ValueError(
-                "No declared model features found in matchup_features.parquet."
-            )
+        context = ProviderContext()
+        trained_names: list[str] = []
+        # Track fingerprints so dependents can include upstream hashes
+        model_fingerprints: dict[str, str] = {}
 
-        X = self._df[feature_columns].values.astype(np.float64)
-        y = self._df["result"].values.astype(np.float64)
+        for wave in waves:
+            for model_name in wave:
+                model_def = active_models[model_name]
+                model_deps = deps.get(model_name, set())
 
-        orchestrator = TrainOrchestrator(
-            model_registry=self._registry,
-            model_configs=model_configs,
-            output_dir=output_dir,
-            failure_policy="skip",
-            use_fingerprint=False,
-        )
+                # Inject provider features from upstream models
+                model_train_df = context.inject(
+                    self._df, model_deps, active_models, "train",
+                )
 
-        trained = orchestrator.train_all(
-            X=X,
-            y=y,
-            feature_columns=feature_columns,
-        )
+                try:
+                    model, feature_cols, metrics = train_single_model(
+                        model_name=model_name,
+                        model_def=model_def,
+                        train_df=model_train_df,
+                        registry=self._registry,
+                    )
+
+                    # Compute fingerprint including upstream dependencies
+                    from easyml.runner.fingerprint import (
+                        compute_fingerprint,
+                        save_fingerprint,
+                    )
+                    upstream_fps = {
+                        dep: model_fingerprints[dep]
+                        for dep in model_deps
+                        if dep in model_fingerprints
+                    }
+                    fp = compute_fingerprint(
+                        model_config=model_def.model_dump(),
+                        upstream_fingerprints=upstream_fps or None,
+                    )
+                    model_fingerprints[model_name] = fp
+                    save_fingerprint(output_dir, model_name, fp)
+
+                    # If this model provides features, predict on full
+                    # data and store for downstream consumers
+                    if model_def.provides and model_def.provides_level == "matchup":
+                        train_preds = predict_single_model(
+                            model=model,
+                            model_def=model_def,
+                            test_df=model_train_df,
+                            feature_columns=feature_cols,
+                            cdf_scale=metrics.get("cdf_scale"),
+                        )
+                        context.store_matchup(
+                            model_name, model_def.provides,
+                            train_preds, train_preds,
+                        )
+
+                    trained_names.append(model_name)
+
+                except Exception:
+                    logger.exception(
+                        "Failed to train %s", model_name,
+                    )
+                    continue
 
         return {
             "status": "success",
-            "models_trained": list(trained.keys()),
+            "models_trained": trained_names,
         }
 
     def predict(
@@ -197,33 +489,30 @@ class PipelineRunner:
         if self.config is None:
             raise RuntimeError("Call load() before predict()")
 
+        if self._guards:
+            self._guards.guard_predict()
+
         active_models = self._get_active_models()
         if not active_models:
             raise ValueError("No active models for prediction.")
 
-        # Train all active models on data before the target season
-        trained_models = {}
-        for model_name, model_def in active_models.items():
-            try:
-                model, feature_cols, metrics = train_single_model(
-                    model_name=model_name,
-                    model_def=model_def,
-                    train_df=self._df,
-                    registry=self._registry,
-                    target_season=season,
-                )
-                trained_models[model_name] = (model, feature_cols, metrics)
-            except Exception:
-                logger.exception(
-                    "Failed to train %s for prediction season %d",
-                    model_name, season,
-                )
-                continue
+        # Resolve feature_sets if feature declarations are configured
+        if self.config.features:
+            from easyml.runner.feature_utils import resolve_model_features
+            for model_name, model_def in list(active_models.items()):
+                if model_def.feature_sets:
+                    resolved = resolve_model_features(model_def, self.config.features)
+                    active_models[model_name] = model_def.model_copy(
+                        update={"features": resolved}
+                    )
 
-        if not trained_models:
-            raise ValueError("No models could be trained for prediction.")
+        # Compute dependency order for training
+        pmap = build_provider_map(active_models)
+        deps = infer_dependencies(active_models, pmap)
+        waves = topological_waves(deps)
 
-        # Get test data for the target season
+        # Split data
+        train_df = self._df[self._df["season"] < season].copy()
         test_mask = self._df["season"] == season
         test_df = self._df[test_mask].copy()
 
@@ -248,24 +537,68 @@ class PipelineRunner:
             if feat_name in test_df.columns:
                 preds_df[feat_name] = test_df[feat_name].values
 
-        # Generate predictions from each model
-        for model_name, (model, feature_cols, metrics) in trained_models.items():
-            try:
-                cdf_scale = metrics.get("cdf_scale")
-                probs = predict_single_model(
-                    model=model,
-                    model_def=active_models[model_name],
-                    test_df=test_df,
-                    feature_columns=feature_cols,
-                    cdf_scale=cdf_scale,
+        # Train and predict in wave order (providers before consumers)
+        context = ProviderContext()
+        trained_count = 0
+
+        for wave in waves:
+            for model_name in wave:
+                model_def = active_models[model_name]
+                model_deps = deps.get(model_name, set())
+
+                model_train_df = context.inject(
+                    train_df, model_deps, active_models, "train",
                 )
-                preds_df[f"prob_{model_name}"] = probs
-            except Exception:
-                logger.exception(
-                    "Failed to predict %s for season %d",
-                    model_name, season,
+                model_test_df = context.inject(
+                    test_df, model_deps, active_models, "test",
                 )
-                continue
+
+                try:
+                    model, feature_cols, metrics = train_single_model(
+                        model_name=model_name,
+                        model_def=model_def,
+                        train_df=model_train_df,
+                        registry=self._registry,
+                        target_season=season,
+                    )
+
+                    cdf_scale = metrics.get("cdf_scale")
+                    probs = predict_single_model(
+                        model=model,
+                        model_def=model_def,
+                        test_df=model_test_df,
+                        feature_columns=feature_cols,
+                        cdf_scale=cdf_scale,
+                    )
+
+                    # Store provider outputs for downstream consumers
+                    if model_def.provides and model_def.provides_level == "matchup":
+                        train_preds = predict_single_model(
+                            model=model,
+                            model_def=model_def,
+                            test_df=model_train_df,
+                            feature_columns=feature_cols,
+                            cdf_scale=cdf_scale,
+                        )
+                        context.store_matchup(
+                            model_name, model_def.provides,
+                            train_preds, probs,
+                        )
+
+                    if model_def.include_in_ensemble:
+                        preds_df[f"prob_{model_name}"] = probs
+
+                    trained_count += 1
+
+                except Exception:
+                    logger.exception(
+                        "Failed to train/predict %s for season %d",
+                        model_name, season,
+                    )
+                    continue
+
+        if trained_count == 0:
+            raise ValueError("No models could be trained for prediction.")
 
         # Check we got at least one model prediction
         prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
@@ -375,11 +708,11 @@ class PipelineRunner:
         return meta, cal, pre_cals
 
     def backtest(self) -> dict[str, Any]:
-        """Run real ensemble backtesting with LOSO cross-validation.
+        """Run real ensemble backtesting with cross-validation.
 
         Two-pass approach:
-          Pass 1: Per holdout season, train all active models on everything
-                  except that season, predict that season's matchups.
+          Pass 1: Per CV fold, train all active models on the training
+                  seasons, predict the test season's matchups.
           Pass 2: Train LOSO meta-learner (one per held-out season), apply
                   ensemble post-processing.
 
@@ -391,6 +724,9 @@ class PipelineRunner:
         if self.config is None:
             raise RuntimeError("Call load() before backtest()")
 
+        if self._guards:
+            self._guards.guard_backtest()
+
         bt_config = self.config.backtest
         ensemble_config = self.config.ensemble.model_dump()
         active_models = self._get_active_models()
@@ -398,22 +734,26 @@ class PipelineRunner:
         if not active_models:
             raise ValueError("No active models to backtest.")
 
-        # Determine backtest seasons
-        seasons = bt_config.seasons
-        if not seasons:
-            seasons = sorted(self._df["season"].unique())
+        # Generate CV folds from strategy
+        cv_folds = generate_cv_folds(self._df, bt_config)
 
-        # Pass 1: per-season OOF predictions
+        # Pass 1: per-fold OOF predictions
         season_data: dict[int, pd.DataFrame] = {}
-        for holdout in seasons:
-            preds_df = self._generate_season_predictions(holdout, active_models)
+        for train_seasons, test_season in cv_folds:
+            preds_df = self._generate_season_predictions_from_fold(
+                train_seasons, test_season, active_models
+            )
             if preds_df is not None and len(preds_df) > 0:
-                season_data[holdout] = preds_df
+                season_data[test_season] = preds_df
 
         if not season_data:
             raise ValueError("No valid holdout seasons produced predictions.")
 
-        active_model_names = list(active_models.keys())
+        # Only models with include_in_ensemble=True participate in ensemble
+        active_model_names = [
+            name for name, m in active_models.items()
+            if m.include_in_ensemble
+        ]
 
         # Pass 2: meta-learner + post-processing
         if ensemble_config["method"] == "stacked":
@@ -451,11 +791,48 @@ class PipelineRunner:
     ) -> pd.DataFrame | None:
         """Train all active models on non-holdout data, predict holdout.
 
-        Returns a DataFrame with prob_{model_name} columns, plus
-        diff_seed_num and any meta_features columns.
+        Delegates to _generate_season_predictions_from_fold with all
+        seasons except the holdout as training seasons.
         """
-        test_mask = self._df["season"] == holdout_season
-        train_df = self._df[~test_mask].copy()
+        all_seasons = sorted(self._df["season"].unique())
+        train_seasons = [s for s in all_seasons if s != holdout_season]
+        return self._generate_season_predictions_from_fold(
+            train_seasons, holdout_season, active_models
+        )
+
+    def _generate_season_predictions_from_fold(
+        self,
+        train_seasons: list[int],
+        test_season: int,
+        active_models: dict[str, ModelDef],
+    ) -> pd.DataFrame | None:
+        """Train on specified seasons, predict test_season.
+
+        Models are trained in dependency order: providers first,
+        then consumers that use provider outputs as features.
+        Within each wave, models are independent and can train
+        in any order.
+
+        Parameters
+        ----------
+        train_seasons : list[int]
+            Seasons to include in training data.
+        test_season : int
+            Season to predict.
+        active_models : dict[str, ModelDef]
+            Active model definitions.
+
+        Returns
+        -------
+        pd.DataFrame | None
+            DataFrame with prob_{model_name} columns (only for
+            models with include_in_ensemble=True), plus
+            diff_seed_num and any meta_features columns,
+            or None if no predictions could be generated.
+        """
+        train_mask = self._df["season"].isin(train_seasons)
+        test_mask = self._df["season"] == test_season
+        train_df = self._df[train_mask].copy()
         test_df = self._df[test_mask].copy()
 
         if len(train_df) == 0 or len(test_df) == 0:
@@ -477,33 +854,91 @@ class PipelineRunner:
             if feat_name in test_df.columns:
                 preds_df[feat_name] = test_df[feat_name].values
 
-        # Train and predict each model
-        for model_name, model_def in active_models.items():
-            try:
-                model, feature_cols, metrics = train_single_model(
-                    model_name=model_name,
-                    model_def=model_def,
-                    train_df=train_df,
-                    registry=self._registry,
+        # Resolve feature_sets if feature declarations are configured
+        resolved_models = dict(active_models)
+        if self.config.features:
+            from easyml.runner.feature_utils import resolve_model_features
+            for model_name, model_def in active_models.items():
+                if model_def.feature_sets:
+                    resolved = resolve_model_features(model_def, self.config.features)
+                    resolved_models[model_name] = model_def.model_copy(
+                        update={"features": resolved}
+                    )
+
+        # Compute dependency waves for training order
+        pmap = build_provider_map(resolved_models)
+        deps = infer_dependencies(resolved_models, pmap)
+        waves = topological_waves(deps)
+
+        context = ProviderContext()
+
+        # Train and predict in wave order (providers before consumers)
+        for wave in waves:
+            for model_name in wave:
+                model_def = resolved_models[model_name]
+                model_deps = deps.get(model_name, set())
+
+                # Inject provider features from upstream models
+                model_train_df = context.inject(
+                    train_df, model_deps, resolved_models, "train",
+                )
+                model_test_df = context.inject(
+                    test_df, model_deps, resolved_models, "test",
                 )
 
-                cdf_scale = metrics.get("cdf_scale")
-                probs = predict_single_model(
-                    model=model,
-                    model_def=model_def,
-                    test_df=test_df,
-                    feature_columns=feature_cols,
-                    cdf_scale=cdf_scale,
-                )
+                try:
+                    model, feature_cols, metrics = train_single_model(
+                        model_name=model_name,
+                        model_def=model_def,
+                        train_df=model_train_df,
+                        registry=self._registry,
+                    )
 
-                preds_df[f"prob_{model_name}"] = probs
+                    cdf_scale = metrics.get("cdf_scale")
+                    probs = predict_single_model(
+                        model=model,
+                        model_def=model_def,
+                        test_df=model_test_df,
+                        feature_columns=feature_cols,
+                        cdf_scale=cdf_scale,
+                    )
 
-            except Exception:
-                logger.exception(
-                    "Failed to train/predict %s for season %d",
-                    model_name, holdout_season,
-                )
-                continue
+                    # If this model provides features, predict on train
+                    # data too and store outputs for downstream consumers
+                    if model_def.provides:
+                        if model_def.provides_level == "matchup":
+                            train_preds = predict_single_model(
+                                model=model,
+                                model_def=model_def,
+                                test_df=model_train_df,
+                                feature_columns=feature_cols,
+                                cdf_scale=cdf_scale,
+                            )
+                            context.store_matchup(
+                                model_name,
+                                model_def.provides,
+                                train_preds,
+                                probs,
+                            )
+                        elif model_def.provides_level == "team":
+                            # Team-level providers need special handling
+                            # with team_df and per-team predictions
+                            logger.info(
+                                "Team-level provider %s — team feature "
+                                "injection requires team_df",
+                                model_name,
+                            )
+
+                    # Only add to ensemble predictions if included
+                    if model_def.include_in_ensemble:
+                        preds_df[f"prob_{model_name}"] = probs
+
+                except Exception:
+                    logger.exception(
+                        "Failed to train/predict %s for season %d",
+                        model_name, test_season,
+                    )
+                    continue
 
         # Check we got at least one model
         prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]

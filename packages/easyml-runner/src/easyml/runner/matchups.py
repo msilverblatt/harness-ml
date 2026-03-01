@@ -13,10 +13,64 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from easyml.runner.schema import ModelDef
+from easyml.runner.schema import InteractionDef, ModelDef
 from easyml.runner.training import _is_regressor, _margin_to_prob
 
 logger = logging.getLogger(__name__)
+
+
+def compute_interactions(
+    df: pd.DataFrame,
+    interactions: dict[str, InteractionDef],
+) -> pd.DataFrame:
+    """Add interaction feature columns to a DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame with existing columns.
+    interactions : dict[str, InteractionDef]
+        Mapping of output column name -> InteractionDef.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of df with new interaction columns appended.
+
+    Raises
+    ------
+    KeyError
+        If left or right column is not present in df.
+    """
+    result = df.copy()
+
+    for name, interaction_def in interactions.items():
+        if interaction_def.left not in result.columns:
+            raise KeyError(
+                f"Left column {interaction_def.left!r} not found in DataFrame "
+                f"for interaction {name!r}"
+            )
+        if interaction_def.right not in result.columns:
+            raise KeyError(
+                f"Right column {interaction_def.right!r} not found in DataFrame "
+                f"for interaction {name!r}"
+            )
+
+        left = result[interaction_def.left]
+        right = result[interaction_def.right]
+
+        if interaction_def.op == "multiply":
+            result[name] = left * right
+        elif interaction_def.op == "add":
+            result[name] = left + right
+        elif interaction_def.op == "subtract":
+            result[name] = left - right
+        elif interaction_def.op == "divide":
+            result[name] = (left / right.replace(0, np.nan)).fillna(0)
+        elif interaction_def.op == "abs_diff":
+            result[name] = (left - right).abs()
+
+    return result
 
 
 def generate_pairwise_matchups(
@@ -24,6 +78,7 @@ def generate_pairwise_matchups(
     seeds: pd.DataFrame,
     season: int,
     feature_medians: dict | None = None,
+    interactions: dict | None = None,
 ) -> pd.DataFrame:
     """Generate all pairwise matchup features for seeded teams.
 
@@ -128,7 +183,12 @@ def generate_pairwise_matchups(
     if not rows:
         return pd.DataFrame()
 
-    return pd.DataFrame(rows)
+    result_df = pd.DataFrame(rows)
+
+    if interactions:
+        result_df = compute_interactions(result_df, interactions)
+
+    return result_df
 
 
 def predict_all_matchups(

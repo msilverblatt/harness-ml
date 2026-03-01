@@ -327,12 +327,110 @@ class TestApplySeedCompression:
 
 
 class TestApplyAvailabilityAdjustment:
-    def test_placeholder_returns_copy(self):
-        """Placeholder should return probabilities unchanged."""
+    def test_no_adjustment_all_models_present(self):
+        """All prob_* columns have valid values -> no change."""
         probs = np.array([0.8, 0.2, 0.5])
-        preds = pd.DataFrame({"col": [1, 2, 3]})
-        team_features = pd.DataFrame({"avail": [1.0, 0.9, 0.8]})
-        result = apply_availability_adjustment(probs, preds, team_features, strength=0.5)
+        preds = pd.DataFrame({
+            "prob_model_a": [0.7, 0.3, 0.6],
+            "prob_model_b": [0.9, 0.1, 0.4],
+            "prob_model_c": [0.6, 0.4, 0.5],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=0.5)
         np.testing.assert_allclose(result, probs)
-        # Should be a copy, not the same object
-        assert result is not probs
+
+    def test_pulls_toward_half_when_models_missing(self):
+        """Setting some prob_* to NaN should pull output toward 0.5."""
+        probs = np.array([0.8, 0.2])
+        preds = pd.DataFrame({
+            "prob_model_a": [0.7, np.nan],
+            "prob_model_b": [0.9, np.nan],
+            "prob_model_c": [0.6, 0.5],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=0.6)
+        # Row 0: all 3 present -> coverage=1.0, pull_factor=0.0 -> no change
+        np.testing.assert_allclose(result[0], 0.8)
+        # Row 1: 1 of 3 present -> coverage=1/3, pull_factor=0.6*(2/3)=0.4
+        # adjusted = 0.2 * 0.6 + 0.5 * 0.4 = 0.32
+        np.testing.assert_allclose(result[1], 0.32)
+
+    def test_zero_strength_no_change(self):
+        """strength=0.0 should return unchanged probabilities."""
+        probs = np.array([0.9, 0.1, 0.7])
+        preds = pd.DataFrame({
+            "prob_model_a": [0.7, np.nan, 0.6],
+            "prob_model_b": [np.nan, np.nan, 0.4],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=0.0)
+        np.testing.assert_allclose(result, probs)
+
+    def test_full_strength_all_missing(self):
+        """strength=1.0 and all models NaN should fully pull to 0.5."""
+        probs = np.array([0.9, 0.1])
+        preds = pd.DataFrame({
+            "prob_model_a": [np.nan, np.nan],
+            "prob_model_b": [np.nan, np.nan],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
+        np.testing.assert_allclose(result, [0.5, 0.5])
+
+    def test_partial_missing_some_games(self):
+        """Only some rows have NaN - verify per-row behavior."""
+        probs = np.array([0.8, 0.6, 0.3, 0.9])
+        preds = pd.DataFrame({
+            "prob_model_a": [0.7, np.nan, 0.5, 0.8],
+            "prob_model_b": [0.9, 0.4, np.nan, 0.7],
+            "prob_model_c": [0.6, 0.3, np.nan, np.nan],
+            "prob_model_d": [0.5, np.nan, 0.6, 0.9],
+        })
+        config = {"exclude_models": []}
+        strength = 1.0
+        result = apply_availability_adjustment(probs, preds, config, strength)
+
+        # Row 0: 4/4 present -> coverage=1.0, pull=0.0 -> 0.8
+        np.testing.assert_allclose(result[0], 0.8)
+        # Row 1: 2/4 present -> coverage=0.5, pull=0.5 -> 0.6*0.5 + 0.5*0.5 = 0.55
+        np.testing.assert_allclose(result[1], 0.55)
+        # Row 2: 2/4 present -> coverage=0.5, pull=0.5 -> 0.3*0.5 + 0.5*0.5 = 0.4
+        np.testing.assert_allclose(result[2], 0.4)
+        # Row 3: 3/4 present -> coverage=0.75, pull=0.25 -> 0.9*0.75 + 0.5*0.25 = 0.8
+        np.testing.assert_allclose(result[3], 0.8)
+
+    def test_excluded_models_not_counted(self):
+        """Excluded models should not be counted in coverage calculation."""
+        probs = np.array([0.8])
+        preds = pd.DataFrame({
+            "prob_model_a": [0.7],
+            "prob_model_b": [np.nan],  # excluded, should not matter
+        })
+        config = {"exclude_models": ["model_b"]}
+        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
+        # Only model_a is active, and it is present -> coverage=1.0 -> no change
+        np.testing.assert_allclose(result[0], 0.8)
+
+    def test_ensemble_column_excluded(self):
+        """prob_ensemble should not count as a model column."""
+        probs = np.array([0.8])
+        preds = pd.DataFrame({
+            "prob_model_a": [np.nan],
+            "prob_model_b": [0.5],
+            "prob_ensemble": [0.6],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
+        # model_a (NaN) + model_b (present) -> coverage=0.5, pull=0.5 -> 0.65
+        np.testing.assert_allclose(result[0], 0.65)
+
+    def test_no_active_models_returns_unchanged(self):
+        """Edge case: no active model columns -> return probs unchanged."""
+        probs = np.array([0.8, 0.2])
+        preds = pd.DataFrame({
+            "prob_ensemble": [0.5, 0.5],
+            "some_other_col": [1, 2],
+        })
+        config = {"exclude_models": []}
+        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
+        np.testing.assert_allclose(result, probs)
