@@ -108,3 +108,11 @@ def test_model_audit():
     audit = model_audit(preds, y_true, metrics=["brier", "accuracy"])
     assert audit["model_a"]["accuracy"] == 1.0
     assert audit["model_b"]["accuracy"] == 0.5
+
+
+def test_package_exports():
+    from easyml.schemas import FeatureMeta, ModelConfig, brier_score, ece, model_audit
+    assert FeatureMeta is not None
+    assert callable(brier_score)
+    assert callable(ece)
+    assert callable(model_audit)
