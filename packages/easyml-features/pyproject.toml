@@ -5,6 +5,7 @@ description = "Feature registry and engineering for EasyML"
 requires-python = ">=3.11"
 dependencies = [
     "easyml-schemas",
+    "pandas>=2.0",
 ]
 
 [build-system]
