@@ -22,6 +22,7 @@ members = [
     "easyml-features",
     "easyml-guardrails",
     "easyml-models",
+    "easyml-runner",
     "easyml-schemas",
 ]
 
@@ -486,16 +487,28 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "catboost" },
+    { name = "click" },
+    { name = "lightgbm" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytorch-tabnet" },
+    { name = "torch" },
+    { name = "xgboost" },
 ]
 
 [package.metadata]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "catboost", specifier = ">=1.2.10" },
+    { name = "click", specifier = ">=8.0" },
+    { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
+    { name = "pytorch-tabnet", specifier = ">=4.1.0" },
+    { name = "torch", specifier = ">=2.10.0" },
+    { name = "xgboost", specifier = ">=3.2.0" },
 ]
 
 [[package]]
@@ -521,10 +534,18 @@ version = "0.1.0"
 source = { editable = "packages/easyml-data" }
 dependencies = [
     { name = "easyml-schemas" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "easyml-schemas", editable = "packages/easyml-schemas" }]
+requires-dist = [
+    { name = "easyml-schemas", editable = "packages/easyml-schemas" },
+    { name = "pandas", specifier = ">=2.0" },
+    { name = "pyarrow", specifier = ">=14.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
 
 [[package]]
 name = "easyml-experiments"
@@ -626,6 +647,35 @@ requires-dist = [
     { name = "xgboost", marker = "extra == 'xgboost'", specifier = ">=1.7" },
 ]
 provides-extras = ["xgboost", "catboost", "lightgbm", "torch", "all"]
+
+[[package]]
+name = "easyml-runner"
+version = "0.1.0"
+source = { editable = "packages/easyml-runner" }
+dependencies = [
+    { name = "click" },
+    { name = "easyml-config" },
+    { name = "easyml-data" },
+    { name = "easyml-experiments" },
+    { name = "easyml-features" },
+    { name = "easyml-guardrails" },
+    { name = "easyml-models" },
+    { name = "easyml-schemas" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8.0" },
+    { name = "easyml-config", editable = "packages/easyml-config" },
+    { name = "easyml-data", editable = "packages/easyml-data" },
+    { name = "easyml-experiments", editable = "packages/easyml-experiments" },
+    { name = "easyml-features", editable = "packages/easyml-features" },
+    { name = "easyml-guardrails", editable = "packages/easyml-guardrails" },
+    { name = "easyml-models", editable = "packages/easyml-models" },
+    { name = "easyml-schemas", editable = "packages/easyml-schemas" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
 
 [[package]]
 name = "easyml-schemas"
