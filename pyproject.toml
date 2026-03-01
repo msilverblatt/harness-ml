@@ -9,6 +9,7 @@ members = ["packages/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/*/tests", "tests"]
+addopts = "--import-mode=importlib"
 
 [dependency-groups]
 dev = [
