@@ -1,7 +1,9 @@
 """PipelineRunner — wire library APIs from YAML config.
 
 Orchestrates model training, backtesting, and evaluation by loading
-ProjectConfig and delegating to easyml-models components.
+ProjectConfig and delegating to easyml-models components.  Supports
+real ensemble backtesting with stacked meta-learner and per-model
+feature subsets, training season filtering, and regressor models.
 """
 from __future__ import annotations
 
@@ -16,10 +18,23 @@ from easyml.models.backtest import BacktestRunner
 from easyml.models.cv import LeaveOneSeasonOut
 from easyml.models.orchestrator import TrainOrchestrator
 from easyml.models.registry import ModelRegistry
-from easyml.runner.schema import ProjectConfig
+from easyml.runner.meta_learner import train_meta_learner_loso
+from easyml.runner.postprocessing import apply_ensemble_postprocessing
+from easyml.runner.schema import ModelDef, ProjectConfig
+from easyml.runner.training import (
+    predict_single_model,
+    train_single_model,
+)
 from easyml.runner.validator import validate_project
 
 logger = logging.getLogger(__name__)
+
+# Column name mappings: mm-style -> easyml-style
+_COLUMN_RENAMES = {
+    "TeamAWon": "result",
+    "TeamAMargin": "margin",
+    "Season": "season",
+}
 
 
 class PipelineRunner:
@@ -52,10 +67,6 @@ class PipelineRunner:
         self.config: ProjectConfig | None = None
         self._registry: ModelRegistry | None = None
         self._df: pd.DataFrame | None = None
-        self._feature_columns: list[str] | None = None
-        self._X: np.ndarray | None = None
-        self._y: np.ndarray | None = None
-        self._seasons: np.ndarray | None = None
 
     def load(self) -> None:
         """Validate config and set up ModelRegistry."""
@@ -73,7 +84,7 @@ class PipelineRunner:
         self._load_data()
 
     def _load_data(self) -> None:
-        """Read matchup_features.parquet and extract features, y, and seasons."""
+        """Read matchup_features.parquet and normalize column names."""
         features_dir = Path(self.config.data.features_dir)
         parquet_path = features_dir / "matchup_features.parquet"
 
@@ -83,26 +94,22 @@ class PipelineRunner:
             )
 
         self._df = pd.read_parquet(parquet_path)
+        self._normalize_columns()
 
-        # Determine feature columns from model configs
-        all_features: set[str] = set()
-        for model_def in self.config.models.values():
-            if model_def.active:
-                all_features.update(model_def.features)
+    def _normalize_columns(self) -> None:
+        """Auto-detect mm-style columns and rename to easyml convention."""
+        for old_name, new_name in _COLUMN_RENAMES.items():
+            if old_name in self._df.columns and new_name not in self._df.columns:
+                self._df = self._df.rename(columns={old_name: new_name})
 
-        # Filter to columns that actually exist in the data
-        available = set(self._df.columns)
-        self._feature_columns = sorted(f for f in all_features if f in available)
-
-        if not self._feature_columns:
-            raise ValueError(
-                "No declared model features found in matchup_features.parquet. "
-                f"Available columns: {sorted(available)}"
-            )
-
-        self._X = self._df[self._feature_columns].values.astype(np.float64)
-        self._y = self._df["result"].values.astype(np.float64)
-        self._seasons = self._df["season"].values
+    def _get_active_models(self) -> dict[str, ModelDef]:
+        """Return active models, excluding those in ensemble.exclude_models."""
+        exclude = set(self.config.ensemble.exclude_models)
+        return {
+            name: model_def
+            for name, model_def in self.config.models.items()
+            if model_def.active and name not in exclude
+        }
 
     def train(self, run_id: str | None = None) -> dict[str, Any]:
         """Train all active models on the full dataset.
@@ -128,6 +135,22 @@ class PipelineRunner:
         # Build model configs dict for TrainOrchestrator
         model_configs = self._build_model_configs()
 
+        # Determine feature columns from active models
+        all_features: set[str] = set()
+        for model_def in self.config.models.values():
+            if model_def.active:
+                all_features.update(model_def.features)
+        available = set(self._df.columns)
+        feature_columns = sorted(f for f in all_features if f in available)
+
+        if not feature_columns:
+            raise ValueError(
+                "No declared model features found in matchup_features.parquet."
+            )
+
+        X = self._df[feature_columns].values.astype(np.float64)
+        y = self._df["result"].values.astype(np.float64)
+
         orchestrator = TrainOrchestrator(
             model_registry=self._registry,
             model_configs=model_configs,
@@ -137,9 +160,9 @@ class PipelineRunner:
         )
 
         trained = orchestrator.train_all(
-            X=self._X,
-            y=self._y,
-            feature_columns=self._feature_columns,
+            X=X,
+            y=y,
+            feature_columns=feature_columns,
         )
 
         return {
@@ -147,75 +170,305 @@ class PipelineRunner:
             "models_trained": list(trained.keys()),
         }
 
-    def backtest(self) -> dict[str, Any]:
-        """Run LOSO cross-validation across seasons.
+    def predict(
+        self, season: int, run_id: str | None = None
+    ) -> pd.DataFrame:
+        """Generate predictions for a season (stub).
 
-        Per fold: train each active model on train split, predict on test split.
-        Collect per-fold predictions, pass to BacktestRunner.
+        Parameters
+        ----------
+        season : int
+            Target season to predict.
+        run_id : str | None
+            Optional run identifier.
+
+        Returns
+        -------
+        pd.DataFrame
+            Prediction DataFrame (stub — returns empty).
+        """
+        if self.config is None:
+            raise RuntimeError("Call load() before predict()")
+        # Stub for now — full implementation in a later task
+        return pd.DataFrame()
+
+    def backtest(self) -> dict[str, Any]:
+        """Run real ensemble backtesting with LOSO cross-validation.
+
+        Two-pass approach:
+          Pass 1: Per holdout season, train all active models on everything
+                  except that season, predict that season's matchups.
+          Pass 2: Train LOSO meta-learner (one per held-out season), apply
+                  ensemble post-processing.
 
         Returns
         -------
         dict
-            Result dict with status, metrics, per_fold.
+            Result dict with status, metrics, per_fold, models_trained.
         """
         if self.config is None:
             raise RuntimeError("Call load() before backtest()")
 
         bt_config = self.config.backtest
-        cv = LeaveOneSeasonOut(min_train_folds=bt_config.min_train_folds)
-        folds = cv.split(None, fold_ids=self._seasons)
+        ensemble_config = self.config.ensemble.model_dump()
+        active_models = self._get_active_models()
 
-        if not folds:
-            raise ValueError("No valid folds for backtesting. Check seasons and min_train_folds.")
+        if not active_models:
+            raise ValueError("No active models to backtest.")
 
-        model_configs = self._build_model_configs()
-        active_model_names = [
-            name for name, cfg in model_configs.items() if cfg.get("active", True)
+        # Determine backtest seasons
+        seasons = bt_config.seasons
+        if not seasons:
+            seasons = sorted(self._df["season"].unique())
+
+        # Pass 1: per-season OOF predictions
+        season_data: dict[int, pd.DataFrame] = {}
+        for holdout in seasons:
+            preds_df = self._generate_season_predictions(holdout, active_models)
+            if preds_df is not None and len(preds_df) > 0:
+                season_data[holdout] = preds_df
+
+        if not season_data:
+            raise ValueError("No valid holdout seasons produced predictions.")
+
+        active_model_names = list(active_models.keys())
+
+        # Pass 2: meta-learner + post-processing
+        if ensemble_config["method"] == "stacked":
+            self._apply_stacked_ensemble(season_data, ensemble_config, active_model_names)
+        else:
+            # Simple average
+            for holdout in season_data:
+                prob_cols = [
+                    c for c in season_data[holdout].columns
+                    if c.startswith("prob_")
+                ]
+                if prob_cols:
+                    season_data[holdout] = season_data[holdout].copy()
+                    season_data[holdout]["prob_ensemble"] = (
+                        season_data[holdout][prob_cols].mean(axis=1)
+                    )
+
+        return self._compute_backtest_metrics(season_data, active_model_names)
+
+    def run_full(self) -> dict[str, Any]:
+        """Run load + train + backtest."""
+        self.load()
+        self.train()
+        result = self.backtest()
+        return result
+
+    # ------------------------------------------------------------------
+    # Pass 1: Generate per-season predictions
+    # ------------------------------------------------------------------
+
+    def _generate_season_predictions(
+        self,
+        holdout_season: int,
+        active_models: dict[str, ModelDef],
+    ) -> pd.DataFrame | None:
+        """Train all active models on non-holdout data, predict holdout.
+
+        Returns a DataFrame with prob_{model_name} columns, plus
+        diff_seed_num and any meta_features columns.
+        """
+        test_mask = self._df["season"] == holdout_season
+        train_df = self._df[~test_mask].copy()
+        test_df = self._df[test_mask].copy()
+
+        if len(train_df) == 0 or len(test_df) == 0:
+            return None
+
+        preds_df = test_df[["season"]].copy()
+        if "result" in test_df.columns:
+            preds_df["result"] = test_df["result"].values
+
+        # Add diff_seed_num if available
+        if "diff_seed_num" in test_df.columns:
+            preds_df["diff_seed_num"] = test_df["diff_seed_num"].values
+        else:
+            preds_df["diff_seed_num"] = np.zeros(len(test_df))
+
+        # Add meta_features if configured
+        meta_feature_names = self.config.ensemble.meta_features
+        for feat_name in meta_feature_names:
+            if feat_name in test_df.columns:
+                preds_df[feat_name] = test_df[feat_name].values
+
+        # Train and predict each model
+        for model_name, model_def in active_models.items():
+            try:
+                model, feature_cols, metrics = train_single_model(
+                    model_name=model_name,
+                    model_def=model_def,
+                    train_df=train_df,
+                    registry=self._registry,
+                )
+
+                cdf_scale = metrics.get("cdf_scale")
+                probs = predict_single_model(
+                    model=model,
+                    model_def=model_def,
+                    test_df=test_df,
+                    feature_columns=feature_cols,
+                    cdf_scale=cdf_scale,
+                )
+
+                preds_df[f"prob_{model_name}"] = probs
+
+            except Exception:
+                logger.exception(
+                    "Failed to train/predict %s for season %d",
+                    model_name, holdout_season,
+                )
+                continue
+
+        # Check we got at least one model
+        prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
+        if not prob_cols:
+            return None
+
+        return preds_df
+
+    # ------------------------------------------------------------------
+    # Pass 2: Stacked ensemble
+    # ------------------------------------------------------------------
+
+    def _apply_stacked_ensemble(
+        self,
+        season_data: dict[int, pd.DataFrame],
+        ensemble_config: dict,
+        active_model_names: list[str],
+    ) -> None:
+        """Apply stacked meta-learner via LOSO to all holdout seasons.
+
+        For each holdout season, train the meta-learner on all OTHER
+        holdout seasons' predictions, then predict the holdout.
+        """
+        holdout_seasons = sorted(season_data.keys())
+
+        for holdout in holdout_seasons:
+            # Train meta-learner on all seasons except this one
+            train_seasons = [s for s in holdout_seasons if s != holdout]
+
+            if not train_seasons:
+                # Only one season — fall back to simple average
+                prob_cols = [
+                    c for c in season_data[holdout].columns
+                    if c.startswith("prob_")
+                ]
+                if prob_cols:
+                    season_data[holdout] = season_data[holdout].copy()
+                    season_data[holdout]["prob_ensemble"] = (
+                        season_data[holdout][prob_cols].mean(axis=1)
+                    )
+                continue
+
+            meta, cal, pre_cals = self._train_meta_for_season(
+                season_data, ensemble_config, active_model_names,
+                holdout, train_seasons,
+            )
+
+            season_data[holdout] = apply_ensemble_postprocessing(
+                season_data[holdout],
+                meta,
+                cal,
+                ensemble_config,
+                pre_calibrators=pre_cals,
+            )
+
+    def _train_meta_for_season(
+        self,
+        season_data: dict[int, pd.DataFrame],
+        ensemble_config: dict,
+        active_model_names: list[str],
+        holdout: int,
+        train_seasons: list[int],
+    ) -> tuple:
+        """Train meta-learner on train_seasons' predictions.
+
+        Uses train_meta_learner_loso with nested CV on the training
+        seasons' predictions.
+
+        Returns (meta_learner, calibrator, pre_calibrators).
+        """
+        # Collect training data from non-holdout seasons
+        train_dfs = [season_data[s] for s in train_seasons]
+        train_combined = pd.concat(train_dfs, ignore_index=True)
+
+        # Determine which model columns are actually present
+        available_models = [
+            name for name in active_model_names
+            if f"prob_{name}" in train_combined.columns
         ]
 
-        # Per-fold: train and predict
+        if not available_models:
+            raise ValueError("No model predictions available for meta-learner training")
+
+        # Build model_preds dict
+        model_preds = {
+            name: train_combined[f"prob_{name}"].values
+            for name in available_models
+        }
+
+        y_true = train_combined["result"].values.astype(float)
+        seed_diffs = train_combined["diff_seed_num"].values.astype(float)
+        season_labels = train_combined["season"].values
+
+        # Extra features
+        extra_features = None
+        meta_feature_names = ensemble_config.get("meta_features", [])
+        if meta_feature_names:
+            extra_features = {}
+            for feat_name in meta_feature_names:
+                if feat_name in train_combined.columns:
+                    extra_features[feat_name] = train_combined[feat_name].values
+
+        meta, cal, pre_cals = train_meta_learner_loso(
+            y_true=y_true,
+            model_preds=model_preds,
+            seed_diffs=seed_diffs,
+            season_labels=season_labels,
+            model_names=available_models,
+            ensemble_config=ensemble_config,
+            extra_features=extra_features if extra_features else None,
+        )
+
+        return meta, cal, pre_cals
+
+    # ------------------------------------------------------------------
+    # Metrics computation
+    # ------------------------------------------------------------------
+
+    def _compute_backtest_metrics(
+        self,
+        season_data: dict[int, pd.DataFrame],
+        active_model_names: list[str],
+    ) -> dict[str, Any]:
+        """Compute pooled and per-fold metrics from season_data.
+
+        Uses BacktestRunner from easyml-models.
+        """
+        bt_config = self.config.backtest
+
         per_fold_data: dict[int, dict] = {}
+        for season_id, df in sorted(season_data.items()):
+            if "prob_ensemble" not in df.columns:
+                continue
 
-        for fold in folds:
-            X_train = self._X[fold.train_idx]
-            y_train = self._y[fold.train_idx]
-            X_test = self._X[fold.test_idx]
-            y_test = self._y[fold.test_idx]
-
-            fold_preds: dict[str, np.ndarray] = {}
-
-            for model_name in active_model_names:
-                cfg = model_configs[model_name]
-                model_features = cfg.get("features", self._feature_columns)
-
-                # Get feature indices for this model
-                feat_indices = [
-                    self._feature_columns.index(f)
-                    for f in model_features
-                    if f in self._feature_columns
-                ]
-                if not feat_indices:
-                    logger.warning(
-                        "Model %s has no available features in fold %d, skipping",
-                        model_name, fold.fold_id,
-                    )
-                    continue
-
-                X_train_sub = X_train[:, feat_indices]
-                X_test_sub = X_test[:, feat_indices]
-
-                model = self._registry.create(cfg["type"], params=cfg.get("params"))
-                model.fit(X_train_sub, y_train)
-
-                preds = model.predict_proba(X_test_sub)
-                fold_preds[model_name] = preds
-
-            per_fold_data[fold.fold_id] = {
-                "preds": fold_preds,
-                "y": y_test,
+            per_fold_data[season_id] = {
+                "preds": {"ensemble": df["prob_ensemble"].values},
+                "y": df["result"].values.astype(float),
             }
 
-        # Run BacktestRunner
+        if not per_fold_data:
+            return {
+                "status": "success",
+                "metrics": {},
+                "per_fold": {},
+                "models_trained": active_model_names,
+            }
+
         bt_runner = BacktestRunner(metrics=bt_config.metrics)
         bt_result = bt_runner.run(per_fold_data)
 
@@ -228,13 +481,6 @@ class PipelineRunner:
             },
             "models_trained": active_model_names,
         }
-
-    def run_full(self) -> dict[str, Any]:
-        """Run load + train + backtest."""
-        self.load()
-        self.train()
-        result = self.backtest()
-        return result
 
     # ------------------------------------------------------------------
     # Internals
