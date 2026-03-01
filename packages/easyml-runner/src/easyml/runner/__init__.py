@@ -14,6 +14,7 @@ from easyml.runner.schema import (
     ServerToolDef,
     SourceDecl,
 )
+from easyml.runner.server_gen import GeneratedServer, ToolSpec, generate_server
 from easyml.runner.validator import ValidationResult, validate_project
 
 __all__ = [
@@ -22,13 +23,16 @@ __all__ = [
     "EnsembleDef",
     "ExperimentDef",
     "FeatureDecl",
+    "GeneratedServer",
     "GuardrailDef",
     "ModelDef",
     "ProjectConfig",
     "ServerDef",
     "ServerToolDef",
     "SourceDecl",
+    "ToolSpec",
     "ValidationResult",
+    "generate_server",
     "load_features",
     "load_sources",
     "validate_project",
