@@ -395,6 +395,7 @@ def pipeline(
     experiment_id: str | None = None,
     variant: str | None = None,
     run_id: str | None = None,
+    season: int | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -403,6 +404,8 @@ def pipeline(
       - "run_backtest": Run a full backtest. Returns metrics, meta-learner
         weights, per-season breakdown. Optional: experiment_id (applies
         overlay), variant.
+      - "predict": Generate predictions for a target season. Requires season.
+        Optional: run_id, variant.
       - "list_runs": List all pipeline runs with status.
       - "show_run": Show results from a run. Optional: run_id (defaults
         to most recent).
@@ -415,6 +418,15 @@ def pipeline(
             experiment_id=experiment_id,
             variant=variant,
         )
+    elif action == "predict":
+        if season is None:
+            return "**Error**: 'season' is required for predict action."
+        return cw.run_predict(
+            _resolve_project_dir(project_dir),
+            season,
+            run_id=run_id,
+            variant=variant,
+        )
     elif action == "list_runs":
         return cw.list_runs(_resolve_project_dir(project_dir))
     elif action == "show_run":
@@ -425,7 +437,7 @@ def pipeline(
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: run_backtest, list_runs, show_run."
+            "Use: run_backtest, predict, list_runs, show_run."
         )
 
 

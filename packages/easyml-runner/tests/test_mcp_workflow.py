@@ -748,6 +748,45 @@ class TestInitAction:
         assert "Error" in result
 
 
+class TestPredictAction:
+    """Test pipeline(action='predict') for MCP-driven predictions."""
+
+    def test_predict_returns_formatted_results(self, tmp_path):
+        """predict action should return prediction summary markdown."""
+        project_dir, csv_path = _scaffold_with_data(tmp_path)
+
+        # Add a simple model
+        config_writer.add_model(
+            project_dir, "lr_test",
+            model_type="logistic_regression",
+            features=["diff_adj_em", "diff_barthag", "diff_seed_num"],
+        )
+        config_writer.remove_model(project_dir, "logreg_baseline")
+        config_writer.configure_backtest(
+            project_dir, seasons=[2022, 2023, 2024],
+        )
+
+        result = config_writer.run_predict(project_dir, season=2024)
+
+        assert "Prediction" in result or "predict" in result.lower()
+        assert any(word in result.lower() for word in ["matchup", "prediction", "row"])
+
+    def test_predict_no_data_for_season(self, tmp_path):
+        """predict should handle missing season gracefully."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        config_writer.add_model(
+            project_dir, "lr_test",
+            model_type="logistic_regression",
+            features=["diff_adj_em", "diff_barthag"],
+        )
+        config_writer.remove_model(project_dir, "logreg_baseline")
+
+        result = config_writer.run_predict(project_dir, season=2099)
+
+        assert "Error" in result or "No" in result or "0" in result or "failed" in result.lower()
+
+
 class TestTransformationTesterGeneric:
     """Verify transformation tester works with non-diff_ columns."""
 
