@@ -39,21 +39,22 @@ class PipelineGuards:
         self.enabled = enabled
 
     def _resolve_features_path(self) -> Path:
-        """Resolve the features directory path.
+        """Resolve the features parquet file path from config.
 
+        Uses features_dir + features_file from DataConfig.
         If the config's features_dir is absolute, use it directly.
         Otherwise resolve relative to project_dir.
         """
         features_dir = Path(self.data_config.features_dir)
-        if features_dir.is_absolute():
-            return features_dir
-        return self.project_dir / features_dir
+        if not features_dir.is_absolute():
+            features_dir = self.project_dir / features_dir
+        return features_dir / self.data_config.features_file
 
     def guard_train(self) -> None:
         """Validate prerequisites for training: feature files must exist."""
         if not self.enabled:
             return
-        features_path = self._resolve_features_path() / "matchup_features.parquet"
+        features_path = self._resolve_features_path()
         guard = StageGuard(name="train_ready", requires=[str(features_path)])
         guard.check()
 
@@ -61,7 +62,7 @@ class PipelineGuards:
         """Validate prerequisites for prediction: features + models must exist."""
         if not self.enabled:
             return
-        features_path = self._resolve_features_path() / "matchup_features.parquet"
+        features_path = self._resolve_features_path()
         requires = [str(features_path)]
         if models_dir is not None:
             requires.append(str(models_dir))
@@ -72,7 +73,7 @@ class PipelineGuards:
         """Validate prerequisites for backtesting: features with sufficient rows."""
         if not self.enabled:
             return
-        features_path = self._resolve_features_path() / "matchup_features.parquet"
+        features_path = self._resolve_features_path()
         guard = StageGuard(
             name="backtest_ready",
             requires=[str(features_path)],

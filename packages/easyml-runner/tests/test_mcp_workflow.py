@@ -20,7 +20,14 @@ import pandas as pd
 import pytest
 
 from easyml.runner import config_writer
-from easyml.runner.data_ingest import ingest_dataset
+from easyml.runner.data_ingest import (
+    drop_duplicates,
+    fill_nulls,
+    ingest_dataset,
+    rename_columns,
+    validate_dataset,
+)
+from easyml.runner.data_utils import get_feature_columns, get_features_path, load_data_config
 from easyml.runner.feature_discovery import (
     compute_feature_correlations,
     compute_feature_importance,
@@ -76,7 +83,7 @@ def _scaffold_with_data(tmp_path: Path) -> tuple[Path, Path]:
     features_dir = project_dir / "data" / "features"
     csv_path = _make_dataset(tmp_path)
     df = pd.read_csv(csv_path)
-    df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+    df.to_parquet(features_dir / "features.parquet", index=False)
 
     return project_dir, csv_path
 
@@ -145,7 +152,7 @@ class TestMCPWorkflow:
         """Step 2: 'What features look useful?' → feature discovery."""
         project_dir, _ = _scaffold_with_data(tmp_path)
         features_dir = project_dir / "data" / "features"
-        df = pd.read_parquet(features_dir / "matchup_features.parquet")
+        df = pd.read_parquet(features_dir / "features.parquet")
 
         correlations = compute_feature_correlations(df)
         importance = compute_feature_importance(df, method="mutual_info")
@@ -196,16 +203,16 @@ class TestMCPWorkflow:
             features_dir=str(project_dir / "data" / "features"),
         )
 
-        assert result.column_added == "diff_em_barthag_product"
+        assert result.column_added == "em_barthag_product"
         assert isinstance(result.correlation, float)
         summary = result.format_summary()
         assert "em_barthag_product" in summary
 
         # Verify feature was persisted
         df = pd.read_parquet(
-            project_dir / "data" / "features" / "matchup_features.parquet"
+            project_dir / "data" / "features" / "features.parquet"
         )
-        assert "diff_em_barthag_product" in df.columns
+        assert "em_barthag_product" in df.columns
 
     def test_batch_feature_creation_with_deps(self, tmp_path):
         """Step 4b: Batch create with @-references."""
@@ -403,7 +410,7 @@ class TestMCPWorkflow:
         raw_data_dir.mkdir()
         csv_path = _make_dataset(raw_data_dir)
         df = pd.read_csv(csv_path)
-        df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+        df.to_parquet(features_dir / "features.parquet", index=False)
 
         # 3. Discover features
         correlations = compute_feature_correlations(df)
@@ -427,7 +434,7 @@ class TestMCPWorkflow:
             formula="diff_adj_em * diff_barthag",
             features_dir=str(features_dir),
         )
-        assert result.column_added == "diff_custom_combo"
+        assert result.column_added == "custom_combo"
 
         # 6. Add model with preset
         config_writer.add_model(
@@ -457,3 +464,314 @@ class TestMCPWorkflow:
 
         models_md = config_writer.show_models(project_dir)
         assert "xgb_main" in models_md
+
+
+class TestScaffoldMLProblemDefinition:
+    """Verify scaffold generates DataConfig with ML problem definition."""
+
+    def test_scaffold_with_custom_target(self, tmp_path):
+        project_dir = tmp_path / "churn_project"
+        scaffold_project(
+            project_dir,
+            "churn-model",
+            task="classification",
+            target_column="churned",
+            key_columns=["customer_id"],
+            time_column="cohort_month",
+        )
+
+        import yaml
+        pipeline = yaml.safe_load(
+            (project_dir / "config" / "pipeline.yaml").read_text()
+        )
+        data = pipeline["data"]
+        assert data["task"] == "classification"
+        assert data["target_column"] == "churned"
+        assert data["key_columns"] == ["customer_id"]
+        assert data["time_column"] == "cohort_month"
+
+    def test_scaffold_default_values(self, tmp_path):
+        project_dir = tmp_path / "default_project"
+        scaffold_project(project_dir, "default-test")
+
+        import yaml
+        pipeline = yaml.safe_load(
+            (project_dir / "config" / "pipeline.yaml").read_text()
+        )
+        data = pipeline["data"]
+        assert data["task"] == "classification"
+        assert data["target_column"] == "result"
+
+
+class TestBootstrapIngestion:
+    """Verify bootstrap ingestion when no features parquet exists."""
+
+    def test_first_dataset_creates_parquet(self, tmp_path):
+        project_dir = tmp_path / "fresh_project"
+        scaffold_project(project_dir, "fresh")
+        features_dir = project_dir / "data" / "features"
+
+        # Create a CSV dataset
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame({
+            "customer_id": range(100),
+            "revenue": rng.normal(500, 100, 100),
+            "age": rng.integers(18, 80, 100),
+            "churned": rng.integers(0, 2, 100),
+        })
+        csv_path = tmp_path / "customers.csv"
+        df.to_csv(csv_path, index=False)
+
+        # Ingest — should bootstrap (no existing parquet)
+        result = ingest_dataset(
+            project_dir,
+            str(csv_path),
+            features_dir=str(features_dir),
+        )
+
+        assert result.is_bootstrap
+        assert result.rows_total == 100
+        assert "customer_id" in result.columns_added
+        assert "revenue" in result.columns_added
+
+        # Verify parquet was created
+        assert (features_dir / "features.parquet").exists()
+        loaded = pd.read_parquet(features_dir / "features.parquet")
+        assert len(loaded) == 100
+        assert "revenue" in loaded.columns
+
+
+class TestAutoCleanIngestion:
+    """Verify auto-clean actions during ingestion."""
+
+    def test_auto_clean_fills_nulls_and_drops_dupes(self, tmp_path):
+        project_dir = tmp_path / "clean_project"
+        scaffold_project(project_dir, "clean")
+        features_dir = project_dir / "data" / "features"
+
+        # Create data with nulls and duplicates
+        df = pd.DataFrame({
+            "id": [1, 2, 3, 3, 4, 5],
+            "value": [10.0, np.nan, 30.0, 30.0, 40.0, np.nan],
+            "target": [0, 1, 0, 0, 1, 1],
+        })
+        path = tmp_path / "dirty.parquet"
+        df.to_parquet(path, index=False)
+
+        result = ingest_dataset(
+            project_dir,
+            str(path),
+            features_dir=str(features_dir),
+            auto_clean=True,
+        )
+
+        assert result.is_bootstrap
+        assert len(result.cleaning_actions) > 0
+
+        # Check actions include null filling and/or dedup
+        actions_text = " ".join(result.cleaning_actions)
+        assert "null" in actions_text.lower() or "duplicate" in actions_text.lower()
+
+
+class TestFeatureToolsGenericColumns:
+    """Verify feature tools work with non-diff_ column names."""
+
+    def test_create_feature_no_prefix(self, tmp_path):
+        """Feature names should NOT be auto-prefixed with diff_."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        result = create_feature(
+            project_dir,
+            name="revenue_growth",
+            formula="diff_adj_em * 2",
+            features_dir=str(project_dir / "data" / "features"),
+        )
+
+        # Should be "revenue_growth", not "diff_revenue_growth"
+        assert result.column_added == "revenue_growth"
+
+        df = pd.read_parquet(
+            project_dir / "data" / "features" / "features.parquet"
+        )
+        assert "revenue_growth" in df.columns
+        assert "diff_revenue_growth" not in df.columns
+
+    def test_feature_discovery_generic_columns(self, tmp_path):
+        """Feature discovery should work on non-diff_ columns."""
+        project_dir = tmp_path / "generic_project"
+        scaffold_project(project_dir, "generic")
+        features_dir = project_dir / "data" / "features"
+
+        rng = np.random.default_rng(42)
+        n = 200
+        df = pd.DataFrame({
+            "user_age": rng.normal(35, 10, n),
+            "market_vix": rng.normal(20, 5, n),
+            "revenue": rng.normal(500, 100, n),
+            "result": rng.integers(0, 2, n),
+        })
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        correlations = compute_feature_correlations(df)
+        assert len(correlations) > 0
+        # All three features should appear (not filtered by diff_ prefix)
+        all_features = set(correlations["feature"].tolist())
+        assert "user_age" in all_features
+        assert "market_vix" in all_features
+        assert "revenue" in all_features
+
+    def test_get_feature_columns_by_exclusion(self, tmp_path):
+        """get_feature_columns identifies features by excluding keys/target/time."""
+        project_dir = tmp_path / "excl_project"
+        scaffold_project(
+            project_dir,
+            "excl",
+            target_column="churned",
+            key_columns=["customer_id"],
+            time_column="cohort_month",
+        )
+
+        config = load_data_config(project_dir)
+        df = pd.DataFrame({
+            "customer_id": [1, 2, 3],
+            "cohort_month": [202301, 202302, 202303],
+            "revenue": [100.0, 200.0, 300.0],
+            "age": [25.0, 35.0, 45.0],
+            "churned": [0, 1, 0],
+        })
+
+        features = get_feature_columns(df, config)
+        assert "revenue" in features
+        assert "age" in features
+        assert "customer_id" not in features
+        assert "cohort_month" not in features
+        assert "churned" not in features
+
+
+class TestGranularDataTools:
+    """Test validate_dataset, fill_nulls, drop_duplicates, rename_columns."""
+
+    def test_validate_dataset_reports_schema(self, tmp_path):
+        project_dir = tmp_path / "val_project"
+        scaffold_project(project_dir, "val")
+
+        df = pd.DataFrame({
+            "a": [1.0, 2.0, 3.0],
+            "b": ["x", "y", "z"],
+        })
+        csv_path = tmp_path / "data.csv"
+        df.to_csv(csv_path, index=False)
+
+        result = validate_dataset(project_dir, str(csv_path))
+        assert "Dataset Preview" in result
+        assert "Rows" in result
+        assert "Columns" in result
+
+    def test_fill_nulls_and_drop_duplicates(self, tmp_path):
+        project_dir = tmp_path / "granular_project"
+        scaffold_project(project_dir, "granular")
+        features_dir = project_dir / "data" / "features"
+
+        # Create features with nulls and duplicates
+        df = pd.DataFrame({
+            "id": [1, 2, 3, 3],
+            "score": [10.0, np.nan, 30.0, 30.0],
+            "result": [0, 1, 0, 0],
+        })
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        # Fill nulls
+        fill_result = fill_nulls(project_dir, "score", strategy="median")
+        assert "Filled" in fill_result
+        assert "1" in fill_result  # 1 null filled
+
+        # Drop duplicates
+        drop_result = drop_duplicates(project_dir)
+        assert "Dropped" in drop_result or "No duplicates" in drop_result
+
+    def test_rename_columns_persists(self, tmp_path):
+        project_dir = tmp_path / "rename_project"
+        scaffold_project(project_dir, "rename")
+        features_dir = project_dir / "data" / "features"
+
+        df = pd.DataFrame({
+            "old_name": [1.0, 2.0, 3.0],
+            "result": [0, 1, 0],
+        })
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        result = rename_columns(project_dir, {"old_name": "new_name"})
+        assert "Renamed" in result
+
+        loaded = pd.read_parquet(features_dir / "features.parquet")
+        assert "new_name" in loaded.columns
+        assert "old_name" not in loaded.columns
+
+
+class TestInitAction:
+    """Test configure(action='init') for MCP-driven project scaffolding."""
+
+    def test_init_creates_project(self, tmp_path):
+        """init action should scaffold a project and return confirmation."""
+        result = config_writer.scaffold_init(
+            project_dir=tmp_path / "new_project",
+            project_name="test-init",
+            task="classification",
+            target_column="result",
+            key_columns=["game_id"],
+            time_column="season",
+        )
+
+        assert "Initialized project" in result
+        assert "test-init" in result
+        assert (tmp_path / "new_project" / "config" / "pipeline.yaml").exists()
+        assert (tmp_path / "new_project" / "config" / "models.yaml").exists()
+
+        import yaml
+        pipeline = yaml.safe_load(
+            (tmp_path / "new_project" / "config" / "pipeline.yaml").read_text()
+        )
+        assert pipeline["data"]["target_column"] == "result"
+        assert pipeline["data"]["key_columns"] == ["game_id"]
+        assert pipeline["data"]["time_column"] == "season"
+
+    def test_init_rejects_existing_project(self, tmp_path):
+        """init should error if directory already has content."""
+        project_dir = tmp_path / "existing"
+        project_dir.mkdir()
+        (project_dir / "some_file.txt").write_text("content")
+
+        result = config_writer.scaffold_init(
+            project_dir=project_dir,
+            project_name="existing",
+        )
+        assert "Error" in result
+
+
+class TestTransformationTesterGeneric:
+    """Verify transformation tester works with non-diff_ columns."""
+
+    def test_interaction_partners_found(self, tmp_path):
+        """Interaction partners should be found without diff_ filter."""
+        project_dir = tmp_path / "transform_project"
+        scaffold_project(project_dir, "transform")
+        features_dir = project_dir / "data" / "features"
+
+        rng = np.random.default_rng(42)
+        n = 200
+        df = pd.DataFrame({
+            "revenue": rng.normal(500, 100, n),
+            "cost": rng.normal(300, 50, n),
+            "margin": rng.normal(200, 80, n),
+            "result": rng.integers(0, 2, n),
+        })
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        report = run_transformation_tests(
+            project_dir,
+            features=["revenue"],
+            features_dir=str(features_dir),
+            test_interactions=True,
+        )
+
+        assert len(report.results) > 0

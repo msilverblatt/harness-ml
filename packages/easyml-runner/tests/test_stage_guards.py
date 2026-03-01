@@ -20,7 +20,7 @@ class TestGuardTrain:
         features_dir = tmp_path / "features"
         features_dir.mkdir()
         df = pd.DataFrame({"a": range(20)})
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="raw", processed_dir="proc", features_dir=str(features_dir)
@@ -46,7 +46,7 @@ class TestGuardPredict:
         features_dir = tmp_path / "features"
         features_dir.mkdir()
         df = pd.DataFrame({"a": range(20)})
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="raw", processed_dir="proc", features_dir=str(features_dir)
@@ -59,7 +59,7 @@ class TestGuardPredict:
         features_dir = tmp_path / "features"
         features_dir.mkdir()
         df = pd.DataFrame({"a": range(20)})
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="raw", processed_dir="proc", features_dir=str(features_dir)
@@ -77,7 +77,7 @@ class TestGuardBacktest:
         features_dir = tmp_path / "features"
         features_dir.mkdir()
         df = pd.DataFrame({"a": range(20)})
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="raw", processed_dir="proc", features_dir=str(features_dir)
@@ -90,7 +90,7 @@ class TestGuardBacktest:
         features_dir = tmp_path / "features"
         features_dir.mkdir()
         df = pd.DataFrame({"a": range(5)})  # < 10 rows
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="raw", processed_dir="proc", features_dir=str(features_dir)
@@ -184,6 +184,41 @@ class TestWarnIfStale:
         assert result is False
 
 
+class TestConfigDrivenFeatureFile:
+    """Guards use DataConfig.features_file instead of hardcoded name."""
+
+    def test_custom_features_file(self, tmp_path):
+        """Guard finds parquet using config's features_file."""
+        features_dir = tmp_path / "features"
+        features_dir.mkdir()
+        df = pd.DataFrame({"a": range(20)})
+        df.to_parquet(features_dir / "my_data.parquet")
+
+        data_config = DataConfig(
+            raw_dir="raw",
+            processed_dir="proc",
+            features_dir=str(features_dir),
+            features_file="my_data.parquet",
+        )
+        guards = PipelineGuards(data_config, tmp_path)
+        guards.guard_train()  # Should not raise
+
+    def test_default_features_file(self, tmp_path):
+        """Guard uses 'features.parquet' as default."""
+        features_dir = tmp_path / "features"
+        features_dir.mkdir()
+        df = pd.DataFrame({"a": range(20)})
+        df.to_parquet(features_dir / "features.parquet")
+
+        data_config = DataConfig(
+            raw_dir="raw",
+            processed_dir="proc",
+            features_dir=str(features_dir),
+        )
+        guards = PipelineGuards(data_config, tmp_path)
+        guards.guard_train()  # Should not raise
+
+
 class TestRelativePathResolution:
     """Guards resolve relative features_dir against project_dir."""
 
@@ -192,7 +227,7 @@ class TestRelativePathResolution:
         features_dir = tmp_path / "data" / "features"
         features_dir.mkdir(parents=True)
         df = pd.DataFrame({"a": range(20)})
-        df.to_parquet(features_dir / "matchup_features.parquet")
+        df.to_parquet(features_dir / "features.parquet")
 
         data_config = DataConfig(
             raw_dir="data/raw",

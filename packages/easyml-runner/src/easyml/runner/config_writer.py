@@ -251,8 +251,9 @@ def add_dataset(
     join_on: list[str] | None = None,
     prefix: str | None = None,
     features_dir: str | None = None,
+    auto_clean: bool = True,
 ) -> str:
-    """Add a new dataset by merging into matchup_features.parquet."""
+    """Add a new dataset by merging into the features parquet."""
     from easyml.runner.data_ingest import ingest_dataset
 
     result = ingest_dataset(
@@ -261,21 +262,22 @@ def add_dataset(
         join_on=join_on,
         prefix=prefix,
         features_dir=features_dir,
+        auto_clean=auto_clean,
     )
     return result.format_summary()
 
 
 def profile_data(project_dir: Path, category: str | None = None) -> str:
-    """Profile the matchup features dataset."""
-    config_dir = _get_config_dir(Path(project_dir))
-    pipeline_path = config_dir / "pipeline.yaml"
-    pipeline_data = _load_yaml(pipeline_path)
+    """Profile the features dataset."""
+    from easyml.runner.data_utils import get_features_path, load_data_config
 
-    features_dir = pipeline_data.get("data", {}).get("features_dir")
-    if not features_dir:
-        return "**Error**: No features_dir configured in pipeline.yaml."
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+        parquet_path = get_features_path(project_dir, config)
+    except Exception:
+        parquet_path = project_dir / "data" / "features" / "features.parquet"
 
-    parquet_path = Path(features_dir) / "matchup_features.parquet"
     if not parquet_path.exists():
         return f"**Error**: Data file not found: {parquet_path}"
 
@@ -290,17 +292,17 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
 
 def available_features(project_dir: Path, prefix: str | None = None) -> str:
     """List available feature columns from the dataset."""
-    config_dir = _get_config_dir(Path(project_dir))
-    pipeline_path = config_dir / "pipeline.yaml"
-    pipeline_data = _load_yaml(pipeline_path)
+    from easyml.runner.data_utils import get_features_path, load_data_config
 
-    features_dir = pipeline_data.get("data", {}).get("features_dir")
-    if not features_dir:
-        return "**Error**: No features_dir configured."
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+        parquet_path = get_features_path(project_dir, config)
+    except Exception:
+        parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     import pandas as pd
 
-    parquet_path = Path(features_dir) / "matchup_features.parquet"
     if not parquet_path.exists():
         return f"**Error**: Data file not found: {parquet_path}"
 
@@ -379,21 +381,27 @@ def discover_features(
     method: str = "xgboost",
 ) -> str:
     """Run feature discovery analysis."""
-    config_dir = _get_config_dir(Path(project_dir))
-    pipeline_path = config_dir / "pipeline.yaml"
-    pipeline_data = _load_yaml(pipeline_path)
+    from easyml.runner.data_utils import get_feature_columns, get_features_path, load_data_config
 
-    features_dir = pipeline_data.get("data", {}).get("features_dir")
-    if not features_dir:
-        return "**Error**: No features_dir configured."
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+        parquet_path = get_features_path(project_dir, config)
+    except Exception:
+        parquet_path = project_dir / "data" / "features" / "features.parquet"
+        config = None
 
     import pandas as pd
 
-    parquet_path = Path(features_dir) / "matchup_features.parquet"
     if not parquet_path.exists():
         return f"**Error**: Data file not found: {parquet_path}"
 
     df = pd.read_parquet(parquet_path)
+
+    # Get feature columns from config if available
+    feature_cols = None
+    if config is not None:
+        feature_cols = get_feature_columns(df, config)
 
     from easyml.runner.feature_discovery import (
         compute_feature_correlations,
@@ -403,10 +411,10 @@ def discover_features(
         suggest_feature_groups,
     )
 
-    correlations = compute_feature_correlations(df, top_n=top_n)
-    importance = compute_feature_importance(df, method=method, top_n=top_n)
-    redundant = detect_redundant_features(df)
-    groups = suggest_feature_groups(df)
+    correlations = compute_feature_correlations(df, top_n=top_n, feature_columns=feature_cols)
+    importance = compute_feature_importance(df, method=method, top_n=top_n, feature_columns=feature_cols)
+    redundant = detect_redundant_features(df, feature_columns=feature_cols)
+    groups = suggest_feature_groups(df, feature_columns=feature_cols)
 
     return format_discovery_report(correlations, importance, redundant, groups)
 
@@ -508,6 +516,53 @@ def show_config(project_dir: Path) -> str:
     return "\n".join(lines)
 
 
+def scaffold_init(
+    project_dir: Path,
+    project_name: str | None = None,
+    *,
+    task: str = "classification",
+    target_column: str = "result",
+    key_columns: list[str] | None = None,
+    time_column: str | None = None,
+) -> str:
+    """Initialize a new easyml project via scaffold.
+
+    Returns markdown confirmation or error.
+    """
+    project_dir = Path(project_dir)
+
+    try:
+        from easyml.runner.scaffold import scaffold_project
+
+        scaffold_project(
+            project_dir,
+            project_name,
+            task=task,
+            target_column=target_column,
+            key_columns=key_columns,
+            time_column=time_column,
+        )
+    except FileExistsError:
+        return f"**Error**: Directory `{project_dir}` already exists and is not empty."
+    except Exception as exc:
+        return f"**Error**: Failed to initialize project: {exc}"
+
+    name = project_name or project_dir.name
+    lines = [
+        f"**Initialized project**: `{name}`",
+        f"- Directory: `{project_dir}`",
+        f"- Task: {task}",
+        f"- Target column: {target_column}",
+    ]
+    if key_columns:
+        lines.append(f"- Key columns: {key_columns}")
+    if time_column:
+        lines.append(f"- Time column: {time_column}")
+    lines.append(f"\nConfig files created in `{project_dir}/config/`")
+
+    return "\n".join(lines)
+
+
 # -----------------------------------------------------------------------
 # Run tools
 # -----------------------------------------------------------------------
@@ -535,3 +590,377 @@ def list_runs(project_dir: Path) -> str:
         marker = " **(current)**" if r["is_current"] else ""
         lines.append(f"- `{r['run_id']}`{marker}")
     return "\n".join(lines)
+
+
+def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
+    """Format backtest results as structured markdown."""
+    lines = ["## Backtest Results\n"]
+
+    if run_id:
+        lines.append(f"- **Run ID**: `{run_id}`")
+
+    status = result.get("status", "unknown")
+    lines.append(f"- **Status**: {status}")
+
+    if status != "success":
+        error = result.get("error", "Unknown error")
+        lines.append(f"- **Error**: {error}")
+        return "\n".join(lines)
+
+    # Ensemble metrics
+    metrics = result.get("metrics", {})
+    if metrics:
+        lines.append("\n### Ensemble Metrics\n")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        for name, val in sorted(metrics.items()):
+            lines.append(f"| {name} | {val:.4f} |")
+
+    # Per-model metrics (if available in per_fold)
+    models_trained = result.get("models_trained", [])
+    if models_trained:
+        lines.append(f"\n### Models Trained ({len(models_trained)})\n")
+        for m in models_trained:
+            lines.append(f"- `{m}`")
+
+    # Meta-learner coefficients
+    meta_coeff = result.get("meta_coefficients")
+    if meta_coeff:
+        lines.append("\n### Meta-Learner Weights\n")
+        lines.append("| Model | Weight |")
+        lines.append("|-------|--------|")
+        for name, weight in sorted(meta_coeff.items(), key=lambda x: -abs(x[1])):
+            lines.append(f"| {name} | {weight:+.4f} |")
+
+    # Per-season breakdown
+    per_fold = result.get("per_fold", {})
+    if per_fold:
+        lines.append(f"\n### Per-Season Breakdown ({len(per_fold)} folds)\n")
+        lines.append("| Season | Brier | Accuracy |")
+        lines.append("|--------|-------|----------|")
+        for fold_id, fold_metrics in sorted(per_fold.items()):
+            brier = fold_metrics.get("brier", fold_metrics.get("brier_score", "N/A"))
+            acc = fold_metrics.get("accuracy", "N/A")
+            brier_str = f"{brier:.4f}" if isinstance(brier, (int, float)) else str(brier)
+            acc_str = f"{acc:.4f}" if isinstance(acc, (int, float)) else str(acc)
+            lines.append(f"| {fold_id} | {brier_str} | {acc_str} |")
+
+    return "\n".join(lines)
+
+
+def run_backtest(
+    project_dir: Path,
+    *,
+    experiment_id: str | None = None,
+    variant: str | None = None,
+) -> str:
+    """Run a full backtest and return formatted results.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Root project directory.
+    experiment_id : str | None
+        If provided, applies the experiment's overlay before running.
+    variant : str | None
+        Config variant (e.g., "w" for women's).
+
+    Returns
+    -------
+    str
+        Markdown-formatted backtest results.
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    # Load experiment overlay if specified
+    overlay = None
+    if experiment_id:
+        exp_dir = project_dir / "experiments" / experiment_id
+        overlay_path = exp_dir / "overlay.yaml"
+        if overlay_path.exists():
+            overlay = _load_yaml(overlay_path)
+
+    # Create run directory
+    run_dir = None
+    run_id = None
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if outputs_dir:
+        from easyml.runner.run_manager import RunManager
+        mgr = RunManager(project_dir / outputs_dir)
+        run_dir = mgr.new_run()
+        run_id = run_dir.name
+
+    try:
+        from easyml.runner.pipeline import PipelineRunner
+
+        runner = PipelineRunner(
+            project_dir=project_dir,
+            config_dir=config_dir,
+            variant=variant,
+            overlay=overlay,
+            run_dir=run_dir,
+        )
+        runner.load()
+        result = runner.backtest()
+
+        return _format_backtest_result(result, run_id=run_id)
+    except Exception as exc:
+        return f"**Backtest failed**: {exc}"
+
+
+def run_experiment(
+    project_dir: Path,
+    experiment_id: str,
+    *,
+    primary_metric: str = "brier",
+    variant: str | None = None,
+) -> str:
+    """Run a full experiment: backtest with overlay, compare to baseline.
+
+    Steps:
+    1. Load experiment overlay and run backtest
+    2. Load baseline results (from last run or re-run without overlay)
+    3. Compute deltas
+    4. Auto-log results
+    5. Return comprehensive comparison
+
+    Returns
+    -------
+    str
+        Markdown-formatted experiment results with comparison.
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    # Load experiment overlay
+    exp_dir = project_dir / "experiments" / experiment_id
+    if not exp_dir.exists():
+        return f"**Error**: Experiment '{experiment_id}' not found."
+
+    overlay_path = exp_dir / "overlay.yaml"
+    overlay = _load_yaml(overlay_path) if overlay_path.exists() else {}
+
+    # Load hypothesis
+    hypothesis = ""
+    hyp_path = exp_dir / "hypothesis.txt"
+    if hyp_path.exists():
+        hypothesis = hyp_path.read_text().strip()
+
+    try:
+        from easyml.runner.pipeline import PipelineRunner
+
+        # Run experiment backtest (with overlay)
+        runner = PipelineRunner(
+            project_dir=project_dir,
+            config_dir=config_dir,
+            variant=variant,
+            overlay=overlay,
+        )
+        runner.load()
+        exp_result = runner.backtest()
+
+        # Run baseline backtest (without overlay)
+        baseline_runner = PipelineRunner(
+            project_dir=project_dir,
+            config_dir=config_dir,
+            variant=variant,
+        )
+        baseline_runner.load()
+        baseline_result = baseline_runner.backtest()
+
+        # Build comparison
+        exp_metrics = exp_result.get("metrics", {})
+        base_metrics = baseline_result.get("metrics", {})
+
+        lines = [f"## Experiment: `{experiment_id}`\n"]
+        if hypothesis:
+            lines.append(f"**Hypothesis**: {hypothesis}\n")
+
+        # Overlay changes
+        if overlay:
+            lines.append("### Changes Applied\n")
+            lines.append(f"```yaml\n{yaml.dump(overlay, default_flow_style=False)}```\n")
+
+        # Delta table
+        lines.append("### Results Comparison\n")
+        lines.append("| Metric | Baseline | Experiment | Delta |")
+        lines.append("|--------|----------|------------|-------|")
+
+        _LOWER_IS_BETTER = {"brier", "brier_score", "ece", "log_loss"}
+
+        overall_verdict = "neutral"
+        primary_delta = 0.0
+
+        for metric in sorted(set(list(exp_metrics.keys()) + list(base_metrics.keys()))):
+            base_val = base_metrics.get(metric, float("nan"))
+            exp_val = exp_metrics.get(metric, float("nan"))
+            delta = exp_val - base_val
+
+            base_str = f"{base_val:.4f}" if not isinstance(base_val, float) or base_val == base_val else "N/A"
+            exp_str = f"{exp_val:.4f}" if not isinstance(exp_val, float) or exp_val == exp_val else "N/A"
+            delta_str = f"{delta:+.4f}" if delta == delta else "N/A"
+
+            lines.append(f"| {metric} | {base_str} | {exp_str} | {delta_str} |")
+
+            if metric == primary_metric or metric == f"{primary_metric}_score":
+                primary_delta = delta
+                if metric in _LOWER_IS_BETTER:
+                    overall_verdict = "improved" if delta < 0 else ("regressed" if delta > 0 else "neutral")
+                else:
+                    overall_verdict = "improved" if delta > 0 else ("regressed" if delta < 0 else "neutral")
+
+        lines.append(f"\n**Verdict**: {overall_verdict} (primary metric: {primary_metric}, delta: {primary_delta:+.4f})")
+
+        # Experiment backtest details
+        lines.append("\n---\n")
+        lines.append(_format_backtest_result(exp_result))
+
+        # Save results to experiment dir
+        try:
+            results = {
+                "experiment_id": experiment_id,
+                "metrics": exp_metrics,
+                "baseline_metrics": base_metrics,
+                "verdict": overall_verdict,
+                "primary_metric": primary_metric,
+                "primary_delta": primary_delta,
+            }
+            (exp_dir / "results.json").write_text(json.dumps(results, indent=2))
+
+            # Auto-log
+            from easyml.runner.experiment import auto_log_result
+            auto_log_result(
+                log_path=project_dir / "EXPERIMENT_LOG.md",
+                experiment_id=experiment_id,
+                hypothesis=hypothesis,
+                changes=yaml.dump(overlay, default_flow_style=True) if overlay else "",
+                metrics=exp_metrics,
+                baseline_metrics=base_metrics,
+                verdict=overall_verdict,
+            )
+        except Exception as log_exc:
+            lines.append(f"\n*Warning: Failed to log results: {log_exc}*")
+
+        return "\n".join(lines)
+
+    except Exception as exc:
+        return f"**Experiment failed**: {exc}"
+
+
+def show_run(
+    project_dir: Path,
+    run_id: str | None = None,
+) -> str:
+    """Show results from a pipeline run.
+
+    Parameters
+    ----------
+    run_id : str | None
+        Run to show. If None, shows the most recent run.
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured."
+
+    outputs_path = project_dir / outputs_dir
+
+    if run_id:
+        run_dir = outputs_path / run_id
+    else:
+        # Find most recent run
+        if not outputs_path.exists():
+            return "**Error**: No runs found."
+        runs = sorted(
+            [d for d in outputs_path.iterdir() if d.is_dir() and d.name != "current"],
+            key=lambda d: d.name,
+            reverse=True,
+        )
+        if not runs:
+            return "**Error**: No runs found."
+        run_dir = runs[0]
+
+    if not run_dir.exists():
+        return f"**Error**: Run '{run_id}' not found."
+
+    lines = [f"## Run: `{run_dir.name}`\n"]
+
+    # Read report.md if available
+    report_path = run_dir / "report.md"
+    if report_path.exists():
+        lines.append(report_path.read_text())
+        return "\n".join(lines)
+
+    # Read pooled_metrics.json if available
+    metrics_path = run_dir / "pooled_metrics.json"
+    if metrics_path.exists():
+        metrics = json.loads(metrics_path.read_text())
+        lines.append("### Metrics\n")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        for name, val in sorted(metrics.items()):
+            if isinstance(val, (int, float)):
+                lines.append(f"| {name} | {val:.4f} |")
+        return "\n".join(lines)
+
+    # List available artifacts
+    artifacts = sorted(f.name for f in run_dir.rglob("*") if f.is_file())
+    if artifacts:
+        lines.append("### Artifacts\n")
+        for a in artifacts[:20]:
+            lines.append(f"- `{a}`")
+        if len(artifacts) > 20:
+            lines.append(f"- ... +{len(artifacts) - 20} more")
+    else:
+        lines.append("No artifacts found in this run.")
+
+    return "\n".join(lines)
+
+
+def promote_experiment(
+    project_dir: Path,
+    experiment_id: str,
+    *,
+    primary_metric: str = "brier_score",
+) -> str:
+    """Promote a successful experiment's config changes to production.
+
+    Returns markdown confirmation or rejection reason.
+    """
+    project_dir = Path(project_dir)
+
+    try:
+        from easyml.runner.experiment import promote_experiment as _promote
+
+        result = _promote(
+            experiment_id=experiment_id,
+            experiments_dir=project_dir / "experiments",
+            config_dir=project_dir / "config",
+            primary_metric=primary_metric,
+        )
+
+        if result.get("promoted"):
+            lines = [f"## Promoted: `{experiment_id}`\n"]
+            improvement = result.get("improvement", {})
+            for metric, val in improvement.items():
+                lines.append(f"- **{metric}**: improved by {val:+.4f}")
+            changes = result.get("changes", [])
+            if changes:
+                lines.append("\n### Changes Applied\n")
+                for c in changes:
+                    lines.append(f"- {c}")
+            warning = result.get("warning")
+            if warning:
+                lines.append(f"\n**Warning**: {warning}")
+            return "\n".join(lines)
+        else:
+            reason = result.get("reason", "Unknown reason")
+            return f"**Not promoted**: {reason}"
+
+    except Exception as exc:
+        return f"**Promotion failed**: {exc}"
