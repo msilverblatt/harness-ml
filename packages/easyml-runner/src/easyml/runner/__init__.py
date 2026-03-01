@@ -1,5 +1,12 @@
 """YAML-driven orchestration layer for easyml."""
 
+from easyml.runner.calibration import (
+    IsotonicCalibrator,
+    PlattCalibrator,
+    SplineCalibrator,
+    build_calibrator,
+    temperature_scale,
+)
 from easyml.runner.diagnostics import (
     compute_brier_score,
     compute_calibration_curve,
@@ -20,7 +27,12 @@ from easyml.runner.matchups import (
     generate_pairwise_matchups,
     predict_all_matchups,
 )
+from easyml.runner.meta_learner import (
+    StackedEnsemble,
+    train_meta_learner_loso,
+)
 from easyml.runner.pipeline import PipelineRunner
+from easyml.runner.postprocessing import apply_ensemble_postprocessing
 from easyml.runner.run_manager import RunManager
 from easyml.runner.scaffold import scaffold_project
 from easyml.runner.schema import (
@@ -29,6 +41,7 @@ from easyml.runner.schema import (
     EnsembleDef,
     ExperimentDef,
     FeatureDecl,
+    FeaturesConfig,
     GuardrailDef,
     ModelDef,
     ProjectConfig,
@@ -49,17 +62,24 @@ __all__ = [
     "EnsembleDef",
     "ExperimentDef",
     "FeatureDecl",
+    "FeaturesConfig",
     "GeneratedServer",
     "GuardrailDef",
+    "IsotonicCalibrator",
     "ModelDef",
     "PipelineRunner",
+    "PlattCalibrator",
     "ProjectConfig",
     "RunManager",
     "ServerDef",
     "ServerToolDef",
     "SourceDecl",
+    "SplineCalibrator",
+    "StackedEnsemble",
     "ToolSpec",
     "ValidationResult",
+    "apply_ensemble_postprocessing",
+    "build_calibrator",
     "compute_brier_score",
     "compute_calibration_curve",
     "compute_ece",
@@ -78,6 +98,8 @@ __all__ = [
     "save_fingerprint",
     "save_meta_cache",
     "scaffold_project",
+    "temperature_scale",
+    "train_meta_learner_loso",
     "train_single_model",
     "validate_project",
 ]
