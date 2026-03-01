@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from easyml.runner.schema import ServerDef, ServerToolDef
+from easyml.runner.schema import GuardrailDef, ServerDef, ServerToolDef
 from easyml.runner.server_gen import GeneratedServer, ToolSpec, generate_server
 
 
@@ -358,3 +358,113 @@ class TestInspectionToolAsync:
         result_str = asyncio.run(server.tools["list_features"].fn())
         assert "eff" in result_str
         assert "efficiency" in result_str
+
+
+# -----------------------------------------------------------------------
+# Tests: guardrail enforcement
+# -----------------------------------------------------------------------
+
+class TestGuardrailEnforcement:
+    """Execution tools with guardrails reject invalid inputs."""
+
+    def test_naming_guardrail_rejects_bad_name(self, tmp_path):
+        _setup_minimal(tmp_path)
+        tool_def = ServerToolDef(
+            command="echo create",
+            guardrails=["naming_check"],
+            description="Create experiment",
+            timeout=10,
+        )
+        guardrail_config = GuardrailDef(
+            naming_pattern=r"^exp-\d{3}-.*$",
+        )
+        server_def = _make_server_def(tools={"create": tool_def})
+        server = generate_server(server_def, tmp_path, guardrails=guardrail_config)
+
+        import json
+        result_str = asyncio.run(
+            server.tools["create"].fn(experiment_id="bad_name")
+        )
+        result = json.loads(result_str)
+        assert result["status"] == "guardrail_failed"
+        assert "naming" in result["stderr"].lower()
+
+    def test_naming_guardrail_accepts_valid_name(self, tmp_path):
+        _setup_minimal(tmp_path)
+        tool_def = ServerToolDef(
+            command="echo create",
+            guardrails=["naming_check"],
+            description="Create experiment",
+            timeout=10,
+        )
+        guardrail_config = GuardrailDef(
+            naming_pattern=r"^exp-\d{3}-.*$",
+        )
+        server_def = _make_server_def(tools={"create": tool_def})
+        server = generate_server(server_def, tmp_path, guardrails=guardrail_config)
+
+        import json
+        result_str = asyncio.run(
+            server.tools["create"].fn(experiment_id="exp-001-test")
+        )
+        result = json.loads(result_str)
+        assert result["status"] == "success"
+
+    def test_leakage_guardrail_rejects_denied_feature(self, tmp_path):
+        _setup_minimal(tmp_path)
+        tool_def = ServerToolDef(
+            command="echo train",
+            guardrails=["leakage_check"],
+            description="Train model",
+            timeout=10,
+        )
+        guardrail_config = GuardrailDef(
+            feature_leakage_denylist=["kp_adj_o", "kp_adj_d"],
+        )
+        server_def = _make_server_def(tools={"train": tool_def})
+        server = generate_server(server_def, tmp_path, guardrails=guardrail_config)
+
+        import json
+        result_str = asyncio.run(
+            server.tools["train"].fn(features="kp_adj_o,diff_x")
+        )
+        result = json.loads(result_str)
+        assert result["status"] == "guardrail_failed"
+        assert "leakage" in result["stderr"].lower()
+
+    def test_no_guardrails_passes(self, tmp_path):
+        """Tool with no guardrails executes normally."""
+        _setup_minimal(tmp_path)
+        tool_def = ServerToolDef(
+            command="echo hello",
+            guardrails=[],
+            description="Test",
+            timeout=10,
+        )
+        server_def = _make_server_def(tools={"test": tool_def})
+        server = generate_server(server_def, tmp_path)
+
+        import json
+        result_str = asyncio.run(server.tools["test"].fn())
+        result = json.loads(result_str)
+        assert result["status"] == "success"
+
+    def test_no_guardrail_config_passes(self, tmp_path):
+        """Tool with guardrails but no guardrail config passes (no config to enforce)."""
+        _setup_minimal(tmp_path)
+        tool_def = ServerToolDef(
+            command="echo hello",
+            guardrails=["naming_check"],
+            description="Test",
+            timeout=10,
+        )
+        server_def = _make_server_def(tools={"test": tool_def})
+        # No guardrails config passed to generate_server
+        server = generate_server(server_def, tmp_path)
+
+        import json
+        result_str = asyncio.run(
+            server.tools["test"].fn(experiment_id="anything")
+        )
+        result = json.loads(result_str)
+        assert result["status"] == "success"

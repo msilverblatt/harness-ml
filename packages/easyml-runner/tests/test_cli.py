@@ -269,16 +269,191 @@ class TestRunStubs:
 # Tests: serve / init stubs
 # -----------------------------------------------------------------------
 
-class TestServeStub:
-    """serve command exists."""
+class TestServe:
+    """serve command tests."""
 
     def test_serve_no_config(self, tmp_path):
         _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(main, ["--config-dir", str(tmp_path), "serve"])
-        assert result.exit_code == 0
-        # Should print a message about no server config
+        assert result.exit_code == 1
+        # Should print an error message about no server config
         assert "server" in result.output.lower() or "no" in result.output.lower()
+
+
+class TestServeWithConfig:
+    """serve command starts server when config exists."""
+
+    def test_serve_with_server_config(self, tmp_path, monkeypatch):
+        """Serve command calls generate_server and runs the MCP server."""
+        _setup_minimal(tmp_path)
+        _write_yaml(
+            tmp_path / "server.yaml",
+            {
+                "server": {
+                    "name": "test-server",
+                    "tools": {},
+                    "inspection": ["show_config"],
+                }
+            },
+        )
+
+        # Mock fastmcp to avoid actual server startup
+        class MockFastMCP:
+            def __init__(self, name):
+                self.name = name
+                self._tools = {}
+
+            def tool(self, **kwargs):
+                def decorator(fn):
+                    self._tools[kwargs.get("name", fn.__name__)] = fn
+                    return fn
+                return decorator
+
+            def run(self):
+                pass  # Don't actually start server
+
+        import easyml.runner.server_gen as sg
+        monkeypatch.setattr(sg, "FastMCP", MockFastMCP, raising=False)
+        # Patch the import in to_fastmcp
+        import unittest.mock as mock
+        with mock.patch.dict("sys.modules", {"fastmcp": mock.MagicMock()}):
+            # Need to mock at the import level inside to_fastmcp
+            original_to_fastmcp = sg.GeneratedServer.to_fastmcp
+
+            def patched_to_fastmcp(self):
+                mcp = MockFastMCP(self.name)
+                for name, spec in self.tools.items():
+                    mcp.tool(name=name, description=spec.description)(spec.fn)
+                return mcp
+
+            monkeypatch.setattr(sg.GeneratedServer, "to_fastmcp", patched_to_fastmcp)
+
+            runner = CliRunner()
+            result = runner.invoke(main, ["--config-dir", str(tmp_path), "serve"])
+            # Should succeed (server.run() is mocked as no-op)
+            assert result.exit_code == 0
+
+
+# -----------------------------------------------------------------------
+# Tests: run predict
+# -----------------------------------------------------------------------
+
+class TestRunPredict:
+    """run predict command tests."""
+
+    def test_predict_help(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["run", "predict", "--help"])
+        assert result.exit_code == 0
+        assert "--season" in result.output
+
+    def test_predict_invocation(self, tmp_path, monkeypatch):
+        """Predict command creates PipelineRunner and calls predict."""
+        _setup_minimal(tmp_path)
+
+        import easyml.runner.pipeline as pipeline_mod
+
+        calls = []
+
+        class MockRunner:
+            def __init__(self, **kwargs):
+                calls.append(("init", kwargs))
+
+            def load(self):
+                calls.append(("load",))
+
+            def predict(self, season, run_id=None):
+                calls.append(("predict", season, run_id))
+                import pandas as pd
+                return pd.DataFrame({"x": [1, 2, 3]})
+
+        monkeypatch.setattr(pipeline_mod, "PipelineRunner", MockRunner)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["--config-dir", str(tmp_path), "run", "predict", "--season", "2024"],
+        )
+        assert result.exit_code == 0
+        assert "3 matchups" in result.output
+        # Verify predict was called with correct season
+        predict_calls = [c for c in calls if c[0] == "predict"]
+        assert len(predict_calls) == 1
+        assert predict_calls[0][1] == 2024
+
+
+# -----------------------------------------------------------------------
+# Tests: experiment run
+# -----------------------------------------------------------------------
+
+class TestExperimentRun:
+    """experiment run command tests."""
+
+    def test_experiment_run_help(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["experiment", "run", "--help"])
+        assert result.exit_code == 0
+
+    def test_experiment_run_missing_dir(self, tmp_path):
+        """experiment run with nonexistent experiment dir fails."""
+        _setup_minimal(tmp_path)
+        _write_yaml(
+            tmp_path / "experiments.yaml",
+            {"experiments": {"experiments_dir": str(tmp_path / "experiments")}},
+        )
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["--config-dir", str(tmp_path), "experiment", "run", "nonexistent-exp"],
+        )
+        assert result.exit_code == 1
+        assert "not found" in result.output.lower()
+
+    def test_experiment_run_creates_overlay_runner(self, tmp_path, monkeypatch):
+        """experiment run loads overlay and creates PipelineRunner."""
+        _setup_minimal(tmp_path)
+        exp_dir = tmp_path / "experiments" / "test-exp-001"
+        exp_dir.mkdir(parents=True)
+        _write_yaml(
+            tmp_path / "experiments.yaml",
+            {"experiments": {"experiments_dir": str(tmp_path / "experiments")}},
+        )
+        # Write overlay
+        _write_yaml(
+            exp_dir / "overlay.yaml",
+            {"ensemble": {"temperature": 1.5}},
+        )
+
+        import easyml.runner.pipeline as pipeline_mod
+
+        calls = []
+
+        class MockRunner:
+            def __init__(self, **kwargs):
+                calls.append(("init", kwargs))
+
+            def load(self):
+                calls.append(("load",))
+
+            def backtest(self):
+                calls.append(("backtest",))
+                return {"status": "success", "metrics": {}}
+
+        monkeypatch.setattr(pipeline_mod, "PipelineRunner", MockRunner)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["--config-dir", str(tmp_path), "experiment", "run", "test-exp-001"],
+        )
+        assert result.exit_code == 0
+
+        # Verify overlay was passed
+        init_calls = [c for c in calls if c[0] == "init"]
+        assert len(init_calls) == 1
+        overlay = init_calls[0][1].get("overlay", {})
+        assert overlay.get("ensemble", {}).get("temperature") == 1.5
 
 
 class TestInitStub:

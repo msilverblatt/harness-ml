@@ -173,24 +173,206 @@ class PipelineRunner:
     def predict(
         self, season: int, run_id: str | None = None
     ) -> pd.DataFrame:
-        """Generate predictions for a season (stub).
+        """Generate predictions for a target season.
+
+        1. Load trained models from models_dir (or train fresh)
+        2. Build all pairwise matchups from team features + seeds
+        3. Predict each matchup with each model
+        4. Train production meta-learner on backtest predictions
+        5. Apply ensemble post-processing
+        6. Return predictions DataFrame with prob_* and prob_ensemble columns
 
         Parameters
         ----------
         season : int
             Target season to predict.
         run_id : str | None
-            Optional run identifier.
+            Optional run identifier for locating model artifacts.
 
         Returns
         -------
         pd.DataFrame
-            Prediction DataFrame (stub — returns empty).
+            Prediction DataFrame with prob_{model_name} and prob_ensemble columns.
         """
         if self.config is None:
             raise RuntimeError("Call load() before predict()")
-        # Stub for now — full implementation in a later task
-        return pd.DataFrame()
+
+        active_models = self._get_active_models()
+        if not active_models:
+            raise ValueError("No active models for prediction.")
+
+        # Train all active models on data before the target season
+        trained_models = {}
+        for model_name, model_def in active_models.items():
+            try:
+                model, feature_cols, metrics = train_single_model(
+                    model_name=model_name,
+                    model_def=model_def,
+                    train_df=self._df,
+                    registry=self._registry,
+                    target_season=season,
+                )
+                trained_models[model_name] = (model, feature_cols, metrics)
+            except Exception:
+                logger.exception(
+                    "Failed to train %s for prediction season %d",
+                    model_name, season,
+                )
+                continue
+
+        if not trained_models:
+            raise ValueError("No models could be trained for prediction.")
+
+        # Get test data for the target season
+        test_mask = self._df["season"] == season
+        test_df = self._df[test_mask].copy()
+
+        if len(test_df) == 0:
+            logger.warning("No data found for season %d", season)
+            return pd.DataFrame()
+
+        # Build predictions DataFrame
+        preds_df = test_df[["season"]].copy()
+        if "result" in test_df.columns:
+            preds_df["result"] = test_df["result"].values
+
+        # Add diff_seed_num if available
+        if "diff_seed_num" in test_df.columns:
+            preds_df["diff_seed_num"] = test_df["diff_seed_num"].values
+        else:
+            preds_df["diff_seed_num"] = np.zeros(len(test_df))
+
+        # Add meta_features if configured
+        meta_feature_names = self.config.ensemble.meta_features
+        for feat_name in meta_feature_names:
+            if feat_name in test_df.columns:
+                preds_df[feat_name] = test_df[feat_name].values
+
+        # Generate predictions from each model
+        for model_name, (model, feature_cols, metrics) in trained_models.items():
+            try:
+                cdf_scale = metrics.get("cdf_scale")
+                probs = predict_single_model(
+                    model=model,
+                    model_def=active_models[model_name],
+                    test_df=test_df,
+                    feature_columns=feature_cols,
+                    cdf_scale=cdf_scale,
+                )
+                preds_df[f"prob_{model_name}"] = probs
+            except Exception:
+                logger.exception(
+                    "Failed to predict %s for season %d",
+                    model_name, season,
+                )
+                continue
+
+        # Check we got at least one model prediction
+        prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
+        if not prob_cols:
+            return preds_df
+
+        # Train meta-learner on backtest data and apply ensemble
+        ensemble_config = self.config.ensemble.model_dump()
+        active_model_names = [
+            name for name in active_models
+            if f"prob_{name}" in preds_df.columns
+        ]
+
+        if ensemble_config["method"] == "stacked" and "result" in self._df.columns:
+            try:
+                # Generate backtest predictions for meta-learner training
+                bt_data = self._generate_backtest_for_meta(season, active_models)
+                if bt_data:
+                    meta, cal, pre_cals = self._train_production_meta(
+                        bt_data, ensemble_config, active_model_names,
+                    )
+                    preds_df = apply_ensemble_postprocessing(
+                        preds_df, meta, cal, ensemble_config,
+                        pre_calibrators=pre_cals,
+                    )
+                else:
+                    # Fall back to simple average
+                    preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+            except Exception:
+                logger.exception("Meta-learner training failed, falling back to average")
+                preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+        else:
+            # Simple average
+            preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+
+        return preds_df
+
+    def _generate_backtest_for_meta(
+        self,
+        target_season: int,
+        active_models: dict[str, ModelDef],
+    ) -> dict[int, pd.DataFrame]:
+        """Generate backtest predictions for training the production meta-learner.
+
+        Trains on data before target_season, using LOSO within that data.
+        """
+        # Use all seasons before target for meta-learner training
+        available_df = self._df[self._df["season"] < target_season]
+        if len(available_df) == 0:
+            return {}
+
+        seasons = sorted(available_df["season"].unique())
+        season_data: dict[int, pd.DataFrame] = {}
+
+        for holdout in seasons:
+            preds_df = self._generate_season_predictions(holdout, active_models)
+            if preds_df is not None and len(preds_df) > 0:
+                season_data[holdout] = preds_df
+
+        return season_data
+
+    def _train_production_meta(
+        self,
+        season_data: dict[int, pd.DataFrame],
+        ensemble_config: dict,
+        active_model_names: list[str],
+    ) -> tuple:
+        """Train the production meta-learner on all backtest seasons."""
+        all_dfs = [season_data[s] for s in sorted(season_data.keys())]
+        combined = pd.concat(all_dfs, ignore_index=True)
+
+        available_models = [
+            name for name in active_model_names
+            if f"prob_{name}" in combined.columns
+        ]
+
+        if not available_models:
+            raise ValueError("No model predictions for meta-learner")
+
+        model_preds = {
+            name: combined[f"prob_{name}"].values
+            for name in available_models
+        }
+
+        y_true = combined["result"].values.astype(float)
+        seed_diffs = combined["diff_seed_num"].values.astype(float)
+        season_labels = combined["season"].values
+
+        extra_features = None
+        meta_feature_names = ensemble_config.get("meta_features", [])
+        if meta_feature_names:
+            extra_features = {}
+            for feat_name in meta_feature_names:
+                if feat_name in combined.columns:
+                    extra_features[feat_name] = combined[feat_name].values
+
+        meta, cal, pre_cals = train_meta_learner_loso(
+            y_true=y_true,
+            model_preds=model_preds,
+            seed_diffs=seed_diffs,
+            season_labels=season_labels,
+            model_names=available_models,
+            ensemble_config=ensemble_config,
+            extra_features=extra_features if extra_features else None,
+        )
+
+        return meta, cal, pre_cals
 
     def backtest(self) -> dict[str, Any]:
         """Run real ensemble backtesting with LOSO cross-validation.

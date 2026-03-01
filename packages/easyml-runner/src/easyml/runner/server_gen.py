@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from easyml.runner.schema import ServerDef, ServerToolDef
+from easyml.runner.schema import GuardrailDef, ServerDef, ServerToolDef
 from easyml.runner.validator import validate_project
 
 
@@ -45,25 +45,108 @@ class GeneratedServer:
         return mcp
 
 
+def _check_guardrails(
+    guardrails: list[str],
+    guardrail_config: GuardrailDef | None,
+    kwargs: dict[str, Any],
+    tool_name: str,
+) -> str | None:
+    """Check guardrails before executing a tool command.
+
+    Parameters
+    ----------
+    guardrails : list[str]
+        List of guardrail names configured on the tool.
+    guardrail_config : GuardrailDef | None
+        Project-level guardrail configuration.
+    kwargs : dict
+        Keyword arguments passed to the tool.
+    tool_name : str
+        Name of the tool being executed.
+
+    Returns
+    -------
+    str | None
+        Error message if a guardrail fails, or None if all pass.
+    """
+    if not guardrails or guardrail_config is None:
+        return None
+
+    for guard in guardrails:
+        if guard == "naming_check":
+            # Validate naming patterns for arguments that look like identifiers
+            pattern = guardrail_config.naming_pattern
+            if pattern is not None:
+                import re
+                for key, value in kwargs.items():
+                    if key in ("experiment_id", "name", "id") and isinstance(value, str):
+                        if not re.match(pattern, value):
+                            return (
+                                f"Guardrail '{guard}' failed: "
+                                f"'{value}' does not match pattern '{pattern}'"
+                            )
+
+        elif guard == "leakage_check":
+            # Check for feature leakage denylist
+            denylist = guardrail_config.feature_leakage_denylist
+            if denylist:
+                for key, value in kwargs.items():
+                    if isinstance(value, str):
+                        for denied in denylist:
+                            if denied in value:
+                                return (
+                                    f"Guardrail '{guard}' failed: "
+                                    f"'{denied}' is in the feature leakage denylist"
+                                )
+
+        elif guard == "rate_limit":
+            # Rate limiting — lightweight check (actual enforcement would
+            # require persistent state; this is a placeholder for the pattern)
+            pass
+
+        # Unknown guardrails are silently skipped (forward-compatible)
+
+    return None
+
+
 def _make_execution_tool(
     tool_name: str,
     tool_def: ServerToolDef,
     config_dir: Path,
+    guardrail_config: GuardrailDef | None = None,
 ) -> ToolSpec:
     """Create an execution tool that runs a subprocess command.
 
     The generated async function builds a command from ServerToolDef.command
     plus any kwargs, runs it with the configured timeout, and returns a
     JSON result dict with status/stdout/stderr.
+
+    If the tool has guardrails configured, they are checked before
+    executing the command. If any guardrail fails, the command is not
+    executed and the guardrail error is returned.
     """
     command_template = tool_def.command
     tool_args = list(tool_def.args)
     guardrails = list(tool_def.guardrails)
     timeout = tool_def.timeout
     description = tool_def.description or f"Run {tool_name}"
+    _guardrail_config = guardrail_config
 
     async def _execute(**kwargs: Any) -> str:
         """Execute the tool command via subprocess."""
+        # Check guardrails before executing
+        guardrail_error = _check_guardrails(
+            guardrails, _guardrail_config, kwargs, tool_name
+        )
+        if guardrail_error is not None:
+            result = {
+                "status": "guardrail_failed",
+                "returncode": -1,
+                "stdout": "",
+                "stderr": guardrail_error,
+            }
+            return json.dumps(result, indent=2)
+
         # Build command parts
         parts = command_template.split()
 
@@ -254,7 +337,11 @@ _INSPECTION_BUILDERS: dict[str, Callable[[Path], ToolSpec]] = {
 # Main generator
 # -----------------------------------------------------------------------
 
-def generate_server(config: ServerDef, config_dir: Path) -> GeneratedServer:
+def generate_server(
+    config: ServerDef,
+    config_dir: Path,
+    guardrails: GuardrailDef | None = None,
+) -> GeneratedServer:
     """Generate an MCP server from a ServerDef configuration.
 
     Parameters
@@ -264,6 +351,10 @@ def generate_server(config: ServerDef, config_dir: Path) -> GeneratedServer:
     config_dir:
         Path to the config directory (used for subprocess cwd and
         inspection tool validation).
+    guardrails:
+        Optional project-level guardrail configuration. If provided,
+        execution tools with guardrail references will enforce them
+        before running commands.
 
     Returns
     -------
@@ -275,7 +366,9 @@ def generate_server(config: ServerDef, config_dir: Path) -> GeneratedServer:
 
     # Register execution tools
     for tool_name, tool_def in config.tools.items():
-        spec = _make_execution_tool(tool_name, tool_def, config_dir)
+        spec = _make_execution_tool(
+            tool_name, tool_def, config_dir, guardrail_config=guardrails,
+        )
         server.tools[tool_name] = spec
 
     # Register inspection tools

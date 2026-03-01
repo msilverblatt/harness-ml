@@ -250,6 +250,52 @@ def experiment_list(ctx: click.Context) -> None:
         click.echo(f"  {name}")
 
 
+@experiment.command("run")
+@click.argument("experiment_id")
+@click.pass_context
+def experiment_run(ctx: click.Context, experiment_id: str) -> None:
+    """Run an experiment: load overlay, train, backtest, compare to baseline."""
+    config_dir = ctx.obj["config_dir"]
+    gender = ctx.obj["gender"]
+
+    import yaml as _yaml
+
+    from easyml.runner.pipeline import PipelineRunner
+
+    result = _load_config(config_dir, gender)
+    exp_cfg = result.config.experiments
+    if exp_cfg is None:
+        click.echo("No experiments section in config.", err=True)
+        raise SystemExit(1)
+
+    exp_dir = Path(exp_cfg.experiments_dir or "experiments") / experiment_id
+    if not exp_dir.exists():
+        click.echo(f"Experiment directory not found: {exp_dir}", err=True)
+        raise SystemExit(1)
+
+    overlay_path = exp_dir / "overlay.yaml"
+    overlay = {}
+    if overlay_path.exists():
+        with open(overlay_path) as f:
+            overlay = _yaml.safe_load(f) or {}
+
+    variant = "w" if gender.upper() == "W" else None
+    runner = PipelineRunner(
+        project_dir=".",
+        config_dir=config_dir,
+        variant=variant,
+        overlay=overlay,
+    )
+
+    try:
+        runner.load()
+        bt_result = runner.backtest()
+        click.echo(json.dumps(bt_result, indent=2, default=str))
+    except Exception as exc:
+        click.echo(f"Experiment {experiment_id} failed: {exc}", err=True)
+        raise SystemExit(1)
+
+
 # -----------------------------------------------------------------------
 # run subgroup (stubs that will use PipelineRunner)
 # -----------------------------------------------------------------------
@@ -302,6 +348,28 @@ def run_backtest(ctx: click.Context) -> None:
     click.echo(json.dumps(result, indent=2, default=str))
 
 
+@run.command("predict")
+@click.option("--season", required=True, type=int, help="Target season to predict.")
+@click.option("--run-id", default=None, help="Optional run identifier.")
+@click.pass_context
+def run_predict(ctx: click.Context, season: int, run_id: str | None) -> None:
+    """Generate predictions for a target season."""
+    config_dir = ctx.obj["config_dir"]
+    gender = ctx.obj["gender"]
+
+    from easyml.runner.pipeline import PipelineRunner
+
+    variant = "w" if gender.upper() == "W" else None
+    runner = PipelineRunner(
+        project_dir=".",
+        config_dir=config_dir,
+        variant=variant,
+    )
+    runner.load()
+    preds = runner.predict(season, run_id=run_id)
+    click.echo(f"Predicted {len(preds)} matchups for season {season}")
+
+
 @run.command("pipeline")
 @click.pass_context
 def run_pipeline(ctx: click.Context) -> None:
@@ -328,17 +396,24 @@ def run_pipeline(ctx: click.Context) -> None:
 @main.command()
 @click.pass_context
 def serve(ctx: click.Context) -> None:
-    """Start the MCP server (if configured)."""
+    """Start the MCP server."""
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
     result = _load_config(config_dir, gender)
 
     if result.config.server is None:
-        click.echo("No server configuration found in config.")
-        return
+        click.echo("No server configuration found in server.yaml", err=True)
+        raise SystemExit(1)
 
-    click.echo(f"Server: {result.config.server.name}")
-    click.echo("Server startup not yet implemented.")
+    from easyml.runner.server_gen import generate_server
+
+    server = generate_server(
+        result.config.server,
+        Path(config_dir),
+        guardrails=result.config.guardrails,
+    )
+    mcp = server.to_fastmcp()
+    mcp.run()
 
 
 # -----------------------------------------------------------------------
