@@ -1,0 +1,17 @@
+[project]
+name = "easyml"
+version = "0.1.0"
+description = "AI-driven ML framework with guardrails"
+requires-python = ">=3.11"
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/*/tests", "tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
