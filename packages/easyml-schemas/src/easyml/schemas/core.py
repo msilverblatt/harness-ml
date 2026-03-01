@@ -19,6 +19,21 @@ class TemporalFilter(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Source metadata
+# ---------------------------------------------------------------------------
+
+class SourceMeta(BaseModel):
+    """Describes a data source with leakage and freshness metadata."""
+
+    name: str
+    category: str  # e.g. "external", "internal", "derived"
+    outputs: list[str]  # output file/dir paths
+    temporal_safety: Literal["pre_tournament", "post_tournament", "mixed", "unknown"]
+    leakage_notes: str = ""
+    freshness_check: str | None = None  # how freshness is checked
+
+
+# ---------------------------------------------------------------------------
 # Feature metadata
 # ---------------------------------------------------------------------------
 

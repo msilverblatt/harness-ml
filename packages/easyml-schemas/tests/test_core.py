@@ -2,7 +2,7 @@ import pytest
 from easyml.schemas.core import (
     FeatureMeta, TemporalFilter, ModelConfig, EnsembleConfig,
     StageConfig, ArtifactDecl, PipelineConfig, RunManifest,
-    ExperimentResult, GuardrailViolation, Fold,
+    ExperimentResult, GuardrailViolation, Fold, SourceMeta,
 )
 
 def test_feature_meta_basic():
@@ -128,3 +128,25 @@ def test_fold():
     )
     assert f.fold_id == 2018
     assert len(f.train_idx) == 3
+
+
+def test_source_meta():
+    sm = SourceMeta(
+        name="kenpom_archive",
+        category="external",
+        outputs=["data/external/kenpom/"],
+        temporal_safety="pre_tournament",
+        leakage_notes="Archive endpoint returns ratings as of Selection Sunday",
+    )
+    assert sm.temporal_safety == "pre_tournament"
+
+
+def test_source_meta_defaults():
+    sm = SourceMeta(
+        name="test",
+        category="internal",
+        outputs=["data/test/"],
+        temporal_safety="unknown",
+    )
+    assert sm.leakage_notes == ""
+    assert sm.freshness_check is None
