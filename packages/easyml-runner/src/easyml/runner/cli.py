@@ -346,7 +346,21 @@ def serve(ctx: click.Context) -> None:
 # -----------------------------------------------------------------------
 
 @main.command()
-@click.pass_context
-def init(ctx: click.Context) -> None:
-    """Initialize a new easyml project (stub)."""
-    click.echo("Project initialization not yet implemented.")
+@click.argument("project_dir")
+@click.option("--name", default=None, help="Project name (defaults to directory name).")
+def init(project_dir: str, name: str | None) -> None:
+    """Initialize a new easyml project."""
+    from easyml.runner.scaffold import scaffold_project
+
+    path = Path(project_dir)
+    try:
+        scaffold_project(path, project_name=name)
+        click.echo(f"Project initialized at {path}")
+        click.echo("Next steps:")
+        click.echo(f"  1. cd {path}")
+        click.echo("  2. Edit config/models.yaml to define your models")
+        click.echo("  3. Add feature modules to features/")
+        click.echo("  4. Run: easyml validate")
+    except FileExistsError as e:
+        click.echo(f"Error: {e}")
+        raise SystemExit(1)
