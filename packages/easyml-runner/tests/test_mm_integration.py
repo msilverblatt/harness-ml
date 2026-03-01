@@ -57,7 +57,7 @@ def _make_synthetic_matchup_data(
     n_seasons: int = 3,
     season_start: int = 2022,
 ) -> None:
-    """Create synthetic matchup_features.parquet with specified features.
+    """Create synthetic features parquet with specified features.
 
     Generates random data with result, season, margin, diff_seed_num,
     and all requested diff_* feature columns.
@@ -312,7 +312,7 @@ class TestMmConfigValidates:
         result = validate_project(config_dir)
         assert result.valid, f"Validation failed:\n{result.format()}"
 
-        assert result.config.data.gender == "M"
+        assert result.config.data.task == "classification"
         assert result.config.data.raw_dir == "data/raw"
         assert result.config.data.processed_dir == "data/processed"
         assert result.config.data.features_dir == "data/features"
@@ -430,7 +430,7 @@ class TestMmBacktestSmoke:
         # Create synthetic data
         features_dir = tmp_path / "data" / "features"
         _make_synthetic_matchup_data(
-            features_dir / "matchup_features.parquet",
+            features_dir / "features.parquet",
             feature_names=smoke_features,
             n_rows=300,
             n_seasons=3,
@@ -522,7 +522,7 @@ class TestMmBacktestSmoke:
 
         features_dir = tmp_path / "data" / "features"
         _make_synthetic_matchup_data(
-            features_dir / "matchup_features.parquet",
+            features_dir / "features.parquet",
             feature_names=smoke_features,
             n_rows=400,
             n_seasons=3,
@@ -595,7 +595,7 @@ class TestMmBacktestSmoke:
 
         features_dir = tmp_path / "data" / "features"
         _make_synthetic_matchup_data(
-            features_dir / "matchup_features.parquet",
+            features_dir / "features.parquet",
             feature_names=smoke_features,
             n_rows=300,
             n_seasons=3,

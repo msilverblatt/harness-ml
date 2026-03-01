@@ -52,7 +52,7 @@ def scaffolded_project(tmp_path):
         "diff_seed_num": diff_seed_num,
         "result": result,
     })
-    df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+    df.to_parquet(features_dir / "features.parquet", index=False)
 
     # Update pipeline.yaml to use absolute path and set seasons
     pipeline_path = project_dir / "config" / "pipeline.yaml"

@@ -29,7 +29,7 @@ def _make_matchup_parquet(
     mm_style: bool = False,
     extra_features: list[str] | None = None,
 ) -> None:
-    """Create a mock matchup_features.parquet with diff_x feature and season column."""
+    """Create a mock features parquet with diff_x feature and season column."""
     rng = np.random.default_rng(42)
     seasons = rng.choice(list(range(2022, 2022 + n_seasons)), size=n_rows)
     result = rng.integers(0, 2, size=n_rows)
@@ -85,7 +85,7 @@ def _setup_project(
     features_dir = tmp_path / "data" / "features"
     features_dir.mkdir(parents=True)
     _make_matchup_parquet(
-        features_dir / "matchup_features.parquet",
+        features_dir / "features.parquet",
         n_rows=n_rows,
         n_seasons=n_seasons,
         include_margin=include_margin,

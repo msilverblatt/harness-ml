@@ -610,7 +610,7 @@ class TestRunSweep:
             "diff_x": rng.standard_normal(n),
             "diff_seed_num": rng.integers(-15, 16, size=n).astype(float),
         })
-        df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+        df.to_parquet(features_dir / "features.parquet", index=False)
 
         # Config
         config_dir = project_dir / "config"

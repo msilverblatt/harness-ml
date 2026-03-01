@@ -226,7 +226,7 @@ def _setup_project_with_cv(
         "diff_x": diff_x,
         "result": result,
     })
-    df.to_parquet(features_dir / "matchup_features.parquet", index=False)
+    df.to_parquet(features_dir / "features.parquet", index=False)
 
     backtest_cfg: dict = {
         "cv_strategy": cv_strategy,
