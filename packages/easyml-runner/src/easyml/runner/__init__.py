@@ -1,6 +1,8 @@
 """YAML-driven orchestration layer for easyml."""
 
 from easyml.runner.loaders import load_features, load_sources
+from easyml.runner.pipeline import PipelineRunner
+from easyml.runner.scaffold import scaffold_project
 from easyml.runner.schema import (
     BacktestConfig,
     DataConfig,
@@ -26,6 +28,7 @@ __all__ = [
     "GeneratedServer",
     "GuardrailDef",
     "ModelDef",
+    "PipelineRunner",
     "ProjectConfig",
     "ServerDef",
     "ServerToolDef",
@@ -35,5 +38,6 @@ __all__ = [
     "generate_server",
     "load_features",
     "load_sources",
+    "scaffold_project",
     "validate_project",
 ]

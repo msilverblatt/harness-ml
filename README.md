@@ -71,6 +71,19 @@ from easyml.schemas import brier_score
 print(f"Brier: {brier_score(y_true, y_prob):.4f}")
 ```
 
+## YAML-Driven Interface
+
+The `easyml-runner` package provides a CLI and Python API that drives
+the entire framework from YAML configuration:
+
+```bash
+easyml init my-project && cd my-project
+easyml validate
+easyml run pipeline
+easyml experiment create exp-001-test
+easyml serve
+```
+
 ## Packages
 
 | Package | Description |
@@ -82,6 +95,7 @@ print(f"Brier: {brier_score(y_true, y_prob):.4f}")
 | `easyml-data` | Source registry, DVC generation, stage guards, refresh orchestrator |
 | `easyml-experiments` | Experiment lifecycle: naming, change detection, DNR, logging, promote |
 | `easyml-guardrails` | 11 guardrails (3 non-overridable), MCP server, audit logging |
+| `easyml-runner` | YAML-driven CLI, PipelineRunner, project scaffold, MCP server generation |
 
 ## Development
 

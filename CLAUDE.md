@@ -2,9 +2,9 @@
 
 ## What This Is
 
-EasyML is a modular ML framework with 7 packages in a uv workspace monorepo.
+EasyML is a modular ML framework with 8 packages in a uv workspace monorepo.
 Architecture: schema-core (shared Pydantic contracts) + tool-ring (config,
-features, models, data, experiments, guardrails).
+features, models, data, experiments, guardrails) + runner (YAML-driven CLI).
 
 ## Tech Stack
 
@@ -25,6 +25,7 @@ features, models, data, experiments, guardrails).
 | `easyml-data` | Sources + DVC | `SourceRegistry`, `generate_dvc_yaml`, `StageGuard` |
 | `easyml-experiments` | Experiment lifecycle | `ExperimentManager` |
 | `easyml-guardrails` | Safety guardrails | `Guardrail`, `PipelineServer`, `AuditLogger` |
+| `easyml-runner` | YAML-driven CLI + orchestration | `PipelineRunner`, `validate_project`, `scaffold_project`, `generate_server` |
 
 ## Key Conventions
 
