@@ -439,30 +439,49 @@ class TestFeaturesConfig:
 
 
 class TestDataConfigExtensions:
-    """Extended DataConfig fields."""
+    """DataConfig ML problem definition fields."""
 
-    def test_new_dir_fields(self):
+    def test_ml_problem_fields(self):
         d = DataConfig(
             raw_dir="data/raw",
             processed_dir="data/processed",
             features_dir="data/features",
-            predictions_dir="data/predictions",
-            survival_dir="data/survival",
+            features_file="my_data.parquet",
+            task="regression",
+            target_column="price",
+            key_columns=["item_id", "date"],
+            time_column="date",
+            exclude_columns=["notes"],
             outputs_dir="outputs",
         )
-        assert d.predictions_dir == "data/predictions"
-        assert d.survival_dir == "data/survival"
+        assert d.features_file == "my_data.parquet"
+        assert d.task == "regression"
+        assert d.target_column == "price"
+        assert d.key_columns == ["item_id", "date"]
+        assert d.time_column == "date"
+        assert d.exclude_columns == ["notes"]
         assert d.outputs_dir == "outputs"
 
-    def test_new_dir_fields_default_none(self):
-        d = DataConfig(
-            raw_dir="data/raw",
-            processed_dir="data/processed",
-            features_dir="data/features",
-        )
-        assert d.predictions_dir is None
-        assert d.survival_dir is None
+    def test_defaults(self):
+        d = DataConfig()
+        assert d.raw_dir == "data/raw"
+        assert d.processed_dir == "data/processed"
+        assert d.features_dir == "data/features"
+        assert d.features_file == "features.parquet"
+        assert d.task == "classification"
+        assert d.target_column == "result"
+        assert d.key_columns == []
+        assert d.time_column is None
+        assert d.exclude_columns == []
         assert d.outputs_dir is None
+
+    def test_team_features_path_default(self):
+        d = DataConfig()
+        assert d.team_features_path is None
+
+    def test_team_features_path_set(self):
+        d = DataConfig(team_features_path="data/features/team_features.parquet")
+        assert d.team_features_path == "data/features/team_features.parquet"
 
 
 class TestProjectConfigFeatureConfig:

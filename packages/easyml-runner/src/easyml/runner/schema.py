@@ -22,7 +22,7 @@ class FeatureDecl(BaseModel):
     module: str
     function: str
     category: str
-    level: Literal["team", "matchup"]
+    level: str  # free-form: "entity", "interaction", "regime", "query", etc.
     columns: list[str]
     nan_strategy: str = "median"
 
@@ -54,16 +54,22 @@ class FeaturesConfig(BaseModel):
 # -----------------------------------------------------------------------
 
 class DataConfig(BaseModel):
-    """Data directory layout."""
+    """Data configuration — paths + ML problem definition."""
 
-    raw_dir: str
-    processed_dir: str
-    features_dir: str
-    gender: str = "M"
-    predictions_dir: str | None = None
-    survival_dir: str | None = None
+    # Paths
+    raw_dir: str = "data/raw"
+    processed_dir: str = "data/processed"
+    features_dir: str = "data/features"
+    features_file: str = "features.parquet"     # relative to features_dir
     outputs_dir: str | None = None
-    team_features_path: str | None = None
+
+    # ML problem definition
+    task: str = "classification"                # classification, regression, ranking
+    target_column: str = "result"
+    key_columns: list[str] = []                 # row identifiers (game_id, customer_id, etc.)
+    time_column: str | None = None              # for temporal CV splits
+    exclude_columns: list[str] = []             # columns to never use as features
+    team_features_path: str | None = None       # path to team-level features parquet
 
 
 # -----------------------------------------------------------------------
