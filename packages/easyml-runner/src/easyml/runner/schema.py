@@ -39,6 +39,17 @@ class SourceDecl(BaseModel):
 
 
 # -----------------------------------------------------------------------
+# Features config (pipeline-level feature settings)
+# -----------------------------------------------------------------------
+
+class FeaturesConfig(BaseModel):
+    """Pipeline-level feature computation settings."""
+
+    first_season: int = 2003
+    momentum_window: int = 10
+
+
+# -----------------------------------------------------------------------
 # Data config
 # -----------------------------------------------------------------------
 
@@ -49,6 +60,9 @@ class DataConfig(BaseModel):
     processed_dir: str
     features_dir: str
     gender: str = "M"
+    predictions_dir: str | None = None
+    survival_dir: str | None = None
+    outputs_dir: str | None = None
 
 
 # -----------------------------------------------------------------------
@@ -58,6 +72,7 @@ class DataConfig(BaseModel):
 # Known model types — extensible via register_type() / unregister_type()
 _KNOWN_MODEL_TYPES: set[str] = {
     "xgboost",
+    "xgboost_regression",
     "catboost",
     "lightgbm",
     "random_forest",
@@ -65,6 +80,8 @@ _KNOWN_MODEL_TYPES: set[str] = {
     "elastic_net",
     "mlp",
     "tabnet",
+    "gnn",
+    "survival",
 }
 
 
@@ -72,12 +89,16 @@ class ModelDef(BaseModel):
     """Single model definition."""
 
     type: str
-    features: list[str]
+    features: list[str] = []
+    feature_sets: list[str] = []
     params: dict[str, Any] = {}
     active: bool = True
     mode: Literal["classifier", "regressor"] = "classifier"
     n_seeds: int = 1
-    pre_calibration: dict[str, Any] | None = None
+    prediction_type: str | None = None
+    train_seasons: str = "all"
+    pre_calibration: str | None = None
+    cdf_scale: float | None = None
     training_filter: dict[str, Any] | None = None
 
     @field_validator("type")
@@ -111,8 +132,13 @@ class EnsembleDef(BaseModel):
 
     method: Literal["stacked", "average"]
     meta_learner: dict[str, Any] = {}
-    pre_calibration: dict[str, Any] | None = None
-    calibration: dict[str, Any] | None = None
+    pre_calibration: dict[str, str] = {}
+    calibration: str = "spline"
+    spline_prob_max: float = 0.985
+    spline_n_bins: int = 20
+    meta_features: list[str] = []
+    seed_compression: float = 0.0
+    seed_compression_threshold: int = 4
     temperature: float = 1.0
     clip_floor: float = 0.0
     availability_adjustment: float = 0.1
@@ -204,6 +230,7 @@ class ProjectConfig(BaseModel):
     models: dict[str, ModelDef]
     ensemble: EnsembleDef
     backtest: BacktestConfig
+    feature_config: FeaturesConfig | None = None
     features: dict[str, FeatureDecl] | None = None
     sources: dict[str, SourceDecl] | None = None
     experiments: ExperimentDef | None = None

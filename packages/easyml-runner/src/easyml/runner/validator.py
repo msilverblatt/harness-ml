@@ -13,7 +13,18 @@ import yaml
 from pydantic import ValidationError
 
 from easyml.config.merge import deep_merge
-from easyml.runner.schema import ProjectConfig
+from easyml.runner.schema import FeaturesConfig, ProjectConfig
+
+# Top-level pipeline.yaml keys that map directly to ProjectConfig fields.
+# These are passed through as-is during multi-section parsing.
+_PIPELINE_PASSTHROUGH_KEYS = {
+    "data", "backtest", "models", "ensemble",
+    "sources", "experiments", "guardrails", "server",
+    "feature_config",
+}
+# The "features" key in pipeline.yaml maps to "feature_config" in ProjectConfig
+# (pipeline-level feature settings, NOT FeatureDecl registrations).
+_PIPELINE_FEATURES_KEY = "features"
 
 
 @dataclass
@@ -123,8 +134,24 @@ def validate_project(
         )
         return ValidationResult(valid=False, errors=errors, warnings=warnings)
 
-    # --- Load base config from pipeline.yaml ---
-    merged: dict[str, Any] = _load_yaml(pipeline_path)
+    # --- Load and parse pipeline.yaml (multi-section file) ---
+    pipeline_raw: dict[str, Any] = _load_yaml(pipeline_path)
+    merged: dict[str, Any] = {}
+
+    # Extract known sections from pipeline.yaml into the merged dict.
+    # Keys that map directly to ProjectConfig fields are passed through.
+    for key in _PIPELINE_PASSTHROUGH_KEYS:
+        if key in pipeline_raw:
+            merged[key] = pipeline_raw[key]
+
+    # The "features" key in pipeline.yaml maps to "feature_config" in
+    # ProjectConfig (pipeline-level feature settings like first_season,
+    # momentum_window).  This is distinct from the features.yaml file
+    # which contains FeatureDecl registrations.
+    if _PIPELINE_FEATURES_KEY in pipeline_raw:
+        merged["feature_config"] = pipeline_raw[_PIPELINE_FEATURES_KEY]
+
+    # Unknown top-level keys (e.g. "bracket") are silently ignored.
 
     # --- Load models from models.yaml and/or models/ subdirectory ---
     models_from_file = _load_section(config_dir, "models.yaml", variant)

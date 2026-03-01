@@ -10,6 +10,7 @@ from easyml.runner.schema import (
     EnsembleDef,
     ExperimentDef,
     FeatureDecl,
+    FeaturesConfig,
     GuardrailDef,
     ModelDef,
     ProjectConfig,
@@ -303,3 +304,188 @@ class TestFullConfig:
         assert cfg.experiments is not None
         assert cfg.guardrails is not None
         assert cfg.server is not None
+
+
+class TestModelDefExtensions:
+    """Extended ModelDef fields for regression, GNN, survival, etc."""
+
+    def test_prediction_type_margin(self):
+        m = ModelDef(
+            type="mlp",
+            features=["diff_adj_net"],
+            prediction_type="margin",
+        )
+        assert m.prediction_type == "margin"
+
+    def test_train_seasons_last_n(self):
+        m = ModelDef(
+            type="xgboost",
+            features=["diff_seed_num"],
+            train_seasons="last_5",
+        )
+        assert m.train_seasons == "last_5"
+
+    def test_cdf_scale(self):
+        m = ModelDef(
+            type="xgboost_regression",
+            features=["diff_scoring_margin"],
+            cdf_scale=5.5,
+        )
+        assert m.cdf_scale == 5.5
+
+    def test_feature_sets(self):
+        m = ModelDef(
+            type="gnn",
+            feature_sets=["roster", "game_graph"],
+        )
+        assert m.feature_sets == ["roster", "game_graph"]
+        assert m.features == []
+
+    def test_pre_calibration_string(self):
+        m = ModelDef(
+            type="mlp",
+            features=["diff_adj_net"],
+            pre_calibration="spline",
+        )
+        assert m.pre_calibration == "spline"
+
+    def test_xgboost_regression_type(self):
+        m = ModelDef(type="xgboost_regression", features=["a"])
+        assert m.type == "xgboost_regression"
+
+    def test_gnn_type(self):
+        m = ModelDef(type="gnn", features=[])
+        assert m.type == "gnn"
+
+    def test_survival_type(self):
+        m = ModelDef(type="survival", features=["seed_num"])
+        assert m.type == "survival"
+
+    def test_defaults_backward_compatible(self):
+        """Old config format (without new fields) still validates."""
+        m = ModelDef(type="xgboost", features=["feat_a"])
+        assert m.feature_sets == []
+        assert m.prediction_type is None
+        assert m.train_seasons == "all"
+        assert m.pre_calibration is None
+        assert m.cdf_scale is None
+
+
+class TestEnsembleDefExtensions:
+    """Extended EnsembleDef fields for pre-calibration, spline settings, etc."""
+
+    def test_pre_calibration_model_map(self):
+        e = EnsembleDef(
+            method="stacked",
+            pre_calibration={"v2_mlp_margin": "spline"},
+        )
+        assert e.pre_calibration == {"v2_mlp_margin": "spline"}
+
+    def test_calibration_string(self):
+        e = EnsembleDef(method="stacked", calibration="spline")
+        assert e.calibration == "spline"
+
+    def test_spline_settings(self):
+        e = EnsembleDef(
+            method="stacked",
+            spline_prob_max=0.985,
+            spline_n_bins=20,
+        )
+        assert e.spline_prob_max == 0.985
+        assert e.spline_n_bins == 20
+
+    def test_meta_features(self):
+        e = EnsembleDef(
+            method="stacked",
+            meta_features=["diff_seed_num"],
+        )
+        assert e.meta_features == ["diff_seed_num"]
+
+    def test_seed_compression(self):
+        e = EnsembleDef(
+            method="stacked",
+            seed_compression=0.5,
+            seed_compression_threshold=4,
+        )
+        assert e.seed_compression == 0.5
+        assert e.seed_compression_threshold == 4
+
+    def test_defaults_backward_compatible(self):
+        """Old config format (without new fields) still validates."""
+        e = EnsembleDef(method="stacked")
+        assert e.pre_calibration == {}
+        assert e.calibration == "spline"
+        assert e.spline_prob_max == 0.985
+        assert e.spline_n_bins == 20
+        assert e.meta_features == []
+        assert e.seed_compression == 0.0
+        assert e.seed_compression_threshold == 4
+
+
+class TestFeaturesConfig:
+    """FeaturesConfig defaults and custom values."""
+
+    def test_defaults(self):
+        fc = FeaturesConfig()
+        assert fc.first_season == 2003
+        assert fc.momentum_window == 10
+
+    def test_custom_values(self):
+        fc = FeaturesConfig(first_season=2010, momentum_window=5)
+        assert fc.first_season == 2010
+        assert fc.momentum_window == 5
+
+
+class TestDataConfigExtensions:
+    """Extended DataConfig fields."""
+
+    def test_new_dir_fields(self):
+        d = DataConfig(
+            raw_dir="data/raw",
+            processed_dir="data/processed",
+            features_dir="data/features",
+            predictions_dir="data/predictions",
+            survival_dir="data/survival",
+            outputs_dir="outputs",
+        )
+        assert d.predictions_dir == "data/predictions"
+        assert d.survival_dir == "data/survival"
+        assert d.outputs_dir == "outputs"
+
+    def test_new_dir_fields_default_none(self):
+        d = DataConfig(
+            raw_dir="data/raw",
+            processed_dir="data/processed",
+            features_dir="data/features",
+        )
+        assert d.predictions_dir is None
+        assert d.survival_dir is None
+        assert d.outputs_dir is None
+
+
+class TestProjectConfigFeatureConfig:
+    """ProjectConfig with feature_config section."""
+
+    def test_with_feature_config(self):
+        proj = _minimal_project()
+        proj["feature_config"] = {"first_season": 2003, "momentum_window": 10}
+        cfg = ProjectConfig(**proj)
+        assert cfg.feature_config is not None
+        assert cfg.feature_config.first_season == 2003
+        assert cfg.feature_config.momentum_window == 10
+
+    def test_without_feature_config(self):
+        proj = _minimal_project()
+        cfg = ProjectConfig(**proj)
+        assert cfg.feature_config is None
+
+
+class TestOldFormatStillValidates:
+    """Ensure that configs using only old fields still validate."""
+
+    def test_minimal_still_works(self):
+        """The original _minimal_project() must still pass."""
+        cfg = ProjectConfig(**_minimal_project())
+        assert cfg.data.raw_dir == "data/raw"
+        assert cfg.models["xgb_core"].type == "xgboost"
+        assert cfg.ensemble.method == "stacked"

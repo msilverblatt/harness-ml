@@ -235,6 +235,74 @@ class TestVariantLoading:
         assert result.config.data.gender == "M"
 
 
+class TestMultiSectionPipeline:
+    """pipeline.yaml with data, backtest, features, and unknown sections."""
+
+    def test_mm_style_pipeline(self, tmp_path):
+        """Loads a pipeline.yaml structured like mm's (data, backtest, features, bracket)."""
+        pipeline = {
+            "data": {
+                "gender": "M",
+                "raw_dir": "data/raw",
+                "processed_dir": "data/processed",
+                "features_dir": "data/features",
+            },
+            "features": {
+                "first_season": 2003,
+                "momentum_window": 10,
+            },
+            "backtest": {
+                "cv_strategy": "leave_one_season_out",
+                "seasons": [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025],
+            },
+            # Unknown keys like "bracket" should be silently ignored
+            "bracket": {
+                "scoring": [10, 20, 40, 80, 160, 320],
+                "simulations": 10000,
+                "temperature": 1.75,
+            },
+        }
+        _write_yaml(tmp_path / "pipeline.yaml", pipeline)
+        _write_yaml(tmp_path / "models.yaml", _minimal_models())
+        _write_yaml(
+            tmp_path / "ensemble.yaml",
+            {"ensemble": {"method": "stacked"}},
+        )
+        result = validate_project(tmp_path)
+        assert result.valid, f"Expected valid, got errors: {result.format()}"
+        cfg = result.config
+
+        # data section parsed
+        assert cfg.data.gender == "M"
+        assert cfg.data.raw_dir == "data/raw"
+
+        # features section mapped to feature_config
+        assert cfg.feature_config is not None
+        assert cfg.feature_config.first_season == 2003
+        assert cfg.feature_config.momentum_window == 10
+
+        # backtest section parsed
+        assert cfg.backtest.cv_strategy == "leave_one_season_out"
+        assert 2025 in cfg.backtest.seasons
+
+    def test_pipeline_without_features_section(self, tmp_path):
+        """pipeline.yaml without a features key should still work."""
+        _setup_minimal(tmp_path)
+        result = validate_project(tmp_path)
+        assert result.valid, f"Errors: {result.format()}"
+        assert result.config.feature_config is None
+
+    def test_bracket_key_ignored(self, tmp_path):
+        """Unknown keys in pipeline.yaml (like bracket) don't cause errors."""
+        pipeline = _minimal_pipeline()
+        pipeline["bracket"] = {"scoring": [10, 20], "simulations": 5000}
+        _write_yaml(tmp_path / "pipeline.yaml", pipeline)
+        _write_yaml(tmp_path / "models.yaml", _minimal_models())
+        _write_yaml(tmp_path / "ensemble.yaml", _minimal_ensemble())
+        result = validate_project(tmp_path)
+        assert result.valid, f"Errors: {result.format()}"
+
+
 class TestFormatErrors:
     """format() produces readable output."""
 
