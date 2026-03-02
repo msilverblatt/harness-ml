@@ -3,9 +3,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from easyml.runner.schema import FeatureDef
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,7 @@ class TransformationResult:
     abs_correlation: float
     improvement: float  # vs raw baseline
     null_rate: float
+    feature_type: str = ""  # populated when feature_defs is available
 
 
 @dataclass
@@ -55,25 +60,40 @@ class TransformationReport:
     suggested_features: list[dict] = field(default_factory=list)
 
     def format_summary(self) -> str:
-        """Markdown table: feature | best transform | corr | improvement."""
+        """Markdown table: feature | type | best transform | corr | improvement."""
         if not self.best_per_feature:
             return "No transformation results."
 
+        has_types = any(b.feature_type for b in self.best_per_feature.values())
+
         lines = ["## Transformation Test Results\n"]
-        lines.append("| Feature | Best Transform | Correlation | Improvement |")
-        lines.append("|---------|---------------|-------------|-------------|")
+        if has_types:
+            lines.append("| Feature | Type | Best Transform | Correlation | Improvement |")
+            lines.append("|---------|------|---------------|-------------|-------------|")
+        else:
+            lines.append("| Feature | Best Transform | Correlation | Improvement |")
+            lines.append("|---------|---------------|-------------|-------------|")
 
         for feature, best in sorted(
             self.best_per_feature.items(),
             key=lambda x: x[1].abs_correlation,
             reverse=True,
         ):
-            lines.append(
-                f"| {feature} "
-                f"| {best.transformation} "
-                f"| {best.correlation:+.4f} "
-                f"| {best.improvement:+.4f} |"
-            )
+            if has_types:
+                lines.append(
+                    f"| {feature} "
+                    f"| {best.feature_type} "
+                    f"| {best.transformation} "
+                    f"| {best.correlation:+.4f} "
+                    f"| {best.improvement:+.4f} |"
+                )
+            else:
+                lines.append(
+                    f"| {feature} "
+                    f"| {best.transformation} "
+                    f"| {best.correlation:+.4f} "
+                    f"| {best.improvement:+.4f} |"
+                )
 
         if self.suggested_features:
             lines.append("\n### Suggested Features\n")
@@ -153,6 +173,7 @@ def run_transformation_tests(
     features_dir: str | None = None,
     features_file: str | None = None,
     feature_columns: list[str] | None = None,
+    feature_defs: dict[str, FeatureDef] | None = None,
 ) -> TransformationReport:
     """Automatically test mathematical transformations of features.
 
@@ -187,6 +208,8 @@ def run_transformation_tests(
         Number of partners for interaction testing.
     features_dir : str | None
         Override features directory.
+    feature_defs : dict[str, FeatureDef] | None
+        When provided, results are annotated with feature type.
 
     Returns
     -------
@@ -231,6 +254,13 @@ def run_transformation_tests(
             logger.warning("Feature %s not found in dataset, skipping", feature_col)
             continue
 
+        # Resolve feature type from defs when available
+        _ftype = ""
+        if feature_defs is not None:
+            fd = feature_defs.get(feature_col)
+            if fd is not None:
+                _ftype = fd.type.value if hasattr(fd.type, "value") else str(fd.type)
+
         series = df[feature_col].astype(float)
         raw_corr = _compute_correlation(series, target)
 
@@ -254,6 +284,7 @@ def run_transformation_tests(
                     abs_correlation=abs(corr),
                     improvement=improvement,
                     null_rate=null_rate,
+                    feature_type=_ftype,
                 )
                 feature_results.append(result)
                 all_results.append(result)
@@ -291,6 +322,7 @@ def run_transformation_tests(
                             abs_correlation=abs(corr),
                             improvement=improvement,
                             null_rate=null_rate,
+                            feature_type=_ftype,
                         )
                         feature_results.append(result)
                         all_results.append(result)

@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from easyml.runner.schema import FeatureDef, FeatureType
 from easyml.runner.transformation_tester import (
     TransformationReport,
     TransformationResult,
@@ -309,3 +310,94 @@ class TestTransformationReportFormat:
         md = report.format_summary()
         assert "Suggested Features" in md
         assert "log_x" in md
+
+
+# -----------------------------------------------------------------------
+# Store-aware tests (feature_defs parameter)
+# -----------------------------------------------------------------------
+
+class TestStoreAwareTransformations:
+    """Tests that feature_defs annotates results with feature type."""
+
+    @pytest.fixture()
+    def sample_defs(self):
+        return {
+            "diff_x": FeatureDef(
+                name="diff_x", type=FeatureType.PAIRWISE,
+                formula="x_a - x_b", category="general",
+            ),
+            "diff_z": FeatureDef(
+                name="diff_z", type=FeatureType.PAIRWISE,
+                formula="z_a - z_b", category="efficiency",
+            ),
+        }
+
+    def test_results_annotated_with_type(self, tmp_path, sample_defs):
+        feat_dir = tmp_path / "data" / "features"
+        _make_features_parquet(feat_dir / "features.parquet")
+
+        report = run_transformation_tests(
+            project_dir=tmp_path,
+            features=["diff_x"],
+            test_interactions=False,
+            feature_defs=sample_defs,
+        )
+
+        for r in report.results:
+            assert r.feature_type == "pairwise"
+
+    def test_best_per_feature_has_type(self, tmp_path, sample_defs):
+        feat_dir = tmp_path / "data" / "features"
+        _make_features_parquet(feat_dir / "features.parquet")
+
+        report = run_transformation_tests(
+            project_dir=tmp_path,
+            features=["diff_x"],
+            test_interactions=False,
+            feature_defs=sample_defs,
+        )
+
+        assert report.best_per_feature["diff_x"].feature_type == "pairwise"
+
+    def test_format_summary_shows_type_column(self, tmp_path, sample_defs):
+        feat_dir = tmp_path / "data" / "features"
+        _make_features_parquet(feat_dir / "features.parquet")
+
+        report = run_transformation_tests(
+            project_dir=tmp_path,
+            features=["diff_x"],
+            test_interactions=False,
+            feature_defs=sample_defs,
+        )
+
+        md = report.format_summary()
+        assert "| Type |" in md
+        assert "pairwise" in md
+
+    def test_without_defs_no_type_column(self, tmp_path):
+        feat_dir = tmp_path / "data" / "features"
+        _make_features_parquet(feat_dir / "features.parquet")
+
+        report = run_transformation_tests(
+            project_dir=tmp_path,
+            features=["diff_x"],
+            test_interactions=False,
+        )
+
+        md = report.format_summary()
+        assert "| Type |" not in md
+
+    def test_unregistered_feature_empty_type(self, tmp_path, sample_defs):
+        feat_dir = tmp_path / "data" / "features"
+        _make_features_parquet(feat_dir / "features.parquet")
+
+        # diff_y is not in sample_defs
+        report = run_transformation_tests(
+            project_dir=tmp_path,
+            features=["diff_y"],
+            test_interactions=False,
+            feature_defs=sample_defs,
+        )
+
+        for r in report.results:
+            assert r.feature_type == ""

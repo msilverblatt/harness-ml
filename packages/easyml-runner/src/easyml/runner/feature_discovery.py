@@ -4,16 +4,33 @@ Provides quick feature importance, correlation analysis, redundancy
 detection, and grouping — designed to be called by an AI agent via
 MCP tools to make informed feature selection decisions without manual
 exploration.
+
+When ``feature_defs`` (a dict of :class:`FeatureDef` objects) is supplied,
+these tools annotate results with feature type and group by type/category
+instead of relying solely on column-name heuristics.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
+if TYPE_CHECKING:
+    from easyml.runner.schema import FeatureDef
+
 logger = logging.getLogger(__name__)
+
+
+def _lookup_type(feature_name: str, feature_defs: dict[str, FeatureDef] | None) -> str:
+    """Return the feature type string for *feature_name*, or '' if unknown."""
+    if feature_defs is None:
+        return ""
+    feat = feature_defs.get(feature_name)
+    if feat is not None:
+        return feat.type.value if hasattr(feat.type, "value") else str(feat.type)
+    return ""
 
 
 # -----------------------------------------------------------------------
@@ -25,6 +42,7 @@ def compute_feature_correlations(
     target_col: str = "result",
     top_n: int = 20,
     feature_columns: list[str] | None = None,
+    feature_defs: dict[str, FeatureDef] | None = None,
 ) -> pd.DataFrame:
     """Compute correlation of each feature with the target variable.
 
@@ -39,12 +57,15 @@ def compute_feature_correlations(
     feature_columns : list[str] | None
         Explicit list of feature columns. If None, uses all numeric
         columns except target.
+    feature_defs : dict[str, FeatureDef] | None
+        When provided, a ``type`` column is added to the result.
 
     Returns
     -------
     pd.DataFrame
-        Columns: [feature, correlation, abs_correlation], sorted by
-        abs_correlation descending.
+        Columns: [feature, correlation, abs_correlation] (plus ``type``
+        when *feature_defs* is supplied), sorted by abs_correlation
+        descending.
     """
     if feature_columns is not None:
         feature_cols = [c for c in feature_columns if c != target_col and c in df.columns]
@@ -54,7 +75,10 @@ def compute_feature_correlations(
             if c != target_col
         ]
     if not feature_cols:
-        return pd.DataFrame(columns=["feature", "correlation", "abs_correlation"])
+        cols = ["feature", "correlation", "abs_correlation"]
+        if feature_defs is not None:
+            cols.append("type")
+        return pd.DataFrame(columns=cols)
 
     correlations = df[feature_cols].corrwith(df[target_col]).dropna()
 
@@ -63,6 +87,11 @@ def compute_feature_correlations(
         "correlation": correlations.values,
         "abs_correlation": correlations.abs().values,
     }).sort_values("abs_correlation", ascending=False).reset_index(drop=True)
+
+    if feature_defs is not None:
+        result["type"] = result["feature"].map(
+            lambda f: _lookup_type(f, feature_defs)
+        )
 
     if top_n > 0:
         result = result.head(top_n)
@@ -80,6 +109,7 @@ def compute_feature_importance(
     method: str = "xgboost",
     feature_columns: list[str] | None = None,
     top_n: int = 20,
+    feature_defs: dict[str, FeatureDef] | None = None,
 ) -> pd.DataFrame:
     """Quick feature importance via a lightweight model or statistical method.
 
@@ -92,11 +122,14 @@ def compute_feature_importance(
     feature_columns : list[str] | None
         Explicit list of feature columns. If None, uses all numeric
         columns except target.
+    feature_defs : dict[str, FeatureDef] | None
+        When provided, a ``type`` column is added to the result.
 
     Returns
     -------
     pd.DataFrame
-        Columns: [feature, importance], sorted descending.
+        Columns: [feature, importance] (plus ``type`` when
+        *feature_defs* is supplied), sorted descending.
     """
     if feature_columns is not None:
         feature_cols = [c for c in feature_columns if c != target_col and c in df.columns]
@@ -106,7 +139,10 @@ def compute_feature_importance(
             if c != target_col
         ]
     if not feature_cols:
-        return pd.DataFrame(columns=["feature", "importance"])
+        cols = ["feature", "importance"]
+        if feature_defs is not None:
+            cols.append("type")
+        return pd.DataFrame(columns=cols)
 
     X = df[feature_cols].copy()
     y = df[target_col].copy()
@@ -130,6 +166,11 @@ def compute_feature_importance(
         "feature": feature_cols,
         "importance": importance,
     }).sort_values("importance", ascending=False).reset_index(drop=True)
+
+    if feature_defs is not None:
+        result["type"] = result["feature"].map(
+            lambda f: _lookup_type(f, feature_defs)
+        )
 
     if top_n > 0:
         result = result.head(top_n)
@@ -234,15 +275,16 @@ def detect_redundant_features(
 def suggest_feature_groups(
     df: pd.DataFrame,
     feature_columns: list[str] | None = None,
+    feature_defs: dict[str, FeatureDef] | None = None,
 ) -> dict[str, list[str]]:
-    """Group features by common prefix.
+    """Group features by type+category (store-aware) or common prefix (fallback).
 
-    Groups by the first underscore-delimited segment of the column name.
-    For example:
+    When *feature_defs* is provided, features are grouped into keys like
+    ``"team/efficiency"`` or ``"pairwise/general"``.  Features not in the
+    registry fall back to prefix grouping under ``"other/<prefix>"``.
 
-    - ``user_age``, ``user_tenure`` → group ``user``
-    - ``market_vix``, ``market_rate`` → group ``market``
-    - ``revenue`` → group ``revenue``
+    Without *feature_defs*, groups by the first underscore-delimited segment
+    of the column name (e.g. ``user_age`` → group ``user``).
 
     Returns
     -------
@@ -257,8 +299,18 @@ def suggest_feature_groups(
     groups: dict[str, list[str]] = {}
 
     for col in feature_cols:
-        parts = col.split("_")
-        group_name = parts[0] if parts else "other"
+        if feature_defs is not None:
+            feat = feature_defs.get(col)
+            if feat is not None:
+                ftype = feat.type.value if hasattr(feat.type, "value") else str(feat.type)
+                group_name = f"{ftype}/{feat.category}"
+            else:
+                # Unregistered column — fall back to prefix
+                parts = col.split("_")
+                group_name = f"other/{parts[0]}" if parts else "other/other"
+        else:
+            parts = col.split("_")
+            group_name = parts[0] if parts else "other"
         groups.setdefault(group_name, []).append(col)
 
     return groups
@@ -275,6 +327,7 @@ def suggest_features(
     method: str = "xgboost",
     feature_columns: list[str] | None = None,
     exclude: list[str] | None = None,
+    feature_defs: dict[str, FeatureDef] | None = None,
 ) -> list[str]:
     """Suggest the top *count* features for a model.
 
@@ -300,6 +353,7 @@ def suggest_features(
     importance = compute_feature_importance(
         df, target_col=target_col, method=method,
         feature_columns=feature_columns, top_n=0,
+        feature_defs=feature_defs,
     )
     if importance.empty:
         return []
@@ -344,6 +398,10 @@ def format_discovery_report(
 ) -> str:
     """Format feature discovery results as markdown.
 
+    When the DataFrames contain a ``type`` column (produced by passing
+    *feature_defs* to the correlation/importance functions), that column
+    is included in the output tables.
+
     Parameters
     ----------
     correlations : pd.DataFrame
@@ -360,24 +418,41 @@ def format_discovery_report(
     str
         Markdown-formatted report.
     """
+    has_types = "type" in correlations.columns
+
     lines: list[str] = ["## Feature Discovery Report", ""]
 
     # Top correlations
     lines.append("### Target Correlations (top 15)")
     lines.append("")
-    lines.append("| Feature | Correlation |")
-    lines.append("|---------|------------|")
+    if has_types:
+        lines.append("| Feature | Type | Correlation |")
+        lines.append("|---------|------|------------|")
+    else:
+        lines.append("| Feature | Correlation |")
+        lines.append("|---------|------------|")
     for _, row in correlations.head(15).iterrows():
-        lines.append(f"| {row['feature']} | {row['correlation']:+.4f} |")
+        if has_types:
+            lines.append(f"| {row['feature']} | {row['type']} | {row['correlation']:+.4f} |")
+        else:
+            lines.append(f"| {row['feature']} | {row['correlation']:+.4f} |")
     lines.append("")
 
     # Top importance
+    has_imp_types = "type" in importance.columns
     lines.append("### Feature Importance (top 15)")
     lines.append("")
-    lines.append("| Feature | Importance |")
-    lines.append("|---------|-----------|")
+    if has_imp_types:
+        lines.append("| Feature | Type | Importance |")
+        lines.append("|---------|------|-----------|")
+    else:
+        lines.append("| Feature | Importance |")
+        lines.append("|---------|-----------|")
     for _, row in importance.head(15).iterrows():
-        lines.append(f"| {row['feature']} | {row['importance']:.4f} |")
+        if has_imp_types:
+            lines.append(f"| {row['feature']} | {row['type']} | {row['importance']:.4f} |")
+        else:
+            lines.append(f"| {row['feature']} | {row['importance']:.4f} |")
     lines.append("")
 
     # Redundancy

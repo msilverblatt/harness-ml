@@ -686,12 +686,25 @@ def test_feature_transformations(
     test_interactions: bool = True,
 ) -> str:
     """Test mathematical transformations of features."""
+    from easyml.runner.data_utils import load_data_config
     from easyml.runner.transformation_tester import run_transformation_tests
 
+    project_dir = Path(project_dir)
+
+    # Load feature_defs from config when available
+    feat_defs = None
+    try:
+        config = load_data_config(project_dir)
+        if config.feature_defs:
+            feat_defs = dict(config.feature_defs)
+    except Exception:
+        pass
+
     report = run_transformation_tests(
-        project_dir=Path(project_dir),
+        project_dir=project_dir,
         features=features,
         test_interactions=test_interactions,
+        feature_defs=feat_defs,
     )
     return report.format_summary()
 
@@ -721,10 +734,13 @@ def discover_features(
 
     df = pd.read_parquet(parquet_path)
 
-    # Get feature columns from config if available
+    # Get feature columns and feature_defs from config if available
     feature_cols = None
+    feat_defs = None
     if config is not None:
         feature_cols = get_feature_columns(df, config)
+        if config.feature_defs:
+            feat_defs = dict(config.feature_defs)
 
     from easyml.runner.feature_discovery import (
         compute_feature_correlations,
@@ -734,10 +750,14 @@ def discover_features(
         suggest_feature_groups,
     )
 
-    correlations = compute_feature_correlations(df, top_n=top_n, feature_columns=feature_cols)
-    importance = compute_feature_importance(df, method=method, top_n=top_n, feature_columns=feature_cols)
+    correlations = compute_feature_correlations(
+        df, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
+    )
+    importance = compute_feature_importance(
+        df, method=method, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
+    )
     redundant = detect_redundant_features(df, feature_columns=feature_cols)
-    groups = suggest_feature_groups(df, feature_columns=feature_cols)
+    groups = suggest_feature_groups(df, feature_columns=feature_cols, feature_defs=feat_defs)
 
     return format_discovery_report(correlations, importance, redundant, groups)
 

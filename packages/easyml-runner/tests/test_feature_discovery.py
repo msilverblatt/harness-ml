@@ -13,6 +13,7 @@ from easyml.runner.feature_discovery import (
     suggest_feature_groups,
     suggest_features,
 )
+from easyml.runner.schema import FeatureDef, FeatureType
 
 
 # -----------------------------------------------------------------------
@@ -242,3 +243,133 @@ class TestFormatReport:
 
         report = format_discovery_report(corr, imp, [], groups)
         assert "Redundant Pairs" not in report
+
+
+# -----------------------------------------------------------------------
+# Store-aware tests (feature_defs parameter)
+# -----------------------------------------------------------------------
+
+@pytest.fixture()
+def sample_feature_defs():
+    """Feature definitions matching sample_df columns."""
+    return {
+        "diff_seed_num": FeatureDef(
+            name="diff_seed_num", type=FeatureType.PAIRWISE,
+            formula="seed_num_a - seed_num_b", category="seeding",
+        ),
+        "diff_strong_signal": FeatureDef(
+            name="diff_strong_signal", type=FeatureType.PAIRWISE,
+            formula="strong_a - strong_b", category="efficiency",
+        ),
+        "diff_weak_signal": FeatureDef(
+            name="diff_weak_signal", type=FeatureType.PAIRWISE,
+            formula="weak_a - weak_b", category="general",
+        ),
+        "diff_redundant_a": FeatureDef(
+            name="diff_redundant_a", type=FeatureType.PAIRWISE,
+            formula="red_a_1 - red_a_2", category="general",
+        ),
+        "diff_redundant_b": FeatureDef(
+            name="diff_redundant_b", type=FeatureType.PAIRWISE,
+            formula="red_b_1 - red_b_2", category="general",
+        ),
+        "diff_noise": FeatureDef(
+            name="diff_noise", type=FeatureType.PAIRWISE,
+            formula="noise_a - noise_b", category="general",
+        ),
+        "diff_bt_barthag": FeatureDef(
+            name="diff_bt_barthag", type=FeatureType.PAIRWISE,
+            formula="bt_barthag_a - bt_barthag_b", category="barttorvik",
+        ),
+        "diff_bt_adj_o": FeatureDef(
+            name="diff_bt_adj_o", type=FeatureType.PAIRWISE,
+            formula="bt_adj_o_a - bt_adj_o_b", category="barttorvik",
+        ),
+        "diff_sr_srs": FeatureDef(
+            name="diff_sr_srs", type=FeatureType.PAIRWISE,
+            formula="sr_srs_a - sr_srs_b", category="sports_ref",
+        ),
+        "diff_sr_sos": FeatureDef(
+            name="diff_sr_sos", type=FeatureType.PAIRWISE,
+            formula="sr_sos_a - sr_sos_b", category="sports_ref",
+        ),
+    }
+
+
+class TestStoreAwareCorrelations:
+    def test_type_column_added(self, sample_df, sample_feature_defs):
+        result = compute_feature_correlations(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+        assert "type" in result.columns
+        # Known features should have type "pairwise"
+        seed_row = result[result["feature"] == "diff_seed_num"]
+        assert seed_row["type"].iloc[0] == "pairwise"
+
+    def test_unregistered_features_have_empty_type(self, sample_df, sample_feature_defs):
+        result = compute_feature_correlations(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+        # non_diff_col is not in feature_defs
+        non_diff = result[result["feature"] == "non_diff_col"]
+        if not non_diff.empty:
+            assert non_diff["type"].iloc[0] == ""
+
+    def test_no_type_column_without_defs(self, sample_df):
+        result = compute_feature_correlations(sample_df)
+        assert "type" not in result.columns
+
+
+class TestStoreAwareImportance:
+    def test_type_column_added(self, sample_df, sample_feature_defs):
+        result = compute_feature_importance(
+            sample_df, feature_defs=sample_feature_defs, method="mutual_info",
+        )
+        assert "type" in result.columns
+
+    def test_no_type_column_without_defs(self, sample_df):
+        result = compute_feature_importance(sample_df, method="mutual_info")
+        assert "type" not in result.columns
+
+
+class TestStoreAwareGroups:
+    def test_groups_by_type_category(self, sample_df, sample_feature_defs):
+        groups = suggest_feature_groups(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+        # Features registered as pairwise/barttorvik should be grouped together
+        assert "pairwise/barttorvik" in groups
+        assert "diff_bt_barthag" in groups["pairwise/barttorvik"]
+        assert "diff_bt_adj_o" in groups["pairwise/barttorvik"]
+
+    def test_unregistered_features_in_other_group(self, sample_df, sample_feature_defs):
+        groups = suggest_feature_groups(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+        # non_diff_col is not registered, should be in other/non
+        assert "other/non" in groups
+        assert "non_diff_col" in groups["other/non"]
+
+    def test_without_defs_uses_prefix(self, sample_df):
+        groups = suggest_feature_groups(sample_df)
+        # Without defs, should group by prefix as before
+        assert "diff" in groups
+        assert "non" in groups
+
+
+class TestStoreAwareReport:
+    def test_report_includes_type_column(self, sample_df, sample_feature_defs):
+        corr = compute_feature_correlations(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+        imp = compute_feature_importance(
+            sample_df, method="mutual_info", feature_defs=sample_feature_defs,
+        )
+        red = detect_redundant_features(sample_df, threshold=0.95)
+        groups = suggest_feature_groups(
+            sample_df, feature_defs=sample_feature_defs,
+        )
+
+        report = format_discovery_report(corr, imp, red, groups)
+        assert "| Type |" in report
+        assert "pairwise/barttorvik" in report
