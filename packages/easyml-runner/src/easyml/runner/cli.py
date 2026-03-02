@@ -169,7 +169,7 @@ def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
 
     from easyml.runner.data_profiler import profile_dataset
 
-    profile = profile_dataset(parquet_path)
+    profile = profile_dataset(parquet_path, config=result.config.data)
 
     if columns:
         click.echo(profile.format_columns(category=columns))

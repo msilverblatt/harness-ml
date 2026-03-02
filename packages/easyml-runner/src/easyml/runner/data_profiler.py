@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from easyml.runner.schema import DataConfig
+
 
 @dataclass
 class ColumnProfile:
@@ -43,10 +45,20 @@ class DataProfile:
     label_distribution: dict[str, Any] = field(default_factory=dict)
     margin_column: str | None = None
     margin_stats: dict[str, float] = field(default_factory=dict)
-    diff_columns: list[ColumnProfile] = field(default_factory=list)
-    non_diff_columns: list[ColumnProfile] = field(default_factory=list)
+    time_column: str | None = None
+    feature_columns: list[ColumnProfile] = field(default_factory=list)
     high_null_columns: list[ColumnProfile] = field(default_factory=list)
     zero_variance_columns: list[str] = field(default_factory=list)
+
+    @property
+    def diff_columns(self) -> list[ColumnProfile]:
+        """Feature columns whose names start with 'diff_'."""
+        return [c for c in self.feature_columns if c.name.startswith("diff_")]
+
+    @property
+    def non_diff_columns(self) -> list[ColumnProfile]:
+        """Feature columns whose names do not start with 'diff_'."""
+        return [c for c in self.feature_columns if not c.name.startswith("diff_")]
 
     def format_summary(self) -> str:
         """Format as human-readable summary."""
@@ -56,11 +68,10 @@ class DataProfile:
 
         if self.seasons:
             lines.append(f"Seasons: {self.seasons[0]}-{self.seasons[-1]} ({len(self.seasons)} seasons)")
-            # Show per-season counts for backtest seasons
-            bt_seasons = [s for s in self.seasons if s >= 2015 and s != 2020]
-            if bt_seasons:
-                counts = [f"{s}:{self.season_counts.get(s, 0)}" for s in bt_seasons]
-                lines.append(f"Backtest season games: {', '.join(counts)}")
+            # Show per-season counts for all seasons
+            if self.season_counts:
+                counts = [f"{s}:{self.season_counts.get(s, 0)}" for s in self.seasons]
+                lines.append(f"Season counts: {', '.join(counts)}")
 
         if self.label_column:
             dist = self.label_distribution
@@ -161,8 +172,9 @@ class DataProfile:
 def profile_dataset(
     path: str | Path,
     high_null_threshold: float = 50.0,
+    config: DataConfig | None = None,
 ) -> DataProfile:
-    """Profile a matchup features parquet file.
+    """Profile a features parquet file.
 
     Parameters
     ----------
@@ -170,6 +182,9 @@ def profile_dataset(
         Path to the parquet file.
     high_null_threshold : float
         Columns with null percentage above this are flagged.
+    config : DataConfig | None
+        If provided, uses config fields for column identification
+        instead of hardcoded heuristics.
 
     Returns
     -------
@@ -185,9 +200,77 @@ def profile_dataset(
         n_cols=len(df.columns),
     )
 
+    if config is not None:
+        _profile_with_config(df, profile, config, high_null_threshold)
+    else:
+        _profile_with_heuristics(df, profile, high_null_threshold)
+
+    # Zero-variance columns
+    for col in profile.feature_columns:
+        if col.std is not None and col.std == 0.0:
+            profile.zero_variance_columns.append(col.name)
+
+    return profile
+
+
+def _profile_with_config(
+    df: pd.DataFrame,
+    profile: DataProfile,
+    config: DataConfig,
+    high_null_threshold: float,
+) -> None:
+    """Profile using DataConfig fields for column identification."""
+    # Time/season analysis
+    time_col = config.time_column
+    if time_col and time_col in df.columns:
+        profile.time_column = time_col
+        seasons = sorted(df[time_col].dropna().unique().astype(int))
+        profile.seasons = seasons
+        profile.season_counts = df[time_col].value_counts().to_dict()
+        profile.season_counts = {int(k): int(v) for k, v in profile.season_counts.items()}
+
+    # Label analysis
+    label_col = config.target_column
+    if label_col and label_col in df.columns:
+        profile.label_column = label_col
+        profile.label_distribution = {
+            "mean": float(df[label_col].mean()),
+            "count_1": int(df[label_col].sum()),
+            "count_0": int((1 - df[label_col]).sum()),
+        }
+
+    # Build skip set from config
+    skip_cols: set[str] = set()
+    if label_col:
+        skip_cols.add(label_col)
+    if time_col:
+        skip_cols.add(time_col)
+    skip_cols.update(config.key_columns)
+    skip_cols.update(config.exclude_columns)
+
+    # Column profiles — all non-skipped columns are features
+    for col_name in df.columns:
+        if col_name in skip_cols:
+            continue
+
+        col = df[col_name]
+        cp = _profile_column(col_name, col, len(df))
+        profile.feature_columns.append(cp)
+
+        if cp.null_pct >= high_null_threshold:
+            profile.high_null_columns.append(cp)
+
+
+def _profile_with_heuristics(
+    df: pd.DataFrame,
+    profile: DataProfile,
+    high_null_threshold: float,
+) -> None:
+    """Profile using hardcoded heuristics (backward-compat path)."""
     # Season analysis
     season_col = _find_column(df, ["Season", "season"])
     if season_col:
+        profile.time_column = season_col
         seasons = sorted(df[season_col].dropna().unique().astype(int))
         profile.seasons = seasons
         profile.season_counts = df[season_col].value_counts().to_dict()
@@ -229,21 +312,10 @@ def profile_dataset(
 
         col = df[col_name]
         cp = _profile_column(col_name, col, len(df))
-
-        if col_name.startswith("diff_"):
-            profile.diff_columns.append(cp)
-        else:
-            profile.non_diff_columns.append(cp)
+        profile.feature_columns.append(cp)
 
         if cp.null_pct >= high_null_threshold:
             profile.high_null_columns.append(cp)
-
-    # Zero-variance columns
-    for col in profile.diff_columns + profile.non_diff_columns:
-        if col.std is not None and col.std == 0.0:
-            profile.zero_variance_columns.append(col.name)
-
-    return profile
 
 
 def _find_column(df: pd.DataFrame, candidates: list[str]) -> str | None:

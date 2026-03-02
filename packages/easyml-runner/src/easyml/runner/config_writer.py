@@ -273,6 +273,7 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
     from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
+    config = None
     try:
         config = load_data_config(project_dir)
         parquet_path = get_features_path(project_dir, config)
@@ -284,7 +285,7 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
 
     from easyml.runner.data_profiler import profile_dataset
 
-    profile = profile_dataset(parquet_path)
+    profile = profile_dataset(parquet_path, config=config)
 
     if category:
         return profile.format_columns(category=category)
@@ -320,6 +321,135 @@ def available_features(project_dir: Path, prefix: str | None = None) -> str:
     for col in cols:
         lines.append(f"- `{col}`")
     return "\n".join(lines)
+
+
+def generate_pairwise_features(
+    project_dir: Path,
+    entity_col: str,
+    group_col: str,
+    feature_cols: list[str],
+    *,
+    filter_path: str | None = None,
+) -> str:
+    """Generate pairwise diff features from entity-level data.
+
+    For each pair of entities within each group, computes diff features
+    (entity_A value - entity_B value). Writes result back to the
+    feature store, replacing the entity-level data.
+
+    Parameters
+    ----------
+    entity_col : str
+        Column identifying entities (e.g. product_id, candidate_id, team_id).
+    group_col : str
+        Column for grouping (e.g. quarter, cohort, season). Pairs are
+        generated within each group independently.
+    feature_cols : list[str]
+        Columns to compute diffs for.
+    filter_path : str | None
+        Optional CSV/parquet with entity_col and group_col columns.
+        If provided, only entities present in this file are included.
+
+    Returns markdown summary.
+    """
+    from easyml.runner.data_utils import get_features_path, load_data_config
+
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+        parquet_path = get_features_path(project_dir, config)
+    except Exception:
+        parquet_path = project_dir / "data" / "features" / "features.parquet"
+
+    import pandas as pd
+    import numpy as np
+    from itertools import combinations
+
+    if not parquet_path.exists():
+        return f"**Error**: Features file not found at {parquet_path}"
+
+    entity_df = pd.read_parquet(parquet_path)
+
+    if entity_col not in entity_df.columns:
+        return f"**Error**: Entity column '{entity_col}' not found in features."
+    if group_col not in entity_df.columns:
+        return f"**Error**: Group column '{group_col}' not found in features."
+
+    missing = [f for f in feature_cols if f not in entity_df.columns]
+    if missing:
+        return f"**Error**: Feature columns not found: {missing}"
+
+    # Load filter if provided
+    filter_df = None
+    if filter_path:
+        filter_path_obj = Path(filter_path)
+        if filter_path_obj.suffix == ".csv":
+            filter_df = pd.read_csv(filter_path_obj)
+        else:
+            filter_df = pd.read_parquet(filter_path_obj)
+
+    groups = sorted(entity_df[group_col].unique())
+    all_rows = []
+
+    for group_val in groups:
+        group_data = entity_df[entity_df[group_col] == group_val].copy()
+
+        # Apply filter if provided
+        if filter_df is not None:
+            group_filter = filter_df[filter_df[group_col] == group_val]
+            qualified_ids = set(group_filter[entity_col].unique())
+            group_data = group_data[group_data[entity_col].isin(qualified_ids)]
+
+        if len(group_data) < 2:
+            continue
+
+        indexed = group_data.set_index(entity_col)
+        entity_ids = sorted(indexed.index.unique())
+
+        for id_a, id_b in combinations(entity_ids, 2):
+            row_a = indexed.loc[id_a]
+            row_b = indexed.loc[id_b]
+
+            # Handle duplicate entity IDs in same group
+            if isinstance(row_a, pd.DataFrame):
+                row_a = row_a.iloc[0]
+            if isinstance(row_b, pd.DataFrame):
+                row_b = row_b.iloc[0]
+
+            pair = {
+                "entity_a": id_a,
+                "entity_b": id_b,
+                group_col: group_val,
+            }
+
+            for feat in feature_cols:
+                val_a = row_a[feat] if feat in row_a.index else np.nan
+                val_b = row_b[feat] if feat in row_b.index else np.nan
+                try:
+                    pair[f"diff_{feat}"] = float(val_a) - float(val_b)
+                except (TypeError, ValueError):
+                    pair[f"diff_{feat}"] = 0.0
+
+            all_rows.append(pair)
+
+    if not all_rows:
+        return "**Error**: No pairs could be generated. Check entity/group data."
+
+    result_df = pd.DataFrame(all_rows)
+
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
+    result_df.to_parquet(parquet_path, index=False)
+
+    n_groups = result_df[group_col].nunique()
+    n_diff_cols = len([c for c in result_df.columns if c.startswith("diff_")])
+
+    return (
+        f"**Generated pairwise features**\n"
+        f"- Pairs: {len(result_df)}\n"
+        f"- Groups: {n_groups}\n"
+        f"- Diff features: {n_diff_cols}\n"
+        f"- Columns: {sorted(result_df.columns.tolist())}"
+    )
 
 
 # -----------------------------------------------------------------------

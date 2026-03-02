@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from easyml.runner.data_profiler import DataProfile, profile_dataset
+from easyml.runner.schema import DataConfig
 
 
 # -----------------------------------------------------------------------
@@ -230,3 +231,62 @@ class TestEdgeCases:
         profile = profile_dataset(path)
         assert profile.label_column == "result"
         assert profile.margin_column == "margin"
+
+
+# -----------------------------------------------------------------------
+# Tests: config-aware profiler
+# -----------------------------------------------------------------------
+
+class TestConfigAwareProfiler:
+    """Profiler uses DataConfig fields instead of hardcoded column names."""
+
+    def test_custom_target_column(self, tmp_path):
+        """Profiler detects label from config.target_column."""
+        df = pd.DataFrame({
+            "date": [2020, 2021, 2022],
+            "won": [1.0, 0.0, 1.0],
+            "score_diff": [5.0, -3.0, 12.0],
+            "feat_a": [1.0, 2.0, 3.0],
+        })
+        path = tmp_path / "features.parquet"
+        df.to_parquet(path)
+
+        config = DataConfig(
+            target_column="won",
+            time_column="date",
+            key_columns=[],
+            exclude_columns=["score_diff"],
+        )
+        profile = profile_dataset(path, config=config)
+        assert profile.label_column == "won"
+        assert profile.time_column == "date"
+
+    def test_custom_key_columns_excluded(self, tmp_path):
+        """Key columns and exclude columns are not profiled as features."""
+        df = pd.DataFrame({
+            "game_id": [1, 2, 3],
+            "season": [2020, 2021, 2022],
+            "result": [1.0, 0.0, 1.0],
+            "feat_a": [1.0, 2.0, 3.0],
+            "feat_b": [4.0, 5.0, 6.0],
+        })
+        path = tmp_path / "features.parquet"
+        df.to_parquet(path)
+
+        config = DataConfig(
+            target_column="result",
+            time_column="season",
+            key_columns=["game_id"],
+        )
+        profile = profile_dataset(path, config=config)
+        all_feature_names = [c.name for c in profile.feature_columns]
+        assert "game_id" not in all_feature_names
+        assert "season" not in all_feature_names
+        assert "result" not in all_feature_names
+        assert "feat_a" in all_feature_names
+        assert "feat_b" in all_feature_names
+
+    def test_backward_compat_no_config(self, sample_parquet):
+        """Without config, profiler still works using column name heuristics."""
+        profile = profile_dataset(sample_parquet)
+        assert profile.n_rows == 200
