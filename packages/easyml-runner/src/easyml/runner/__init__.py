@@ -53,6 +53,11 @@ from easyml.runner.experiment import (
     run_sweep,
     save_frozen_config,
 )
+from easyml.runner.exploration import (
+    AxisDef,
+    ExplorationSpace,
+    run_exploration,
+)
 from easyml.runner.feature_discovery import (
     compute_feature_correlations,
     compute_feature_importance,
@@ -148,6 +153,7 @@ from easyml.runner.validator import ValidationResult, validate_project
 
 __all__ = [
     # --- Classes ---
+    "AxisDef",
     "BacktestConfig",
     "CastStep",
     "ChangeSet",
@@ -158,6 +164,7 @@ __all__ = [
     "EnsembleDef",
     "ExperimentDef",
     "ExperimentResult",
+    "ExplorationSpace",
     "FeatureDecl",
     "FeatureResult",
     "FeaturesConfig",
@@ -254,6 +261,7 @@ __all__ = [
     "promote_experiment",
     "rename_columns",
     "resolve_model_features",
+    "run_exploration",
     "run_sweep",
     "run_transformation_tests",
     "save_fingerprint",

@@ -1673,6 +1673,38 @@ def promote_experiment(
 
 
 # -----------------------------------------------------------------------
+# Exploration (Bayesian search)
+# -----------------------------------------------------------------------
+
+
+def run_exploration(
+    project_dir: Path,
+    search_space: dict,
+) -> str:
+    """Run a Bayesian exploration over a search space.
+
+    Delegates to :func:`easyml.runner.exploration.run_exploration` and
+    returns the markdown report.
+    """
+    from easyml.runner.exploration import run_exploration as _run_exploration
+
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    try:
+        result = _run_exploration(
+            project_dir=project_dir,
+            search_space=search_space,
+            config_dir=config_dir,
+        )
+        return result["report"]
+    except ImportError as exc:
+        return f"**Error**: {exc}"
+    except Exception as exc:
+        return f"**Exploration failed**: {exc}"
+
+
+# -----------------------------------------------------------------------
 # View / source management tools
 # -----------------------------------------------------------------------
 

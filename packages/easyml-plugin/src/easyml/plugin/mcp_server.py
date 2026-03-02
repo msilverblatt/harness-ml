@@ -351,7 +351,7 @@ def manage_features(
 
 
 # -----------------------------------------------------------------------
-# 4. manage_experiments — create, write_overlay, run, promote, quick_run
+# 4. manage_experiments — create, write_overlay, run, promote, quick_run, explore
 # -----------------------------------------------------------------------
 
 
@@ -365,6 +365,7 @@ def manage_experiments(
     overlay: str | dict | None = None,
     primary_metric: str = "brier",
     variant: str | None = None,
+    search_space: str | dict | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage ML experiments.
@@ -381,6 +382,10 @@ def manage_experiments(
       - "quick_run": Create, configure, and run an experiment in one call.
         Requires description, overlay (JSON string). Optional: hypothesis,
         primary_metric.
+      - "explore": Run Bayesian exploration over a search space. Requires
+        search_space (JSON with axes, budget, primary_metric). Runs
+        Optuna-driven trials, returns full report with best config,
+        all trials ranked, and parameter importance.
     """
     from easyml.runner import config_writer as cw
 
@@ -432,10 +437,18 @@ def manage_experiments(
             hypothesis=hypothesis,
             primary_metric=primary_metric,
         )
+    elif action == "explore":
+        if not search_space:
+            return "**Error**: 'search_space' (JSON with axes + budget) is required for explore action."
+        parsed = json.loads(search_space) if isinstance(search_space, str) else search_space
+        return cw.run_exploration(
+            _resolve_project_dir(project_dir),
+            parsed,
+        )
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: create, write_overlay, run, promote, quick_run."
+            "Use: create, write_overlay, run, promote, quick_run, explore."
         )
 
 
