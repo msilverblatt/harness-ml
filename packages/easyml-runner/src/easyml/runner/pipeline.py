@@ -236,6 +236,7 @@ class PipelineRunner:
         self._pred_cache = prediction_cache
         self._cache_stats: dict[str, int] = {"hits": 0, "misses": 0}
         self._failed_models: set[str] = set()
+        self._model_cdf_scales: dict[str, list[float]] = {}
 
     @property
     def cache_stats(self) -> dict[str, int]:
@@ -766,6 +767,7 @@ class PipelineRunner:
             raise ValueError("No active models to backtest.")
 
         self._failed_models = set()
+        self._model_cdf_scales = {}
 
         # Generate CV folds from strategy
         cv_folds = generate_cv_folds(self._df, bt_config)
@@ -820,6 +822,12 @@ class PipelineRunner:
                 m for m in result.get("models_trained", [])
                 if m not in self._failed_models
             ]
+
+        if self._model_cdf_scales:
+            result["model_cdf_scales"] = {
+                name: sum(vals) / len(vals)
+                for name, vals in self._model_cdf_scales.items()
+            }
 
         return result
 
@@ -1032,6 +1040,8 @@ class PipelineRunner:
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
+                    if cdf_scale is not None:
+                        self._model_cdf_scales.setdefault(model_name, []).append(cdf_scale)
                     probs = predict_single_model(
                         model=model,
                         model_def=model_def,

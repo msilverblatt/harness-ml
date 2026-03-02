@@ -15,7 +15,9 @@ from easyml.runner.config_writer import (
     add_model,
     available_features,
     configure_backtest,
+    configure_denylist,
     configure_ensemble,
+    configure_exclude_columns,
     experiment_create,
     remove_model,
     show_config,
@@ -70,6 +72,11 @@ def _setup_project(tmp_path: Path) -> Path:
         yaml.dump({"ensemble": {"method": "average"}}, default_flow_style=False)
     )
 
+    # sources.yaml (minimal — needed for denylist tests)
+    (config_dir / "sources.yaml").write_text(
+        yaml.dump({"guardrails": {}}, default_flow_style=False)
+    )
+
     # Create matchup features parquet
     rng = np.random.default_rng(42)
     n = 200
@@ -121,9 +128,19 @@ class TestAddModel:
 class TestRemoveModel:
     """Test remove_model."""
 
-    def test_remove_existing(self, tmp_path):
+    def test_remove_existing_soft_disables_by_default(self, tmp_path):
         project = _setup_project(tmp_path)
         result = remove_model(project, "logreg")
+        assert "Disabled" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert "logreg" in data["models"], "model should still exist after soft-disable"
+        assert data["models"]["logreg"]["active"] is False
+        assert data["models"]["logreg"]["include_in_ensemble"] is False
+
+    def test_remove_existing_purge_deletes(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = remove_model(project, "logreg", purge=True)
         assert "Removed" in result
 
         data = _load_yaml(project / "config" / "models.yaml")
@@ -585,3 +602,70 @@ class TestAvailableFeaturesDeclarative:
         result = available_features(project, prefix="diff_")
         assert "diff_x" in result
         assert "season" not in result
+
+
+class TestConfigureExcludeColumns:
+    """Test configure_exclude_columns."""
+
+    def test_add_columns(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = configure_exclude_columns(project, add_columns=["margin", "actual_score"])
+        assert "margin" in result
+        data = yaml.safe_load((project / "config" / "pipeline.yaml").read_text())
+        assert "margin" in data["data"]["exclude_columns"]
+        assert "actual_score" in data["data"]["exclude_columns"]
+
+    def test_remove_columns(self, tmp_path):
+        project = _setup_project(tmp_path)
+        configure_exclude_columns(project, add_columns=["margin"])
+        configure_exclude_columns(project, remove_columns=["margin"])
+        data = yaml.safe_load((project / "config" / "pipeline.yaml").read_text())
+        assert "margin" not in data["data"].get("exclude_columns", [])
+
+    def test_no_duplicates(self, tmp_path):
+        project = _setup_project(tmp_path)
+        configure_exclude_columns(project, add_columns=["margin"])
+        configure_exclude_columns(project, add_columns=["margin"])
+        data = yaml.safe_load((project / "config" / "pipeline.yaml").read_text())
+        assert data["data"]["exclude_columns"].count("margin") == 1
+
+
+class TestConfigureDenylist:
+    """Test configure_denylist."""
+
+    def test_add_columns(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = configure_denylist(project, add_columns=["leaked_col"])
+        assert "leaked_col" in result
+        data = yaml.safe_load((project / "config" / "sources.yaml").read_text())
+        assert "leaked_col" in data["guardrails"]["feature_leakage_denylist"]
+
+    def test_remove_columns(self, tmp_path):
+        project = _setup_project(tmp_path)
+        configure_denylist(project, add_columns=["leaked_col"])
+        configure_denylist(project, remove_columns=["leaked_col"])
+        data = yaml.safe_load((project / "config" / "sources.yaml").read_text())
+        assert "leaked_col" not in data["guardrails"].get("feature_leakage_denylist", [])
+
+    def test_no_duplicates(self, tmp_path):
+        project = _setup_project(tmp_path)
+        configure_denylist(project, add_columns=["leaked_col"])
+        configure_denylist(project, add_columns=["leaked_col"])
+        data = yaml.safe_load((project / "config" / "sources.yaml").read_text())
+        assert data["guardrails"]["feature_leakage_denylist"].count("leaked_col") == 1
+
+
+def test_discover_features_respects_denylist(tmp_path):
+    """Columns in the denylist should not appear in feature discovery results."""
+    from easyml.runner.config_writer import discover_features
+    project = _setup_project(tmp_path)
+    # Add a leaky column to the feature parquet
+    feat_path = project / "data" / "features" / "features.parquet"
+    df = pd.read_parquet(feat_path)
+    df["leaky_col"] = np.random.rand(len(df))
+    df.to_parquet(feat_path, index=False)
+    # Add leaky_col to denylist
+    configure_denylist(project, add_columns=["leaky_col"])
+    # Run discovery — denylist column should not appear
+    result = discover_features(project)
+    assert "leaky_col" not in result

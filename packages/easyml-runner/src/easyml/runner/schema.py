@@ -215,6 +215,65 @@ class DistinctStep(BaseModel):
     keep: Literal["first", "last"] = "first"
 
 
+class RollingStep(BaseModel):
+    """Rolling/windowed aggregation partitioned by keys."""
+
+    op: Literal["rolling"] = "rolling"
+    keys: list[str]  # partition columns
+    order_by: str  # column to sort within groups
+    window: int  # window size
+    aggs: dict[str, str]  # {new_col: "source_col:func"} e.g. {"avg_pts_3": "points:mean"}
+    min_periods: int | None = None  # minimum observations; defaults to window
+
+
+class HeadStep(BaseModel):
+    """Take first or last N rows per group."""
+
+    op: Literal["head"] = "head"
+    keys: list[str]
+    n: int = 1
+    order_by: str | list[str] | None = None
+    ascending: bool | list[bool] = True
+    position: Literal["first", "last"] = "first"
+
+
+class RankStep(BaseModel):
+    """Add rank columns, optionally within groups."""
+
+    op: Literal["rank"] = "rank"
+    columns: dict[str, str]  # {new_col: source_col}
+    keys: list[str] | None = None  # optional partition
+    method: Literal["average", "min", "max", "first", "dense"] = "average"
+    ascending: bool = True
+    pct: bool = False
+
+
+class ConditionalAggStep(BaseModel):
+    """Group and aggregate with optional per-agg filter conditions.
+
+    Agg format: ``{new_col: "source_col:func"} | {new_col: "source_col:func:where_expr"}``
+
+    Example::
+
+        aggs:
+          win_avg_pts: "points:mean:result == 1"
+          total_games: "game_id:count"
+    """
+
+    op: Literal["cond_agg"] = "cond_agg"
+    keys: list[str]
+    aggs: dict[str, str]  # {new_col: "col:func" or "col:func:condition"}
+
+
+class IsInStep(BaseModel):
+    """Filter rows where a column's value is (or is not) in a list."""
+
+    op: Literal["isin"] = "isin"
+    column: str
+    values: list[Any]
+    negate: bool = False
+
+
 TransformStep = Annotated[
     Union[
         Annotated[FilterStep, Tag("filter")],
@@ -227,6 +286,11 @@ TransformStep = Annotated[
         Annotated[CastStep, Tag("cast")],
         Annotated[SortStep, Tag("sort")],
         Annotated[DistinctStep, Tag("distinct")],
+        Annotated[RollingStep, Tag("rolling")],
+        Annotated[HeadStep, Tag("head")],
+        Annotated[RankStep, Tag("rank")],
+        Annotated[ConditionalAggStep, Tag("cond_agg")],
+        Annotated[IsInStep, Tag("isin")],
     ],
     Discriminator("op"),
 ]

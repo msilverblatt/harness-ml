@@ -349,6 +349,101 @@ def configure_backtest(
     )
 
 
+def configure_exclude_columns(
+    project_dir: Path,
+    *,
+    add_columns: list[str] | None = None,
+    remove_columns: list[str] | None = None,
+) -> str:
+    """Add or remove columns from data.exclude_columns in pipeline.yaml.
+
+    Excluded columns are never used as model features or in feature discovery.
+    Use this to mark regression target columns (e.g. 'margin') or ID columns
+    that should not be treated as predictive features.
+    """
+    project_dir = Path(project_dir)
+    pipeline_path = _get_config_dir(project_dir) / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    current = list(data.get("data", {}).get("exclude_columns", []))
+    current_set = set(current)
+
+    added, removed = [], []
+    if add_columns:
+        for col in add_columns:
+            if col not in current_set:
+                current.append(col)
+                current_set.add(col)
+                added.append(col)
+
+    if remove_columns:
+        for col in remove_columns:
+            if col in current_set:
+                current.remove(col)
+                current_set.discard(col)
+                removed.append(col)
+
+    if "data" not in data:
+        data["data"] = {}
+    data["data"]["exclude_columns"] = current
+    _save_yaml(pipeline_path, data)
+
+    lines = ["**Updated `data.exclude_columns`**"]
+    if added:
+        lines.append(f"- Added: {added}")
+    if removed:
+        lines.append(f"- Removed: {removed}")
+    lines.append(f"- Current list: {current}")
+    return "\n".join(lines)
+
+
+def configure_denylist(
+    project_dir: Path,
+    *,
+    add_columns: list[str] | None = None,
+    remove_columns: list[str] | None = None,
+) -> str:
+    """Add or remove columns from the guardrails feature leakage denylist.
+
+    The denylist is checked by check_guardrails() — any model whose feature
+    list contains a denied column causes a FAIL.
+    """
+    project_dir = Path(project_dir)
+    sources_path = _get_config_dir(project_dir) / "sources.yaml"
+    data = _load_yaml(sources_path)
+
+    if "guardrails" not in data:
+        data["guardrails"] = {}
+    current = list(data["guardrails"].get("feature_leakage_denylist", []))
+    current_set = set(current)
+
+    added, removed = [], []
+    if add_columns:
+        for col in add_columns:
+            if col not in current_set:
+                current.append(col)
+                current_set.add(col)
+                added.append(col)
+
+    if remove_columns:
+        for col in remove_columns:
+            if col in current_set:
+                current.remove(col)
+                current_set.discard(col)
+                removed.append(col)
+
+    data["guardrails"]["feature_leakage_denylist"] = current
+    _save_yaml(sources_path, data)
+
+    lines = ["**Updated `guardrails.feature_leakage_denylist`**"]
+    if added:
+        lines.append(f"- Added: {added}")
+    if removed:
+        lines.append(f"- Removed: {removed}")
+    lines.append(f"- Current denylist: {current}")
+    return "\n".join(lines)
+
+
 # -----------------------------------------------------------------------
 # Data tools
 # -----------------------------------------------------------------------
@@ -857,6 +952,12 @@ def discover_features(
         if config.feature_defs:
             feat_defs = dict(config.feature_defs)
 
+    # Exclude denylist columns from feature discovery
+    _sources_data = _load_yaml(_get_config_dir(project_dir) / "sources.yaml")
+    _denylist = set(_sources_data.get("guardrails", {}).get("feature_leakage_denylist", []))
+    if _denylist and feature_cols:
+        feature_cols = [c for c in feature_cols if c not in _denylist]
+
     from easyml.runner.feature_discovery import (
         compute_feature_correlations,
         compute_feature_importance,
@@ -1217,6 +1318,15 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
         lines.append("|-------|--------|")
         for name, weight in sorted(meta_coeff.items(), key=lambda x: -abs(x[1])):
             lines.append(f"| {name} | {weight:+.4f} |")
+
+    # Regression model CDF scales
+    cdf_scales = result.get("model_cdf_scales", {})
+    if cdf_scales:
+        lines.append("\n### Regression Model CDF Scales\n")
+        lines.append("| Model | Avg CDF Scale |")
+        lines.append("|-------|--------------|")
+        for name, scale in sorted(cdf_scales.items()):
+            lines.append(f"| {name} | {scale:.3f} |")
 
     # Per-season breakdown
     per_fold = result.get("per_fold", {})

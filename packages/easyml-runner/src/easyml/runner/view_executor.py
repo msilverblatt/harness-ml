@@ -11,11 +11,16 @@ import pandas as pd
 if TYPE_CHECKING:
     from easyml.runner.schema import (
         CastStep,
+        ConditionalAggStep,
         DeriveStep,
         DistinctStep,
         FilterStep,
         GroupByStep,
+        HeadStep,
+        IsInStep,
         JoinStep,
+        RankStep,
+        RollingStep,
         SelectStep,
         SortStep,
         TransformStep,
@@ -66,6 +71,11 @@ def execute_step(
         "cast": _execute_cast,
         "sort": _execute_sort,
         "distinct": _execute_distinct,
+        "rolling": _execute_rolling,
+        "head": _execute_head,
+        "rank": _execute_rank,
+        "cond_agg": _execute_cond_agg,
+        "isin": _execute_isin,
     }
     handler = _dispatch.get(step.op)
     if handler is None:
@@ -218,6 +228,99 @@ def _execute_sort(df: pd.DataFrame, step: SortStep) -> pd.DataFrame:
 
 def _execute_distinct(df: pd.DataFrame, step: DistinctStep) -> pd.DataFrame:
     return df.drop_duplicates(subset=step.columns, keep=step.keep).reset_index(drop=True)
+
+
+def _execute_rolling(df: pd.DataFrame, step: RollingStep) -> pd.DataFrame:
+    """Rolling window aggregation partitioned by keys.
+
+    Agg format: ``{new_col: "source_col:func"}``.
+    """
+    result = df.sort_values(by=[*step.keys, step.order_by]).copy()
+    min_periods = step.min_periods if step.min_periods is not None else step.window
+
+    for new_col, spec in step.aggs.items():
+        parts = spec.split(":")
+        if len(parts) != 2:
+            raise ValueError(
+                f"Rolling agg spec must be 'column:func', got {spec!r}"
+            )
+        src_col, func = parts[0].strip(), parts[1].strip()
+        rolled = (
+            result.groupby(step.keys)[src_col]
+            .rolling(window=step.window, min_periods=min_periods)
+            .agg(func)
+        )
+        # rolling inside groupby produces multi-index; align back via droplevel
+        result[new_col] = rolled.droplevel(list(range(len(step.keys)))).values
+
+    return result.reset_index(drop=True)
+
+
+def _execute_head(df: pd.DataFrame, step: HeadStep) -> pd.DataFrame:
+    """Take first or last N rows per group."""
+    if step.order_by is not None:
+        by = step.order_by if isinstance(step.order_by, list) else [step.order_by]
+        asc = step.ascending
+        if step.position == "last":
+            # Reverse sort so .head() grabs the "last" rows
+            asc = [not a for a in asc] if isinstance(asc, list) else not asc
+        df = df.sort_values(by=by, ascending=asc)
+    elif step.position == "last":
+        df = df.iloc[::-1]
+
+    grouped = df.groupby(step.keys, sort=False)
+    return grouped.head(step.n).reset_index(drop=True)
+
+
+def _execute_rank(df: pd.DataFrame, step: RankStep) -> pd.DataFrame:
+    """Add rank columns, optionally within groups."""
+    result = df.copy()
+    for new_col, src_col in step.columns.items():
+        if step.keys:
+            result[new_col] = result.groupby(step.keys)[src_col].rank(
+                method=step.method, ascending=step.ascending, pct=step.pct,
+            )
+        else:
+            result[new_col] = result[src_col].rank(
+                method=step.method, ascending=step.ascending, pct=step.pct,
+            )
+    return result
+
+
+def _execute_cond_agg(df: pd.DataFrame, step: ConditionalAggStep) -> pd.DataFrame:
+    """Group and aggregate with optional per-agg conditions.
+
+    Spec format: ``"source_col:func"`` or ``"source_col:func:where_expr"``.
+    """
+    agg_frames: list[pd.Series] = []
+    agg_names: list[str] = []
+
+    for new_col, spec in step.aggs.items():
+        parts = spec.split(":", 2)
+        if len(parts) < 2:
+            raise ValueError(
+                f"cond_agg spec must be 'column:func' or 'column:func:condition', "
+                f"got {spec!r}"
+            )
+        src_col, func = parts[0].strip(), parts[1].strip()
+        condition = parts[2].strip() if len(parts) == 3 else None
+
+        subset = df if condition is None else df.query(condition)
+        series = subset.groupby(step.keys)[src_col].agg(func)
+        series.name = new_col
+        agg_frames.append(series)
+        agg_names.append(new_col)
+
+    result = pd.concat(agg_frames, axis=1).reset_index()
+    return result
+
+
+def _execute_isin(df: pd.DataFrame, step: IsInStep) -> pd.DataFrame:
+    """Filter rows where column value is (or is not) in a list."""
+    mask = df[step.column].isin(step.values)
+    if step.negate:
+        mask = ~mask
+    return df[mask].reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------

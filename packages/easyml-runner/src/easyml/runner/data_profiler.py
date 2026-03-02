@@ -185,17 +185,19 @@ class DataProfile:
 
 
 def profile_dataset(
-    path: str | Path,
+    path: str | Path | None = None,
     high_null_threshold: float = 50.0,
     config: DataConfig | None = None,
     plugins: list | None = None,
+    *,
+    df: pd.DataFrame | None = None,
 ) -> DataProfile:
-    """Profile a features parquet file.
+    """Profile a features dataset.
 
     Parameters
     ----------
-    path : str | Path
-        Path to the parquet file.
+    path : str | Path | None
+        Path to the parquet file.  Ignored when *df* is provided.
     high_null_threshold : float
         Columns with null percentage above this are flagged.
     config : DataConfig | None
@@ -205,17 +207,25 @@ def profile_dataset(
         Optional list of plugin instances.  Each must have a ``name``
         attribute and an ``analyze(df, config)`` method that returns
         a markdown string.
+    df : pd.DataFrame | None
+        Pre-loaded DataFrame.  When given, *path* is used only as a
+        display label (defaults to ``"<DataFrame>"``).
 
     Returns
     -------
     DataProfile
         Comprehensive dataset profile.
     """
-    path = Path(path)
-    df = pd.read_parquet(path)
+    if df is None:
+        if path is None:
+            raise ValueError("Either path or df must be provided.")
+        path = Path(path)
+        df = pd.read_parquet(path)
+
+    label = str(path) if path is not None else "<DataFrame>"
 
     profile = DataProfile(
-        path=str(path),
+        path=label,
         n_rows=len(df),
         n_cols=len(df.columns),
     )

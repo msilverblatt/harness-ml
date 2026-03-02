@@ -64,14 +64,22 @@ def manage_models(
     params: str | dict | None = None,
     active: bool = True,
     include_in_ensemble: bool = True,
+    mode: str | None = None,
+    prediction_type: str | None = None,
+    purge: bool = False,
     project_dir: str | None = None,
 ) -> str:
     """Manage models in the project.
 
     Actions:
       - "add": Add a model. Requires name + (model_type or preset).
-        Optional: features, params (JSON string), active, include_in_ensemble.
-      - "remove": Remove a model. Requires name.
+        Optional: features, params (JSON string), active, include_in_ensemble,
+        mode (e.g. "classifier", "regressor"), prediction_type (e.g. "margin").
+      - "update": Update an existing model in place. Requires name.
+        Optional: features, params (JSON string), active, include_in_ensemble,
+        mode, prediction_type. Merges params with existing.
+      - "remove": Disable a model (sets active=false, include_in_ensemble=false).
+        Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
       - "presets": Show available model presets.
     """
@@ -90,17 +98,35 @@ def manage_models(
             params=parsed_params,
             active=active,
             include_in_ensemble=include_in_ensemble,
+            mode=mode,
+            prediction_type=prediction_type,
+        )
+    elif action == "update":
+        if not name:
+            return "**Error**: 'name' is required for update action."
+        parsed_params = json.loads(params) if isinstance(params, str) else params
+        # Forward booleans only when they differ from the MCP default (True),
+        # so omitting them doesn't accidentally overwrite the model's value.
+        return cw.update_model(
+            _resolve_project_dir(project_dir),
+            name,
+            features=features,
+            params=parsed_params,
+            active=False if active is False else None,
+            include_in_ensemble=False if include_in_ensemble is False else None,
+            mode=mode,
+            prediction_type=prediction_type,
         )
     elif action == "remove":
         if not name:
             return "**Error**: 'name' is required for remove action."
-        return cw.remove_model(_resolve_project_dir(project_dir), name)
+        return cw.remove_model(_resolve_project_dir(project_dir), name, purge=purge)
     elif action == "list":
         return cw.show_models(_resolve_project_dir(project_dir))
     elif action == "presets":
         return cw.show_presets()
     else:
-        return f"**Error**: Unknown action '{action}'. Use: add, remove, list, presets."
+        return f"**Error**: Unknown action '{action}'. Use: add, update, remove, list, presets."
 
 
 # -----------------------------------------------------------------------
@@ -153,6 +179,28 @@ def manage_data(
         Optional: format.
       - "add_view": Declare a view (transform chain). Requires name, source.
         Optional: steps (JSON array), description.
+      - "update_view": Update an existing view in place. Requires name.
+        Optional: source, steps (JSON array), description. Only provided
+        fields are merged.
+
+        Available step ops for views:
+          filter:    {op: filter, expr: "col > 0"}
+          select:    {op: select, columns: ["a", "b"]}
+          derive:    {op: derive, columns: {new_col: "a - b"}}
+          group_by:  {op: group_by, keys: ["k"], aggs: {col: "mean"}}
+          join:      {op: join, other: "view_name", on: {left_key: right_key}, prefix: "a_"}
+          union:     {op: union, other: "view_name"}
+          unpivot:   {op: unpivot, id_columns: [...], unpivot_columns: {col: [src1, src2]}}
+          sort:      {op: sort, by: ["col"], ascending: true}
+          head:      {op: head, keys: ["group_col"], n: 5, order_by: "col", position: "last"}
+          rolling:   {op: rolling, keys: ["group_col"], order_by: "col", window: 5,
+                      aggs: {new_col: "source_col:mean"}}
+          cast:      {op: cast, columns: {col: "int"}}
+          distinct:  {op: distinct, columns: ["col"]}
+          rank:      {op: rank, columns: {rank_col: "value_col"}, keys: ["group"], ascending: false}
+          isin:      {op: isin, column: "col", values: ["a", "b"]}
+          cond_agg:  {op: cond_agg, keys: ["k"], aggs: {new_col: "src:sum:condition_expr"}}
+
       - "remove_view": Remove a view. Requires name.
       - "list_views": List all views with descriptions and dependency info.
       - "preview_view": Materialize a view and show schema + first N rows.
@@ -232,6 +280,19 @@ def manage_data(
             parsed_steps,
             description=description,
         )
+    elif action == "update_view":
+        if not name:
+            return "**Error**: 'name' is required for update_view."
+        parsed_steps = None
+        if steps is not None:
+            parsed_steps = json.loads(steps) if isinstance(steps, str) else steps
+        return cw.update_view(
+            _resolve_project_dir(project_dir),
+            name,
+            source=source,
+            steps=parsed_steps,
+            description=description if description else None,
+        )
     elif action == "remove_view":
         if not name:
             return "**Error**: 'name' is required for remove_view."
@@ -252,8 +313,8 @@ def manage_data(
         return (
             f"**Error**: Unknown action '{action}'. "
             "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, "
-            "list_features, status, list_sources, add_source, add_view, remove_view, "
-            "list_views, preview_view, set_features_view, view_dag."
+            "list_features, status, list_sources, add_source, add_view, update_view, "
+            "remove_view, list_views, preview_view, set_features_view, view_dag."
         )
 
 
@@ -366,6 +427,7 @@ def manage_experiments(
     primary_metric: str = "brier",
     variant: str | None = None,
     search_space: str | dict | None = None,
+    trial: int | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage ML experiments.
@@ -375,6 +437,8 @@ def manage_experiments(
         Optional: hypothesis.
       - "write_overlay": Write overlay YAML to an experiment. Requires
         experiment_id, overlay (JSON string of config changes).
+        Keys support dot-notation ("models.xgb.params.lr": 0.01) or
+        dict values to set whole blocks ("models.new_model": {"type": ...}).
       - "run": Run experiment (backtest with overlay vs baseline). Requires
         experiment_id. Optional: primary_metric, variant.
       - "promote": Promote experiment config to production. Requires
@@ -386,6 +450,9 @@ def manage_experiments(
         search_space (JSON with axes, budget, primary_metric). Runs
         Optuna-driven trials, returns full report with best config,
         all trials ranked, and parameter importance.
+      - "promote_trial": Promote a trial from an exploration run as a new
+        experiment. Requires experiment_id (exploration ID, e.g. 'expl-002').
+        Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
     """
     from easyml.runner import config_writer as cw
 
@@ -445,10 +512,20 @@ def manage_experiments(
             _resolve_project_dir(project_dir),
             parsed,
         )
+    elif action == "promote_trial":
+        if not experiment_id:
+            return "**Error**: 'experiment_id' (exploration ID, e.g. 'expl-002') is required for promote_trial."
+        return cw.promote_exploration_trial(
+            _resolve_project_dir(project_dir),
+            experiment_id,
+            trial=trial,
+            primary_metric=primary_metric,
+            hypothesis=hypothesis,
+        )
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: create, write_overlay, run, promote, quick_run, explore."
+            "Use: create, write_overlay, run, promote, quick_run, explore, promote_trial."
         )
 
 
@@ -469,10 +546,14 @@ def configure(
     method: str | None = None,
     temperature: float | None = None,
     exclude_models: list[str] | None = None,
+    calibration: str | None = None,
+    pre_calibration: str | dict | None = None,
     cv_strategy: str | None = None,
     seasons: list[int] | None = None,
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
+    add_columns: list[str] | None = None,
+    remove_columns: list[str] | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Configure project settings.
@@ -481,12 +562,22 @@ def configure(
       - "init": Initialize a new easyml project.
         Optional: project_name, task, target_column, key_columns, time_column.
       - "ensemble": Update ensemble config.
-        Optional: method, temperature, exclude_models.
+        Optional: method, temperature, exclude_models,
+        calibration ('spline'/'isotonic'/'platt'/'none' — post-ensemble calibration),
+        pre_calibration (JSON dict of {model_name: method} for per-model calibration
+        applied before the meta-learner, e.g. '{"xgb_core": "platt"}').
       - "backtest": Update backtest config.
         Optional: cv_strategy, seasons, metrics, min_train_folds.
       - "show": Show the full resolved project configuration.
       - "check_guardrails": Run configured guardrails (feature leakage,
         naming conventions, model config). Returns pass/fail report.
+      - "exclude_columns": Add/remove columns from data.exclude_columns.
+        These columns are never used as features or in feature discovery.
+        Use for regression target columns or leaky outcome columns.
+        Optional: add_columns (list), remove_columns (list).
+      - "set_denylist": Add/remove columns from the feature leakage denylist.
+        The denylist is checked by check_guardrails() to catch models using
+        forbidden columns. Optional: add_columns (list), remove_columns (list).
     """
     if action == "init":
         from easyml.runner import config_writer as cw
@@ -502,11 +593,16 @@ def configure(
     from easyml.runner import config_writer as cw
 
     if action == "ensemble":
+        parsed_pre_cal = None
+        if pre_calibration is not None:
+            parsed_pre_cal = json.loads(pre_calibration) if isinstance(pre_calibration, str) else pre_calibration
         return cw.configure_ensemble(
             _resolve_project_dir(project_dir),
             method=method,
             temperature=temperature,
             exclude_models=exclude_models,
+            calibration=calibration,
+            pre_calibration=parsed_pre_cal,
         )
     elif action == "backtest":
         return cw.configure_backtest(
@@ -520,10 +616,23 @@ def configure(
         return cw.show_config(_resolve_project_dir(project_dir))
     elif action == "check_guardrails":
         return cw.check_guardrails(_resolve_project_dir(project_dir))
+    elif action == "exclude_columns":
+        return cw.configure_exclude_columns(
+            _resolve_project_dir(project_dir),
+            add_columns=add_columns,
+            remove_columns=remove_columns,
+        )
+    elif action == "set_denylist":
+        return cw.configure_denylist(
+            _resolve_project_dir(project_dir),
+            add_columns=add_columns,
+            remove_columns=remove_columns,
+        )
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: init, ensemble, backtest, show, check_guardrails."
+            "Use: init, ensemble, backtest, show, check_guardrails, "
+            "exclude_columns, set_denylist."
         )
 
 

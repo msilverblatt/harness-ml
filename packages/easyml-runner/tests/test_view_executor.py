@@ -7,11 +7,16 @@ import pytest
 
 from easyml.runner.schema import (
     CastStep,
+    ConditionalAggStep,
     DeriveStep,
     DistinctStep,
     FilterStep,
     GroupByStep,
+    HeadStep,
+    IsInStep,
     JoinStep,
+    RankStep,
+    RollingStep,
     SelectStep,
     SortStep,
     UnionStep,
@@ -305,3 +310,176 @@ class TestErrors:
         step = UnionStep(other="t")
         with pytest.raises(ValueError, match="resolver is required"):
             execute_step(df, step)
+
+
+# ---------------------------------------------------------------------------
+# Rolling step
+# ---------------------------------------------------------------------------
+
+
+class TestRolling:
+    def test_basic_rolling_mean(self):
+        df = pd.DataFrame({
+            "team": ["A", "A", "A", "B", "B", "B"],
+            "day": [1, 2, 3, 1, 2, 3],
+            "pts": [10.0, 20.0, 30.0, 5.0, 15.0, 25.0],
+        })
+        step = RollingStep(
+            keys=["team"], order_by="day", window=2,
+            aggs={"avg_pts_2": "pts:mean"},
+        )
+        result = execute_step(df, step)
+        assert "avg_pts_2" in result.columns
+        assert len(result) == 6
+        # First row per group should be NaN (min_periods == window)
+        team_a = result[result["team"] == "A"].sort_values("day")
+        assert pd.isna(team_a["avg_pts_2"].iloc[0])
+        assert team_a["avg_pts_2"].iloc[1] == pytest.approx(15.0)
+        assert team_a["avg_pts_2"].iloc[2] == pytest.approx(25.0)
+
+    def test_rolling_min_periods(self):
+        df = pd.DataFrame({
+            "team": ["A", "A", "A"],
+            "day": [1, 2, 3],
+            "pts": [10.0, 20.0, 30.0],
+        })
+        step = RollingStep(
+            keys=["team"], order_by="day", window=3,
+            aggs={"sum_pts": "pts:sum"}, min_periods=1,
+        )
+        result = execute_step(df, step)
+        assert result["sum_pts"].iloc[0] == pytest.approx(10.0)
+        assert result["sum_pts"].iloc[1] == pytest.approx(30.0)
+        assert result["sum_pts"].iloc[2] == pytest.approx(60.0)
+
+
+# ---------------------------------------------------------------------------
+# Head step
+# ---------------------------------------------------------------------------
+
+
+class TestHead:
+    def test_head_first(self):
+        df = pd.DataFrame({
+            "team": ["A", "A", "A", "B", "B"],
+            "day": [3, 1, 2, 5, 4],
+            "pts": [30, 10, 20, 50, 40],
+        })
+        step = HeadStep(keys=["team"], n=2, order_by="day")
+        result = execute_step(df, step)
+        assert len(result) == 4
+        team_a = result[result["team"] == "A"]
+        assert sorted(team_a["day"].tolist()) == [1, 2]
+
+    def test_head_last(self):
+        df = pd.DataFrame({
+            "team": ["A", "A", "A"],
+            "day": [1, 2, 3],
+            "pts": [10, 20, 30],
+        })
+        step = HeadStep(keys=["team"], n=1, order_by="day", position="last")
+        result = execute_step(df, step)
+        assert len(result) == 1
+        assert result["day"].iloc[0] == 3
+
+
+# ---------------------------------------------------------------------------
+# Rank step
+# ---------------------------------------------------------------------------
+
+
+class TestRank:
+    def test_global_rank(self):
+        df = pd.DataFrame({"score": [30, 10, 20]})
+        step = RankStep(columns={"score_rank": "score"}, ascending=False)
+        result = execute_step(df, step)
+        assert result["score_rank"].tolist() == [1.0, 3.0, 2.0]
+
+    def test_grouped_rank_pct(self):
+        df = pd.DataFrame({
+            "group": ["A", "A", "A", "B", "B"],
+            "score": [10, 30, 20, 5, 15],
+        })
+        step = RankStep(
+            columns={"pct_rank": "score"},
+            keys=["group"], pct=True, ascending=True,
+        )
+        result = execute_step(df, step)
+        group_a = result[result["group"] == "A"]
+        assert group_a["pct_rank"].min() == pytest.approx(1 / 3)
+        assert group_a["pct_rank"].max() == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Conditional aggregation step
+# ---------------------------------------------------------------------------
+
+
+class TestConditionalAgg:
+    def test_basic_cond_agg(self):
+        df = pd.DataFrame({
+            "team": ["A", "A", "A", "B", "B"],
+            "pts": [10, 20, 30, 5, 15],
+            "result": [1, 0, 1, 1, 0],
+        })
+        step = ConditionalAggStep(
+            keys=["team"],
+            aggs={
+                "avg_pts": "pts:mean",
+                "win_avg_pts": "pts:mean:result == 1",
+            },
+        )
+        result = execute_step(df, step)
+        assert len(result) == 2
+        team_a = result[result["team"] == "A"]
+        assert team_a["avg_pts"].iloc[0] == pytest.approx(20.0)
+        assert team_a["win_avg_pts"].iloc[0] == pytest.approx(20.0)  # (10+30)/2
+
+    def test_cond_agg_missing_group(self):
+        """Groups with no matching rows are absent from the result."""
+        df = pd.DataFrame({
+            "team": ["A", "A", "B", "B"],
+            "pts": [10, 20, 5, 15],
+            "result": [1, 1, 0, 0],
+        })
+        step = ConditionalAggStep(
+            keys=["team"],
+            aggs={"win_avg": "pts:mean:result == 1"},
+        )
+        result = execute_step(df, step)
+        # Team B has no wins, so it's not in the result
+        assert set(result["team"]) == {"A"}
+        assert result["win_avg"].iloc[0] == pytest.approx(15.0)
+
+
+# ---------------------------------------------------------------------------
+# IsIn step
+# ---------------------------------------------------------------------------
+
+
+class TestIsIn:
+    def test_isin_basic(self):
+        df = pd.DataFrame({
+            "team": ["A", "B", "C", "D"],
+            "pts": [10, 20, 30, 40],
+        })
+        step = IsInStep(column="team", values=["A", "C"])
+        result = execute_step(df, step)
+        assert len(result) == 2
+        assert set(result["team"]) == {"A", "C"}
+
+    def test_isin_negate(self):
+        df = pd.DataFrame({
+            "team": ["A", "B", "C", "D"],
+            "pts": [10, 20, 30, 40],
+        })
+        step = IsInStep(column="team", values=["A", "C"], negate=True)
+        result = execute_step(df, step)
+        assert len(result) == 2
+        assert set(result["team"]) == {"B", "D"}
+
+    def test_isin_numeric(self):
+        df = pd.DataFrame({"season": [2020, 2021, 2022, 2023], "val": [1, 2, 3, 4]})
+        step = IsInStep(column="season", values=[2021, 2023])
+        result = execute_step(df, step)
+        assert result["season"].tolist() == [2021, 2023]

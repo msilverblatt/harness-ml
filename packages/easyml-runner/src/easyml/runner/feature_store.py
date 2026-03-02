@@ -87,13 +87,9 @@ class FeatureStore:
         if self._matchup_df is not None:
             return self._matchup_df
 
-        from easyml.runner.data_utils import get_features_path
+        from easyml.runner.data_utils import get_features_df
 
-        path = get_features_path(self.project_dir, self.config)
-        if not path.exists():
-            raise FileNotFoundError(f"Matchup data not found: {path}")
-
-        self._matchup_df = pd.read_parquet(path)
+        self._matchup_df = get_features_df(self.project_dir, self.config)
         return self._matchup_df
 
     def _load_source(self, source_name: str) -> pd.DataFrame:

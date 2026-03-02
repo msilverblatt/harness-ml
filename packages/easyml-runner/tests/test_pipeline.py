@@ -1100,3 +1100,42 @@ class TestFailedModelsSurfaced:
         assert "bad_regressor" in result["models_failed"]
         assert "bad_regressor" not in result["models_trained"]
         assert "good_model" in result["models_trained"]
+
+
+# -----------------------------------------------------------------------
+# Tests — cdf_scale diagnostics
+# -----------------------------------------------------------------------
+
+
+class TestCdfScaleInDiagnostics:
+    def test_cdf_scale_tracked_for_regressors(self, tmp_path):
+        """Regression models have their fitted cdf_scale averaged and surfaced in result."""
+        models = {
+            "xgb_regressor": {
+                "type": "xgboost",
+                "features": ["diff_x"],
+                "params": {},
+                "active": True,
+                "mode": "regressor",
+            },
+        }
+        # include_margin=True so the 'margin' column exists (required training target for regressors)
+        config_dir = _setup_project(
+            tmp_path,
+            models=models,
+            include_margin=True,
+            n_rows=300,
+            n_seasons=3,
+        )
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        assert "model_cdf_scales" in result
+        assert "xgb_regressor" in result["model_cdf_scales"]
+        assert isinstance(result["model_cdf_scales"]["xgb_regressor"], float)
+        assert result["model_cdf_scales"]["xgb_regressor"] > 0

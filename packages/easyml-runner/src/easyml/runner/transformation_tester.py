@@ -174,6 +174,7 @@ def run_transformation_tests(
     features_file: str | None = None,
     feature_columns: list[str] | None = None,
     feature_defs: dict[str, FeatureDef] | None = None,
+    df: pd.DataFrame | None = None,
 ) -> TransformationReport:
     """Automatically test mathematical transformations of features.
 
@@ -210,6 +211,8 @@ def run_transformation_tests(
         Override features directory.
     feature_defs : dict[str, FeatureDef] | None
         When provided, results are annotated with feature type.
+    df : pd.DataFrame | None
+        Pre-loaded DataFrame.  When given, skips file resolution.
 
     Returns
     -------
@@ -217,19 +220,20 @@ def run_transformation_tests(
     """
     project_dir = Path(project_dir)
 
-    from easyml.runner.data_utils import get_features_path, load_data_config
+    if df is None:
+        from easyml.runner.data_utils import get_features_path, load_data_config
 
-    if features_dir is not None:
-        feat_dir = Path(features_dir)
-        parquet_path = feat_dir / (features_file or "features.parquet")
-    else:
-        config = load_data_config(project_dir)
-        parquet_path = get_features_path(project_dir, config)
+        if features_dir is not None:
+            feat_dir = Path(features_dir)
+            parquet_path = feat_dir / (features_file or "features.parquet")
+        else:
+            config = load_data_config(project_dir)
+            parquet_path = get_features_path(project_dir, config)
 
-    if not parquet_path.exists():
-        raise FileNotFoundError(f"Features not found: {parquet_path}")
+        if not parquet_path.exists():
+            raise FileNotFoundError(f"Features not found: {parquet_path}")
 
-    df = pd.read_parquet(parquet_path)
+        df = pd.read_parquet(parquet_path)
 
     if target_col not in df.columns:
         raise ValueError(f"Target column '{target_col}' not found in dataset")
