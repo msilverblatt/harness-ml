@@ -148,6 +148,11 @@ def _execute_join(
             right_on=list(step.on.values()),
             how=step.how,
         )
+        # Drop right-side key columns that differ from left-side keys
+        # (e.g. joining TeamA->TeamID means TeamID is redundant)
+        drop_cols = [v for k, v in step.on.items() if k != v and v in result.columns]
+        if drop_cols:
+            result = result.drop(columns=drop_cols)
     else:
         result = df.merge(other_df, on=step.on, how=step.how)
     return result

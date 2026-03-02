@@ -50,9 +50,13 @@ class PipelineGuards:
             features_dir = self.project_dir / features_dir
         return features_dir / self.data_config.features_file
 
+    def _uses_view(self) -> bool:
+        """Check if the config uses a features_view instead of a parquet file."""
+        return bool(self.data_config.features_view)
+
     def guard_train(self) -> None:
         """Validate prerequisites for training: feature files must exist."""
-        if not self.enabled:
+        if not self.enabled or self._uses_view():
             return
         features_path = self._resolve_features_path()
         guard = StageGuard(name="train_ready", requires=[str(features_path)])
@@ -62,16 +66,19 @@ class PipelineGuards:
         """Validate prerequisites for prediction: features + models must exist."""
         if not self.enabled:
             return
-        features_path = self._resolve_features_path()
-        requires = [str(features_path)]
+        requires: list[str] = []
+        if not self._uses_view():
+            features_path = self._resolve_features_path()
+            requires.append(str(features_path))
         if models_dir is not None:
             requires.append(str(models_dir))
-        guard = StageGuard(name="predict_ready", requires=requires)
-        guard.check()
+        if requires:
+            guard = StageGuard(name="predict_ready", requires=requires)
+            guard.check()
 
     def guard_backtest(self) -> None:
         """Validate prerequisites for backtesting: features with sufficient rows."""
-        if not self.enabled:
+        if not self.enabled or self._uses_view():
             return
         features_path = self._resolve_features_path()
         guard = StageGuard(
