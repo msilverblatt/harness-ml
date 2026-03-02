@@ -705,3 +705,63 @@ class TestRenameColumns:
 
         with pytest.raises(ValueError, match="not found"):
             rename_columns(tmp_path, {"nonexistent": "new"})
+
+
+class TestEndToEndConfigDrivenPath:
+    """Full path: DataConfig -> ingest -> profiler -> guards all use same config."""
+
+    def test_custom_features_file_works_e2e(self, tmp_path):
+        """Ingest, profile, and guard check all work with custom features_file."""
+        # Setup project structure
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n"
+            "  features_dir: data/features\n"
+            "  features_file: my_dataset.parquet\n"
+            "  target_column: outcome\n"
+            "  key_columns: [id, period]\n"
+            "  time_column: period\n"
+        )
+        features_dir = tmp_path / "data" / "features"
+        features_dir.mkdir(parents=True)
+
+        # Create initial data
+        df = pd.DataFrame({
+            "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            "period": [2020] * 5 + [2021] * 5,
+            "outcome": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            "feat_a": np.random.default_rng(42).normal(0, 1, 10).tolist(),
+        })
+        df.to_parquet(features_dir / "my_dataset.parquet", index=False)
+
+        # Verify config loads correctly
+        from easyml.runner.data_utils import load_data_config, get_features_path
+
+        config = load_data_config(tmp_path)
+        assert config.features_file == "my_dataset.parquet"
+        assert config.target_column == "outcome"
+
+        parquet_path = get_features_path(tmp_path, config)
+        assert parquet_path.exists()
+
+        # Verify profiler works with config
+        from easyml.runner.data_profiler import profile_dataset
+
+        profile = profile_dataset(parquet_path, config=config)
+        assert profile.n_rows == 10
+        assert profile.label_column == "outcome"
+        assert profile.time_column == "period"
+        # Key columns should not appear in feature_columns
+        feature_names = [c.name for c in profile.feature_columns]
+        assert "id" not in feature_names
+        assert "period" not in feature_names
+        assert "outcome" not in feature_names
+        assert "feat_a" in feature_names
+
+        # Verify guards work with config
+        from easyml.runner.stage_guards import PipelineGuards
+
+        guards = PipelineGuards(config, tmp_path)
+        guards.guard_train()  # Should not raise
+        guards.guard_backtest()  # Should not raise
