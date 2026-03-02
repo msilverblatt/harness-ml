@@ -104,10 +104,6 @@ def manage_data(
     columns: list[str] | None = None,
     mapping: str | None = None,
     category: str | None = None,
-    entity_col: str | None = None,
-    group_col: str | None = None,
-    feature_cols: list[str] | None = None,
-    filter_path: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage data in the project's feature store.
@@ -124,9 +120,6 @@ def manage_data(
         {"old_name": "new_name"} pairs).
       - "profile": Profile the features dataset. Optional: category.
       - "list_features": List available feature columns. Optional: prefix.
-      - "generate_pairwise": Generate pairwise diff features from entity-level
-        data. Requires entity_col, group_col, feature_cols.
-        Optional: filter_path (CSV/parquet to limit entities).
     """
     from easyml.runner import config_writer as cw
 
@@ -171,24 +164,10 @@ def manage_data(
         return cw.profile_data(_resolve_project_dir(project_dir), category=category)
     elif action == "list_features":
         return cw.available_features(_resolve_project_dir(project_dir), prefix=prefix)
-    elif action == "generate_pairwise":
-        if not entity_col:
-            return "**Error**: 'entity_col' is required for generate_pairwise action."
-        if not group_col:
-            return "**Error**: 'group_col' is required for generate_pairwise action."
-        if not feature_cols:
-            return "**Error**: 'feature_cols' (list of column names to diff) is required for generate_pairwise action."
-        return cw.generate_pairwise_features(
-            _resolve_project_dir(project_dir),
-            entity_col=entity_col,
-            group_col=group_col,
-            feature_cols=feature_cols,
-            filter_path=filter_path,
-        )
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, list_features, generate_pairwise."
+            "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, list_features."
         )
 
 
