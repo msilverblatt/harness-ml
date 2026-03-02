@@ -329,8 +329,16 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
     return profile.format_summary()
 
 
-def available_features(project_dir: Path, prefix: str | None = None) -> str:
-    """List available feature columns from the dataset."""
+def available_features(
+    project_dir: Path,
+    prefix: str | None = None,
+    type_filter: str | None = None,
+) -> str:
+    """List available feature columns from the dataset.
+
+    If the project uses the declarative feature store, shows features
+    grouped by type. Otherwise falls back to column listing.
+    """
     from easyml.runner.data_utils import get_features_path, load_data_config
     from easyml.runner.schema import DataConfig
 
@@ -340,7 +348,34 @@ def available_features(project_dir: Path, prefix: str | None = None) -> str:
         parquet_path = get_features_path(project_dir, config)
     except Exception:
         parquet_path = get_features_path(project_dir, DataConfig())
+        config = DataConfig()
 
+    # Check for declarative feature store
+    if config.feature_defs:
+        from easyml.runner.feature_store import FeatureStore
+        from easyml.runner.schema import FeatureType
+
+        store = FeatureStore(project_dir, config)
+        ft = FeatureType(type_filter) if type_filter else None
+        features = store.available(type_filter=ft)
+
+        if not features:
+            return "No declarative features registered."
+
+        lines = [f"## Declarative Features ({len(features)})\n"]
+        by_type: dict[str, list] = {}
+        for f in features:
+            by_type.setdefault(f.type.value, []).append(f)
+
+        for ft_name, feats in by_type.items():
+            lines.append(f"### {ft_name.title()} ({len(feats)})")
+            for f in feats:
+                lines.append(f"- `{f.name}` — {f.description or f.category}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    # Fallback: flat column listing
     import pandas as pd
 
     if not parquet_path.exists():
@@ -360,133 +395,104 @@ def available_features(project_dir: Path, prefix: str | None = None) -> str:
     return "\n".join(lines)
 
 
-def generate_pairwise_features(
-    project_dir: Path,
-    entity_col: str,
-    group_col: str,
-    feature_cols: list[str],
-    *,
-    filter_path: str | None = None,
-) -> str:
-    """Generate pairwise diff features from entity-level data.
+def feature_store_status(project_dir: Path) -> str:
+    """Quick overview of the feature store state.
 
-    For each pair of entities within each group, computes diff features
-    (entity_A value - entity_B value). Writes result back to the
-    feature store, replacing the entity-level data.
-
-    Parameters
-    ----------
-    entity_col : str
-        Column identifying entities (e.g. product_id, candidate_id, team_id).
-    group_col : str
-        Column for grouping (e.g. quarter, cohort, season). Pairs are
-        generated within each group independently.
-    feature_cols : list[str]
-        Columns to compute diffs for.
-    filter_path : str | None
-        Optional CSV/parquet with entity_col and group_col columns.
-        If provided, only entities present in this file are included.
-
-    Returns markdown summary.
+    Reads parquet metadata only — does not load full data.
+    Returns: row count, column count, target distribution,
+    time column range, source count, last modified time.
     """
     from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
         parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = project_dir / "data" / "features" / "features.parquet"
-
-    import pandas as pd
-    import numpy as np
-    from itertools import combinations
+        config = DataConfig()
+        parquet_path = get_features_path(project_dir, config)
 
     if not parquet_path.exists():
-        return f"**Error**: Features file not found at {parquet_path}"
+        return "**Error**: No feature store found. Ingest data first with `manage_data(action='add')`."
 
-    entity_df = pd.read_parquet(parquet_path)
+    import pandas as pd
+    import os
+    from datetime import datetime
 
-    if entity_col not in entity_df.columns:
-        return f"**Error**: Entity column '{entity_col}' not found in features."
-    if group_col not in entity_df.columns:
-        return f"**Error**: Group column '{group_col}' not found in features."
+    df = pd.read_parquet(parquet_path)
+    n_rows = len(df)
+    n_cols = len(df.columns)
 
-    missing = [f for f in feature_cols if f not in entity_df.columns]
-    if missing:
-        return f"**Error**: Feature columns not found: {missing}"
+    lines = ["## Feature Store Status\n"]
+    lines.append(f"- **Rows**: {n_rows}")
+    lines.append(f"- **Columns**: {n_cols}")
+    lines.append(f"- **File**: `{parquet_path.relative_to(project_dir)}`")
 
-    # Load filter if provided
-    filter_df = None
-    if filter_path:
-        filter_path_obj = Path(filter_path)
-        if filter_path_obj.suffix == ".csv":
-            filter_df = pd.read_csv(filter_path_obj)
-        else:
-            filter_df = pd.read_parquet(filter_path_obj)
+    # Last modified
+    mtime = os.path.getmtime(parquet_path)
+    lines.append(f"- **Last modified**: {datetime.fromtimestamp(mtime).isoformat()}")
 
-    groups = sorted(entity_df[group_col].unique())
-    all_rows = []
+    # Target column distribution
+    target_col = config.target_column
+    if target_col and target_col in df.columns:
+        dist = df[target_col].value_counts()
+        lines.append(f"\n### Target Distribution (`{target_col}`)\n")
+        for val, count in dist.items():
+            pct = count / n_rows * 100
+            lines.append(f"- {val}: {count} ({pct:.1f}%)")
+    elif target_col:
+        lines.append(f"\n*Target column `{target_col}` not found in data.*")
 
-    for group_val in groups:
-        group_data = entity_df[entity_df[group_col] == group_val].copy()
+    # Time column range
+    time_col = config.time_column
+    if time_col and time_col in df.columns:
+        lines.append(f"\n### Time Range (`{time_col}`)\n")
+        lines.append(f"- Min: {df[time_col].min()}")
+        lines.append(f"- Max: {df[time_col].max()}")
+        lines.append(f"- Unique values: {df[time_col].nunique()}")
 
-        # Apply filter if provided
-        if filter_df is not None:
-            group_filter = filter_df[filter_df[group_col] == group_val]
-            qualified_ids = set(group_filter[entity_col].unique())
-            group_data = group_data[group_data[entity_col].isin(qualified_ids)]
+    # Source count
+    registry_path = project_dir / "data" / "source_registry.json"
+    if registry_path.exists():
+        registry = json.loads(registry_path.read_text())
+        n_sources = len(registry.get("sources", []))
+        lines.append(f"\n- **Ingested sources**: {n_sources}")
 
-        if len(group_data) < 2:
-            continue
+    return "\n".join(lines)
 
-        indexed = group_data.set_index(entity_col)
-        entity_ids = sorted(indexed.index.unique())
 
-        for id_a, id_b in combinations(entity_ids, 2):
-            row_a = indexed.loc[id_a]
-            row_b = indexed.loc[id_b]
+def list_sources(project_dir: Path) -> str:
+    """List ingested data sources from the source registry.
 
-            # Handle duplicate entity IDs in same group
-            if isinstance(row_a, pd.DataFrame):
-                row_a = row_a.iloc[0]
-            if isinstance(row_b, pd.DataFrame):
-                row_b = row_b.iloc[0]
+    Reads data/source_registry.json and returns a summary of
+    each source: name, path, columns added, row count.
+    """
+    project_dir = Path(project_dir)
+    registry_path = project_dir / "data" / "source_registry.json"
 
-            pair = {
-                "entity_a": id_a,
-                "entity_b": id_b,
-                group_col: group_val,
-            }
+    if not registry_path.exists():
+        return "**No sources registered.** Ingest data with `manage_data(action='add')` first."
 
-            for feat in feature_cols:
-                val_a = row_a[feat] if feat in row_a.index else np.nan
-                val_b = row_b[feat] if feat in row_b.index else np.nan
-                try:
-                    pair[f"diff_{feat}"] = float(val_a) - float(val_b)
-                except (TypeError, ValueError):
-                    pair[f"diff_{feat}"] = 0.0
+    registry = json.loads(registry_path.read_text())
+    sources = registry.get("sources", [])
 
-            all_rows.append(pair)
+    if not sources:
+        return "**No sources registered.** Ingest data with `manage_data(action='add')` first."
 
-    if not all_rows:
-        return "**Error**: No pairs could be generated. Check entity/group data."
+    lines = [f"## Data Sources ({len(sources)} registered)\n"]
+    lines.append("| # | Name | Path | Columns Added | Rows | Bootstrap |")
+    lines.append("|---|------|------|---------------|------|-----------|")
 
-    result_df = pd.DataFrame(all_rows)
+    for i, src in enumerate(sources, 1):
+        name = src.get("name", "unknown")
+        path = src.get("path", "—")
+        cols = src.get("columns_added", [])
+        rows = src.get("rows", "—")
+        bootstrap = "Yes" if src.get("is_bootstrap") else "No"
+        lines.append(f"| {i} | {name} | `{path}` | {len(cols)} | {rows} | {bootstrap} |")
 
-    parquet_path.parent.mkdir(parents=True, exist_ok=True)
-    result_df.to_parquet(parquet_path, index=False)
-
-    n_groups = result_df[group_col].nunique()
-    n_diff_cols = len([c for c in result_df.columns if c.startswith("diff_")])
-
-    return (
-        f"**Generated pairwise features**\n"
-        f"- Pairs: {len(result_df)}\n"
-        f"- Groups: {n_groups}\n"
-        f"- Diff features: {n_diff_cols}\n"
-        f"- Columns: {sorted(result_df.columns.tolist())}"
-    )
+    return "\n".join(lines)
 
 
 # -----------------------------------------------------------------------
@@ -496,20 +502,91 @@ def generate_pairwise_features(
 def add_feature(
     project_dir: Path,
     name: str,
-    formula: str,
+    formula: str | None = None,
     *,
+    type: str | None = None,
+    source: str | None = None,
+    column: str | None = None,
+    condition: str | None = None,
+    pairwise_mode: str = "diff",
+    category: str = "general",
     description: str = "",
 ) -> str:
-    """Create a new feature from a formula expression."""
-    from easyml.runner.feature_engine import create_feature
+    """Create a new feature — declarative (with type) or formula-based.
 
-    result = create_feature(
-        project_dir=Path(project_dir),
-        name=name,
-        formula=formula,
-        description=description,
-    )
-    return result.format_summary()
+    If type is specified, uses the declarative FeatureStore.
+    If only formula is given, uses the existing formula engine (backward compat).
+    """
+    project_dir = Path(project_dir)
+
+    if type is not None:
+        from easyml.runner.feature_store import FeatureStore
+        from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+        from easyml.runner.data_utils import load_data_config
+
+        config = load_data_config(project_dir)
+        store = FeatureStore(project_dir, config)
+
+        feature_type = FeatureType(type)
+        pw_mode = PairwiseMode(pairwise_mode)
+
+        feature_def = FeatureDef(
+            name=name,
+            type=feature_type,
+            source=source,
+            column=column,
+            formula=formula,
+            condition=condition,
+            pairwise_mode=pw_mode,
+            category=category,
+            description=description,
+        )
+
+        result = store.add(feature_def)
+
+        lines = [f"## Added {type} feature: {name}\n"]
+        if description:
+            lines.append(f"_{description}_\n")
+
+        if feature_type == FeatureType.TEAM:
+            cache_entry = store._cache._entries.get(name)
+            if cache_entry and cache_entry.derivatives:
+                lines.append("**Auto-generated pairwise:**")
+                matchup_df = store._load_matchup_data()
+                target_col = config.target_column
+                for deriv in cache_entry.derivatives:
+                    try:
+                        deriv_series = store.compute(deriv)
+                        corr = 0.0
+                        if target_col in matchup_df.columns:
+                            corr = float(deriv_series.corr(matchup_df[target_col].astype(float)))
+                            if not isinstance(corr, float) or corr != corr:
+                                corr = 0.0
+                        lines.append(f"- `{deriv}` (r={corr:+.4f})")
+                    except Exception:
+                        lines.append(f"- `{deriv}`")
+
+        lines.append(f"\n- **Correlation**: {result.correlation:+.4f}")
+        lines.append(f"- **Null rate**: {result.null_rate:.1%}")
+        if result.stats:
+            for k, v in result.stats.items():
+                lines.append(f"- **{k.title()}**: {v:.4f}")
+        lines.append(f"- **Category**: {category}")
+
+        return "\n".join(lines)
+
+    else:
+        if formula is None:
+            raise ValueError("Either type= or formula= must be provided.")
+        from easyml.runner.feature_engine import create_feature
+
+        result = create_feature(
+            project_dir=project_dir,
+            name=name,
+            formula=formula,
+            description=description,
+        )
+        return result.format_summary()
 
 
 def add_features_batch(
@@ -682,6 +759,101 @@ def show_config(project_dir: Path) -> str:
     lines.append(f"- Strategy: {config.backtest.cv_strategy}")
     lines.append(f"- Seasons: {config.backtest.seasons}")
     lines.append(f"- Metrics: {config.backtest.metrics}")
+
+    return "\n".join(lines)
+
+
+def check_guardrails(project_dir: Path) -> str:
+    """Run configured guardrails and return a status report.
+
+    Checks:
+    - Feature leakage: model features vs denylist
+    - Naming conventions: experiment IDs vs pattern
+    - Model configuration: active models have features
+
+    Returns markdown report with pass/fail per guardrail.
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    models_data = _load_yaml(config_dir / "models.yaml")
+    sources_data = _load_yaml(config_dir / "sources.yaml")
+
+    guardrail_config = sources_data.get("guardrails", {})
+    models = models_data.get("models", {})
+
+    results = []
+
+    # 1. Feature leakage check
+    denylist = set(guardrail_config.get("feature_leakage_denylist", []))
+    if denylist:
+        violations = []
+        for model_name, model_def in models.items():
+            model_features = set(model_def.get("features", []))
+            found = denylist & model_features
+            if found:
+                violations.append((model_name, sorted(found)))
+
+        if violations:
+            details = "; ".join(
+                f"`{m}` uses {cols}" for m, cols in violations
+            )
+            results.append(("Feature Leakage", "FAIL", details))
+        else:
+            results.append(("Feature Leakage", "PASS", f"No denied columns found (denylist: {len(denylist)} entries)"))
+    else:
+        results.append(("Feature Leakage", "SKIP", "No denylist configured"))
+
+    # 2. Naming convention check
+    naming_pattern = guardrail_config.get("naming_pattern")
+    if naming_pattern:
+        import re
+        experiments_dir = project_dir / "experiments"
+        if experiments_dir.exists():
+            bad_names = []
+            for d in experiments_dir.iterdir():
+                if d.is_dir() and not re.match(naming_pattern, d.name):
+                    bad_names.append(d.name)
+            if bad_names:
+                results.append(("Naming Convention", "FAIL", f"Invalid names: {bad_names}"))
+            else:
+                results.append(("Naming Convention", "PASS", f"All experiment names match `{naming_pattern}`"))
+        else:
+            results.append(("Naming Convention", "SKIP", "No experiments directory"))
+    else:
+        results.append(("Naming Convention", "SKIP", "No naming_pattern configured"))
+
+    # 3. Model configuration check
+    active_models = [n for n, m in models.items() if m.get("active", True)]
+    featureless = [n for n in active_models if not models[n].get("features")]
+    if featureless:
+        results.append(("Model Config", "WARN", f"Models without features: {featureless}"))
+    else:
+        results.append(("Model Config", "PASS", f"{len(active_models)} active models, all with features"))
+
+    # 4. Critical paths check
+    critical_paths = guardrail_config.get("critical_paths", [])
+    if critical_paths:
+        results.append(("Critical Paths", "INFO", f"Protected: {critical_paths}"))
+    else:
+        results.append(("Critical Paths", "SKIP", "No critical paths configured"))
+
+    # Format report
+    n_fail = sum(1 for _, status, _ in results if status == "FAIL")
+    n_pass = sum(1 for _, status, _ in results if status == "PASS")
+    n_warn = sum(1 for _, status, _ in results if status == "WARN")
+
+    lines = ["## Guardrail Report\n"]
+    lines.append(f"**Summary**: {n_pass} passed, {n_fail} failed, {n_warn} warnings\n")
+
+    lines.append("| Guardrail | Status | Details |")
+    lines.append("|-----------|--------|---------|")
+    for name, status, details in results:
+        lines.append(f"| {name} | {status} | {details} |")
+
+    if n_fail > 0:
+        lines.append(f"\n**{n_fail} guardrail(s) failed.** Fix violations before proceeding.")
 
     return "\n".join(lines)
 
@@ -1080,6 +1252,66 @@ def run_experiment(
         return f"**Experiment failed**: {exc}"
 
 
+def quick_run_experiment(
+    project_dir: Path,
+    description: str,
+    overlay: str | dict,
+    *,
+    hypothesis: str = "",
+    primary_metric: str = "brier",
+) -> str:
+    """Create, configure, and run an experiment in a single call.
+
+    Combines experiment_create + write_overlay + run_experiment.
+    Returns the combined results or error at any step.
+    """
+    if not description:
+        return "**Error**: 'description' is required for quick_run."
+
+    project_dir = Path(project_dir)
+
+    # Step 1: Create experiment
+    create_result = experiment_create(project_dir, description, hypothesis=hypothesis)
+    if "Error" in create_result:
+        return create_result
+
+    # Extract experiment ID from create result
+    import re
+    id_match = re.search(r'(exp-\d+)', create_result, re.IGNORECASE)
+    if not id_match:
+        return f"**Error**: Could not extract experiment ID from creation result.\n\n{create_result}"
+    experiment_id = id_match.group(1)
+
+    # Step 2: Write overlay
+    try:
+        parsed_overlay = json.loads(overlay) if isinstance(overlay, str) else overlay
+    except json.JSONDecodeError as e:
+        return f"**Error**: Invalid overlay JSON: {e}"
+
+    overlay_result = write_overlay(project_dir, experiment_id, parsed_overlay)
+    if "Error" in overlay_result:
+        return f"**Error** writing overlay:\n\n{overlay_result}"
+
+    # Step 3: Run experiment
+    run_result = run_experiment(
+        project_dir,
+        experiment_id,
+        primary_metric=primary_metric,
+    )
+
+    # Combine results
+    lines = [
+        f"## Quick Run: {experiment_id}\n",
+        f"**Description:** {description}",
+    ]
+    if hypothesis:
+        lines.append(f"**Hypothesis:** {hypothesis}")
+    lines.append(f"\n### Overlay\n\n{overlay_result}")
+    lines.append(f"\n### Results\n\n{run_result}")
+
+    return "\n".join(lines)
+
+
 def show_run(
     project_dir: Path,
     run_id: str | None = None,
@@ -1149,6 +1381,153 @@ def show_run(
             lines.append(f"- ... +{len(artifacts) - 20} more")
     else:
         lines.append("No artifacts found in this run.")
+
+    return "\n".join(lines)
+
+
+def show_diagnostics(
+    project_dir: Path,
+    run_id: str | None = None,
+) -> str:
+    """Show per-model diagnostics from a backtest run.
+
+    Reads prediction artifacts from the run directory and computes
+    per-model metrics (brier, accuracy, ECE, log_loss) plus model
+    agreement and calibration summary.
+
+    Returns markdown report.
+    """
+    import numpy as np
+    import pandas as pd
+
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured in pipeline.yaml."
+
+    outputs_path = project_dir / outputs_dir
+
+    if run_id:
+        run_dir = outputs_path / run_id
+    else:
+        if not outputs_path.exists():
+            return "**Error**: No runs found."
+        runs = sorted(
+            [d for d in outputs_path.iterdir() if d.is_dir() and d.name != "current"],
+            key=lambda d: d.name,
+            reverse=True,
+        )
+        if not runs:
+            return "**Error**: No runs found."
+        run_dir = runs[0]
+
+    if not run_dir.exists():
+        return f"**Error**: Run '{run_id}' not found."
+
+    preds_dir = run_dir / "predictions"
+    preds_path = preds_dir / "predictions.parquet"
+    if preds_path.exists():
+        preds_df = pd.read_parquet(preds_path)
+    elif preds_dir.exists():
+        # Predictions may be split per-season (e.g. 2024_probabilities.parquet)
+        season_files = sorted(preds_dir.glob("*_probabilities.parquet"))
+        if season_files:
+            preds_df = pd.concat(
+                [pd.read_parquet(f) for f in season_files],
+                ignore_index=True,
+            )
+        else:
+            diag_path = run_dir / "diagnostics" / "predictions.parquet"
+            if diag_path.exists():
+                preds_df = pd.read_parquet(diag_path)
+            else:
+                return f"**Error**: No predictions found in run `{run_dir.name}`."
+    else:
+        diag_path = run_dir / "diagnostics" / "predictions.parquet"
+        if diag_path.exists():
+            preds_df = pd.read_parquet(diag_path)
+        else:
+            return f"**Error**: No predictions found in run `{run_dir.name}`."
+
+    if "result" not in preds_df.columns:
+        return "**Error**: Predictions file missing 'result' column for evaluation."
+
+    y_true = preds_df["result"].values.astype(float)
+    prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
+
+    if not prob_cols:
+        return "**Error**: No prob_* columns found in predictions."
+
+    from easyml.runner.diagnostics import (
+        compute_brier_score,
+        compute_ece,
+        compute_model_agreement,
+    )
+
+    model_metrics = []
+    for col in sorted(prob_cols):
+        model_name = col.replace("prob_", "", 1)
+        y_prob = preds_df[col].values.astype(float)
+
+        valid = ~np.isnan(y_prob) & ~np.isnan(y_true)
+        if valid.sum() == 0:
+            continue
+
+        y_t = y_true[valid]
+        y_p = y_prob[valid]
+
+        brier = compute_brier_score(y_t, y_p)
+        ece = compute_ece(y_t, y_p)
+        accuracy = float(np.mean((y_p >= 0.5).astype(float) == y_t))
+        eps = 1e-15
+        y_clipped = np.clip(y_p, eps, 1.0 - eps)
+        log_loss = float(-np.mean(
+            y_t * np.log(y_clipped) + (1 - y_t) * np.log(1 - y_clipped)
+        ))
+
+        model_metrics.append({
+            "model": model_name,
+            "brier": brier,
+            "accuracy": accuracy,
+            "ece": ece,
+            "log_loss": log_loss,
+            "n_samples": int(valid.sum()),
+        })
+
+    lines = [f"## Diagnostics: `{run_dir.name}`\n"]
+    lines.append(f"- Predictions: {len(preds_df)} rows")
+    lines.append(f"- Models: {len(model_metrics)}\n")
+
+    lines.append("### Per-Model Metrics\n")
+    lines.append("| Model | Brier | Accuracy | ECE | Log Loss | N |")
+    lines.append("|-------|-------|----------|-----|----------|---|")
+    for m in sorted(model_metrics, key=lambda x: x["brier"]):
+        lines.append(
+            f"| {m['model']} | {m['brier']:.4f} | {m['accuracy']:.4f} "
+            f"| {m['ece']:.4f} | {m['log_loss']:.4f} | {m['n_samples']} |"
+        )
+
+    agreement = compute_model_agreement(preds_df)
+    mean_agreement = float(np.mean(agreement))
+    lines.append(f"\n### Model Agreement\n")
+    lines.append(f"- Mean agreement with ensemble: {mean_agreement:.4f}")
+
+    lines.append(f"\n### Calibration Summary\n")
+    for m in model_metrics:
+        model_name = m["model"]
+        col = f"prob_{model_name}"
+        y_p = preds_df[col].values.astype(float)
+        valid = ~np.isnan(y_p)
+        if valid.sum() == 0:
+            continue
+        mean_pred = float(np.mean(y_p[valid]))
+        mean_actual = float(np.mean(y_true[valid]))
+        bias = mean_pred - mean_actual
+        cal_status = "well-calibrated" if abs(bias) < 0.02 else ("over-confident" if bias > 0 else "under-confident")
+        lines.append(f"- **{model_name}**: {cal_status} (bias: {bias:+.4f})")
 
     return "\n".join(lines)
 

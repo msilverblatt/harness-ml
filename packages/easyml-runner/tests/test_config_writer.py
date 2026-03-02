@@ -11,6 +11,7 @@ import yaml
 from easyml.runner.config_writer import (
     _load_yaml,
     _save_yaml,
+    add_feature,
     add_model,
     available_features,
     configure_backtest,
@@ -78,7 +79,7 @@ def _setup_project(tmp_path: Path) -> Path:
         "diff_x": rng.standard_normal(n),
         "diff_y": rng.standard_normal(n),
     })
-    df.to_parquet(feat_dir / "matchup_features.parquet", index=False)
+    df.to_parquet(feat_dir / "features.parquet", index=False)
 
     return tmp_path
 
@@ -300,3 +301,269 @@ class TestLoadSaveYaml:
         _save_yaml(path, {"x": 1})
         assert path.exists()
         assert _load_yaml(path) == {"x": 1}
+
+
+# -----------------------------------------------------------------------
+# Helper for declarative feature tests
+# -----------------------------------------------------------------------
+
+
+def _setup_declarative_project(tmp_path: Path) -> Path:
+    """Create a project with entity-level and matchup-level data for declarative features."""
+    project_dir = tmp_path / "decl_project"
+    project_dir.mkdir()
+
+    config_dir = project_dir / "config"
+    config_dir.mkdir()
+
+    # Entity-level data (team stats)
+    rng = np.random.default_rng(42)
+    n_teams = 20
+    entities = []
+    for season in [2022, 2023, 2024]:
+        for team_id in range(1, n_teams + 1):
+            entities.append({
+                "entity_id": team_id,
+                "period_id": season,
+                "adj_em": rng.standard_normal() * 10,
+                "adj_tempo": rng.standard_normal() * 5 + 65,
+                "win_rate": rng.uniform(0.2, 0.9),
+            })
+    raw_dir = project_dir / "data" / "raw"
+    raw_dir.mkdir(parents=True)
+    pd.DataFrame(entities).to_parquet(raw_dir / "kenpom.parquet", index=False)
+
+    # Matchup-level data
+    n_matchups = 200
+    features_dir = project_dir / "data" / "features"
+    features_dir.mkdir(parents=True)
+    matchups = []
+    for i in range(n_matchups):
+        season = rng.choice([2022, 2023, 2024])
+        team_a = rng.integers(1, n_teams + 1)
+        team_b = rng.integers(1, n_teams + 1)
+        while team_b == team_a:
+            team_b = rng.integers(1, n_teams + 1)
+        matchups.append({
+            "entity_a_id": int(team_a),
+            "entity_b_id": int(team_b),
+            "period_id": int(season),
+            "result": int(rng.integers(0, 2)),
+            "day_num": int(rng.integers(1, 155)),
+            "is_neutral": int(rng.integers(0, 2)),
+        })
+    pd.DataFrame(matchups).to_parquet(features_dir / "features.parquet", index=False)
+
+    # pipeline.yaml with sources configured
+    pipeline = {
+        "data": {
+            "features_dir": "data/features",
+            "features_file": "features.parquet",
+            "target_column": "result",
+            "raw_dir": "data/raw",
+            "sources": {
+                "kenpom": {
+                    "name": "kenpom",
+                    "path": "data/raw/kenpom.parquet",
+                    "format": "parquet",
+                },
+            },
+            "feature_store": {
+                "cache_dir": "data/features/cache",
+                "auto_pairwise": True,
+                "default_pairwise_mode": "diff",
+            },
+        },
+        "backtest": {
+            "cv_strategy": "leave_one_season_out",
+            "seasons": [2022, 2023, 2024],
+            "metrics": ["brier"],
+            "min_train_folds": 1,
+        },
+    }
+    (config_dir / "pipeline.yaml").write_text(
+        yaml.dump(pipeline, default_flow_style=False)
+    )
+
+    # models.yaml (minimal)
+    (config_dir / "models.yaml").write_text(
+        yaml.dump({"models": {}}, default_flow_style=False)
+    )
+    # ensemble.yaml (minimal)
+    (config_dir / "ensemble.yaml").write_text(
+        yaml.dump({"ensemble": {"method": "average"}}, default_flow_style=False)
+    )
+
+    return project_dir
+
+
+def _setup_declarative_project_with_defs(tmp_path: Path) -> Path:
+    """Create a project that already has feature_defs in pipeline.yaml."""
+    project_dir = _setup_declarative_project(tmp_path)
+
+    # Re-write pipeline.yaml with feature_defs included
+    pipeline_path = project_dir / "config" / "pipeline.yaml"
+    pipeline = yaml.safe_load(pipeline_path.read_text())
+    pipeline["data"]["feature_defs"] = {
+        "adj_em": {
+            "name": "adj_em",
+            "type": "team",
+            "source": "kenpom",
+            "column": "adj_em",
+            "category": "efficiency",
+            "description": "Adjusted efficiency margin",
+        },
+        "late_season": {
+            "name": "late_season",
+            "type": "regime",
+            "condition": "day_num > 100",
+            "category": "temporal",
+            "description": "Late season flag",
+        },
+    }
+    pipeline_path.write_text(yaml.dump(pipeline, default_flow_style=False))
+
+    return project_dir
+
+
+# -----------------------------------------------------------------------
+# add_feature MCP tool tests
+# -----------------------------------------------------------------------
+
+
+class TestAddFeatureDeclarative:
+    """Test add_feature with declarative type= parameter (FeatureStore path)."""
+
+    def test_add_team_feature_via_type(self, tmp_path):
+        """add_feature(type='team') uses FeatureStore and mentions auto-pairwise."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "adj_em",
+            type="team", source="kenpom", column="adj_em",
+        )
+        assert "Added team feature" in result
+        assert "adj_em" in result
+        # Should mention auto-generated pairwise
+        assert "Auto-generated pairwise" in result
+        assert "diff_adj_em" in result
+
+    def test_add_team_feature_with_description(self, tmp_path):
+        """Description is included in output."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "adj_em",
+            type="team", source="kenpom", column="adj_em",
+            description="Adjusted efficiency margin",
+        )
+        assert "Adjusted efficiency margin" in result
+
+    def test_add_regime_feature_via_type(self, tmp_path):
+        """add_feature(type='regime', condition='...') works."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "late_season",
+            type="regime", condition="day_num > 100",
+        )
+        assert "Added regime feature" in result
+        assert "late_season" in result
+        assert "Correlation" in result
+
+    def test_add_matchup_feature_via_type(self, tmp_path):
+        """add_feature(type='matchup', column='...') works."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "day_feat",
+            type="matchup", column="day_num",
+        )
+        assert "Added matchup feature" in result
+        assert "Correlation" in result
+
+    def test_add_pairwise_formula_feature(self, tmp_path):
+        """add_feature(type='pairwise', formula='...') works."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "day_x_neutral",
+            type="pairwise", formula="day_num * is_neutral",
+        )
+        assert "Added pairwise feature" in result
+        assert "Correlation" in result
+
+    def test_add_team_feature_includes_stats(self, tmp_path):
+        """Team feature output includes null rate, correlation, category."""
+        project = _setup_declarative_project(tmp_path)
+        result = add_feature(
+            project, "adj_em",
+            type="team", source="kenpom", column="adj_em",
+            category="efficiency",
+        )
+        assert "Null rate" in result
+        assert "Category" in result
+        assert "efficiency" in result
+
+    def test_no_type_no_formula_raises(self, tmp_path):
+        """Calling add_feature without type or formula raises ValueError."""
+        project = _setup_declarative_project(tmp_path)
+        with pytest.raises(ValueError, match="Either type= or formula="):
+            add_feature(project, "bad_feature")
+
+
+class TestAddFeatureBackwardCompat:
+    """Test add_feature backward compatibility — formula-only path."""
+
+    def test_formula_only_backward_compat(self, tmp_path):
+        """add_feature(name, formula) still works without type= (backward compat)."""
+        project = _setup_project(tmp_path)
+        result = add_feature(project, "combo", formula="diff_x * diff_y")
+        assert "Created" in result or "combo" in result
+        assert "Correlation" in result.lower() or "correlation" in result.lower()
+
+    def test_formula_with_description(self, tmp_path):
+        """Formula path includes description."""
+        project = _setup_project(tmp_path)
+        result = add_feature(
+            project, "combo",
+            formula="diff_x + diff_y",
+            description="Sum of diffs",
+        )
+        assert "Sum of diffs" in result
+
+
+# -----------------------------------------------------------------------
+# available_features MCP tool tests
+# -----------------------------------------------------------------------
+
+
+class TestAvailableFeaturesDeclarative:
+    """Test available_features with declarative feature store."""
+
+    def test_fallback_column_listing(self, tmp_path):
+        """When no feature_defs exist, falls back to column listing."""
+        project = _setup_project(tmp_path)
+        result = available_features(project)
+        assert "Available Features" in result
+        assert "diff_x" in result
+        assert "diff_y" in result
+
+    def test_shows_types_with_feature_defs(self, tmp_path):
+        """When feature_defs exist, shows features grouped by type."""
+        project = _setup_declarative_project_with_defs(tmp_path)
+        result = available_features(project)
+        assert "Declarative Features" in result
+        assert "Team" in result
+        assert "adj_em" in result
+
+    def test_type_filter(self, tmp_path):
+        """type_filter limits to a single feature type."""
+        project = _setup_declarative_project_with_defs(tmp_path)
+        result = available_features(project, type_filter="regime")
+        assert "Declarative Features" in result
+        assert "late_season" in result
+        # Should not include team features when filtering by regime
+        assert "Team" not in result
+
+    def test_prefix_filter_still_works(self, tmp_path):
+        """Prefix filter still works on fallback column listing."""
+        project = _setup_project(tmp_path)
+        result = available_features(project, prefix="diff_")
+        assert "diff_x" in result
+        assert "season" not in result

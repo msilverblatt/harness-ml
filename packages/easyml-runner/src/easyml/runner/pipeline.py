@@ -307,6 +307,34 @@ class PipelineRunner:
         self._df = pd.read_parquet(parquet_path)
         self._normalize_columns()
 
+        # If declarative features are configured, compute them via FeatureStore
+        if self.config.data.feature_defs:
+            from easyml.runner.feature_store import FeatureStore
+
+            store = FeatureStore(self.project_dir, self.config.data)
+
+            # Pre-compute all registered features.  For team features this
+            # triggers pairwise derivative generation (diff_*, ratio_*) and
+            # registers the derivatives in the store's internal registry.
+            store.compute_all()
+
+            # Determine which features are needed by active models
+            needed: set[str] = set()
+            for name, model in self._get_active_models().items():
+                needed.update(model.features)
+                if model.feature_sets:
+                    needed.update(store.resolve_sets(model.feature_sets))
+
+            # Now that derivatives are registered, resolve everything needed
+            store_features = {f.name for f in store.available()}
+            computable = needed & store_features
+
+            if computable:
+                feature_df = store.compute_all(list(computable))
+                for col in feature_df.columns:
+                    if col not in self._df.columns:
+                        self._df[col] = feature_df[col].values
+
         # Load team features if any model has provides_level="team"
         has_team_providers = any(
             m.provides and m.provides_level == "team"
