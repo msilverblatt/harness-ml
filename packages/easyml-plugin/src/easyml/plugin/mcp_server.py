@@ -123,6 +123,13 @@ def manage_data(
     columns: list[str] | None = None,
     mapping: str | dict | None = None,
     category: str | None = None,
+    # View management parameters:
+    name: str | None = None,
+    source: str | None = None,
+    steps: str | list | None = None,
+    description: str = "",
+    format: str = "auto",
+    n_rows: int = 5,
     project_dir: str | None = None,
 ) -> str:
     """Manage data in the project's feature store.
@@ -142,6 +149,17 @@ def manage_data(
       - "status": Quick overview of the feature store (row/column count,
         target distribution, time range, source count).
       - "list_sources": List all ingested data sources from the registry.
+      - "add_source": Register a raw data source. Requires name, data_path.
+        Optional: format.
+      - "add_view": Declare a view (transform chain). Requires name, source.
+        Optional: steps (JSON array), description.
+      - "remove_view": Remove a view. Requires name.
+      - "list_views": List all views with descriptions and dependency info.
+      - "preview_view": Materialize a view and show schema + first N rows.
+        Requires name. Optional: n_rows.
+      - "set_features_view": Set which view becomes the prediction table.
+        Requires name.
+      - "view_dag": Show the full view dependency graph.
     """
     from easyml.runner import config_writer as cw
 
@@ -190,10 +208,52 @@ def manage_data(
         return cw.feature_store_status(_resolve_project_dir(project_dir))
     elif action == "list_sources":
         return cw.list_sources(_resolve_project_dir(project_dir))
+    elif action == "add_source":
+        if not name:
+            return "**Error**: 'name' is required for add_source."
+        if not data_path:
+            return "**Error**: 'data_path' is required for add_source."
+        return cw.add_source(
+            _resolve_project_dir(project_dir),
+            name,
+            data_path,
+            format=format,
+        )
+    elif action == "add_view":
+        if not name:
+            return "**Error**: 'name' is required for add_view."
+        if not source:
+            return "**Error**: 'source' is required for add_view."
+        parsed_steps = json.loads(steps) if isinstance(steps, str) else (steps or [])
+        return cw.add_view(
+            _resolve_project_dir(project_dir),
+            name,
+            source,
+            parsed_steps,
+            description=description,
+        )
+    elif action == "remove_view":
+        if not name:
+            return "**Error**: 'name' is required for remove_view."
+        return cw.remove_view(_resolve_project_dir(project_dir), name)
+    elif action == "list_views":
+        return cw.list_views(_resolve_project_dir(project_dir))
+    elif action == "preview_view":
+        if not name:
+            return "**Error**: 'name' is required for preview_view."
+        return cw.preview_view(_resolve_project_dir(project_dir), name, n_rows=n_rows)
+    elif action == "set_features_view":
+        if not name:
+            return "**Error**: 'name' is required for set_features_view."
+        return cw.set_features_view(_resolve_project_dir(project_dir), name)
+    elif action == "view_dag":
+        return cw.view_dag(_resolve_project_dir(project_dir))
     else:
         return (
             f"**Error**: Unknown action '{action}'. "
-            "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, list_features, status, list_sources."
+            "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, "
+            "list_features, status, list_sources, add_source, add_view, remove_view, "
+            "list_views, preview_view, set_features_view, view_dag."
         )
 
 
