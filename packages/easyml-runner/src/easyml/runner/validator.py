@@ -97,6 +97,84 @@ def _load_models_dir(config_dir: Path, variant: str | None) -> dict:
     return merged
 
 
+def _validate_views(config: ProjectConfig, warnings: list[str]) -> list[str]:
+    """Validate view DAG for consistency.
+
+    Returns list of error strings (empty = valid).
+    """
+    errors: list[str] = []
+    data = config.data
+
+    if not data.views:
+        return errors
+
+    # Collect all valid names (sources + views)
+    source_names = set(data.sources.keys())
+    view_names = set(data.views.keys())
+    all_names = source_names | view_names
+
+    # 1. Check each view's source reference
+    for name, view_def in data.views.items():
+        if view_def.source not in all_names:
+            errors.append(
+                f"View '{name}' references unknown source '{view_def.source}'. "
+                f"Available: {sorted(all_names)}"
+            )
+
+        # 2. Check join/union other references in steps
+        for i, step in enumerate(view_def.steps):
+            if hasattr(step, 'other') and step.other not in all_names:
+                errors.append(
+                    f"View '{name}' step {i} ({step.op}) references unknown "
+                    f"'{step.other}'. Available: {sorted(all_names)}"
+                )
+
+    # 3. Check for cycles using detect_cycle from dag.py
+    # Build dependency graph: view -> set of views/sources it depends on
+    deps: dict[str, set[str]] = {}
+    for name, view_def in data.views.items():
+        view_deps: set[str] = set()
+        if view_def.source in view_names:
+            view_deps.add(view_def.source)
+        for step in view_def.steps:
+            if hasattr(step, 'other') and step.other in view_names:
+                view_deps.add(step.other)
+        deps[name] = view_deps
+
+    # Add views with no view-dependencies for completeness
+    for name in view_names:
+        if name not in deps:
+            deps[name] = set()
+
+    from easyml.runner.dag import detect_cycle
+    cycle = detect_cycle(deps)
+    if cycle:
+        errors.append(f"Cycle detected in view DAG: {cycle}")
+
+    # 4. Check features_view references an existing view
+    if data.features_view and data.features_view not in view_names:
+        errors.append(
+            f"features_view '{data.features_view}' is not a defined view. "
+            f"Available views: {sorted(view_names)}"
+        )
+
+    # 5. Check group_by aggs use supported functions
+    supported_aggs = {"mean", "sum", "count", "std", "min", "max", "median", "first", "last", "nunique", "var"}
+    for name, view_def in data.views.items():
+        for i, step in enumerate(view_def.steps):
+            if step.op == "group_by":
+                for col, agg_spec in step.aggs.items():
+                    aggs_list = [agg_spec] if isinstance(agg_spec, str) else agg_spec
+                    for agg in aggs_list:
+                        if agg not in supported_aggs:
+                            errors.append(
+                                f"View '{name}' step {i}: unsupported aggregation '{agg}' "
+                                f"for column '{col}'. Supported: {sorted(supported_aggs)}"
+                            )
+
+    return errors
+
+
 def validate_project(
     config_dir: str | Path,
     overlay: dict | None = None,
@@ -193,6 +271,12 @@ def validate_project(
                 errors.append(f"{loc}: {msg} (got {inp!r})")
             else:
                 errors.append(f"{loc}: {msg}")
+        return ValidationResult(valid=False, errors=errors, warnings=warnings)
+
+    # --- Validate view DAG ---
+    view_errors = _validate_views(config, warnings)
+    if view_errors:
+        errors.extend(view_errors)
         return ValidationResult(valid=False, errors=errors, warnings=warnings)
 
     return ValidationResult(valid=True, errors=errors, warnings=warnings, config=config)

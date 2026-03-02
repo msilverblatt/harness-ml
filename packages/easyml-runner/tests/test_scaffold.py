@@ -149,6 +149,14 @@ class TestScaffoldValidation:
         result = validate_project(project_dir / "config")
         assert result.config.backtest.cv_strategy == "leave_one_season_out"
 
+    def test_scaffolded_config_has_empty_views(self, tmp_path):
+        project_dir = tmp_path / "my_project"
+        scaffold_project(project_dir)
+
+        result = validate_project(project_dir / "config")
+        assert result.config.data.views == {}
+        assert result.config.data.features_view is None
+
 
 # -----------------------------------------------------------------------
 # Tests: error handling

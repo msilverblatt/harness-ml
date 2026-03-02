@@ -30,6 +30,8 @@ def _pipeline_yaml(
         "outputs_dir": "outputs",
         "task": task,
         "target_column": target_column,
+        "views": {},
+        "features_view": None,
     }
     if key_columns:
         data_config["key_columns"] = key_columns
