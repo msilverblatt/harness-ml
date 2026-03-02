@@ -88,7 +88,7 @@ class TransformationReport:
     def get_create_commands(self) -> list[dict]:
         """Return feature creation dicts for best non-raw transformations.
 
-        Ready to pass to create_features_batch().
+        Ready to pass to add_features_batch().
         """
         commands = []
         for feat in self.suggested_features:
@@ -117,12 +117,16 @@ def _find_top_interaction_partners(
     feature_col: str,
     target_col: str,
     n: int = 5,
+    feature_columns: list[str] | None = None,
 ) -> list[str]:
     """Find the top N features most correlated with the given feature."""
-    numeric_cols = [
-        c for c in df.select_dtypes(include=[np.number]).columns
-        if c != feature_col and c != target_col and c.startswith("diff_")
-    ]
+    if feature_columns is not None:
+        numeric_cols = [c for c in feature_columns if c != feature_col and c != target_col]
+    else:
+        numeric_cols = [
+            c for c in df.select_dtypes(include=[np.number]).columns
+            if c != feature_col and c != target_col
+        ]
 
     correlations = []
     series = df[feature_col]
@@ -147,6 +151,8 @@ def run_transformation_tests(
     test_interactions: bool = True,
     top_interaction_partners: int = 5,
     features_dir: str | None = None,
+    features_file: str | None = None,
+    feature_columns: list[str] | None = None,
 ) -> TransformationReport:
     """Automatically test mathematical transformations of features.
 
@@ -188,12 +194,15 @@ def run_transformation_tests(
     """
     project_dir = Path(project_dir)
 
+    from easyml.runner.data_utils import get_features_path, load_data_config
+
     if features_dir is not None:
         feat_dir = Path(features_dir)
+        parquet_path = feat_dir / (features_file or "features.parquet")
     else:
-        feat_dir = project_dir / "data" / "features"
+        config = load_data_config(project_dir)
+        parquet_path = get_features_path(project_dir, config)
 
-    parquet_path = feat_dir / "matchup_features.parquet"
     if not parquet_path.exists():
         raise FileNotFoundError(f"Features not found: {parquet_path}")
 
@@ -258,6 +267,7 @@ def run_transformation_tests(
         if test_interactions:
             partners = _find_top_interaction_partners(
                 df, feature_col, target_col, n=top_interaction_partners,
+                feature_columns=feature_columns,
             )
             for partner in partners:
                 partner_series = df[partner].astype(float)
@@ -296,9 +306,8 @@ def run_transformation_tests(
             if best.transformation != "raw" and best.improvement > 0:
                 # Generate a clean feature name
                 trans_suffix = best.transformation.replace("(", "_").replace(")", "")
-                feat_base = feature_col.replace("diff_", "")
                 suggested_features.append({
-                    "name": f"{trans_suffix}_{feat_base}",
+                    "name": f"{trans_suffix}_{feature_col}",
                     "formula": best.formula,
                     "description": (
                         f"{best.transformation} of {feature_col} "

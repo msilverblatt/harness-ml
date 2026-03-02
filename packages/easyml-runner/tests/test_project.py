@@ -40,7 +40,7 @@ def project_dir(tmp_path) -> Path:
         "diff_leaky_stat": rng.normal(0, 1, size=n),
     })
 
-    df.to_parquet(features_dir / "matchup_features.parquet")
+    df.to_parquet(features_dir / "features.parquet")
 
     # Create config dir (needed for PipelineRunner guards)
     (project / "config").mkdir(parents=True)
@@ -459,8 +459,8 @@ class TestProviderModels:
         with pytest.raises(ValueError, match="cycle"):
             project.build()
 
-    def test_team_level_requires_team_features_path(self, project):
-        """Team-level provider without team_features_path raises."""
+    def test_team_level_provider_builds(self, project):
+        """Team-level provider builds without errors."""
         project.add_model(
             "survival", "survival",
             features=["diff_seed_num"],
@@ -472,8 +472,8 @@ class TestProviderModels:
             "consumer", "xgboost",
             features=["diff_seed_num", "diff_surv_e8"],
         )
-        with pytest.raises(ValueError, match="team_features_path"):
-            project.build()
+        config = project.build()
+        assert config.models["survival"].provides_level == "team"
 
     def test_provides_level_stored(self, project):
         """provides_level is correctly stored in config."""
@@ -495,7 +495,6 @@ class TestProviderModels:
         project = Project(project_dir)
         project.set_data(
             features_dir="data/features",
-            team_features_path="data/features/team_features.parquet",
         )
         project.add_model(
             "survival", "survival",

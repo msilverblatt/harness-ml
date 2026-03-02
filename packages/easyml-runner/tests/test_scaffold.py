@@ -77,6 +77,7 @@ class TestScaffoldDirectories:
             "data/raw",
             "data/processed",
             "data/features",
+            "outputs",
             "features",
             "experiments",
             "models",
@@ -119,15 +120,12 @@ class TestScaffoldValidation:
         assert result.config.data.raw_dir == "data/raw"
         assert result.config.data.features_dir == "data/features"
 
-    def test_scaffolded_config_has_model(self, tmp_path):
+    def test_scaffolded_config_has_empty_models(self, tmp_path):
         project_dir = tmp_path / "my_project"
         scaffold_project(project_dir)
 
         result = validate_project(project_dir / "config")
-        assert "logreg_baseline" in result.config.models
-        model = result.config.models["logreg_baseline"]
-        assert model.type == "logistic_regression"
-        assert model.active is True
+        assert len(result.config.models) == 0
 
     def test_scaffolded_config_has_ensemble(self, tmp_path):
         project_dir = tmp_path / "my_project"

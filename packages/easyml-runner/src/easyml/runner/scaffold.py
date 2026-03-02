@@ -14,15 +14,30 @@ import yaml
 # YAML templates
 # -----------------------------------------------------------------------
 
-def _pipeline_yaml() -> dict:
+def _pipeline_yaml(
+    *,
+    task: str = "classification",
+    target_column: str = "result",
+    key_columns: list[str] | None = None,
+    time_column: str | None = None,
+) -> dict:
     """Generate pipeline.yaml template with DataConfig + BacktestConfig."""
+    data_config: dict = {
+        "raw_dir": "data/raw",
+        "processed_dir": "data/processed",
+        "features_dir": "data/features",
+        "features_file": "features.parquet",
+        "outputs_dir": "outputs",
+        "task": task,
+        "target_column": target_column,
+    }
+    if key_columns:
+        data_config["key_columns"] = key_columns
+    if time_column:
+        data_config["time_column"] = time_column
+
     return {
-        "data": {
-            "raw_dir": "data/raw",
-            "processed_dir": "data/processed",
-            "features_dir": "data/features",
-            "gender": "M",
-        },
+        "data": data_config,
         "backtest": {
             "cv_strategy": "leave_one_season_out",
             "seasons": [],
@@ -33,20 +48,9 @@ def _pipeline_yaml() -> dict:
 
 
 def _models_yaml() -> dict:
-    """Generate models.yaml template with a starter logreg_baseline model."""
+    """Generate models.yaml template — empty models dict, ready for user to add."""
     return {
-        "models": {
-            "logreg_baseline": {
-                "type": "logistic_regression",
-                "features": ["feature_a", "feature_b"],
-                "params": {
-                    "C": 1.0,
-                },
-                "active": True,
-                "mode": "classifier",
-                "n_seeds": 1,
-            },
-        },
+        "models": {},
     }
 
 
@@ -205,6 +209,11 @@ def _experiment_log_md() -> str:
 def scaffold_project(
     project_dir: Path,
     project_name: str | None = None,
+    *,
+    task: str = "classification",
+    target_column: str = "result",
+    key_columns: list[str] | None = None,
+    time_column: str | None = None,
 ) -> None:
     """Generate a new easyml project directory structure.
 
@@ -214,6 +223,14 @@ def scaffold_project(
         Path where the project will be created.
     project_name:
         Human-readable project name. Defaults to the directory name.
+    task:
+        ML task type (classification, regression, ranking).
+    target_column:
+        Name of the target column.
+    key_columns:
+        Row identifier columns (e.g. game_id, customer_id).
+    time_column:
+        Column for temporal CV splits (e.g. season, date).
 
     Raises
     ------
@@ -236,6 +253,7 @@ def scaffold_project(
         project_dir / "data" / "raw",
         project_dir / "data" / "processed",
         project_dir / "data" / "features",
+        project_dir / "outputs",
         project_dir / "features",
         project_dir / "experiments",
         project_dir / "models",
@@ -244,7 +262,12 @@ def scaffold_project(
         d.mkdir(parents=True, exist_ok=True)
 
     # Write YAML config files
-    _write_yaml(project_dir / "config" / "pipeline.yaml", _pipeline_yaml())
+    _write_yaml(project_dir / "config" / "pipeline.yaml", _pipeline_yaml(
+        task=task,
+        target_column=target_column,
+        key_columns=key_columns,
+        time_column=time_column,
+    ))
     _write_yaml(project_dir / "config" / "models.yaml", _models_yaml())
     _write_yaml(project_dir / "config" / "ensemble.yaml", _ensemble_yaml())
     _write_yaml(project_dir / "config" / "server.yaml", _server_yaml(project_name))

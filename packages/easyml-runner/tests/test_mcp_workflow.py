@@ -36,7 +36,6 @@ from easyml.runner.feature_discovery import (
     suggest_feature_groups,
     suggest_features,
 )
-from easyml.runner.feature_engine import create_feature, create_features_batch
 from easyml.runner.pipeline_planner import plan_execution
 from easyml.runner.presets import list_presets
 from easyml.runner.scaffold import scaffold_project
@@ -193,26 +192,24 @@ class TestMCPWorkflow:
         assert isinstance(commands, list)
 
     def test_create_custom_feature(self, tmp_path):
-        """Step 4: 'Create this custom feature' → create_feature with formula."""
+        """Step 4: 'Create this custom feature' → add_feature with formula."""
         project_dir, _ = _scaffold_with_data(tmp_path)
 
-        result = create_feature(
+        result = config_writer.add_feature(
             project_dir,
             name="em_barthag_product",
             formula="diff_adj_em * diff_barthag",
-            features_dir=str(project_dir / "data" / "features"),
         )
 
-        assert result.column_added == "em_barthag_product"
-        assert isinstance(result.correlation, float)
-        summary = result.format_summary()
-        assert "em_barthag_product" in summary
+        assert "em_barthag_product" in result
+        assert "Correlation" in result
 
-        # Verify feature was persisted
-        df = pd.read_parquet(
-            project_dir / "data" / "features" / "features.parquet"
+        # Verify feature_def was persisted to pipeline.yaml
+        import yaml
+        pipeline = yaml.safe_load(
+            (project_dir / "config" / "pipeline.yaml").read_text()
         )
-        assert "em_barthag_product" in df.columns
+        assert "em_barthag_product" in pipeline.get("data", {}).get("feature_defs", {})
 
     def test_batch_feature_creation_with_deps(self, tmp_path):
         """Step 4b: Batch create with @-references."""
@@ -223,16 +220,11 @@ class TestMCPWorkflow:
             {"name": "em_tempo", "formula": "@adj_em_sq * diff_tempo"},
         ]
 
-        results = create_features_batch(
-            project_dir,
-            features,
-            features_dir=str(project_dir / "data" / "features"),
-        )
+        result = config_writer.add_features_batch(project_dir, features)
 
-        assert len(results) == 2
-        # First feature should be computed first due to dependency
-        assert results[0].name == "adj_em_sq"
-        assert results[1].name == "em_tempo"
+        assert "Created 2 Features" in result
+        assert "adj_em_sq" in result
+        assert "em_tempo" in result
 
     def test_add_model_with_preset(self, tmp_path):
         """Step 5: 'Add XGBoost with best features' → add_model with preset."""
@@ -317,13 +309,9 @@ class TestMCPWorkflow:
             features=["diff_adj_em"],
         )
 
-        # Remove the scaffolded default
-        config_writer.remove_model(project_dir, "logreg_baseline")
-
         # Show full config
         config_md = config_writer.show_config(project_dir)
         assert "lr_baseline" in config_md
-        assert "logreg_baseline" not in config_md
 
     def test_pipeline_planner_detects_changes(self, tmp_path):
         """Step 9: plan_execution detects config diffs for smart re-runs."""
@@ -428,20 +416,19 @@ class TestMCPWorkflow:
         assert len(report.results) > 0
 
         # 5. Create a custom feature
-        result = create_feature(
+        result = config_writer.add_feature(
             project_dir,
             name="custom_combo",
             formula="diff_adj_em * diff_barthag",
-            features_dir=str(features_dir),
         )
-        assert result.column_added == "custom_combo"
+        assert "custom_combo" in result
 
         # 6. Add model with preset
         config_writer.add_model(
             project_dir,
             "xgb_main",
             preset="xgboost_classifier",
-            features=top_features + [result.column_added],
+            features=top_features + ["custom_combo"],
         )
 
         # 7. Configure backtest
@@ -580,21 +567,22 @@ class TestFeatureToolsGenericColumns:
         """Feature names should NOT be auto-prefixed with diff_."""
         project_dir, _ = _scaffold_with_data(tmp_path)
 
-        result = create_feature(
+        result = config_writer.add_feature(
             project_dir,
             name="revenue_growth",
             formula="diff_adj_em * 2",
-            features_dir=str(project_dir / "data" / "features"),
         )
 
         # Should be "revenue_growth", not "diff_revenue_growth"
-        assert result.column_added == "revenue_growth"
+        assert "revenue_growth" in result
 
-        df = pd.read_parquet(
-            project_dir / "data" / "features" / "features.parquet"
+        # Verify persisted in pipeline.yaml with correct name
+        import yaml
+        pipeline = yaml.safe_load(
+            (project_dir / "config" / "pipeline.yaml").read_text()
         )
-        assert "revenue_growth" in df.columns
-        assert "diff_revenue_growth" not in df.columns
+        feature_defs = pipeline.get("data", {}).get("feature_defs", {})
+        assert "revenue_growth" in feature_defs
 
     def test_feature_discovery_generic_columns(self, tmp_path):
         """Feature discovery should work on non-diff_ columns."""
@@ -761,7 +749,6 @@ class TestPredictAction:
             model_type="logistic_regression",
             features=["diff_adj_em", "diff_barthag", "diff_seed_num"],
         )
-        config_writer.remove_model(project_dir, "logreg_baseline")
         config_writer.configure_backtest(
             project_dir, seasons=[2022, 2023, 2024],
         )
@@ -780,7 +767,6 @@ class TestPredictAction:
             model_type="logistic_regression",
             features=["diff_adj_em", "diff_barthag"],
         )
-        config_writer.remove_model(project_dir, "logreg_baseline")
 
         result = config_writer.run_predict(project_dir, season=2099)
 
@@ -814,3 +800,166 @@ class TestTransformationTesterGeneric:
         )
 
         assert len(report.results) > 0
+
+
+class TestCheckGuardrailsAction:
+    """Test configure(action='check_guardrails')."""
+
+    def test_check_guardrails_passes_clean_project(self, tmp_path):
+        """check_guardrails on a clean project should report all passing."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        config_writer.add_model(
+            project_dir, "lr_safe",
+            model_type="logistic_regression",
+            features=["diff_adj_em", "diff_barthag"],
+        )
+
+        result = config_writer.check_guardrails(project_dir)
+        assert "Guardrail" in result
+        assert "FAIL" not in result or "0 failed" in result.lower()
+
+    def test_check_guardrails_detects_leakage(self, tmp_path):
+        """check_guardrails should detect features on the denylist."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        import yaml
+        sources_path = project_dir / "config" / "sources.yaml"
+        sources = yaml.safe_load(sources_path.read_text()) or {}
+        if "guardrails" not in sources:
+            sources["guardrails"] = {}
+        sources["guardrails"]["feature_leakage_denylist"] = ["leaky_col"]
+        sources_path.write_text(yaml.dump(sources, default_flow_style=False))
+
+        config_writer.add_model(
+            project_dir, "bad_model",
+            model_type="logistic_regression",
+            features=["diff_adj_em", "leaky_col"],
+        )
+
+        result = config_writer.check_guardrails(project_dir)
+        assert "leakage" in result.lower() or "FAIL" in result
+        assert "leaky_col" in result
+
+
+class TestDiagnosticsAction:
+    """Test pipeline(action='diagnostics')."""
+
+    def test_diagnostics_returns_per_model_metrics(self, tmp_path):
+        """diagnostics should show per-model brier, accuracy, ece, log_loss."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+        outputs_dir = project_dir / "outputs"
+        run_dir = outputs_dir / "20260301_120000"
+        preds_dir = run_dir / "predictions"
+        preds_dir.mkdir(parents=True)
+        (run_dir / "diagnostics").mkdir(exist_ok=True)
+
+        import yaml
+        pipeline_path = project_dir / "config" / "pipeline.yaml"
+        pipeline_data = yaml.safe_load(pipeline_path.read_text())
+        pipeline_data["data"]["outputs_dir"] = "outputs"
+        pipeline_path.write_text(yaml.dump(pipeline_data, default_flow_style=False))
+
+        rng = np.random.default_rng(42)
+        n = 100
+        preds_df = pd.DataFrame({
+            "season": [2024] * n,
+            "result": rng.integers(0, 2, n),
+            "prob_model_a": rng.uniform(0.1, 0.9, n),
+            "prob_model_b": rng.uniform(0.2, 0.8, n),
+            "prob_ensemble": rng.uniform(0.15, 0.85, n),
+        })
+        preds_df.to_parquet(preds_dir / "predictions.parquet", index=False)
+
+        result = config_writer.show_diagnostics(project_dir, run_id="20260301_120000")
+
+        assert "Diagnostics" in result or "Per-Model" in result
+        assert "model_a" in result
+        assert "model_b" in result
+        assert "brier" in result.lower() or "Brier" in result
+
+    def test_diagnostics_no_runs(self, tmp_path):
+        """diagnostics with no runs should give a clear error."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        result = config_writer.show_diagnostics(project_dir)
+        assert "Error" in result or "No" in result
+
+
+class TestQuickRunAction:
+    """Test manage_experiments(action='quick_run')."""
+
+    def test_quick_run_creates_and_runs(self, tmp_path):
+        """quick_run should create experiment, write overlay, and run backtest."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        # Need at least one model
+        config_writer.add_model(
+            project_dir, "lr_test",
+            model_type="logistic_regression",
+            features=["diff_adj_em", "diff_barthag"],
+        )
+
+        result = config_writer.quick_run_experiment(
+            project_dir,
+            description="test quick run",
+            overlay='{"models": {"lr_test": {"params": {"C": 0.5}}}}',
+        )
+
+        # Should contain experiment info and either results or an attempt
+        assert "exp-" in result.lower() or "experiment" in result.lower()
+
+    def test_quick_run_requires_description(self, tmp_path):
+        """quick_run without description should error."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        result = config_writer.quick_run_experiment(
+            project_dir,
+            description="",
+            overlay='{}',
+        )
+        assert "Error" in result
+
+
+class TestStatusAction:
+    """Test manage_data(action='status')."""
+
+    def test_status_shows_overview(self, tmp_path):
+        """status should return row count, column count, target info."""
+        project_dir, _ = _scaffold_with_data(tmp_path)
+
+        result = config_writer.feature_store_status(project_dir)
+        assert "Rows" in result
+        assert "Columns" in result
+        assert "result" in result  # target column name from scaffolded config
+
+    def test_status_no_data(self, tmp_path):
+        """status with no feature store should error."""
+        project_dir = tmp_path / "empty"
+        scaffold_project(project_dir, "empty")
+
+        result = config_writer.feature_store_status(project_dir)
+        assert "Error" in result or "No" in result
+
+
+class TestListSourcesAction:
+    """Test manage_data(action='list_sources')."""
+
+    def test_list_sources_empty(self, tmp_path):
+        """list_sources with no registry should say none registered."""
+        project_dir = tmp_path / "nosrc"
+        scaffold_project(project_dir, "nosrc")
+
+        result = config_writer.list_sources(project_dir)
+        assert "No sources" in result
+
+    def test_list_sources_with_data(self, tmp_path):
+        """list_sources after ingest should show the source."""
+        project_dir, data_path = _scaffold_with_data(tmp_path)
+
+        # Ingest the data so source registry gets populated
+        config_writer.add_dataset(project_dir, str(data_path))
+
+        result = config_writer.list_sources(project_dir)
+        # Should contain source info in the table
+        assert "Data Sources" in result or "sources" in result.lower()

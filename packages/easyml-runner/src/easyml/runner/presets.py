@@ -19,7 +19,6 @@ _PRESETS: dict[str, dict[str, Any]] = {
             "n_estimators": 1000,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
-            "early_stopping_rounds": 50,
         },
     },
     "xgboost_regressor": {

@@ -1,18 +1,18 @@
-"""Declarative feature creation from formula expressions.
+"""Feature formula evaluation and computation helpers.
 
 Provides safe formula evaluation (no eval/exec) using pd.eval with a
 restricted namespace.  Column names resolve to DataFrame columns,
 @feature_name references resolve to previously created features, and a
 whitelist of numpy functions is exposed.
 
-Typical usage via the `create_feature` or `create_features_batch` helpers.
+Used internally by FeatureStore for formula-based features, regime
+conditions, and pairwise computations.
 """
 from __future__ import annotations
 
 import logging
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -106,19 +106,18 @@ def _resolve_formula(
     resolved = formula
     for match in _FEATURE_REF_PATTERN.finditer(formula):
         ref_name = match.group(1)
-        col_name = ref_name if ref_name.startswith("diff_") else f"diff_{ref_name}"
         if ref_name in created_features:
             var_name = f"_ref_{ref_name}"
             namespace[var_name] = created_features[ref_name]
             token_map[f"@{ref_name}"] = var_name
-        elif col_name in df.columns:
+        elif ref_name in df.columns:
             var_name = f"_ref_{ref_name}"
-            namespace[var_name] = df[col_name]
+            namespace[var_name] = df[ref_name]
             token_map[f"@{ref_name}"] = var_name
         else:
             raise ValueError(
                 f"Feature reference @{ref_name} not found. "
-                f"No column '{col_name}' and no created feature '{ref_name}'."
+                f"No column '{ref_name}' and no created feature '{ref_name}'."
             )
 
     # Apply @-reference replacements (longest first to avoid partial matches)
@@ -218,183 +217,6 @@ def _check_redundancy(
     return redundant
 
 
-def create_feature(
-    project_dir: Path,
-    name: str,
-    formula: str,
-    *,
-    description: str = "",
-    target_col: str = "result",
-    features_dir: str | None = None,
-    save: bool = True,
-) -> FeatureResult:
-    """Create a new feature from a formula expression.
-
-    Formulas can reference:
-    - Existing columns: diff_adj_em, diff_barthag
-    - Other created features: @my_custom_feature (@ prefix)
-    - Math: +, -, *, /, **, abs(), log(), sqrt(), cbrt()
-
-    Examples::
-
-        "diff_adj_em * diff_barthag"
-        "log(abs(diff_adj_em) + 1)"  (though log() already applies abs+1)
-        "diff_adj_em / (diff_barthag + 0.001)"
-        "@efficiency_ratio * diff_seed_num"
-
-    Parameters
-    ----------
-    project_dir : Path
-        Root project directory.
-    name : str
-        Feature name. Auto-prefixed with diff_ if needed.
-    formula : str
-        Formula expression.
-    description : str
-        Optional description.
-    target_col : str
-        Target column for correlation.
-    features_dir : str | None
-        Override features directory path.
-    save : bool
-        If True, save the updated parquet. If False, just compute and return.
-
-    Returns
-    -------
-    FeatureResult
-        Summary with correlation, stats, redundancy info.
-    """
-    project_dir = Path(project_dir)
-
-    if features_dir is not None:
-        feat_dir = Path(features_dir)
-    else:
-        feat_dir = project_dir / "data" / "features"
-
-    parquet_path = feat_dir / "matchup_features.parquet"
-    if not parquet_path.exists():
-        raise FileNotFoundError(f"Features not found: {parquet_path}")
-
-    df = pd.read_parquet(parquet_path)
-
-    # Determine column name
-    col_name = name if name.startswith("diff_") else f"diff_{name}"
-
-    # Evaluate formula
-    series = _resolve_formula(formula, df)
-
-    # Compute correlation with target
-    correlation = 0.0
-    if target_col in df.columns:
-        try:
-            correlation = float(series.corr(df[target_col].astype(float)))
-            if np.isnan(correlation):
-                correlation = 0.0
-        except (TypeError, ValueError):
-            pass
-
-    # Compute stats
-    stats = _compute_feature_stats(series)
-    null_rate = float(series.isna().mean())
-
-    # Check redundancy
-    redundant_with = _check_redundancy(series, df)
-
-    # Add to DataFrame and save
-    if save:
-        df[col_name] = series
-        df.to_parquet(parquet_path, index=False)
-        logger.info("Created feature %s from formula: %s", col_name, formula)
-
-    return FeatureResult(
-        name=name,
-        column_added=col_name,
-        correlation=correlation,
-        abs_correlation=abs(correlation),
-        redundant_with=redundant_with,
-        null_rate=null_rate,
-        stats=stats,
-        description=description,
-    )
-
-
-def create_features_batch(
-    project_dir: Path,
-    features: list[dict],
-    *,
-    target_col: str = "result",
-    features_dir: str | None = None,
-) -> list[FeatureResult]:
-    """Create multiple features, respecting dependency order.
-
-    Each dict: ``{"name": str, "formula": str, "description": str (optional)}``
-
-    Resolves @references between features in the batch.
-    Dependencies are resolved via topological ordering.
-    """
-    project_dir = Path(project_dir)
-
-    if features_dir is not None:
-        feat_dir = Path(features_dir)
-    else:
-        feat_dir = project_dir / "data" / "features"
-
-    parquet_path = feat_dir / "matchup_features.parquet"
-    if not parquet_path.exists():
-        raise FileNotFoundError(f"Features not found: {parquet_path}")
-
-    df = pd.read_parquet(parquet_path)
-    created: dict[str, pd.Series] = {}
-    results: list[FeatureResult] = []
-
-    # Build dependency graph for topological sort
-    feature_names = {f["name"] for f in features}
-    ordered = _topological_sort_features(features, feature_names)
-
-    for feat_def in ordered:
-        name = feat_def["name"]
-        formula = feat_def["formula"]
-        description = feat_def.get("description", "")
-
-        col_name = name if name.startswith("diff_") else f"diff_{name}"
-
-        series = _resolve_formula(formula, df, created_features=created)
-        created[name] = series
-
-        # Compute correlation
-        correlation = 0.0
-        if target_col in df.columns:
-            try:
-                correlation = float(series.corr(df[target_col].astype(float)))
-                if np.isnan(correlation):
-                    correlation = 0.0
-            except (TypeError, ValueError):
-                pass
-
-        stats = _compute_feature_stats(series)
-        null_rate = float(series.isna().mean())
-        redundant_with = _check_redundancy(series, df)
-
-        df[col_name] = series
-
-        results.append(FeatureResult(
-            name=name,
-            column_added=col_name,
-            correlation=correlation,
-            abs_correlation=abs(correlation),
-            redundant_with=redundant_with,
-            null_rate=null_rate,
-            stats=stats,
-            description=description,
-        ))
-
-    # Save once at the end
-    df.to_parquet(parquet_path, index=False)
-    logger.info("Created %d features in batch", len(results))
-
-    return results
-
-
 def _topological_sort_features(
     features: list[dict],
     feature_names: set[str],
@@ -404,7 +226,8 @@ def _topological_sort_features(
     deps: dict[str, set[str]] = {}
 
     for f in features:
-        refs = set(_FEATURE_REF_PATTERN.findall(f["formula"]))
+        formula = f.get("formula") or ""
+        refs = set(_FEATURE_REF_PATTERN.findall(formula))
         # Only track deps on features in this batch
         deps[f["name"]] = refs & feature_names
 

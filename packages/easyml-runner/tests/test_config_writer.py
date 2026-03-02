@@ -503,19 +503,24 @@ class TestAddFeatureDeclarative:
     def test_no_type_no_formula_raises(self, tmp_path):
         """Calling add_feature without type or formula raises ValueError."""
         project = _setup_declarative_project(tmp_path)
-        with pytest.raises(ValueError, match="Either type= or formula="):
+        with pytest.raises(ValueError, match="Must provide type, formula, condition, or source"):
             add_feature(project, "bad_feature")
 
 
 class TestAddFeatureBackwardCompat:
-    """Test add_feature backward compatibility — formula-only path."""
+    """Test add_feature backward compatibility — formula-only path.
 
-    def test_formula_only_backward_compat(self, tmp_path):
-        """add_feature(name, formula) still works without type= (backward compat)."""
+    When no type= is specified but formula is given, type defaults to pairwise
+    and the feature is created via the FeatureStore.
+    """
+
+    def test_formula_only_infers_pairwise(self, tmp_path):
+        """add_feature(name, formula) infers type=pairwise."""
         project = _setup_project(tmp_path)
         result = add_feature(project, "combo", formula="diff_x * diff_y")
-        assert "Created" in result or "combo" in result
-        assert "Correlation" in result.lower() or "correlation" in result.lower()
+        assert "combo" in result
+        assert "pairwise" in result.lower()
+        assert "Correlation" in result
 
     def test_formula_with_description(self, tmp_path):
         """Formula path includes description."""
@@ -526,6 +531,19 @@ class TestAddFeatureBackwardCompat:
             description="Sum of diffs",
         )
         assert "Sum of diffs" in result
+
+    def test_formula_persists_to_yaml(self, tmp_path):
+        """Formula-only features are persisted to pipeline.yaml as feature_defs."""
+        project = _setup_project(tmp_path)
+        add_feature(project, "combo", formula="diff_x * diff_y")
+
+        pipeline = yaml.safe_load(
+            (project / "config" / "pipeline.yaml").read_text()
+        )
+        feature_defs = pipeline.get("data", {}).get("feature_defs", {})
+        assert "combo" in feature_defs
+        assert feature_defs["combo"]["type"] == "pairwise"
+        assert feature_defs["combo"]["formula"] == "diff_x * diff_y"
 
 
 # -----------------------------------------------------------------------

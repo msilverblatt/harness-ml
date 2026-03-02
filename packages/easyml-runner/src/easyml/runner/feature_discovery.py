@@ -24,7 +24,7 @@ def compute_feature_correlations(
     df: pd.DataFrame,
     target_col: str = "result",
     top_n: int = 20,
-    feature_prefix: str = "diff_",
+    feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
     """Compute correlation of each feature with the target variable.
 
@@ -36,8 +36,9 @@ def compute_feature_correlations(
         Name of the target column.
     top_n : int
         Return at most this many features (0 = all).
-    feature_prefix : str
-        Only consider columns starting with this prefix.
+    feature_columns : list[str] | None
+        Explicit list of feature columns. If None, uses all numeric
+        columns except target.
 
     Returns
     -------
@@ -45,10 +46,13 @@ def compute_feature_correlations(
         Columns: [feature, correlation, abs_correlation], sorted by
         abs_correlation descending.
     """
-    feature_cols = [
-        c for c in df.columns
-        if c.startswith(feature_prefix) and c != target_col
-    ]
+    if feature_columns is not None:
+        feature_cols = [c for c in feature_columns if c != target_col and c in df.columns]
+    else:
+        feature_cols = [
+            c for c in df.select_dtypes(include=[np.number]).columns
+            if c != target_col
+        ]
     if not feature_cols:
         return pd.DataFrame(columns=["feature", "correlation", "abs_correlation"])
 
@@ -74,7 +78,7 @@ def compute_feature_importance(
     df: pd.DataFrame,
     target_col: str = "result",
     method: str = "xgboost",
-    feature_prefix: str = "diff_",
+    feature_columns: list[str] | None = None,
     top_n: int = 20,
 ) -> pd.DataFrame:
     """Quick feature importance via a lightweight model or statistical method.
@@ -85,16 +89,22 @@ def compute_feature_importance(
         - ``"xgboost"``: Fits a small XGBoost classifier, returns gain-based
           importance.
         - ``"mutual_info"``: sklearn mutual_info_classif.
+    feature_columns : list[str] | None
+        Explicit list of feature columns. If None, uses all numeric
+        columns except target.
 
     Returns
     -------
     pd.DataFrame
         Columns: [feature, importance], sorted descending.
     """
-    feature_cols = [
-        c for c in df.columns
-        if c.startswith(feature_prefix) and c != target_col
-    ]
+    if feature_columns is not None:
+        feature_cols = [c for c in feature_columns if c != target_col and c in df.columns]
+    else:
+        feature_cols = [
+            c for c in df.select_dtypes(include=[np.number]).columns
+            if c != target_col
+        ]
     if not feature_cols:
         return pd.DataFrame(columns=["feature", "importance"])
 
@@ -179,7 +189,7 @@ def _importance_mutual_info(
 def detect_redundant_features(
     df: pd.DataFrame,
     threshold: float = 0.95,
-    feature_prefix: str = "diff_",
+    feature_columns: list[str] | None = None,
 ) -> list[tuple[str, str, float]]:
     """Find pairs of features with absolute correlation above *threshold*.
 
@@ -187,6 +197,8 @@ def detect_redundant_features(
     ----------
     threshold : float
         Minimum absolute correlation to flag as redundant.
+    feature_columns : list[str] | None
+        Explicit list of feature columns. If None, uses all numeric columns.
 
     Returns
     -------
@@ -195,7 +207,10 @@ def detect_redundant_features(
         correlation descending.  Only the upper triangle is returned
         (no duplicates).
     """
-    feature_cols = [c for c in df.columns if c.startswith(feature_prefix)]
+    if feature_columns is not None:
+        feature_cols = [c for c in feature_columns if c in df.columns]
+    else:
+        feature_cols = list(df.select_dtypes(include=[np.number]).columns)
     if len(feature_cols) < 2:
         return []
 
@@ -218,30 +233,31 @@ def detect_redundant_features(
 
 def suggest_feature_groups(
     df: pd.DataFrame,
-    feature_prefix: str = "diff_",
+    feature_columns: list[str] | None = None,
 ) -> dict[str, list[str]]:
     """Group features by common prefix.
 
-    Groups by the prefix up to the *second-to-last* underscore after
-    removing the leading ``diff_``.  For example:
+    Groups by the first underscore-delimited segment of the column name.
+    For example:
 
-    - ``diff_bt_barthag``, ``diff_bt_adj_o`` → group ``bt``
-    - ``diff_sr_srs``, ``diff_sr_sos`` → group ``sr``
-    - ``diff_seed_num`` → group ``seed``
-    - ``diff_scoring_margin`` → group ``scoring``
+    - ``user_age``, ``user_tenure`` → group ``user``
+    - ``market_vix``, ``market_rate`` → group ``market``
+    - ``revenue`` → group ``revenue``
 
     Returns
     -------
     dict[str, list[str]]
         Group name → sorted list of feature names.
     """
-    feature_cols = sorted(c for c in df.columns if c.startswith(feature_prefix))
+    if feature_columns is not None:
+        feature_cols = sorted(c for c in feature_columns if c in df.columns)
+    else:
+        feature_cols = sorted(df.select_dtypes(include=[np.number]).columns)
+
     groups: dict[str, list[str]] = {}
 
     for col in feature_cols:
-        # Strip the "diff_" prefix, then take the first segment
-        stripped = col[len(feature_prefix):]
-        parts = stripped.split("_")
+        parts = col.split("_")
         group_name = parts[0] if parts else "other"
         groups.setdefault(group_name, []).append(col)
 
@@ -257,7 +273,7 @@ def suggest_features(
     count: int = 10,
     target_col: str = "result",
     method: str = "xgboost",
-    feature_prefix: str = "diff_",
+    feature_columns: list[str] | None = None,
     exclude: list[str] | None = None,
 ) -> list[str]:
     """Suggest the top *count* features for a model.
@@ -270,6 +286,9 @@ def suggest_features(
     ----------
     count : int
         Number of features to suggest.
+    feature_columns : list[str] | None
+        Explicit list of feature columns. If None, uses all numeric
+        columns except target.
     exclude : list[str] | None
         Features to exclude from suggestions.
 
@@ -280,14 +299,14 @@ def suggest_features(
     """
     importance = compute_feature_importance(
         df, target_col=target_col, method=method,
-        feature_prefix=feature_prefix, top_n=0,
+        feature_columns=feature_columns, top_n=0,
     )
     if importance.empty:
         return []
 
     exclude_set = set(exclude or [])
     redundant_pairs = detect_redundant_features(
-        df, threshold=0.95, feature_prefix=feature_prefix,
+        df, threshold=0.95, feature_columns=feature_columns,
     )
 
     # Build a set of features to skip (less important member of redundant pairs)

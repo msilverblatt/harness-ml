@@ -17,7 +17,7 @@ from easyml.runner.transformation_tester import (
 
 
 def _make_features_parquet(path: Path, n: int = 300) -> None:
-    """Create a base matchup_features.parquet with several features."""
+    """Create a base features.parquet with several features."""
     rng = np.random.default_rng(42)
     result = rng.integers(0, 2, size=n)
     df = pd.DataFrame({
@@ -71,16 +71,21 @@ class TestFindInteractionPartners:
         assert "diff_x" not in partners
         assert "result" not in partners
 
-    def test_excludes_non_diff_columns(self):
+    def test_respects_feature_columns_filter(self):
         rng = np.random.default_rng(42)
         n = 100
         df = pd.DataFrame({
             "diff_x": rng.standard_normal(n),
-            "season": rng.choice([2022, 2023], size=n),
+            "season": rng.choice([2022, 2023], size=n).astype(float),
+            "other_col": rng.standard_normal(n),
             "result": rng.integers(0, 2, size=n),
         })
-        partners = _find_top_interaction_partners(df, "diff_x", "result")
+        # When feature_columns is specified, only those are considered as partners
+        partners = _find_top_interaction_partners(
+            df, "diff_x", "result", feature_columns=["diff_x", "other_col"]
+        )
         assert "season" not in partners
+        assert "result" not in partners
 
 
 class TestTestTransformations:
@@ -89,7 +94,7 @@ class TestTestTransformations:
     def test_standard_transformations(self, tmp_path):
         """Tests all standard transformations on a feature."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -108,7 +113,7 @@ class TestTestTransformations:
     def test_interactions_tested(self, tmp_path):
         """With interactions enabled, tests multiply/divide/subtract with partners."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -127,7 +132,7 @@ class TestTestTransformations:
     def test_improvement_calculation(self, tmp_path):
         """Improvement is calculated vs raw baseline."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -147,7 +152,7 @@ class TestTestTransformations:
     def test_best_per_feature_populated(self, tmp_path):
         """best_per_feature dict is populated."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -161,7 +166,7 @@ class TestTestTransformations:
     def test_suggested_features_populated(self, tmp_path):
         """Suggested features include non-raw improvements."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         # diff_z is correlated with target, so transformations may improve it
         report = run_transformation_tests(
@@ -178,7 +183,7 @@ class TestTestTransformations:
     def test_format_summary_produces_markdown(self, tmp_path):
         """format_summary produces markdown table."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -194,7 +199,7 @@ class TestTestTransformations:
     def test_get_create_commands(self, tmp_path):
         """get_create_commands returns valid feature defs."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -212,7 +217,7 @@ class TestTestTransformations:
     def test_zero_safe_transformations(self, tmp_path):
         """Transformations handle zeros safely."""
         feat_dir = tmp_path / "data" / "features"
-        parquet_path = feat_dir / "matchup_features.parquet"
+        parquet_path = feat_dir / "features.parquet"
         rng = np.random.default_rng(42)
         n = 100
         df = pd.DataFrame({
@@ -234,7 +239,7 @@ class TestTestTransformations:
     def test_subset_transformations(self, tmp_path):
         """Can specify a subset of transformations."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,
@@ -249,7 +254,7 @@ class TestTestTransformations:
     def test_missing_feature_skipped(self, tmp_path):
         """Missing features are skipped with a warning."""
         feat_dir = tmp_path / "data" / "features"
-        _make_features_parquet(feat_dir / "matchup_features.parquet")
+        _make_features_parquet(feat_dir / "features.parquet")
 
         report = run_transformation_tests(
             project_dir=tmp_path,

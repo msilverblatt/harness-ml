@@ -395,6 +395,19 @@ class FeatureStore:
         return pairwise_names
 
     # ------------------------------------------------------------------
+    # @-reference support
+    # ------------------------------------------------------------------
+
+    def _get_created_features(self, matchup_df: pd.DataFrame) -> dict[str, pd.Series]:
+        """Gather cached features for @-reference resolution in formulas."""
+        created: dict[str, pd.Series] = {}
+        for name, entry in self._cache._entries.items():
+            cached = self._cache.get(name, entry.cache_key)
+            if cached is not None and len(cached) == len(matchup_df):
+                created[name] = cached
+        return created
+
+    # ------------------------------------------------------------------
     # Pairwise formula features
     # ------------------------------------------------------------------
 
@@ -406,7 +419,8 @@ class FeatureStore:
             )
 
         matchup_df = self._load_matchup_data()
-        series = _resolve_formula(feature.formula, matchup_df)
+        created_features = self._get_created_features(matchup_df)
+        series = _resolve_formula(feature.formula, matchup_df, created_features=created_features)
 
         cache_key = self._cache.compute_key(
             name=feature.name,
@@ -453,7 +467,8 @@ class FeatureStore:
         matchup_df = self._load_matchup_data()
 
         if feature.formula is not None:
-            series = _resolve_formula(feature.formula, matchup_df)
+            created_features = self._get_created_features(matchup_df)
+            series = _resolve_formula(feature.formula, matchup_df, created_features=created_features)
         else:
             col_name = feature.column or feature.name
             if col_name not in matchup_df.columns:
@@ -511,7 +526,8 @@ class FeatureStore:
             )
 
         matchup_df = self._load_matchup_data()
-        raw = _resolve_formula(condition, matchup_df)
+        created_features = self._get_created_features(matchup_df)
+        raw = _resolve_formula(condition, matchup_df, created_features=created_features)
         # Coerce to 0/1 integer
         series = raw.astype(bool).astype(int).astype(float)
 

@@ -119,12 +119,12 @@ class TestOverlay:
     def test_overlay_merges(self, tmp_path):
         _setup_minimal(tmp_path)
         overlay = {
-            "data": {"gender": "W"},
+            "data": {"task": "regression"},
             "ensemble": {"temperature": 0.9},
         }
         result = validate_project(tmp_path, overlay=overlay)
         assert result.valid, f"Errors: {result.format()}"
-        assert result.config.data.gender == "W"
+        assert result.config.data.task == "regression"
         assert result.config.ensemble.temperature == 0.9
 
     def test_overlay_can_add_model(self, tmp_path):
@@ -214,25 +214,25 @@ class TestVariantLoading:
     """Variant loading (e.g. pipeline_w.yaml)."""
 
     def test_variant_uses_variant_file(self, tmp_path):
-        # Create both pipeline.yaml and pipeline_w.yaml
+        # Create both pipeline.yaml and pipeline_v2.yaml
         _write_yaml(tmp_path / "pipeline.yaml", _minimal_pipeline())
-        women_pipeline = _minimal_pipeline()
-        women_pipeline["data"]["gender"] = "W"
-        _write_yaml(tmp_path / "pipeline_w.yaml", women_pipeline)
+        variant_pipeline = _minimal_pipeline()
+        variant_pipeline["data"]["task"] = "regression"
+        _write_yaml(tmp_path / "pipeline_v2.yaml", variant_pipeline)
         _write_yaml(tmp_path / "models.yaml", _minimal_models())
         _write_yaml(tmp_path / "ensemble.yaml", _minimal_ensemble())
 
-        result = validate_project(tmp_path, variant="w")
+        result = validate_project(tmp_path, variant="v2")
         assert result.valid, f"Errors: {result.format()}"
-        assert result.config.data.gender == "W"
+        assert result.config.data.task == "regression"
 
     def test_variant_falls_back_to_base(self, tmp_path):
         """If variant file doesn't exist, fall back to base."""
         _setup_minimal(tmp_path)
-        result = validate_project(tmp_path, variant="w")
+        result = validate_project(tmp_path, variant="v2")
         assert result.valid, f"Errors: {result.format()}"
-        # Should get the default gender since no variant file exists
-        assert result.config.data.gender == "M"
+        # Should get the default task since no variant file exists
+        assert result.config.data.task == "classification"
 
 
 class TestMultiSectionPipeline:
@@ -242,10 +242,10 @@ class TestMultiSectionPipeline:
         """Loads a pipeline.yaml structured like mm's (data, backtest, features, bracket)."""
         pipeline = {
             "data": {
-                "gender": "M",
                 "raw_dir": "data/raw",
                 "processed_dir": "data/processed",
                 "features_dir": "data/features",
+                "task": "classification",
             },
             "features": {
                 "first_season": 2003,
@@ -273,7 +273,7 @@ class TestMultiSectionPipeline:
         cfg = result.config
 
         # data section parsed
-        assert cfg.data.gender == "M"
+        assert cfg.data.task == "classification"
         assert cfg.data.raw_dir == "data/raw"
 
         # features section mapped to feature_config

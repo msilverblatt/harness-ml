@@ -15,7 +15,19 @@ from easyml.runner.dag import (
     infer_dependencies,
     topological_waves,
 )
-from easyml.runner.data_ingest import IngestResult, ingest_dataset
+from easyml.runner.data_ingest import (
+    IngestResult,
+    drop_duplicates,
+    fill_nulls,
+    ingest_dataset,
+    rename_columns,
+    validate_dataset,
+)
+from easyml.runner.data_utils import (
+    get_feature_columns,
+    get_features_path,
+    load_data_config,
+)
 from easyml.runner.data_profiler import DataProfile, profile_dataset
 from easyml.runner.diagnostics import (
     compute_brier_score,
@@ -50,8 +62,6 @@ from easyml.runner.feature_discovery import (
 )
 from easyml.runner.feature_engine import (
     FeatureResult,
-    create_feature,
-    create_features_batch,
 )
 from easyml.runner.feature_utils import (
     group_features_by_category,
@@ -181,14 +191,14 @@ __all__ = [
     "compute_meta_fingerprint",
     "compute_model_agreement",
     "compute_pooled_metrics",
-    "create_feature",
-    "create_features_batch",
     "detect_cycle",
     "detect_experiment_changes",
+    "drop_duplicates",
     "detect_redundant_features",
     "evaluate_season_predictions",
     "expand_sweep",
     "export_backtest_artifacts",
+    "fill_nulls",
     "format_change_summary",
     "format_delta_table",
     "format_discovery_report",
@@ -197,6 +207,8 @@ __all__ = [
     "generate_markdown_report",
     "generate_pairwise_matchups",
     "generate_server",
+    "get_feature_columns",
+    "get_features_path",
     "get_preset",
     "group_features_by_category",
     "infer_dependencies",
@@ -205,6 +217,7 @@ __all__ = [
     "is_cached",
     "list_presets",
     "load_baseline_metrics",
+    "load_data_config",
     "load_features",
     "load_meta_cache",
     "load_sources",
@@ -213,6 +226,7 @@ __all__ = [
     "predict_single_model",
     "profile_dataset",
     "promote_experiment",
+    "rename_columns",
     "resolve_model_features",
     "run_sweep",
     "run_transformation_tests",
@@ -226,6 +240,7 @@ __all__ = [
     "topological_waves",
     "train_meta_learner_loso",
     "train_single_model",
+    "validate_dataset",
     "validate_model_features",
     "validate_project",
     "validate_registry_coverage",

@@ -56,10 +56,11 @@ class TestCorrelations:
         # Should be sorted descending
         assert result["abs_correlation"].is_monotonic_decreasing
 
-    def test_only_diff_features(self, sample_df):
+    def test_includes_all_numeric_except_target(self, sample_df):
         result = compute_feature_correlations(sample_df)
-        assert all(f.startswith("diff_") for f in result["feature"])
-        assert "non_diff_col" not in result["feature"].values
+        # All numeric columns except "result" should be included
+        assert "non_diff_col" in result["feature"].values
+        assert "result" not in result["feature"].values
 
     def test_strong_signal_ranks_high(self, sample_df):
         result = compute_feature_correlations(sample_df, top_n=3)
@@ -73,11 +74,14 @@ class TestCorrelations:
 
     def test_top_n_zero_returns_all(self, sample_df):
         result = compute_feature_correlations(sample_df, top_n=0)
-        diff_cols = [c for c in sample_df.columns if c.startswith("diff_")]
-        assert len(result) == len(diff_cols)
+        numeric_non_target = [
+            c for c in sample_df.select_dtypes(include=[np.number]).columns
+            if c != "result"
+        ]
+        assert len(result) == len(numeric_non_target)
 
     def test_empty_df_returns_empty(self):
-        df = pd.DataFrame({"result": [1, 0], "non_diff": [1.0, 2.0]})
+        df = pd.DataFrame({"result": [1, 0]})
         result = compute_feature_correlations(df)
         assert len(result) == 0
 
@@ -109,9 +113,11 @@ class TestImportance:
         with pytest.raises(ValueError, match="Unknown importance method"):
             compute_feature_importance(sample_df, method="invalid")
 
-    def test_only_diff_features(self, sample_df):
+    def test_includes_all_numeric_except_target(self, sample_df):
         result = compute_feature_importance(sample_df, top_n=0)
-        assert all(f.startswith("diff_") for f in result["feature"])
+        assert "result" not in result["feature"].values
+        # Should include all numeric non-target columns
+        assert "non_diff_col" in result["feature"].values
 
 
 # -----------------------------------------------------------------------
@@ -148,9 +154,10 @@ class TestRedundancy:
             assert key not in seen, f"Duplicate pair: {key}"
             seen.add(key)
 
-    def test_empty_with_few_features(self):
-        df = pd.DataFrame({"diff_a": [1.0, 2.0], "result": [0, 1]})
-        pairs = detect_redundant_features(df)
+    def test_empty_with_single_feature(self):
+        df = pd.DataFrame({"feat_a": [1.0, 2.0], "result": [0, 1]})
+        # Only one feature column → can't form a pair
+        pairs = detect_redundant_features(df, feature_columns=["feat_a"])
         assert pairs == []
 
 
@@ -159,21 +166,24 @@ class TestRedundancy:
 # -----------------------------------------------------------------------
 
 class TestFeatureGroups:
-    def test_groups_by_prefix(self, sample_df):
+    def test_groups_by_first_segment(self, sample_df):
         groups = suggest_feature_groups(sample_df)
-        assert "bt" in groups  # diff_bt_barthag, diff_bt_adj_o
-        assert "sr" in groups  # diff_sr_srs, diff_sr_sos
-        assert "seed" in groups  # diff_seed_num
+        # All diff_ columns share first segment "diff"
+        assert "diff" in groups
+        # non_diff_col shares first segment "non"
+        assert "non" in groups
 
-    def test_bt_group_has_both(self, sample_df):
+    def test_diff_group_has_all_diff_cols(self, sample_df):
         groups = suggest_feature_groups(sample_df)
-        assert "diff_bt_barthag" in groups["bt"]
-        assert "diff_bt_adj_o" in groups["bt"]
+        diff_group = groups["diff"]
+        assert "diff_bt_barthag" in diff_group
+        assert "diff_bt_adj_o" in diff_group
+        assert "diff_seed_num" in diff_group
 
-    def test_no_non_diff_features(self, sample_df):
+    def test_includes_all_numeric_columns(self, sample_df):
         groups = suggest_feature_groups(sample_df)
         all_features = [f for feats in groups.values() for f in feats]
-        assert all(f.startswith("diff_") for f in all_features)
+        assert "non_diff_col" in all_features
 
 
 # -----------------------------------------------------------------------

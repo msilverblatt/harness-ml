@@ -499,6 +499,26 @@ def list_sources(project_dir: Path) -> str:
 # Feature tools
 # -----------------------------------------------------------------------
 
+def _persist_feature_defs(project_dir: Path, config) -> None:
+    """Write feature_defs back to pipeline.yaml so the runner picks them up."""
+    config_dir = _get_config_dir(project_dir)
+    pipeline_path = config_dir / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    if "data" not in data:
+        data["data"] = {}
+
+    if config.feature_defs:
+        data["data"]["feature_defs"] = {
+            name: feat.model_dump(mode="json")
+            for name, feat in config.feature_defs.items()
+        }
+    elif "feature_defs" in data.get("data", {}):
+        del data["data"]["feature_defs"]
+
+    _save_yaml(pipeline_path, data)
+
+
 def add_feature(
     project_dir: Path,
     name: str,
@@ -512,91 +532,147 @@ def add_feature(
     category: str = "general",
     description: str = "",
 ) -> str:
-    """Create a new feature — declarative (with type) or formula-based.
+    """Create a new feature via the declarative FeatureStore.
 
-    If type is specified, uses the declarative FeatureStore.
-    If only formula is given, uses the existing formula engine (backward compat).
+    All features go through the FeatureStore. If type is not specified,
+    it is inferred: formula -> pairwise, condition -> regime, source -> team.
     """
     project_dir = Path(project_dir)
 
-    if type is not None:
-        from easyml.runner.feature_store import FeatureStore
-        from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
-        from easyml.runner.data_utils import load_data_config
+    from easyml.runner.feature_store import FeatureStore
+    from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+    from easyml.runner.data_utils import load_data_config
 
-        config = load_data_config(project_dir)
-        store = FeatureStore(project_dir, config)
+    config = load_data_config(project_dir)
+    store = FeatureStore(project_dir, config)
 
-        feature_type = FeatureType(type)
-        pw_mode = PairwiseMode(pairwise_mode)
+    # Infer type if not specified
+    if type is None:
+        if formula is not None:
+            type = "pairwise"
+        elif condition is not None:
+            type = "regime"
+        elif source is not None:
+            type = "team"
+        else:
+            raise ValueError(
+                "Must provide type, formula, condition, or source."
+            )
 
-        feature_def = FeatureDef(
-            name=name,
-            type=feature_type,
-            source=source,
-            column=column,
-            formula=formula,
-            condition=condition,
-            pairwise_mode=pw_mode,
-            category=category,
-            description=description,
-        )
+    feature_type = FeatureType(type)
+    pw_mode = PairwiseMode(pairwise_mode)
 
-        result = store.add(feature_def)
+    feature_def = FeatureDef(
+        name=name,
+        type=feature_type,
+        source=source,
+        column=column,
+        formula=formula,
+        condition=condition,
+        pairwise_mode=pw_mode,
+        category=category,
+        description=description,
+    )
 
-        lines = [f"## Added {type} feature: {name}\n"]
-        if description:
-            lines.append(f"_{description}_\n")
+    result = store.add(feature_def)
 
-        if feature_type == FeatureType.TEAM:
-            cache_entry = store._cache._entries.get(name)
-            if cache_entry and cache_entry.derivatives:
-                lines.append("**Auto-generated pairwise:**")
-                matchup_df = store._load_matchup_data()
-                target_col = config.target_column
-                for deriv in cache_entry.derivatives:
-                    try:
-                        deriv_series = store.compute(deriv)
-                        corr = 0.0
-                        if target_col in matchup_df.columns:
-                            corr = float(deriv_series.corr(matchup_df[target_col].astype(float)))
-                            if not isinstance(corr, float) or corr != corr:
-                                corr = 0.0
-                        lines.append(f"- `{deriv}` (r={corr:+.4f})")
-                    except Exception:
-                        lines.append(f"- `{deriv}`")
+    # Persist feature_defs to pipeline.yaml
+    store.save_registry()
+    _persist_feature_defs(project_dir, config)
 
-        lines.append(f"\n- **Correlation**: {result.correlation:+.4f}")
-        lines.append(f"- **Null rate**: {result.null_rate:.1%}")
-        if result.stats:
-            for k, v in result.stats.items():
-                lines.append(f"- **{k.title()}**: {v:.4f}")
-        lines.append(f"- **Category**: {category}")
+    # Format response
+    lines = [f"## Added {type} feature: {name}\n"]
+    if description:
+        lines.append(f"_{description}_\n")
 
-        return "\n".join(lines)
+    if feature_type == FeatureType.TEAM:
+        cache_entry = store._cache._entries.get(name)
+        if cache_entry and cache_entry.derivatives:
+            lines.append("**Auto-generated pairwise:**")
+            matchup_df = store._load_matchup_data()
+            target_col = config.target_column
+            for deriv in cache_entry.derivatives:
+                try:
+                    deriv_series = store.compute(deriv)
+                    corr = 0.0
+                    if target_col in matchup_df.columns:
+                        corr = float(deriv_series.corr(matchup_df[target_col].astype(float)))
+                        if not isinstance(corr, float) or corr != corr:
+                            corr = 0.0
+                    lines.append(f"- `{deriv}` (r={corr:+.4f})")
+                except Exception:
+                    lines.append(f"- `{deriv}`")
 
-    else:
-        if formula is None:
-            raise ValueError("Either type= or formula= must be provided.")
-        from easyml.runner.feature_engine import create_feature
+    lines.append(f"\n- **Correlation**: {result.correlation:+.4f}")
+    lines.append(f"- **Null rate**: {result.null_rate:.1%}")
+    if result.stats:
+        for k, v in result.stats.items():
+            lines.append(f"- **{k.title()}**: {v:.4f}")
+    lines.append(f"- **Category**: {category}")
 
-        result = create_feature(
-            project_dir=project_dir,
-            name=name,
-            formula=formula,
-            description=description,
-        )
-        return result.format_summary()
+    return "\n".join(lines)
 
 
 def add_features_batch(
     project_dir: Path,
     features: list[dict],
 ) -> str:
-    """Create multiple features from formula expressions."""
-    from easyml.runner.feature_engine import create_features_batch
+    """Create multiple features via the declarative FeatureStore.
 
-    results = create_features_batch(Path(project_dir), features)
+    Each dict can include: name, formula, type, source, column, condition,
+    pairwise_mode, category, description. Handles @-references between
+    features via topological ordering.
+    """
+    from easyml.runner.feature_store import FeatureStore
+    from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+    from easyml.runner.data_utils import load_data_config
+    from easyml.runner.feature_engine import _topological_sort_features
+
+    project_dir = Path(project_dir)
+    config = load_data_config(project_dir)
+    store = FeatureStore(project_dir, config)
+
+    # Resolve dependency order
+    feature_names = {f["name"] for f in features}
+    ordered = _topological_sort_features(features, feature_names)
+
+    results = []
+    for feat_dict in ordered:
+        feat_name = feat_dict["name"]
+        feat_formula = feat_dict.get("formula")
+        feat_type = feat_dict.get("type")
+        feat_condition = feat_dict.get("condition")
+        feat_source = feat_dict.get("source")
+
+        # Infer type if not specified
+        if feat_type is None:
+            if feat_formula is not None:
+                feat_type = "pairwise"
+            elif feat_condition is not None:
+                feat_type = "regime"
+            elif feat_source is not None:
+                feat_type = "team"
+            else:
+                feat_type = "pairwise"
+
+        feature_def = FeatureDef(
+            name=feat_name,
+            type=FeatureType(feat_type),
+            formula=feat_formula,
+            source=feat_source,
+            column=feat_dict.get("column"),
+            condition=feat_condition,
+            pairwise_mode=PairwiseMode(feat_dict.get("pairwise_mode", "diff")),
+            category=feat_dict.get("category", "general"),
+            description=feat_dict.get("description", ""),
+        )
+        result = store.add(feature_def)
+        results.append(result)
+
+    # Persist all at once
+    store.save_registry()
+    _persist_feature_defs(project_dir, config)
+
     lines = [f"## Created {len(results)} Features\n"]
     for r in results:
         lines.append(f"- **{r.column_added}** (corr={r.correlation:+.4f})")
