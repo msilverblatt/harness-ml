@@ -253,11 +253,48 @@ def add_dataset(
     features_dir: str | None = None,
     auto_clean: bool = True,
 ) -> str:
-    """Add a new dataset by merging into the features parquet."""
-    from easyml.runner.data_ingest import ingest_dataset
+    """Add a new dataset by merging into the features parquet.
 
+    Uses DataPipeline when sources are configured in DataConfig,
+    falls back to direct ingest otherwise.
+    """
+    from easyml.runner.data_utils import load_data_config
+
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+    except Exception:
+        config = None
+
+    # Use DataPipeline if config has sources configured
+    if config is not None and config.sources:
+        from easyml.runner.data_pipeline import DataPipeline
+        from easyml.runner.schema import SourceConfig
+
+        pipeline = DataPipeline(project_dir, config)
+        name = Path(data_path).stem
+        source = SourceConfig(name=name, path=data_path, join_on=join_on)
+        pipeline.config.sources[name] = source
+        result = pipeline.refresh(sources=[name])
+        cols = result.columns_added.get(name, [])
+        lines = [f"## Ingested: {name}\n"]
+        lines.append(f"- **Columns added**: {len(cols)}")
+        if cols:
+            cols_preview = ", ".join(cols[:10])
+            if len(cols) > 10:
+                cols_preview += f", ... (+{len(cols) - 10} more)"
+            lines.append(f"- **Columns**: {cols_preview}")
+        lines.append("- **Source registered** in pipeline config")
+        if result.errors:
+            lines.append(f"\n### Errors\n")
+            for src, err in result.errors.items():
+                lines.append(f"- {src}: {err}")
+        return "\n".join(lines)
+
+    # Fallback to direct ingest
+    from easyml.runner.data_ingest import ingest_dataset
     result = ingest_dataset(
-        project_dir=Path(project_dir),
+        project_dir=project_dir,
         data_path=data_path,
         join_on=join_on,
         prefix=prefix,
