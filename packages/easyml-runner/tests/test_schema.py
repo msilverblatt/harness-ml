@@ -735,3 +735,74 @@ class TestDataConfigSources:
         """Existing configs without sources still validate."""
         d = DataConfig(raw_dir="data/raw", features_dir="data/features")
         assert d.sources == {}
+
+
+class TestDeclarativeFeatureSchemas:
+    """Test new declarative feature type schemas."""
+
+    def test_feature_type_enum(self):
+        from easyml.runner.schema import FeatureType
+        assert FeatureType.TEAM == "team"
+        assert FeatureType.PAIRWISE == "pairwise"
+        assert FeatureType.MATCHUP == "matchup"
+        assert FeatureType.REGIME == "regime"
+
+    def test_pairwise_mode_enum(self):
+        from easyml.runner.schema import PairwiseMode
+        assert PairwiseMode.DIFF == "diff"
+        assert PairwiseMode.RATIO == "ratio"
+        assert PairwiseMode.BOTH == "both"
+        assert PairwiseMode.NONE == "none"
+
+    def test_feature_def_minimal(self):
+        from easyml.runner.schema import FeatureDef, FeatureType
+        fd = FeatureDef(name="adj_em", type=FeatureType.TEAM)
+        assert fd.name == "adj_em"
+        assert fd.type == FeatureType.TEAM
+        assert fd.pairwise_mode.value == "diff"
+        assert fd.enabled is True
+
+    def test_feature_def_full(self):
+        from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+        fd = FeatureDef(
+            name="adj_em", type=FeatureType.TEAM,
+            source="kenpom", column="AdjEM",
+            pairwise_mode=PairwiseMode.BOTH,
+            category="efficiency",
+            description="Adjusted efficiency margin",
+            nan_strategy="zero",
+        )
+        assert fd.source == "kenpom"
+        assert fd.column == "AdjEM"
+        assert fd.pairwise_mode == PairwiseMode.BOTH
+
+    def test_feature_def_regime(self):
+        from easyml.runner.schema import FeatureDef, FeatureType
+        fd = FeatureDef(name="late_season", type=FeatureType.REGIME, condition="day_num > 100")
+        assert fd.condition == "day_num > 100"
+
+    def test_feature_def_formula(self):
+        from easyml.runner.schema import FeatureDef, FeatureType
+        fd = FeatureDef(name="em_tempo", type=FeatureType.PAIRWISE, formula="diff_adj_em * diff_adj_tempo")
+        assert fd.formula == "diff_adj_em * diff_adj_tempo"
+
+    def test_feature_store_config_defaults(self):
+        from easyml.runner.schema import FeatureStoreConfig
+        fsc = FeatureStoreConfig()
+        assert fsc.cache_dir == "data/features/cache"
+        assert fsc.auto_pairwise is True
+        assert fsc.default_pairwise_mode.value == "diff"
+        assert fsc.entity_a_column == "entity_a_id"
+        assert fsc.entity_b_column == "entity_b_id"
+        assert fsc.entity_column == "entity_id"
+        assert fsc.period_column == "period_id"
+
+    def test_data_config_feature_store(self):
+        from easyml.runner.schema import DataConfig, FeatureDef, FeatureType
+        dc = DataConfig(
+            feature_defs={
+                "adj_em": FeatureDef(name="adj_em", type=FeatureType.TEAM, source="kenpom", column="AdjEM"),
+            }
+        )
+        assert "adj_em" in dc.feature_defs
+        assert dc.feature_store.auto_pairwise is True

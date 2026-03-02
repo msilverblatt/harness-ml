@@ -7,6 +7,7 @@ easyml-schemas) because they are orchestration concerns.
 """
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, field_validator
@@ -25,6 +26,55 @@ class FeatureDecl(BaseModel):
     level: str  # free-form: "entity", "interaction", "regime", "query", etc.
     columns: list[str]
     nan_strategy: str = "median"
+
+
+class FeatureType(str, Enum):
+    """Semantic type of a declarative feature."""
+    TEAM = "team"
+    PAIRWISE = "pairwise"
+    MATCHUP = "matchup"
+    REGIME = "regime"
+
+
+class PairwiseMode(str, Enum):
+    """How to derive pairwise features from team features."""
+    DIFF = "diff"
+    RATIO = "ratio"
+    BOTH = "both"
+    NONE = "none"
+
+
+class FeatureDef(BaseModel):
+    """Declarative feature definition.
+
+    Supports four semantic types:
+    - team: Per-entity per-period metric. Auto-generates pairwise.
+    - pairwise: Per-matchup (A vs B). Derived from team or custom formula.
+    - matchup: Per-game context property.
+    - regime: Temporal/contextual boolean flag.
+    """
+    name: str
+    type: FeatureType
+    source: str | None = None
+    column: str | None = None
+    formula: str | None = None
+    condition: str | None = None
+    pairwise_mode: PairwiseMode = PairwiseMode.DIFF
+    description: str = ""
+    nan_strategy: str = "median"
+    category: str = "general"
+    enabled: bool = True
+
+
+class FeatureStoreConfig(BaseModel):
+    """Configuration for the declarative feature store."""
+    cache_dir: str = "data/features/cache"
+    auto_pairwise: bool = True
+    default_pairwise_mode: PairwiseMode = PairwiseMode.DIFF
+    entity_a_column: str = "entity_a_id"
+    entity_b_column: str = "entity_b_id"
+    entity_column: str = "entity_id"
+    period_column: str = "period_id"
 
 
 class SourceDecl(BaseModel):
@@ -105,6 +155,10 @@ class DataConfig(BaseModel):
     # Data pipeline
     sources: dict[str, SourceConfig] = {}
     default_cleaning: ColumnCleaningRule = ColumnCleaningRule()
+
+    # Declarative feature store
+    feature_store: FeatureStoreConfig = FeatureStoreConfig()
+    feature_defs: dict[str, FeatureDef] = {}
 
 
 # -----------------------------------------------------------------------
