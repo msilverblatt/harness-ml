@@ -1,8 +1,10 @@
 data:
-  gender: M
   raw_dir: data/raw
   processed_dir: data/processed
   features_dir: data/features
+  features_file: matchup_features.parquet
+  task: classification
+  target_column: result
 features:
   first_season: 2003
   momentum_window: 10
