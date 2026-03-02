@@ -54,7 +54,7 @@ class Project:
     Parameters
     ----------
     project_dir : str | Path
-        Root project directory (must contain data/features/matchup_features.parquet).
+        Root project directory (must contain data/features/{features_file}).
     """
 
     def __init__(self, project_dir: str | Path) -> None:
@@ -87,23 +87,40 @@ class Project:
         features_dir: str = "data/features",
         raw_dir: str = "data/raw",
         processed_dir: str = "data/processed",
-        gender: str = "M",
-        team_features_path: str | None = None,
+        features_file: str = "features.parquet",
+        task: str = "classification",
+        target_column: str = "result",
+        key_columns: list[str] | None = None,
+        time_column: str | None = None,
+        exclude_columns: list[str] | None = None,
     ) -> "Project":
-        """Configure data directories.
+        """Configure data directories and ML problem definition.
 
         Parameters
         ----------
-        team_features_path : str | None
-            Path to team-level features parquet (relative to project_dir).
-            Required when any model has provides_level="team".
+        features_file : str
+            Name of the features parquet file (relative to features_dir).
+        task : str
+            ML task type: classification, regression, ranking.
+        target_column : str
+            Column to predict.
+        key_columns : list[str] | None
+            Row identifier columns.
+        time_column : str | None
+            Column for temporal CV splits.
+        exclude_columns : list[str] | None
+            Columns to never use as features.
         """
         self._data = DataConfig(
             raw_dir=raw_dir,
             processed_dir=processed_dir,
             features_dir=features_dir,
-            gender=gender,
-            team_features_path=team_features_path,
+            features_file=features_file,
+            task=task,
+            target_column=target_column,
+            key_columns=key_columns or [],
+            time_column=time_column,
+            exclude_columns=exclude_columns or [],
         )
         # Reset data awareness cache when data config changes
         self._data_columns = None
@@ -115,7 +132,7 @@ class Project:
         if self._data_columns is not None:
             return
 
-        parquet_path = self.project_dir / self._data.features_dir / "matchup_features.parquet"
+        parquet_path = self.project_dir / self._data.features_dir / self._data.features_file
         if not parquet_path.exists():
             logger.warning("Data file not found: %s", parquet_path)
             self._data_columns = set()
@@ -157,7 +174,7 @@ class Project:
             from easyml.runner.data_profiler import profile_dataset
 
             parquet_path = (
-                self.project_dir / self._data.features_dir / "matchup_features.parquet"
+                self.project_dir / self._data.features_dir / self._data.features_file
             )
             self._data_profile = profile_dataset(parquet_path)
         return self._data_profile
@@ -440,7 +457,7 @@ class Project:
         *min_train_seasons* for training.
         """
         parquet_path = (
-            self.project_dir / self._data.features_dir / "matchup_features.parquet"
+            self.project_dir / self._data.features_dir / self._data.features_file
         )
         if not parquet_path.exists():
             return []
@@ -558,16 +575,7 @@ class Project:
         deps = infer_dependencies(self._models, provider_map)
         topological_waves(deps)  # raises ValueError on cycle
 
-        # Check that team-level providers have team_features_path configured
-        has_team_providers = any(
-            m.provides and m.provides_level == "team"
-            for m in self._models.values()
-        )
-        if has_team_providers and not self._data.team_features_path:
-            raise ValueError(
-                "Team-level provider models require team_features_path. "
-                "Call set_data(team_features_path='path/to/team_features.parquet')."
-            )
+        # Team-level provider validation is handled at pipeline runtime
 
     # ------------------------------------------------------------------
     # Run pipeline
@@ -628,25 +636,25 @@ class Project:
         _write_yaml(
             config_dir / "pipeline.yaml",
             {
-                "data": config.data.model_dump(),
-                "backtest": config.backtest.model_dump(),
+                "data": config.data.model_dump(mode="json"),
+                "backtest": config.backtest.model_dump(mode="json"),
             },
         )
 
         _write_yaml(
             config_dir / "models.yaml",
-            {"models": {k: v.model_dump() for k, v in config.models.items()}},
+            {"models": {k: v.model_dump(mode="json") for k, v in config.models.items()}},
         )
 
         _write_yaml(
             config_dir / "ensemble.yaml",
-            {"ensemble": config.ensemble.model_dump()},
+            {"ensemble": config.ensemble.model_dump(mode="json")},
         )
 
         if config.sources:
             _write_yaml(
                 config_dir / "sources.yaml",
-                {"sources": {k: v.model_dump() for k, v in config.sources.items()}},
+                {"sources": {k: v.model_dump(mode="json") for k, v in config.sources.items()}},
             )
 
         return config_dir
