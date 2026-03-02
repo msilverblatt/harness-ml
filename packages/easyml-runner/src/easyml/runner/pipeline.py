@@ -764,6 +764,8 @@ class PipelineRunner:
         if not active_models:
             raise ValueError("No active models to backtest.")
 
+        self._failed_models: set[str] = set()
+
         # Generate CV folds from strategy
         cv_folds = generate_cv_folds(self._df, bt_config)
 
@@ -810,6 +812,14 @@ class PipelineRunner:
         # Generate reporting artifacts
         result = self._generate_report(result, season_data)
 
+        failed = sorted(getattr(self, '_failed_models', set()))
+        result["models_failed"] = failed
+        if failed:
+            result["models_trained"] = [
+                m for m in result.get("models_trained", [])
+                if m not in self._failed_models
+            ]
+
         return result
 
     def _generate_report(
@@ -843,6 +853,8 @@ class PipelineRunner:
 
         # Extract meta-learner coefficients if available
         meta_coefficients = result.get("meta_coefficients")
+        if meta_coefficients is not None:
+            pooled_for_report["meta_coefficients"] = meta_coefficients
 
         report_md = generate_markdown_report(
             pooled_for_report,
@@ -1073,6 +1085,8 @@ class PipelineRunner:
                         "Failed to train/predict %s for season %d",
                         model_name, test_season,
                     )
+                    if hasattr(self, '_failed_models'):
+                        self._failed_models.add(model_name)
                     continue
 
         # Check we got at least one model

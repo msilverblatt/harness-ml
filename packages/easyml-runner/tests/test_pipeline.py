@@ -1055,3 +1055,46 @@ class TestBacktestReporting:
         result = runner.backtest()
 
         assert "Pick Analysis" in result["report"]
+
+
+# -----------------------------------------------------------------------
+# Tests — failed model surfacing
+# -----------------------------------------------------------------------
+
+
+class TestFailedModelsSurfaced:
+    """Failed models during backtest appear in result['models_failed']."""
+
+    def test_failed_model_in_models_failed(self, tmp_path):
+        """A model that fails during training appears in models_failed."""
+        # Use a regressor with 'margin' as target, but margin column is absent
+        # from the data — this causes KeyError during training.
+        models = {
+            "good_model": {
+                "type": "logistic_regression",
+                "features": ["diff_x"],
+                "params": {"max_iter": 200},
+                "active": True,
+            },
+            "bad_regressor": {
+                "type": "xgboost",
+                "features": ["diff_x"],
+                "params": {},
+                "active": True,
+                "mode": "regressor",
+            },
+        }
+        # Note: include_margin=False so 'margin' column is absent
+        config_dir = _setup_project(tmp_path, models=models, include_margin=False)
+        runner = PipelineRunner(
+            project_dir=str(tmp_path),
+            config_dir=str(config_dir),
+        )
+        runner.load()
+        result = runner.backtest()
+
+        assert result["status"] == "success"
+        assert "models_failed" in result
+        assert "bad_regressor" in result["models_failed"]
+        assert "bad_regressor" not in result["models_trained"]
+        assert "good_model" in result["models_trained"]

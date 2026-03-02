@@ -35,6 +35,19 @@ def _get_config_dir(project_dir: Path) -> Path:
     return config_dir
 
 
+def _invalidate_view_cache(project_dir: Path, name: str) -> None:
+    """Remove cached parquet files for a view (and downstream dependents).
+
+    The fingerprint-based cache is self-invalidating on next resolve, but this
+    proactively removes stale files so they don't consume disk space.
+    """
+    cache_dir = Path(project_dir) / "data" / "views" / ".cache"
+    if not cache_dir.exists():
+        return
+    for f in cache_dir.glob(f"{name}_*.parquet"):
+        f.unlink()
+
+
 # -----------------------------------------------------------------------
 # Model tools
 # -----------------------------------------------------------------------
@@ -49,6 +62,8 @@ def add_model(
     params: dict | None = None,
     active: bool = True,
     include_in_ensemble: bool = True,
+    mode: str | None = None,
+    prediction_type: str | None = None,
 ) -> str:
     """Add a model to models.yaml.
 
@@ -74,6 +89,10 @@ def add_model(
         model_def = apply_preset(preset, overrides=params or {})
     elif model_type:
         model_def["type"] = model_type
+        if mode is not None:
+            model_def["mode"] = mode
+        if prediction_type is not None:
+            model_def["prediction_type"] = prediction_type
         if params:
             model_def["params"] = params
     else:
@@ -100,8 +119,12 @@ def add_model(
     )
 
 
-def remove_model(project_dir: Path, name: str) -> str:
-    """Remove a model from models.yaml."""
+def remove_model(project_dir: Path, name: str, *, purge: bool = False) -> str:
+    """Disable or permanently delete a model from models.yaml.
+
+    By default (purge=False) sets active=False and include_in_ensemble=False.
+    Pass purge=True to delete the model entry entirely.
+    """
     config_dir = _get_config_dir(Path(project_dir))
     models_path = config_dir / "models.yaml"
     data = _load_yaml(models_path)
@@ -110,9 +133,76 @@ def remove_model(project_dir: Path, name: str) -> str:
     if name not in models:
         return f"**Error**: Model `{name}` not found."
 
-    del models[name]
+    if purge:
+        del models[name]
+        _save_yaml(models_path, data)
+        return f"**Removed model**: `{name}`"
+
+    models[name]["active"] = False
+    models[name]["include_in_ensemble"] = False
     _save_yaml(models_path, data)
-    return f"**Removed model**: `{name}`"
+    return (
+        f"**Disabled model**: `{name}`\n"
+        f"- Set `active: false`, `include_in_ensemble: false`\n"
+        f"- Use `purge=True` to delete permanently."
+    )
+
+
+def update_model(
+    project_dir: Path,
+    name: str,
+    *,
+    features: list[str] | None = None,
+    params: dict | None = None,
+    active: bool | None = None,
+    include_in_ensemble: bool | None = None,
+    mode: str | None = None,
+    prediction_type: str | None = None,
+) -> str:
+    """Update an existing model in models.yaml.
+
+    Only provided fields are merged — None values keep the existing value.
+    For params, does a dict merge (update, not replace).
+    """
+    config_dir = _get_config_dir(Path(project_dir))
+    models_path = config_dir / "models.yaml"
+    data = _load_yaml(models_path)
+
+    models = data.get("models", {})
+    if name not in models:
+        return f"**Error**: Model `{name}` not found. Available: {sorted(models.keys())}"
+
+    model_def = models[name]
+
+    if features is not None:
+        model_def["features"] = features
+    if params is not None:
+        existing_params = model_def.get("params", {})
+        existing_params.update(params)
+        model_def["params"] = existing_params
+    if active is not None:
+        model_def["active"] = active
+    if include_in_ensemble is not None:
+        model_def["include_in_ensemble"] = include_in_ensemble
+    if mode is not None:
+        model_def["mode"] = mode
+    if prediction_type is not None:
+        model_def["prediction_type"] = prediction_type
+
+    _save_yaml(models_path, data)
+
+    status = "active" if model_def.get("active", True) else "inactive"
+    n_feat = len(model_def.get("features", []))
+    in_ens = "yes" if model_def.get("include_in_ensemble", True) else "no"
+
+    return (
+        f"**Updated model**: `{name}`\n"
+        f"- Type: {model_def.get('type', '?')}\n"
+        f"- Status: {status}\n"
+        f"- Features: {n_feat}\n"
+        f"- Ensemble: {in_ens}\n"
+        f"- Params: {model_def.get('params', {})}"
+    )
 
 
 def show_models(project_dir: Path) -> str:
@@ -168,9 +258,21 @@ def configure_ensemble(
     method: str | None = None,
     temperature: float | None = None,
     exclude_models: list[str] | None = None,
+    calibration: str | None = None,
+    pre_calibration: dict | None = None,
     **kwargs,
 ) -> str:
-    """Update ensemble.yaml configuration."""
+    """Update ensemble.yaml configuration.
+
+    Parameters
+    ----------
+    calibration : str | None
+        Post-ensemble calibration method: 'spline', 'isotonic', 'platt', 'none'.
+    pre_calibration : dict | None
+        Per-model pre-calibration applied before the meta-learner.
+        Maps model_name -> method, e.g. {"xgb_core": "platt"}.
+        Valid methods: 'platt', 'isotonic', 'spline', 'none'.
+    """
     config_dir = _get_config_dir(Path(project_dir))
     ensemble_path = config_dir / "ensemble.yaml"
     data = _load_yaml(ensemble_path)
@@ -186,16 +288,23 @@ def configure_ensemble(
         ens["temperature"] = temperature
     if exclude_models is not None:
         ens["exclude_models"] = exclude_models
+    if calibration is not None:
+        ens["calibration"] = calibration
+    if pre_calibration is not None:
+        ens["pre_calibration"] = pre_calibration
 
     for key, val in kwargs.items():
         ens[key] = val
 
     _save_yaml(ensemble_path, data)
 
+    pre_cal_models = list(ens.get("pre_calibration", {}).keys())
     return (
         f"**Updated ensemble config**\n"
         f"- Method: {ens.get('method', 'average')}\n"
-        f"- Temperature: {ens.get('temperature', 1.0)}"
+        f"- Temperature: {ens.get('temperature', 1.0)}\n"
+        f"- Calibration: {ens.get('calibration', 'spline')}\n"
+        f"- Pre-calibration: {pre_cal_models or 'none'}"
     )
 
 
@@ -306,23 +415,23 @@ def add_dataset(
 
 def profile_data(project_dir: Path, category: str | None = None) -> str:
     """Profile the features dataset."""
-    from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.data_utils import get_features_df, load_data_config
     from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
-    config = None
     try:
         config = load_data_config(project_dir)
-        parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = get_features_path(project_dir, DataConfig())
+        config = DataConfig()
 
-    if not parquet_path.exists():
-        return f"**Error**: Data file not found: {parquet_path}"
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
 
     from easyml.runner.data_profiler import profile_dataset
 
-    profile = profile_dataset(parquet_path, config=config)
+    profile = profile_dataset(config=config, df=df)
 
     if category:
         return profile.format_columns(category=category)
@@ -339,15 +448,13 @@ def available_features(
     If the project uses the declarative feature store, shows features
     grouped by type. Otherwise falls back to column listing.
     """
-    from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.data_utils import get_features_df, load_data_config
     from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
-        parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = get_features_path(project_dir, DataConfig())
         config = DataConfig()
 
     # Check for declarative feature store
@@ -378,10 +485,10 @@ def available_features(
     # Fallback: flat column listing
     import pandas as pd
 
-    if not parquet_path.exists():
-        return f"**Error**: Data file not found: {parquet_path}"
-
-    df = pd.read_parquet(parquet_path)
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
     cols = sorted(df.columns)
     if prefix:
         cols = [c for c in cols if c.startswith(prefix)]
@@ -398,40 +505,44 @@ def available_features(
 def feature_store_status(project_dir: Path) -> str:
     """Quick overview of the feature store state.
 
-    Reads parquet metadata only — does not load full data.
     Returns: row count, column count, target distribution,
-    time column range, source count, last modified time.
+    time column range, source count.
     """
-    from easyml.runner.data_utils import get_features_path, load_data_config
+    from easyml.runner.data_utils import get_features_df, load_data_config
     from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
-        parquet_path = get_features_path(project_dir, config)
     except Exception:
         config = DataConfig()
-        parquet_path = get_features_path(project_dir, config)
-
-    if not parquet_path.exists():
-        return "**Error**: No feature store found. Ingest data first with `manage_data(action='add')`."
 
     import pandas as pd
-    import os
-    from datetime import datetime
 
-    df = pd.read_parquet(parquet_path)
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature store found. Ingest data first with `manage_data(action='add')` or set a features_view."
+
     n_rows = len(df)
     n_cols = len(df.columns)
 
     lines = ["## Feature Store Status\n"]
     lines.append(f"- **Rows**: {n_rows}")
     lines.append(f"- **Columns**: {n_cols}")
-    lines.append(f"- **File**: `{parquet_path.relative_to(project_dir)}`")
 
-    # Last modified
-    mtime = os.path.getmtime(parquet_path)
-    lines.append(f"- **Last modified**: {datetime.fromtimestamp(mtime).isoformat()}")
+    # Show source info
+    if config.features_view:
+        lines.append(f"- **Source**: view `{config.features_view}`")
+    else:
+        import os
+        from datetime import datetime
+        from easyml.runner.data_utils import get_features_path
+        parquet_path = get_features_path(project_dir, config)
+        lines.append(f"- **File**: `{parquet_path.relative_to(project_dir)}`")
+        if parquet_path.exists():
+            mtime = os.path.getmtime(parquet_path)
+            lines.append(f"- **Last modified**: {datetime.fromtimestamp(mtime).isoformat()}")
 
     # Target column distribution
     target_col = config.target_column
@@ -686,25 +797,31 @@ def test_feature_transformations(
     test_interactions: bool = True,
 ) -> str:
     """Test mathematical transformations of features."""
-    from easyml.runner.data_utils import load_data_config
+    from easyml.runner.data_utils import get_features_df, load_data_config
     from easyml.runner.transformation_tester import run_transformation_tests
 
     project_dir = Path(project_dir)
 
-    # Load feature_defs from config when available
+    # Load config and features DataFrame
     feat_defs = None
     try:
         config = load_data_config(project_dir)
         if config.feature_defs:
             feat_defs = dict(config.feature_defs)
     except Exception:
-        pass
+        config = None
+
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
 
     report = run_transformation_tests(
         project_dir=project_dir,
         features=features,
         test_interactions=test_interactions,
         feature_defs=feat_defs,
+        df=df,
     )
     return report.format_summary()
 
@@ -716,23 +833,21 @@ def discover_features(
     method: str = "xgboost",
 ) -> str:
     """Run feature discovery analysis."""
-    from easyml.runner.data_utils import get_feature_columns, get_features_path, load_data_config
+    from easyml.runner.data_utils import get_feature_columns, get_features_df, load_data_config
     from easyml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
         config = load_data_config(project_dir)
-        parquet_path = get_features_path(project_dir, config)
     except Exception:
-        parquet_path = get_features_path(project_dir, DataConfig())
-        config = None
+        config = DataConfig()
 
     import pandas as pd
 
-    if not parquet_path.exists():
-        return f"**Error**: Data file not found: {parquet_path}"
-
-    df = pd.read_parquet(parquet_path)
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
 
     # Get feature columns and feature_defs from config if available
     feature_cols = None
@@ -803,21 +918,48 @@ def experiment_create(
     )
 
 
+def _expand_dot_keys(flat: dict) -> dict:
+    """Expand a flat dict with dot-notation keys into nested dicts.
+
+    Keys that don't contain dots are left as-is.  Keys that do contain dots
+    are expanded into nested structures using ``set_nested_key``.
+
+    Example::
+
+        _expand_dot_keys({"models.xgb.features": ["a", "b"]})
+        # -> {"models": {"xgb": {"features": ["a", "b"]}}}
+    """
+    from easyml.runner.sweep import set_nested_key
+
+    result: dict = {}
+    for key, value in flat.items():
+        if "." in key:
+            set_nested_key(result, key, value)
+        else:
+            result[key] = value
+    return result
+
+
 def write_overlay(
     project_dir: Path,
     experiment_id: str,
     overlay: dict,
 ) -> str:
-    """Write an overlay YAML to an experiment directory."""
+    """Write an overlay YAML to an experiment directory.
+
+    Dot-notation keys (e.g. ``models.xgb_core.features``) are expanded
+    into nested dicts before writing so that ``deep_merge`` can apply them.
+    """
     experiments_dir = Path(project_dir) / "experiments"
     exp_dir = experiments_dir / experiment_id
 
     if not exp_dir.exists():
         return f"**Error**: Experiment directory not found: {exp_dir}"
 
+    nested_overlay = _expand_dot_keys(overlay)
     overlay_path = exp_dir / "overlay.yaml"
     overlay_path.write_text(
-        yaml.dump(overlay, default_flow_style=False, sort_keys=False)
+        yaml.dump(nested_overlay, default_flow_style=False, sort_keys=False)
     )
 
     return (
@@ -1060,6 +1202,12 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
         lines.append(f"\n### Models Trained ({len(models_trained)})\n")
         for m in models_trained:
             lines.append(f"- `{m}`")
+
+    models_failed = result.get("models_failed", [])
+    if models_failed:
+        lines.append(f"\n### Models Failed ({len(models_failed)})\n")
+        for m in models_failed:
+            lines.append(f"- `{m}` (failed during backtest — check logs)")
 
     # Meta-learner coefficients
     meta_coeff = result.get("meta_coefficients")
@@ -1312,6 +1460,32 @@ def run_experiment(
 
         lines.append(f"\n**Verdict**: {overall_verdict} (primary metric: {primary_metric}, delta: {primary_delta:+.4f})")
 
+        # Per-season deltas
+        exp_per_fold = exp_result.get("per_fold", {})
+        base_per_fold = baseline_result.get("per_fold", {})
+        if exp_per_fold and base_per_fold:
+            common_seasons = sorted(
+                set(exp_per_fold.keys()) & set(base_per_fold.keys())
+            )
+            if common_seasons:
+                lines.append("\n### Per-Season Deltas\n")
+                lines.append("| Season | Brier (base) | Brier (exp) | Delta | Acc (base) | Acc (exp) | Delta |")
+                lines.append("|--------|-------------|-------------|-------|------------|-----------|-------|")
+                for s in common_seasons:
+                    eb = exp_per_fold[s].get("brier", exp_per_fold[s].get("brier_score"))
+                    bb = base_per_fold[s].get("brier", base_per_fold[s].get("brier_score"))
+                    ea = exp_per_fold[s].get("accuracy")
+                    ba = base_per_fold[s].get("accuracy")
+                    bd = (eb - bb) if eb is not None and bb is not None else None
+                    ad = (ea - ba) if ea is not None and ba is not None else None
+                    bb_s = f"{bb:.4f}" if bb is not None else "-"
+                    eb_s = f"{eb:.4f}" if eb is not None else "-"
+                    bd_s = f"{bd:+.4f}" if bd is not None else "-"
+                    ba_s = f"{ba:.4f}" if ba is not None else "-"
+                    ea_s = f"{ea:.4f}" if ea is not None else "-"
+                    ad_s = f"{ad:+.4f}" if ad is not None else "-"
+                    lines.append(f"| {s} | {bb_s} | {eb_s} | {bd_s} | {ba_s} | {ea_s} | {ad_s} |")
+
         # Experiment backtest details
         lines.append("\n---\n")
         lines.append(_format_backtest_result(exp_result))
@@ -1559,6 +1733,7 @@ def show_diagnostics(
 
     from easyml.runner.diagnostics import (
         compute_brier_score,
+        compute_calibration_curve,
         compute_ece,
         compute_model_agreement,
     )
@@ -1624,6 +1799,56 @@ def show_diagnostics(
         bias = mean_pred - mean_actual
         cal_status = "well-calibrated" if abs(bias) < 0.02 else ("over-confident" if bias > 0 else "under-confident")
         lines.append(f"- **{model_name}**: {cal_status} (bias: {bias:+.4f})")
+
+    # Calibration curve for the ensemble (or best model)
+    ensemble_col = "prob_ensemble" if "prob_ensemble" in preds_df.columns else prob_cols[0]
+    y_ens = preds_df[ensemble_col].values.astype(float)
+    valid_ens = ~np.isnan(y_ens) & ~np.isnan(y_true)
+    if valid_ens.sum() > 0:
+        mean_pred, mean_actual, bin_counts = compute_calibration_curve(
+            y_true[valid_ens], y_ens[valid_ens], n_bins=10,
+        )
+        ens_name = ensemble_col.replace("prob_", "", 1)
+        lines.append(f"\n### Calibration Curve (`{ens_name}`)\n")
+        lines.append("| Predicted | Actual | Count |")
+        lines.append("|-----------|--------|-------|")
+        for p, a, c in zip(mean_pred, mean_actual, bin_counts):
+            lines.append(f"| {p:.3f} | {a:.3f} | {c} |")
+
+    # Feature importance (if we can load the config and data)
+    try:
+        from easyml.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+        config = load_data_config(project_dir)
+        df = get_features_df(project_dir, config)
+        feature_cols = get_feature_columns(df, config)
+        if feature_cols and config.target_column in df.columns:
+            from easyml.runner.feature_discovery import compute_feature_importance
+            importance_df = compute_feature_importance(
+                df, feature_columns=feature_cols, top_n=15,
+            )
+            if len(importance_df) > 0:
+                lines.append(f"\n### Feature Importance (top {len(importance_df)})\n")
+                lines.append("| Feature | Importance |")
+                lines.append("|---------|------------|")
+                for _, row in importance_df.iterrows():
+                    lines.append(f"| {row['feature']} | {row['importance']:.4f} |")
+    except Exception as fi_exc:
+        logger.debug("Could not compute feature importance: %s", fi_exc)
+
+    # Meta-learner coefficients (from pooled_metrics.json or run artifacts)
+    meta_path = run_dir / "diagnostics" / "pooled_metrics.json"
+    if meta_path.exists():
+        try:
+            pooled = json.loads(meta_path.read_text())
+            meta_coeff = pooled.get("meta_coefficients")
+            if meta_coeff and isinstance(meta_coeff, dict):
+                lines.append("\n### Meta-Learner Weights\n")
+                lines.append("| Model | Weight |")
+                lines.append("|-------|--------|")
+                for name, weight in sorted(meta_coeff.items(), key=lambda x: -abs(x[1])):
+                    lines.append(f"| {name} | {weight:+.4f} |")
+        except Exception:
+            pass
 
     return "\n".join(lines)
 
@@ -1702,6 +1927,75 @@ def run_exploration(
         return f"**Error**: {exc}"
     except Exception as exc:
         return f"**Exploration failed**: {exc}"
+
+
+def promote_exploration_trial(
+    project_dir: Path,
+    exploration_id: str,
+    *,
+    trial: int | None = None,
+    primary_metric: str = "brier",
+    hypothesis: str = "",
+) -> str:
+    """Promote a specific trial (or best trial) from an exploration run.
+
+    Reads the trial overlay, creates a new exp-NNN experiment, runs it,
+    and returns the results. No re-running of the backtest from scratch —
+    the trial's overlay is simply applied as a new experiment.
+
+    Parameters
+    ----------
+    exploration_id : str
+        e.g. 'expl-002'
+    trial : int | None
+        Trial number to promote. If None, uses best_overlay.yaml (the
+        best trial according to the exploration's primary metric).
+    """
+    project_dir = Path(project_dir)
+    expl_dir = project_dir / "experiments" / exploration_id
+
+    if not expl_dir.exists():
+        return f"**Error**: Exploration '{exploration_id}' not found."
+
+    if trial is not None:
+        overlay_path = expl_dir / "trials" / f"trial-{trial:03d}" / "overlay.yaml"
+        trial_label = f"trial {trial}"
+    else:
+        overlay_path = expl_dir / "best_overlay.yaml"
+        trial_label = "best trial"
+
+    if not overlay_path.exists():
+        return f"**Error**: Overlay not found for {trial_label} in {exploration_id} ({overlay_path})."
+
+    overlay = _load_yaml(overlay_path)
+    if not overlay:
+        return f"**Error**: Empty overlay for {trial_label} in {exploration_id}."
+
+    description = f"Promote {trial_label} from {exploration_id}"
+    if not hypothesis:
+        hypothesis = f"Applying overlay from {exploration_id} {trial_label}."
+
+    create_result = experiment_create(project_dir, description, hypothesis=hypothesis)
+    if "Error" in create_result:
+        return create_result
+
+    import re
+    id_match = re.search(r"(exp-\d+)", create_result, re.IGNORECASE)
+    if not id_match:
+        return f"**Error**: Could not extract experiment ID.\n\n{create_result}"
+    experiment_id = id_match.group(1)
+
+    overlay_result = write_overlay(project_dir, experiment_id, overlay)
+    if "Error" in overlay_result:
+        return overlay_result
+
+    run_result = run_experiment(project_dir, experiment_id, primary_metric=primary_metric)
+
+    return "\n".join([
+        f"## Promote: `{exploration_id}` {trial_label} → `{experiment_id}`\n",
+        f"### Overlay\n\n{overlay_result}",
+        f"\n### Results\n\n{run_result}",
+    ])
 
 
 # -----------------------------------------------------------------------
@@ -1806,12 +2100,18 @@ def add_view(
     data["data"]["views"][name] = view_def
     _save_yaml(pipeline_path, data)
 
-    return (
+    confirmation = (
         f"**Added view**: `{name}`\n"
         f"- Source: {source}\n"
         f"- Steps: {len(steps)}\n"
         f"- Description: {description or '(none)'}"
     )
+
+    try:
+        preview = preview_view(project_dir, name, n_rows=3)
+        return confirmation + "\n\n" + preview
+    except Exception:
+        return confirmation
 
 
 def remove_view(project_dir: Path, name: str) -> str:
@@ -1831,7 +2131,76 @@ def remove_view(project_dir: Path, name: str) -> str:
         data["data"]["features_view"] = None
 
     _save_yaml(pipeline_path, data)
+    _invalidate_view_cache(project_dir, name)
     return f"**Removed view**: `{name}`"
+
+
+def update_view(
+    project_dir: Path,
+    name: str,
+    source: str | None = None,
+    steps: list[dict] | None = None,
+    description: str | None = None,
+) -> str:
+    """Update an existing view in pipeline.yaml.
+
+    Only provided fields are merged — None values keep the existing value.
+    Returns updated confirmation with an inline preview.
+    """
+    config_dir = _get_config_dir(Path(project_dir))
+    pipeline_path = config_dir / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    views = data.get("data", {}).get("views", {})
+    if name not in views:
+        return f"**Error**: View `{name}` not found. Available: {sorted(views.keys())}"
+
+    view_def = views[name]
+
+    # Merge provided fields
+    if source is not None:
+        # Validate source exists
+        sources = data["data"].get("sources", {})
+        all_names = set(sources.keys()) | set(views.keys()) - {name}
+        if source not in all_names:
+            return (
+                f"**Error**: Source `{source}` not found. "
+                f"Available: {sorted(all_names)}"
+            )
+        view_def["source"] = source
+
+    if steps is not None:
+        from pydantic import TypeAdapter, ValidationError
+        from easyml.runner.schema import TransformStep
+        adapter = TypeAdapter(list[TransformStep])
+        try:
+            adapter.validate_python(steps)
+        except ValidationError as e:
+            return f"**Error**: Invalid steps:\n```\n{e}\n```"
+        view_def["steps"] = steps
+
+    if description is not None:
+        if description:
+            view_def["description"] = description
+        else:
+            view_def.pop("description", None)
+
+    data["data"]["views"][name] = view_def
+    _save_yaml(pipeline_path, data)
+    _invalidate_view_cache(project_dir, name)
+
+    confirmation = (
+        f"**Updated view**: `{name}`\n"
+        f"- Source: {view_def.get('source', '?')}\n"
+        f"- Steps: {len(view_def.get('steps', []))}\n"
+        f"- Description: {view_def.get('description', '(none)')}"
+    )
+
+    try:
+        preview = preview_view(project_dir, name, n_rows=3)
+        return confirmation + "\n\n" + preview
+    except Exception:
+        return confirmation
 
 
 def list_views(project_dir: Path) -> str:
