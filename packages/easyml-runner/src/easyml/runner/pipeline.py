@@ -235,6 +235,7 @@ class PipelineRunner:
         self._guards: PipelineGuards | None = None
         self._pred_cache = prediction_cache
         self._cache_stats: dict[str, int] = {"hits": 0, "misses": 0}
+        self._failed_models: set[str] = set()
 
     @property
     def cache_stats(self) -> dict[str, int]:
@@ -764,7 +765,7 @@ class PipelineRunner:
         if not active_models:
             raise ValueError("No active models to backtest.")
 
-        self._failed_models: set[str] = set()
+        self._failed_models = set()
 
         # Generate CV folds from strategy
         cv_folds = generate_cv_folds(self._df, bt_config)
@@ -812,7 +813,7 @@ class PipelineRunner:
         # Generate reporting artifacts
         result = self._generate_report(result, season_data)
 
-        failed = sorted(getattr(self, '_failed_models', set()))
+        failed = sorted(self._failed_models)
         result["models_failed"] = failed
         if failed:
             result["models_trained"] = [
@@ -1085,8 +1086,7 @@ class PipelineRunner:
                         "Failed to train/predict %s for season %d",
                         model_name, test_season,
                     )
-                    if hasattr(self, '_failed_models'):
-                        self._failed_models.add(model_name)
+                    self._failed_models.add(model_name)
                     continue
 
         # Check we got at least one model

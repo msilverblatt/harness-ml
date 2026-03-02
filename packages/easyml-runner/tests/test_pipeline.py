@@ -1069,6 +1069,8 @@ class TestFailedModelsSurfaced:
         """A model that fails during training appears in models_failed."""
         # Use a regressor with 'margin' as target, but margin column is absent
         # from the data — this causes KeyError during training.
+        # The regressor requires a 'margin' column as training target (pipeline.py training.py:83-86).
+        # Omitting it causes a ValueError that backtest() catches and tracks in _failed_models.
         models = {
             "good_model": {
                 "type": "logistic_regression",
