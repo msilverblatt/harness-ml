@@ -102,13 +102,40 @@ print(f"Brier: {brier_score(y_true, y_prob):.4f}")
 The `easyml-runner` package provides a CLI and Python API that drives the entire framework from YAML configuration:
 
 ```bash
+# Initialize and validate project
 easyml init my-project && cd my-project
-easyml validate
-easyml run pipeline
-easyml experiment create exp-001-test
-easyml explore --search-space '{"axes": [...]}'
+easyml validate --config pipeline.yaml
+
+# Run backtest on production config
+easyml run backtest --seasons 1 2 3
+
+# Create and run experiments
+easyml experiment create exp-001-test-hyperparams
+easyml experiment run exp-001
+easyml experiment promote exp-001
+
+# Bayesian exploration: define search space, run bulk experiments
+easyml explore --search-space '{
+  "axes": [
+    {"key": "models.xgb.params.max_depth", "type": "integer", "low": 3, "high": 10},
+    {"key": "ensemble.method", "type": "categorical", "values": ["mean", "stack"]}
+  ],
+  "budget": 20
+}'
+
+# Server with dynamic MCP tool generation
 easyml serve
 ```
+
+### MCP Tool Interface
+
+When running `easyml serve`, the framework generates an MCP server with tools for:
+- `manage_experiments` — Create, run, promote experiments; define overlays
+- `manage_data` — Ingest sources, validate, fill nulls, rename columns, manage views
+- `manage_features` — Register features, test transformations, discover correlations
+- `manage_models` — Add models, adjust ensembles, control active models
+- `configure` — Initialize projects, update backtest/ensemble config, run guardrails checks
+- `pipeline` — Run backtests, make predictions, get diagnostics, list/show runs
 
 ## Key Features
 
@@ -128,23 +155,27 @@ easyml serve
 
 ### For Automation
 
-- **Feature Store** — Declarative features with automatic caching, type routing, and deduplication
-- **Pairwise Features** — Define matchup-level features (e.g., home team vs away team) automatically expanded for all pairs
-- **Regime Features** — Boolean feature flags (e.g., "is_playoff") routed through the pipeline
-- **View Management** — Lazy DAG resolution for complex data transformations with full source tracing
+- **Feature Store** — Declarative features with automatic caching via fingerprinting, type routing, and deduplication; 4 feature types: team (entity-level), pairwise (all matchups), matchup (context-level), regime (boolean flags)
+- **Pairwise Features** — Define matchup-level features (e.g., home team vs away team) and they're automatically expanded for all unique pairs without duplication
+- **Regime Features** — Boolean feature flags (e.g., "is_playoff") that gate entire feature sets or routed through as discrete columns
+- **View Management** — Lazy DAG resolution for complex data transformations with full source tracing, fingerprint caching to skip unchanged computations
+- **Bayesian Exploration** — Optuna TPE-based search over features (include/exclude lists), models (activate/deactivate), hyperparameters (continuous/integer/categorical), and ensemble settings (method, temperature, weights); budget-constrained with prediction caching across trials
+- **Discovery Tools** — Automatic feature correlation analysis, importance ranking (XGBoost or mutual information), redundancy detection, and grouping by type/category
+- **Transformation Testing** — Test math operations (log, sqrt, standardize, interact, polynomial) on features and validate correctness before ingestion
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `easyml-schemas` | Pydantic contracts, probability/regression/ensemble metrics |
-| `easyml-config` | Split YAML loading, variant resolution, deep merge (OmegaConf) |
-| `easyml-features` | Declarative feature registry, caching, pairwise builder, type routing |
-| `easyml-models` | 8 model wrappers, 5 CV strategies, calibration, stacked ensembles |
-| `easyml-data` | Source registry, DVC generation, stage guards, refresh orchestrator, views |
-| `easyml-experiments` | Experiment lifecycle: naming, change detection, DNR, logging, promote |
-| `easyml-guardrails` | 11 guardrails (3 hard + 8 advisory), MCP server, audit logging |
-| `easyml-runner` | YAML-driven CLI, PipelineRunner, project scaffold, MCP server generation, Bayesian exploration |
+| `easyml-schemas` | Pydantic v2 contracts, probability metrics (Brier, log loss, ECE), regression and ensemble metrics |
+| `easyml-config` | Split YAML loading, variant resolution, deep merge (OmegaConf), nested key access |
+| `easyml-features` | Declarative registry with 4 types (team, pairwise, matchup, regime), caching via fingerprinting, source hashing |
+| `easyml-models` | 8 model wrappers (XGBoost, LightGBM, CatBoost, PyTorch, SKLearn, etc.), 5 CV strategies, calibration (Platt, Isotonic, Spline), stacked ensembles, SHAP feature importance |
+| `easyml-data` | Source registry, DVC pipeline generation, stage guards, refresh orchestration, view definitions, lazy DAG resolution |
+| `easyml-experiments` | Experiment lifecycle: auto-naming, change detection, DNR (Do Not Repeat), metrics logging, config promotion |
+| `easyml-guardrails` | 11 guardrails (3 hard non-overridable + 8 advisory): data leakage, temporal integrity, critical paths, guardrail enforcement, audit logging |
+| `easyml-runner` | YAML-driven CLI, PipelineRunner (backtest + predict), project scaffold, server generation, Bayesian exploration (Optuna TPE), MCP interface |
+| `easyml-plugin` | Claude MCP server generator, MCP tool registration, agent-facing interfaces for all runner operations |
 
 ## Development
 
@@ -156,6 +187,25 @@ uv run pytest packages/easyml-models/tests/  # run one package's tests
 
 Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv) workspaces.
 
+## Using EasyML as an Agent
+
+When an AI agent is connected to EasyML via MCP (Model Context Protocol), it never needs to:
+
+1. **Write data pipeline code** — Use `manage_data` to ingest sources, define views, validate outputs
+2. **Engineer features manually** — Use `manage_features` to register declarative features; EasyML handles caching and routing
+3. **Track experiments** — All runs are fingerprinted and logged; history is searchable
+4. **Re-run identical experiments** — DNR (Do Not Repeat) prevents accidental duplication
+5. **Mutate production config** — Use experiment overlays to test hypotheses in isolation
+6. **Manage retraining** — Prediction cache ensures unchanged models skip retraining across trials
+7. **Check data hygiene** — Guardrails automatically verify leakage, temporal integrity, critical paths
+8. **Hunt for lost results** — Audit log records every experiment run and guardrail decision
+
+The agent focuses entirely on:
+- Defining feature mixes and model architectures
+- Stating hypotheses about what will improve metrics
+- Analyzing results from bulk explorations
+- Making data science decisions (not pipeline decisions)
+
 ## Design Philosophy
 
 **EasyML is built for agents, not humans.**
@@ -165,6 +215,7 @@ Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv) workspac
 - **Structured contracts over strings** — Pydantic schemas everywhere; no magic field names
 - **Automatic over manual** — Caching, logging, fingerprinting, and guardrails happen without agent intervention
 - **Single source of truth** — YAML config is the contract; overlays enable isolated testing without mutations
+- **Predictable, deterministic** — Fingerprinting ensures identical configs always produce identical results; no hidden state
 
 ## License
 
