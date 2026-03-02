@@ -6,6 +6,7 @@ programmatic use and CLI output.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,15 @@ import numpy as np
 import pandas as pd
 
 from easyml.runner.schema import DataConfig
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginSection:
+    """Output from a profiler plugin."""
+    name: str
+    content: str
 
 
 @dataclass
@@ -49,6 +59,7 @@ class DataProfile:
     feature_columns: list[ColumnProfile] = field(default_factory=list)
     high_null_columns: list[ColumnProfile] = field(default_factory=list)
     zero_variance_columns: list[str] = field(default_factory=list)
+    plugin_sections: list[PluginSection] = field(default_factory=list)
 
     @property
     def diff_columns(self) -> list[ColumnProfile]:
@@ -99,6 +110,10 @@ class DataProfile:
             lines.append(f"\nZero-variance columns ({len(self.zero_variance_columns)}):")
             for name in self.zero_variance_columns:
                 lines.append(f"  {name}")
+
+        if self.plugin_sections:
+            for section in self.plugin_sections:
+                lines.append(f"\n{section.content}")
 
         return "\n".join(lines)
 
@@ -173,6 +188,7 @@ def profile_dataset(
     path: str | Path,
     high_null_threshold: float = 50.0,
     config: DataConfig | None = None,
+    plugins: list | None = None,
 ) -> DataProfile:
     """Profile a features parquet file.
 
@@ -185,6 +201,10 @@ def profile_dataset(
     config : DataConfig | None
         If provided, uses config fields for column identification
         instead of hardcoded heuristics.
+    plugins : list | None
+        Optional list of plugin instances.  Each must have a ``name``
+        attribute and an ``analyze(df, config)`` method that returns
+        a markdown string.
 
     Returns
     -------
@@ -209,6 +229,17 @@ def profile_dataset(
     for col in profile.feature_columns:
         if col.std is not None and col.std == 0.0:
             profile.zero_variance_columns.append(col.name)
+
+    # Run plugins
+    if plugins:
+        for plugin in plugins:
+            try:
+                content = plugin.analyze(df, config)
+                profile.plugin_sections.append(
+                    PluginSection(name=plugin.name, content=content)
+                )
+            except Exception as exc:
+                logger.warning("Plugin '%s' failed: %s", getattr(plugin, 'name', '?'), exc)
 
     return profile
 

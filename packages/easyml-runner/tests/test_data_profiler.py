@@ -290,3 +290,54 @@ class TestConfigAwareProfiler:
         """Without config, profiler still works using column name heuristics."""
         profile = profile_dataset(sample_parquet)
         assert profile.n_rows == 200
+
+
+# -----------------------------------------------------------------------
+# Tests: profiler plugins
+# -----------------------------------------------------------------------
+
+class TestProfilerPlugins:
+    """Profiler accepts plugins for domain-specific analysis."""
+
+    def test_plugin_output_included(self, tmp_path):
+        """Plugin analyze() output appears in the profile."""
+        df = pd.DataFrame({
+            "season": [2020, 2021],
+            "result": [1.0, 0.0],
+            "feat_a": [1.0, 2.0],
+        })
+        path = tmp_path / "features.parquet"
+        df.to_parquet(path)
+
+        class TestPlugin:
+            name = "test_domain"
+            def analyze(self, df, config):
+                return "## Test Domain\nCustom analysis here."
+
+        config = DataConfig(target_column="result", time_column="season")
+        profile = profile_dataset(path, config=config, plugins=[TestPlugin()])
+        assert len(profile.plugin_sections) == 1
+        assert profile.plugin_sections[0].name == "test_domain"
+        assert "Custom analysis" in profile.plugin_sections[0].content
+
+    def test_no_plugins_by_default(self, sample_parquet):
+        """Without plugins, no plugin sections."""
+        profile = profile_dataset(sample_parquet)
+        assert profile.plugin_sections == []
+
+    def test_plugin_failure_doesnt_crash(self, tmp_path):
+        """A failing plugin logs a warning but doesn't crash the profiler."""
+        df = pd.DataFrame({
+            "result": [1.0, 0.0],
+            "feat_a": [1.0, 2.0],
+        })
+        path = tmp_path / "features.parquet"
+        df.to_parquet(path)
+
+        class BadPlugin:
+            name = "bad_plugin"
+            def analyze(self, df, config):
+                raise RuntimeError("Plugin exploded")
+
+        profile = profile_dataset(path, plugins=[BadPlugin()])
+        assert profile.plugin_sections == []  # Failed plugin produces no section
