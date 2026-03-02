@@ -8,9 +8,9 @@ easyml-schemas) because they are orchestration concerns.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Discriminator, Tag, field_validator
 
 
 # -----------------------------------------------------------------------
@@ -131,6 +131,122 @@ class SourceConfig(BaseModel):
 
 
 # -----------------------------------------------------------------------
+# Transform steps (declarative ETL)
+# -----------------------------------------------------------------------
+
+
+class FilterStep(BaseModel):
+    """Keep rows matching an expression."""
+
+    op: Literal["filter"] = "filter"
+    expr: str  # e.g. "DayNum < 134", "status == 'active'"
+
+
+class SelectStep(BaseModel):
+    """Keep or rename columns."""
+
+    op: Literal["select"] = "select"
+    columns: dict[str, str] | list[str]  # list=keep, dict={new: old}
+
+
+class DeriveStep(BaseModel):
+    """Create new columns from expressions."""
+
+    op: Literal["derive"] = "derive"
+    columns: dict[str, str]  # {new_col: expression}
+
+
+class GroupByStep(BaseModel):
+    """Group and aggregate."""
+
+    op: Literal["group_by"] = "group_by"
+    keys: list[str]
+    aggs: dict[str, str | list[str]]  # {col: "mean"} or {col: ["mean","std"]}
+
+
+class JoinStep(BaseModel):
+    """Join with another source or view."""
+
+    op: Literal["join"] = "join"
+    other: str  # name of source or view
+    on: list[str] | dict[str, str]  # same-name or {left: right}
+    how: Literal["left", "inner", "right", "outer"] = "left"
+    select: list[str] | None = None  # columns to take from other (None=all)
+    prefix: str | None = None  # prefix for other's columns
+
+
+class UnionStep(BaseModel):
+    """Vertically concatenate with another source or view."""
+
+    op: Literal["union"] = "union"
+    other: str
+
+
+class UnpivotStep(BaseModel):
+    """Melt wide columns into long format."""
+
+    op: Literal["unpivot"] = "unpivot"
+    id_columns: list[str]  # columns to keep as-is
+    unpivot_columns: dict[str, list[str]]  # {new_col: [src_col_1, src_col_2]}
+    names_column: str | None = None  # column storing which source the value came from
+    names_map: dict[str, str] | None = None  # rename source identifiers
+
+
+class CastStep(BaseModel):
+    """Cast column types."""
+
+    op: Literal["cast"] = "cast"
+    columns: dict[str, str]  # {col: "int"} or {col: "int:str[1:3]"}
+
+
+class SortStep(BaseModel):
+    """Sort rows."""
+
+    op: Literal["sort"] = "sort"
+    by: list[str] | str
+    ascending: bool | list[bool] = True
+
+
+class DistinctStep(BaseModel):
+    """Deduplicate rows."""
+
+    op: Literal["distinct"] = "distinct"
+    columns: list[str] | None = None
+    keep: Literal["first", "last"] = "first"
+
+
+TransformStep = Annotated[
+    Union[
+        Annotated[FilterStep, Tag("filter")],
+        Annotated[SelectStep, Tag("select")],
+        Annotated[DeriveStep, Tag("derive")],
+        Annotated[GroupByStep, Tag("group_by")],
+        Annotated[JoinStep, Tag("join")],
+        Annotated[UnionStep, Tag("union")],
+        Annotated[UnpivotStep, Tag("unpivot")],
+        Annotated[CastStep, Tag("cast")],
+        Annotated[SortStep, Tag("sort")],
+        Annotated[DistinctStep, Tag("distinct")],
+    ],
+    Discriminator("op"),
+]
+
+
+# -----------------------------------------------------------------------
+# View definitions
+# -----------------------------------------------------------------------
+
+
+class ViewDef(BaseModel):
+    """A named view: a source plus a chain of transform steps."""
+
+    source: str  # name of a source or another view
+    steps: list[TransformStep] = []
+    description: str = ""
+    cache: bool = True
+
+
+# -----------------------------------------------------------------------
 # Data config
 # -----------------------------------------------------------------------
 
@@ -159,6 +275,10 @@ class DataConfig(BaseModel):
     # Declarative feature store
     feature_store: FeatureStoreConfig = FeatureStoreConfig()
     feature_defs: dict[str, FeatureDef] = {}
+
+    # Declarative views (ETL)
+    views: dict[str, ViewDef] = {}
+    features_view: str | None = None  # which view becomes the prediction table
 
 
 # -----------------------------------------------------------------------
