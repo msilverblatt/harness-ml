@@ -25,6 +25,7 @@ from easyml.runner.data_ingest import (
 )
 from easyml.runner.data_utils import (
     get_feature_columns,
+    get_features_df,
     get_features_path,
     load_data_config,
 )
@@ -232,6 +233,7 @@ __all__ = [
     "generate_pairwise_matchups",
     "generate_server",
     "get_feature_columns",
+    "get_features_df",
     "get_features_path",
     "get_preset",
     "group_features_by_category",

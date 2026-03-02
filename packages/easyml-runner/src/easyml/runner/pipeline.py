@@ -288,23 +288,17 @@ class PipelineRunner:
         self._load_data()
 
     def _load_data(self) -> None:
-        """Read features parquet and normalize column names.
+        """Read features DataFrame and normalize column names.
+
+        Uses get_features_df() which resolves views if configured,
+        otherwise falls back to the features parquet file.
 
         Also loads team features if any model has
         ``provides_level="team"``.
         """
-        from easyml.runner.data_utils import get_features_path
+        from easyml.runner.data_utils import get_features_df
 
-        parquet_path = get_features_path(self.project_dir, self.config.data)
-
-        if not parquet_path.exists():
-            raise FileNotFoundError(
-                f"Features file not found at {parquet_path}. "
-                f"Configured: features_dir={self.config.data.features_dir}, "
-                f"features_file={self.config.data.features_file}"
-            )
-
-        self._df = pd.read_parquet(parquet_path)
+        self._df = get_features_df(self.project_dir, self.config.data)
         self._normalize_columns()
 
         # If declarative features are configured, compute them via FeatureStore

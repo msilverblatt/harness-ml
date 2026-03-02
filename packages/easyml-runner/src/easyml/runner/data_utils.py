@@ -80,6 +80,50 @@ def get_features_path(project_dir: Path, config: DataConfig | None = None) -> Pa
     return features_dir / config.features_file
 
 
+def get_features_df(
+    project_dir: Path,
+    config: DataConfig | None = None,
+) -> pd.DataFrame:
+    """Load the features DataFrame, resolving views if configured.
+
+    If config.features_view is set, resolves the view via ViewResolver.
+    Otherwise, reads from the features parquet file (existing behavior).
+
+    Parameters
+    ----------
+    project_dir : Path
+        Root project directory.
+    config : DataConfig | None
+        If None, loads from pipeline.yaml.
+
+    Returns
+    -------
+    pd.DataFrame
+        The features dataset (prediction table).
+
+    Raises
+    ------
+    FileNotFoundError
+        If no features_view is set and the parquet file doesn't exist.
+    """
+    if config is None:
+        config = load_data_config(project_dir)
+
+    if config.features_view:
+        from easyml.runner.view_resolver import ViewResolver
+        resolver = ViewResolver(project_dir, config)
+        return resolver.resolve(config.features_view)
+
+    # Fall back to parquet file
+    parquet_path = get_features_path(project_dir, config)
+    if not parquet_path.exists():
+        raise FileNotFoundError(
+            f"Features file not found at {parquet_path}. "
+            f"Either set data.features_view or provide a features parquet."
+        )
+    return pd.read_parquet(parquet_path)
+
+
 def load_data_config(project_dir: Path) -> DataConfig:
     """Load DataConfig from the project's pipeline.yaml.
 
