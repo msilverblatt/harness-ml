@@ -320,3 +320,207 @@ def _compute_log_loss(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     return float(-np.mean(
         y_true * np.log(y_prob) + (1 - y_true) * np.log(1 - y_prob)
     ))
+
+
+# ---------------------------------------------------------------------------
+# SHAP integration
+# ---------------------------------------------------------------------------
+
+def compute_shap_values(
+    model,
+    X: pd.DataFrame | np.ndarray,
+    method: str = "auto",
+) -> dict:
+    """Compute SHAP values for a trained model.
+
+    Parameters
+    ----------
+    model
+        Trained model. Must have ``predict`` or ``predict_proba``.
+    X : DataFrame or array
+        Feature data to explain.
+    method : str
+        One of ``"auto"``, ``"tree"``, ``"kernel"``, ``"linear"``.
+        ``"auto"`` tries TreeExplainer first, then falls back to
+        KernelExplainer.
+
+    Returns
+    -------
+    dict
+        Keys: ``values`` (array), ``feature_names`` (list),
+        ``base_value`` (float).  If shap is not installed, returns
+        ``{"error": "shap package not installed..."}``.
+    """
+    try:
+        import shap
+    except ImportError:
+        return {
+            "error": "shap package not installed. Install with: pip install shap",
+        }
+
+    feature_names = (
+        list(X.columns) if hasattr(X, "columns")
+        else [f"feature_{i}" for i in range(X.shape[1])]
+    )
+
+    if method == "auto":
+        try:
+            explainer = shap.TreeExplainer(model)
+        except Exception:
+            predict_fn = (
+                model.predict_proba if hasattr(model, "predict_proba")
+                else model.predict
+            )
+            explainer = shap.KernelExplainer(predict_fn, shap.sample(X, min(100, len(X))))
+    elif method == "tree":
+        explainer = shap.TreeExplainer(model)
+    elif method == "kernel":
+        predict_fn = (
+            model.predict_proba if hasattr(model, "predict_proba")
+            else model.predict
+        )
+        explainer = shap.KernelExplainer(predict_fn, shap.sample(X, min(100, len(X))))
+    elif method == "linear":
+        explainer = shap.LinearExplainer(model, X)
+    else:
+        return {"error": f"Unknown SHAP method: {method!r}. Use auto/tree/kernel/linear."}
+
+    shap_values = explainer.shap_values(X)
+
+    base_value = explainer.expected_value
+    if np.isscalar(base_value):
+        base_value = float(base_value)
+    elif hasattr(base_value, "__len__"):
+        base_value = float(base_value[0]) if len(base_value) > 0 else 0.0
+    else:
+        base_value = float(base_value)
+
+    return {
+        "values": shap_values,
+        "feature_names": feature_names,
+        "base_value": base_value,
+    }
+
+
+# ---------------------------------------------------------------------------
+# ROC / PR curves
+# ---------------------------------------------------------------------------
+
+def roc_curve_data(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+) -> dict:
+    """Compute ROC curve data points.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Binary outcomes (0 or 1).
+    y_prob : array-like
+        Predicted probabilities.
+
+    Returns
+    -------
+    dict
+        Keys: ``fpr`` (list), ``tpr`` (list), ``thresholds`` (list),
+        ``auc`` (float).
+    """
+    from sklearn.metrics import auc, roc_curve
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_prob = np.asarray(y_prob, dtype=float)
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob)
+    roc_auc = auc(fpr, tpr)
+
+    return {
+        "fpr": fpr.tolist(),
+        "tpr": tpr.tolist(),
+        "thresholds": thresholds.tolist(),
+        "auc": float(roc_auc),
+    }
+
+
+def pr_curve_data(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+) -> dict:
+    """Compute precision-recall curve data points.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Binary outcomes (0 or 1).
+    y_prob : array-like
+        Predicted probabilities.
+
+    Returns
+    -------
+    dict
+        Keys: ``precision`` (list), ``recall`` (list),
+        ``thresholds`` (list), ``average_precision`` (float).
+    """
+    from sklearn.metrics import average_precision_score, precision_recall_curve
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_prob = np.asarray(y_prob, dtype=float)
+
+    precision, recall, thresholds = precision_recall_curve(y_true, y_prob)
+    avg_precision = average_precision_score(y_true, y_prob)
+
+    return {
+        "precision": precision.tolist(),
+        "recall": recall.tolist(),
+        "thresholds": thresholds.tolist(),
+        "average_precision": float(avg_precision),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Permutation importance
+# ---------------------------------------------------------------------------
+
+def permutation_importance_data(
+    model,
+    X: pd.DataFrame | np.ndarray,
+    y: np.ndarray,
+    n_repeats: int = 10,
+    scoring: str = "accuracy",
+) -> dict:
+    """Compute permutation importance for a trained model.
+
+    Parameters
+    ----------
+    model
+        Trained model with a ``predict`` method.
+    X : DataFrame or array
+        Feature data.
+    y : array-like
+        True labels.
+    n_repeats : int
+        Number of permutation repeats.
+    scoring : str
+        Scoring metric (e.g., ``"accuracy"``, ``"neg_brier_score"``).
+
+    Returns
+    -------
+    dict
+        Keys: ``importances_mean`` (list), ``importances_std`` (list),
+        ``feature_names`` (list).
+    """
+    from sklearn.inspection import permutation_importance
+
+    result = permutation_importance(
+        model, X, y, n_repeats=n_repeats, scoring=scoring, random_state=42,
+    )
+
+    feature_names = (
+        list(X.columns) if hasattr(X, "columns")
+        else [f"feature_{i}" for i in range(X.shape[1])]
+    )
+
+    return {
+        "importances_mean": result.importances_mean.tolist(),
+        "importances_std": result.importances_std.tolist(),
+        "feature_names": feature_names,
+    }
