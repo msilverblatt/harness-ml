@@ -1,0 +1,29 @@
+ensemble:
+  method: stacked
+  pre_calibration:
+    v2_mlp_margin: spline
+  spline_prob_max: 0.985
+  spline_n_bins: 20
+  calibration: spline
+  meta_learner:
+    C: 2.5
+  temperature: 1.0
+  clip_floor: 0.0
+  availability_adjustment: 0.1
+  exclude_models:
+  - cat_broad
+  - cat_four_factors_blind
+  - lgbm_broad
+  - lgbm_resume_blind
+  - rf_broad
+  - xgb_four_factors
+  - xgb_matchup_blind
+  - xgb_ratings
+  - xgb_spread_scoring
+  - xgb_ordinal_consensus
+  - xgb_shot_profile
+  - lgbm_defense
+  - v2_tabtransformer_clf
+  - gnn_hetero
+  - survival_hazard
+  - xgb_vegas

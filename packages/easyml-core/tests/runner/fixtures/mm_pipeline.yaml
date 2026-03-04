@@ -1,0 +1,16 @@
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+  features_file: matchup_features.parquet
+  task: classification
+  target_column: result
+features:
+  first_season: 2003
+  momentum_window: 10
+backtest:
+  cv_strategy: leave_one_season_out
+  seasons: [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025]
+bracket:
+  scoring: [10, 20, 40, 80, 160, 320]
+  simulations: 10000
