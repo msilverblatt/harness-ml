@@ -6,12 +6,13 @@ All tools accept project_dir (defaults to cwd) and return markdown.
 """
 from __future__ import annotations
 
+import asyncio
 import functools
 import importlib
 import json
 import os
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 mcp = FastMCP("easyml")
 _DEV_MODE = os.environ.get("EASYML_DEV", "0") == "1"
@@ -28,9 +29,12 @@ def _load_handler(module_name: str):
 def _safe_tool(fn):
     """Wrap a tool function so unhandled exceptions become markdown errors."""
     @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         try:
-            return fn(*args, **kwargs)
+            result = fn(*args, **kwargs)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return result
         except json.JSONDecodeError as e:
             return f"**Error**: Invalid JSON input: {e}"
         except ValueError as e:
@@ -47,8 +51,9 @@ def _safe_tool(fn):
 
 @mcp.tool()
 @_safe_tool
-def manage_models(
+async def manage_models(
     action: str,
+    ctx: Context,
     name: str | None = None,
     model_type: str | None = None,
     preset: str | None = None,
@@ -60,6 +65,7 @@ def manage_models(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    items: str | list | None = None,
     purge: bool = False,
     project_dir: str | None = None,
 ) -> str:
@@ -81,9 +87,18 @@ def manage_models(
         Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
       - "presets": Show available model presets.
+      - "add_batch": Add multiple models. Requires items (JSON array of model
+        configs, each with name + model_type or preset + optional fields).
+      - "update_batch": Update multiple models. Requires items (JSON array of
+        model configs, each with name + optional update fields).
+      - "remove_batch": Remove multiple models. Requires items (JSON array of
+        {name, purge?} objects).
+      - "clone": Clone an existing model with a new name. Requires name (source)
+        and items (JSON with {new_name, ...overrides}).
     """
     return _load_handler("models").dispatch(
         action,
+        ctx=ctx,
         name=name,
         model_type=model_type,
         preset=preset,
@@ -95,6 +110,7 @@ def manage_models(
         prediction_type=prediction_type,
         cdf_scale=cdf_scale,
         zero_fill_features=zero_fill_features,
+        items=items,
         purge=purge,
         project_dir=project_dir,
     )
@@ -107,8 +123,9 @@ def manage_models(
 
 @mcp.tool()
 @_safe_tool
-def manage_data(
+async def manage_data(
     action: str,
+    ctx: Context,
     data_path: str | None = None,
     join_on: list[str] | None = None,
     prefix: str | None = None,
@@ -126,6 +143,9 @@ def manage_data(
     description: str = "",
     format: str = "auto",
     n_rows: int = 5,
+    # Batch parameters:
+    sources: str | list | None = None,
+    views: str | list | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage data in the project's feature store.
@@ -178,9 +198,16 @@ def manage_data(
       - "set_features_view": Set which view becomes the prediction table.
         Requires name.
       - "view_dag": Show the full view dependency graph.
+      - "add_sources_batch": Register multiple data sources. Requires sources
+        (JSON array of {name, data_path, format?} objects).
+      - "fill_nulls_batch": Fill nulls in multiple columns. Requires columns
+        (JSON array of {column, strategy?, value?} objects).
+      - "add_views_batch": Declare multiple views. Requires views (JSON array
+        of {name, source, steps?, description?} objects).
     """
     return _load_handler("data").dispatch(
         action,
+        ctx=ctx,
         data_path=data_path,
         join_on=join_on,
         prefix=prefix,
@@ -197,6 +224,8 @@ def manage_data(
         description=description,
         format=format,
         n_rows=n_rows,
+        sources=sources,
+        views=views,
         project_dir=project_dir,
     )
 
@@ -208,8 +237,9 @@ def manage_data(
 
 @mcp.tool()
 @_safe_tool
-def manage_features(
+async def manage_features(
     action: str,
+    ctx: Context,
     name: str | None = None,
     formula: str | None = None,
     description: str = "",
@@ -250,6 +280,7 @@ def manage_features(
     """
     return _load_handler("features").dispatch(
         action,
+        ctx=ctx,
         name=name,
         formula=formula,
         description=description,
@@ -274,9 +305,11 @@ def manage_features(
 
 @mcp.tool()
 @_safe_tool
-def manage_experiments(
+async def manage_experiments(
     action: str,
+    ctx: Context,
     experiment_id: str | None = None,
+    experiment_ids: list[str] | None = None,
     description: str = "",
     hypothesis: str = "",
     overlay: str | dict | None = None,
@@ -284,6 +317,7 @@ def manage_experiments(
     variant: str | None = None,
     search_space: str | dict | None = None,
     trial: int | None = None,
+    detail: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage ML experiments.
@@ -306,13 +340,19 @@ def manage_experiments(
         search_space (JSON with axes, budget, primary_metric). Runs
         Optuna-driven trials, returns full report with best config,
         all trials ranked, and parameter importance.
+        Optional: detail ("summary" returns best trial only,
+        "full" (default) returns all trials + param importance).
       - "promote_trial": Promote a trial from an exploration run as a new
         experiment. Requires experiment_id (exploration ID, e.g. 'expl-002').
         Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
+      - "compare": Compare two experiments side by side. Requires
+        experiment_ids (list of 2 experiment IDs).
     """
     return _load_handler("experiments").dispatch(
         action,
+        ctx=ctx,
         experiment_id=experiment_id,
+        experiment_ids=experiment_ids,
         description=description,
         hypothesis=hypothesis,
         overlay=overlay,
@@ -320,6 +360,7 @@ def manage_experiments(
         variant=variant,
         search_space=search_space,
         trial=trial,
+        detail=detail,
         project_dir=project_dir,
     )
 
@@ -331,8 +372,9 @@ def manage_experiments(
 
 @mcp.tool()
 @_safe_tool
-def configure(
+async def configure(
     action: str,
+    ctx: Context,
     project_name: str | None = None,
     task: str | None = None,
     target_column: str | None = None,
@@ -352,6 +394,8 @@ def configure(
     min_train_folds: int | None = None,
     add_columns: list[str] | None = None,
     remove_columns: list[str] | None = None,
+    detail: str | None = None,
+    section: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Configure project settings.
@@ -371,6 +415,9 @@ def configure(
       - "backtest": Update backtest config.
         Optional: cv_strategy, seasons, metrics, min_train_folds.
       - "show": Show the full resolved project configuration.
+        Optional: detail ("summary" for key settings only, "full" (default) for
+        everything), section (e.g. "models", "ensemble", "backtest" to show only
+        that block).
       - "check_guardrails": Run configured guardrails (feature leakage,
         naming conventions, model config). Returns pass/fail report.
       - "exclude_columns": Add/remove columns from data.exclude_columns.
@@ -383,6 +430,7 @@ def configure(
     """
     return _load_handler("config").dispatch(
         action,
+        ctx=ctx,
         project_name=project_name,
         task=task,
         target_column=target_column,
@@ -402,6 +450,8 @@ def configure(
         min_train_folds=min_train_folds,
         add_columns=add_columns,
         remove_columns=remove_columns,
+        detail=detail,
+        section=section,
         project_dir=project_dir,
     )
 
@@ -413,12 +463,15 @@ def configure(
 
 @mcp.tool()
 @_safe_tool
-def pipeline(
+async def pipeline(
     action: str,
+    ctx: Context,
     experiment_id: str | None = None,
     variant: str | None = None,
     run_id: str | None = None,
+    run_ids: list[str] | None = None,
     season: int | None = None,
+    detail: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -431,16 +484,25 @@ def pipeline(
         Optional: run_id, variant.
       - "diagnostics": Show per-model diagnostics (brier, accuracy, ECE,
         log_loss, agreement, calibration). Optional: run_id.
+        Optional: detail ("summary" for condensed output, "full" (default)
+        for all metrics).
       - "list_runs": List all pipeline runs with status.
       - "show_run": Show results from a run. Optional: run_id (defaults
         to most recent).
+        Optional: detail ("summary" for condensed output, "full" (default)
+        for complete results).
+      - "compare_runs": Compare metrics from two runs side by side.
+        Requires run_ids (list of 2 run IDs).
     """
     return _load_handler("pipeline").dispatch(
         action,
+        ctx=ctx,
         experiment_id=experiment_id,
         variant=variant,
         run_id=run_id,
+        run_ids=run_ids,
         season=season,
+        detail=detail,
         project_dir=project_dir,
     )
 

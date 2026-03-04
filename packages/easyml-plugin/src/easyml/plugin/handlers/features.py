@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from easyml.plugin.handlers._common import resolve_project_dir, parse_json_param
-from easyml.plugin.handlers._validation import validate_enum, validate_required
+from easyml.plugin.handlers._validation import (
+    validate_enum, validate_required, collect_hints, format_response_with_hints,
+)
 
 
 def _handle_add(*, name, formula, type, source, column, condition, pairwise_mode, category, description, project_dir, **_kwargs):
@@ -83,4 +85,6 @@ def dispatch(action: str, **kwargs) -> str:
     err = validate_enum(action, set(ACTIONS), "action")
     if err:
         return err
-    return ACTIONS[action](**kwargs)
+    result = ACTIONS[action](**kwargs)
+    hints = collect_hints(action, tool="features", **kwargs)
+    return format_response_with_hints(result, hints)
