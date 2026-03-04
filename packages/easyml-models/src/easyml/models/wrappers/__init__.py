@@ -1,1 +1,1 @@
-"""Built-in model wrappers for EasyML."""
+"""Backward-compat shim — re-exports from easyml.core.models.wrappers."""
