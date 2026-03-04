@@ -230,10 +230,60 @@ def _execute_distinct(df: pd.DataFrame, step: DistinctStep) -> pd.DataFrame:
     return df.drop_duplicates(subset=step.columns, keep=step.keep).reset_index(drop=True)
 
 
+def _rolling_slope(window: pd.Series) -> float:
+    """OLS slope over a rolling window."""
+    n = len(window)
+    if n < 2:
+        return 0.0
+    x = np.arange(n, dtype=float)
+    y = window.values.astype(float)
+    mask = ~np.isnan(y)
+    if mask.sum() < 2:
+        return 0.0
+    x, y = x[mask], y[mask]
+    x_mean = x.mean()
+    y_mean = y.mean()
+    denom = ((x - x_mean) ** 2).sum()
+    if denom == 0:
+        return 0.0
+    return float(((x - x_mean) * (y - y_mean)).sum() / denom)
+
+
+def _ema_last(window: pd.Series, alpha: float = 0.3) -> float:
+    """Exponential moving average, return last value."""
+    if len(window) == 0:
+        return np.nan
+    return float(window.ewm(alpha=alpha, adjust=False).mean().iloc[-1])
+
+
+# Aggregations that require `.apply()` with a per-window lambda rather than
+# the built-in pandas `.agg(name)` path.
+_CUSTOM_ROLLING_AGGS: dict[str, Callable] = {
+    "median": lambda w: w.median(),
+    "skew": lambda w: w.skew(),
+    "kurt": lambda w: w.kurt(),
+    "slope": _rolling_slope,
+    "ema": _ema_last,
+    "range": lambda w: w.max() - w.min(),
+    "cv": lambda w: w.std() / (abs(w.mean()) + 1e-8),
+    "pct_change": lambda w: (
+        (w.iloc[-1] - w.iloc[0]) / (abs(w.iloc[0]) + 1e-8)
+        if len(w) > 0
+        else 0.0
+    ),
+    "first": lambda w: w.iloc[0] if len(w) > 0 else np.nan,
+    "last": lambda w: w.iloc[-1] if len(w) > 0 else np.nan,
+}
+
+
 def _execute_rolling(df: pd.DataFrame, step: RollingStep) -> pd.DataFrame:
     """Rolling window aggregation partitioned by keys.
 
     Agg format: ``{new_col: "source_col:func"}``.
+
+    Built-in pandas aggregation names (mean, std, sum, min, max, count) are
+    dispatched via ``.agg(name)``.  Custom aggregations (median, skew, kurt,
+    slope, ema, range, cv, pct_change, first, last) use ``.apply(fn)``.
     """
     result = df.sort_values(by=[*step.keys, step.order_by]).copy()
     min_periods = step.min_periods if step.min_periods is not None else step.window
@@ -245,11 +295,18 @@ def _execute_rolling(df: pd.DataFrame, step: RollingStep) -> pd.DataFrame:
                 f"Rolling agg spec must be 'column:func', got {spec!r}"
             )
         src_col, func = parts[0].strip(), parts[1].strip()
-        rolled = (
+
+        rolling_obj = (
             result.groupby(step.keys)[src_col]
             .rolling(window=step.window, min_periods=min_periods)
-            .agg(func)
         )
+
+        custom_fn = _CUSTOM_ROLLING_AGGS.get(func)
+        if custom_fn is not None:
+            rolled = rolling_obj.apply(custom_fn, raw=False)
+        else:
+            rolled = rolling_obj.agg(func)
+
         # rolling inside groupby produces multi-index; align back via droplevel
         result[new_col] = rolled.droplevel(list(range(len(step.keys)))).values
 
