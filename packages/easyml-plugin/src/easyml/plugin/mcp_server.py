@@ -204,6 +204,14 @@ async def manage_data(
         (JSON array of {column, strategy?, value?} objects).
       - "add_views_batch": Declare multiple views. Requires views (JSON array
         of {name, source, steps?, description?} objects).
+      - "check_freshness": Check freshness of all registered sources. Returns
+        stale sources with last-fetched timestamps.
+      - "refresh": Fetch a single source using its adapter, validate schema,
+        and update freshness. Requires name.
+      - "refresh_all": Fetch all stale sources in topological (dependency)
+        order with per-source progress reporting.
+      - "validate_source": Load a file source and validate against its schema
+        definition. Requires name.
     """
     return _load_handler("data").dispatch(
         action,

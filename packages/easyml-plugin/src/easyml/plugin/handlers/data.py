@@ -264,6 +264,36 @@ def _handle_add_views_batch(*, views, project_dir, **_kwargs):
     return summary
 
 
+def _handle_check_freshness(*, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.check_freshness(resolve_project_dir(project_dir))
+
+
+def _handle_refresh(*, name, project_dir, **_kwargs):
+    err = validate_required(name, "name")
+    if err:
+        return err
+    from easyml.core.runner import config_writer as cw
+
+    return cw.refresh_source(resolve_project_dir(project_dir), name)
+
+
+def _handle_refresh_all(*, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.refresh_all_sources(resolve_project_dir(project_dir))
+
+
+def _handle_validate_source(*, name, project_dir, **_kwargs):
+    err = validate_required(name, "name")
+    if err:
+        return err
+    from easyml.core.runner import config_writer as cw
+
+    return cw.validate_source_data(resolve_project_dir(project_dir), name)
+
+
 ACTIONS = {
     "add": _handle_add,
     "validate": _handle_validate,
@@ -285,6 +315,10 @@ ACTIONS = {
     "add_sources_batch": _handle_add_sources_batch,
     "fill_nulls_batch": _handle_fill_nulls_batch,
     "add_views_batch": _handle_add_views_batch,
+    "check_freshness": _handle_check_freshness,
+    "refresh": _handle_refresh,
+    "refresh_all": _handle_refresh_all,
+    "validate_source": _handle_validate_source,
 }
 
 
