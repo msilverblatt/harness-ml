@@ -1,6 +1,6 @@
-"""Backward-compat shim — re-exports from easyml.core.schemas."""
+"""Shared contracts and metrics for EasyML."""
 
-from easyml.core.schemas import (  # noqa: F401
+from easyml.core.schemas.contracts import (
     ArtifactDecl,
     EnsembleConfig,
     ExperimentResult,
@@ -13,6 +13,8 @@ from easyml.core.schemas import (  # noqa: F401
     SourceMeta,
     StageConfig,
     TemporalFilter,
+)
+from easyml.core.schemas.metrics import (
     accuracy,
     auc_roc,
     brier_score,
@@ -28,6 +30,7 @@ from easyml.core.schemas import (  # noqa: F401
 )
 
 __all__ = [
+    # Core schemas
     "ArtifactDecl",
     "EnsembleConfig",
     "ExperimentResult",
@@ -40,6 +43,7 @@ __all__ = [
     "SourceMeta",
     "StageConfig",
     "TemporalFilter",
+    # Metrics
     "accuracy",
     "auc_roc",
     "brier_score",
