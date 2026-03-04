@@ -32,16 +32,11 @@ from easyml.core.runner.training import (
     predict_single_model,
     train_single_model,
 )
+from easyml.core.runner.hooks import get_column_renames, get_entity_column_candidates
 from easyml.core.runner.validator import validate_project
 
 logger = logging.getLogger(__name__)
 
-# Column name mappings: mm-style -> easyml-style
-_COLUMN_RENAMES = {
-    "TeamAWon": "result",
-    "TeamAMargin": "margin",
-    "Season": "season",
-}
 
 
 # -----------------------------------------------------------------------
@@ -160,12 +155,13 @@ class ProviderContext:
             )
             return df
 
-        # Detect matchup team columns
+        # Detect matchup team columns via hook system
+        a_candidates, b_candidates = get_entity_column_candidates()
         team_a_col = next(
-            (c for c in ("TeamA", "team_a") if c in df.columns), None
+            (c for c in a_candidates if c in df.columns), None
         )
         team_b_col = next(
-            (c for c in ("TeamB", "team_b") if c in df.columns), None
+            (c for c in b_candidates if c in df.columns), None
         )
         df_season_col = "season" if "season" in df.columns else "Season"
 
@@ -359,8 +355,8 @@ class PipelineRunner:
             self._df = compute_interactions(self._df, self.config.interactions)
 
     def _normalize_columns(self) -> None:
-        """Auto-detect mm-style columns and rename to easyml convention."""
-        for old_name, new_name in _COLUMN_RENAMES.items():
+        """Auto-detect domain-specific columns and rename to easyml convention."""
+        for old_name, new_name in get_column_renames().items():
             if old_name in self._df.columns and new_name not in self._df.columns:
                 self._df = self._df.rename(columns={old_name: new_name})
 

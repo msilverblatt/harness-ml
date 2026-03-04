@@ -12,6 +12,7 @@ from easyml.core.runner.diagnostics import (
     compute_model_agreement,
     evaluate_season_predictions,
 )
+from easyml.core.runner.hooks import get_entity_column_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,13 @@ def build_pick_log(preds_df: pd.DataFrame, season: int) -> pd.DataFrame:
         "model_agreement_pct": model_agreement,
     })
 
-    # Add optional team/seed/round columns if they exist
+    # Add optional entity/prior/round columns if they exist
+    a_candidates, b_candidates = get_entity_column_candidates()
     _optional_cols = {
-        "team_a": ["TeamA", "team_a"],
-        "team_b": ["TeamB", "team_b"],
-        "seed_a": ["seed_a"],
-        "seed_b": ["seed_b"],
+        "entity_a": a_candidates,
+        "entity_b": b_candidates,
+        "prior_a": ["prior_a", "seed_a"],
+        "prior_b": ["prior_b", "seed_b"],
         "round": ["Round", "round"],
     }
     for target_name, source_candidates in _optional_cols.items():

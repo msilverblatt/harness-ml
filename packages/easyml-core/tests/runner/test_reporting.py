@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import easyml.sports  # noqa: F401 — register sports hooks for TeamA/TeamB support
+
 from easyml.core.runner.diagnostics import compute_model_agreement
 from easyml.core.runner.reporting import (
     build_diagnostics_report,
@@ -105,7 +107,7 @@ class TestBuildPickLog:
         assert log["correct"].sum() == 3  # all correct
 
     def test_pick_log_with_team_info(self):
-        """Pick log includes team/seed columns when available."""
+        """Pick log includes entity/prior columns when available."""
         preds = pd.DataFrame({
             "prob_ensemble": [0.7, 0.3],
             "result": [1, 0],
@@ -116,12 +118,12 @@ class TestBuildPickLog:
             "Round": [1, 1],
         })
         log = build_pick_log(preds, season=2023)
-        assert "team_a" in log.columns
-        assert "team_b" in log.columns
-        assert "seed_a" in log.columns
-        assert "seed_b" in log.columns
+        assert "entity_a" in log.columns
+        assert "entity_b" in log.columns
+        assert "prior_a" in log.columns
+        assert "prior_b" in log.columns
         assert "round" in log.columns
-        assert log["team_a"].iloc[0] == "Duke"
+        assert log["entity_a"].iloc[0] == "Duke"
 
     def test_pick_log_confidence(self):
         """Confidence = abs(prob_a - 0.5)."""
@@ -163,14 +165,14 @@ class TestBuildPickLog:
         assert log["season"].iloc[0] == 2025
 
     def test_pick_log_without_optional_columns(self):
-        """Pick log works without team/seed/round columns."""
+        """Pick log works without entity/prior/round columns."""
         preds = pd.DataFrame({
             "prob_ensemble": [0.7, 0.3],
             "result": [1, 0],
         })
         log = build_pick_log(preds, season=2023)
-        assert "team_a" not in log.columns
-        assert "seed_a" not in log.columns
+        assert "entity_a" not in log.columns
+        assert "prior_a" not in log.columns
         assert "round" not in log.columns
 
 

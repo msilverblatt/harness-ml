@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from easyml.core.runner.hooks import get_id_patterns, get_label_candidates, get_margin_candidates
 from easyml.core.runner.schema import DataConfig
 
 logger = logging.getLogger(__name__)
@@ -318,7 +319,7 @@ def _profile_with_heuristics(
         profile.season_counts = {int(k): int(v) for k, v in profile.season_counts.items()}
 
     # Label analysis
-    label_col = _find_column(df, ["result", "TeamAWon"])
+    label_col = _find_column(df, get_label_candidates())
     if label_col:
         profile.label_column = label_col
         profile.label_distribution = {
@@ -328,7 +329,7 @@ def _profile_with_heuristics(
         }
 
     # Margin analysis
-    margin_col = _find_column(df, ["margin", "TeamAMargin"])
+    margin_col = _find_column(df, get_margin_candidates())
     if margin_col:
         profile.margin_column = margin_col
         margin = df[margin_col].dropna()
@@ -342,8 +343,8 @@ def _profile_with_heuristics(
 
     # Column profiles
     skip_cols = {season_col, label_col, margin_col} - {None}
-    # Also skip ID-like columns
-    id_patterns = ["TeamA", "TeamB", "game_id", "matchup_id"]
+    # Also skip ID-like columns (via hook system for extensibility)
+    id_patterns = get_id_patterns()
 
     for col_name in df.columns:
         if col_name in skip_cols:
