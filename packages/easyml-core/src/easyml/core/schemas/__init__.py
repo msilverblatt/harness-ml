@@ -15,6 +15,7 @@ from easyml.core.schemas.contracts import (
     TemporalFilter,
 )
 from easyml.core.schemas.metrics import (
+    MetricRegistry,
     accuracy,
     auc_roc,
     brier_score,
@@ -44,6 +45,7 @@ __all__ = [
     "StageConfig",
     "TemporalFilter",
     # Metrics
+    "MetricRegistry",
     "accuracy",
     "auc_roc",
     "brier_score",
