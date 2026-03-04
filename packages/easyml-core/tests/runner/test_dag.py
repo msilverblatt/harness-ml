@@ -74,7 +74,7 @@ class TestInferDependencies:
 
     def test_no_dependencies(self):
         models = {
-            "m1": _model(features=["diff_seed_num"]),
+            "m1": _model(features=["diff_prior"]),
             "m2": _model(features=["diff_win_pct"]),
         }
         deps = infer_dependencies(models)
@@ -83,7 +83,7 @@ class TestInferDependencies:
     def test_diff_prefix_dependency(self):
         models = {
             "survival": _model(provides=["surv_e8"]),
-            "trajectory": _model(features=["diff_seed_num", "diff_surv_e8"]),
+            "trajectory": _model(features=["diff_prior", "diff_surv_e8"]),
         }
         deps = infer_dependencies(models)
         assert deps["trajectory"] == {"survival"}
@@ -93,7 +93,7 @@ class TestInferDependencies:
         """Consumer can reference provider output without diff_ prefix."""
         models = {
             "provider": _model(provides=["predicted_margin"]),
-            "consumer": _model(features=["predicted_margin", "diff_seed_num"]),
+            "consumer": _model(features=["predicted_margin", "diff_prior"]),
         }
         deps = infer_dependencies(models)
         assert deps["consumer"] == {"provider"}
@@ -253,8 +253,8 @@ class TestEndToEnd:
     def test_survival_trajectory_pattern(self):
         """The mm survival → trajectory pattern."""
         models = {
-            "logreg_seed": _model(features=["diff_seed_num"]),
-            "xgb_core": _model(features=["diff_seed_num", "diff_sr_srs"]),
+            "logreg_seed": _model(features=["diff_prior"]),
+            "xgb_core": _model(features=["diff_prior", "diff_sr_srs"]),
             "survival": _model(
                 features=["seed_num", "win_pct"],
                 provides=["surv_e8", "surv_f4"],
@@ -262,7 +262,7 @@ class TestEndToEnd:
                 include_in_ensemble=False,
             ),
             "xgb_trajectory": _model(
-                features=["diff_seed_num", "diff_surv_e8", "diff_surv_f4"],
+                features=["diff_prior", "diff_surv_e8", "diff_surv_f4"],
             ),
         }
         pmap = build_provider_map(models)

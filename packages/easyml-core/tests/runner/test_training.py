@@ -37,7 +37,7 @@ def _make_train_df(n: int = 200, n_seasons: int = 3, seed: int = 42) -> pd.DataF
         "diff_y": diff_y,
         "result": result,
         "margin": margin,
-        "diff_seed_num": rng.integers(-15, 16, size=n).astype(float),
+        "diff_prior": rng.integers(-15, 16, size=n).astype(float),
     })
 
 

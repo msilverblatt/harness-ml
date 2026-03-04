@@ -324,7 +324,7 @@ class TestModelDefExtensions:
     def test_train_seasons_last_n(self):
         m = ModelDef(
             type="xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             train_seasons="last_5",
         )
         assert m.train_seasons == "last_5"
@@ -401,18 +401,18 @@ class TestEnsembleDefExtensions:
     def test_meta_features(self):
         e = EnsembleDef(
             method="stacked",
-            meta_features=["diff_seed_num"],
+            meta_features=["diff_prior"],
         )
-        assert e.meta_features == ["diff_seed_num"]
+        assert e.meta_features == ["diff_prior"]
 
-    def test_seed_compression(self):
+    def test_prior_compression(self):
         e = EnsembleDef(
             method="stacked",
-            seed_compression=0.5,
-            seed_compression_threshold=4,
+            prior_compression=0.5,
+            prior_compression_threshold=4,
         )
-        assert e.seed_compression == 0.5
-        assert e.seed_compression_threshold == 4
+        assert e.prior_compression == 0.5
+        assert e.prior_compression_threshold == 4
 
     def test_defaults_backward_compatible(self):
         """Old config format (without new fields) still validates."""
@@ -422,8 +422,8 @@ class TestEnsembleDefExtensions:
         assert e.spline_prob_max == 0.985
         assert e.spline_n_bins == 20
         assert e.meta_features == []
-        assert e.seed_compression == 0.0
-        assert e.seed_compression_threshold == 4
+        assert e.prior_compression == 0.0
+        assert e.prior_compression_threshold == 4
 
 
 class TestFeaturesConfig:
@@ -571,7 +571,7 @@ class TestProjectConfigInteractionsAndInjections:
         proj = _minimal_project()
         proj["interactions"] = {
             "seed_x_margin": {
-                "left": "diff_seed_num",
+                "left": "diff_prior",
                 "right": "diff_scoring_margin",
                 "op": "multiply",
             }
@@ -580,7 +580,7 @@ class TestProjectConfigInteractionsAndInjections:
         assert cfg.interactions is not None
         assert "seed_x_margin" in cfg.interactions
         inter = cfg.interactions["seed_x_margin"]
-        assert inter.left == "diff_seed_num"
+        assert inter.left == "diff_prior"
         assert inter.op == "multiply"
 
     def test_project_config_with_injections(self):

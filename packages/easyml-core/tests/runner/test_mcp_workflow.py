@@ -61,7 +61,7 @@ def _make_dataset(path: Path, *, n_rows: int = 200, n_seasons: int = 3) -> Path:
                 "opp_id": rng.integers(1, 50),
                 "diff_adj_em": rng.normal(0, 10),
                 "diff_barthag": rng.normal(0, 0.2),
-                "diff_seed_num": rng.integers(-15, 16),
+                "diff_prior": rng.integers(-15, 16),
                 "diff_tempo": rng.normal(0, 3),
                 "diff_off_rtg": rng.normal(0, 8),
                 "result": rng.integers(0, 2),
@@ -240,7 +240,7 @@ class TestMCPWorkflow:
             project_dir,
             "xgb_v1",
             preset="xgboost_classifier",
-            features=["diff_adj_em", "diff_barthag", "diff_seed_num"],
+            features=["diff_adj_em", "diff_barthag", "diff_prior"],
         )
 
         assert "Added model" in result
@@ -747,7 +747,7 @@ class TestPredictAction:
         config_writer.add_model(
             project_dir, "lr_test",
             model_type="logistic_regression",
-            features=["diff_adj_em", "diff_barthag", "diff_seed_num"],
+            features=["diff_adj_em", "diff_barthag", "diff_prior"],
         )
         config_writer.configure_backtest(
             project_dir, seasons=[2022, 2023, 2024],

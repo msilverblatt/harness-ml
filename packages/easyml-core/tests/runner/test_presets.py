@@ -93,9 +93,9 @@ class TestApplyPreset:
     def test_add_features_via_override(self):
         result = apply_preset(
             "xgboost_classifier",
-            {"features": ["diff_seed_num", "diff_adj_em"]},
+            {"features": ["diff_prior", "diff_adj_em"]},
         )
-        assert result["features"] == ["diff_seed_num", "diff_adj_em"]
+        assert result["features"] == ["diff_prior", "diff_adj_em"]
 
 
 # -----------------------------------------------------------------------
@@ -106,7 +106,7 @@ class TestPresetsValidateAsModelDef:
     @pytest.mark.parametrize("name", list_presets())
     def test_preset_validates(self, name):
         """Every preset (with a dummy features list) must pass ModelDef validation."""
-        config = apply_preset(name, {"features": ["diff_seed_num"]})
+        config = apply_preset(name, {"features": ["diff_prior"]})
         model = ModelDef(**config)
         assert model.type in (
             "xgboost", "xgboost_regression", "logistic_regression",

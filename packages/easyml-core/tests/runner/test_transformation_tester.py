@@ -27,7 +27,7 @@ def _make_features_parquet(path: Path, n: int = 300) -> None:
         "diff_x": rng.standard_normal(n),
         "diff_y": rng.standard_normal(n),
         "diff_z": result.astype(float) + rng.normal(0, 0.5, n),  # correlated with target
-        "diff_seed_num": rng.integers(-15, 16, size=n).astype(float),
+        "diff_prior": rng.integers(-15, 16, size=n).astype(float),
         "diff_adj_em": rng.standard_normal(n) * 5,
     })
     path.parent.mkdir(parents=True, exist_ok=True)

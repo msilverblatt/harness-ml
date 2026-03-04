@@ -98,12 +98,12 @@ class TestGeneratePairwiseMatchups:
         assert row["diff_adj_oe"] == pytest.approx(10.0)
         assert row["diff_win_pct"] == pytest.approx(0.2)
 
-    def test_diff_seed_num_included(self):
-        """diff_seed_num column is included."""
+    def test_diff_prior_included(self):
+        """diff_prior column is included."""
         team_feats = _make_team_features(n_teams=3)
         seeds = _make_seeds([1, 2, 3])
         matchups = generate_pairwise_matchups(team_feats, seeds, season=2024)
-        assert "diff_seed_num" in matchups.columns
+        assert "diff_prior" in matchups.columns
 
     def test_season_column_included(self):
         """season column is present."""
@@ -179,7 +179,7 @@ class TestPredictAllMatchups:
             "TeamA": [1, 2],
             "TeamB": [3, 4],
             "season": [2024, 2024],
-            "diff_seed_num": [-1.0, -3.0],
+            "diff_prior": [-1.0, -3.0],
             "diff_x": [0.5, -0.5],
         })
         model_def = ModelDef(
@@ -203,7 +203,7 @@ class TestPredictAllMatchups:
             "TeamA": [1, 2],
             "TeamB": [3, 4],
             "season": [2024, 2024],
-            "diff_seed_num": [-1.0, -3.0],
+            "diff_prior": [-1.0, -3.0],
             "diff_x": [0.5, -0.5],
         })
         model_def = ModelDef(
@@ -228,7 +228,7 @@ class TestPredictAllMatchups:
             "TeamA": [1],
             "TeamB": [2],
             "season": [2024],
-            "diff_seed_num": [-1.0],
+            "diff_prior": [-1.0],
             "diff_x": [0.5],
         })
         model_def = ModelDef(
@@ -257,7 +257,7 @@ class TestPredictAllMatchups:
             "TeamA": [1],
             "TeamB": [2],
             "season": [2024],
-            "diff_seed_num": [-1.0],
+            "diff_prior": [-1.0],
             "diff_x": [np.nan],
         })
         model_def = ModelDef(
@@ -281,7 +281,7 @@ class TestPredictAllMatchups:
             "TeamA": [1],
             "TeamB": [2],
             "season": [2024],
-            "diff_seed_num": [-1.0],
+            "diff_prior": [-1.0],
             "diff_x": [0.5],
         })
         models = {
@@ -298,7 +298,7 @@ class TestPredictAllMatchups:
             "TeamA": [1],
             "TeamB": [2],
             "season": [2024],
-            "diff_seed_num": [-1.0],
+            "diff_prior": [-1.0],
             "diff_x": [0.5],
             "diff_y": [1.0],
         })

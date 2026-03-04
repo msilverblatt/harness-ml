@@ -2,7 +2,7 @@
 
 Applies the full chain: model filtering, pre-calibration, meta-learner,
 post-calibration, temperature scaling, clipping, availability adjustment,
-and seed compression.
+and prior compression.
 """
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ def apply_ensemble_postprocessing(
     1. Extract base model prob columns (prob_*), excluding prob_logreg_seed
     2. Filter out excluded models (ensemble_config["exclude_models"])
     3. Apply pre-calibration to specified models
-    4. Run meta-learner prediction (using seed_diffs from diff_seed_num column)
+    4. Run meta-learner prediction (using prior_diffs from diff_prior column)
     5. Apply post-calibration
     6. Temperature scaling
     7. Probability clipping
     8. Availability adjustment (if strength > 0)
-    9. Seed-proximity compression (if configured and > 0)
+    9. Prior-proximity compression (if configured and > 0)
 
     Adds 'prob_ensemble' column to preds DataFrame and returns it.
     """
@@ -61,8 +61,8 @@ def apply_ensemble_postprocessing(
             if model_name in model_preds and hasattr(cal, "transform"):
                 model_preds[model_name] = cal.transform(model_preds[model_name])
 
-    # Extract seed_diffs
-    seed_diffs = preds["diff_seed_num"].values if "diff_seed_num" in preds.columns else np.zeros(len(preds))
+    # Extract prior_diffs
+    prior_diffs = preds["diff_prior"].values if "diff_prior" in preds.columns else np.zeros(len(preds))
 
     # Extract extra features (meta_features from config)
     extra_features = None
@@ -76,7 +76,7 @@ def apply_ensemble_postprocessing(
     # Step 4: Run meta-learner prediction
     probs = meta_learner.predict(
         model_preds,
-        seed_diffs,
+        prior_diffs,
         extra_features=extra_features if extra_features else None,
     )
 
@@ -99,11 +99,11 @@ def apply_ensemble_postprocessing(
     if av_strength > 0:
         probs = apply_availability_adjustment(probs, preds, ensemble_config, av_strength)
 
-    # Step 9: Seed-proximity compression
-    compression = ensemble_config.get("seed_compression", 0.0)
-    threshold = ensemble_config.get("seed_compression_threshold", 4)
+    # Step 9: Prior-proximity compression
+    compression = ensemble_config.get("prior_compression", 0.0)
+    threshold = ensemble_config.get("prior_compression_threshold", 4)
     if compression > 0:
-        probs = apply_seed_compression(probs, preds, compression, threshold)
+        probs = apply_prior_compression(probs, preds, compression, threshold)
 
     preds = preds.copy()
     preds["prob_ensemble"] = probs
@@ -168,24 +168,24 @@ def apply_availability_adjustment(
     return adjusted
 
 
-def apply_seed_compression(
+def apply_prior_compression(
     probs: np.ndarray,
     preds: pd.DataFrame,
     compression: float,
     threshold: int,
 ) -> np.ndarray:
-    """Compress toward 0.5 for close seed matchups.
+    """Compress toward 0.5 for close-prior matchups.
 
-    For matchups where abs(seed_diff) <= threshold, compresses
+    For matchups where abs(prior_diff) <= threshold, compresses
     the probability toward 0.5 by the compression factor:
     p_new = p * (1 - compression) + 0.5 * compression
     """
     probs = probs.copy()
-    if "diff_seed_num" not in preds.columns:
+    if "diff_prior" not in preds.columns:
         return probs
 
-    seed_diffs = preds["diff_seed_num"].values
-    close_mask = np.abs(seed_diffs) <= threshold
+    prior_diffs = preds["diff_prior"].values
+    close_mask = np.abs(prior_diffs) <= threshold
 
     probs[close_mask] = (
         probs[close_mask] * (1.0 - compression) + 0.5 * compression

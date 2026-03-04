@@ -30,7 +30,7 @@ def generate_pairwise_matchups(
     - Look up team-season features for both teams
     - Compute diff_* features (TeamA value - TeamB value)
     - Impute NaN with feature medians
-    - Include TeamA, TeamB, season, diff_seed_num columns
+    - Include TeamA, TeamB, season, diff_prior columns
 
     Parameters
     ----------
@@ -49,7 +49,7 @@ def generate_pairwise_matchups(
     -------
     pd.DataFrame
         Matchup DataFrame with N*(N-1)/2 rows for N seeded teams.
-        Columns include TeamA, TeamB, season, diff_seed_num, and
+        Columns include TeamA, TeamB, season, diff_prior, and
         diff_{feature} for each numeric feature.
     """
     # Filter seeds for this season
@@ -103,7 +103,7 @@ def generate_pairwise_matchups(
             "TeamA": team_a,
             "TeamB": team_b,
             "season": season,
-            "diff_seed_num": float(row_a.get("seed_num", 0)) - float(row_b.get("seed_num", 0)),
+            "diff_prior": float(row_a.get("seed_num", 0)) - float(row_b.get("seed_num", 0)),
         }
 
         # Compute diff features

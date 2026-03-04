@@ -557,11 +557,11 @@ class PipelineRunner:
         if "result" in test_df.columns:
             preds_df["result"] = test_df["result"].values
 
-        # Add diff_seed_num if available
-        if "diff_seed_num" in test_df.columns:
-            preds_df["diff_seed_num"] = test_df["diff_seed_num"].values
+        # Add diff_prior if available
+        if "diff_prior" in test_df.columns:
+            preds_df["diff_prior"] = test_df["diff_prior"].values
         else:
-            preds_df["diff_seed_num"] = np.zeros(len(test_df))
+            preds_df["diff_prior"] = np.zeros(len(test_df))
 
         # Add meta_features if configured
         meta_feature_names = self.config.ensemble.meta_features
@@ -716,7 +716,7 @@ class PipelineRunner:
         }
 
         y_true = combined["result"].values.astype(float)
-        seed_diffs = combined["diff_seed_num"].values.astype(float)
+        prior_diffs = combined["diff_prior"].values.astype(float)
         season_labels = combined["season"].values
 
         extra_features = None
@@ -730,7 +730,7 @@ class PipelineRunner:
         meta, cal, pre_cals = train_meta_learner_loso(
             y_true=y_true,
             model_preds=model_preds,
-            seed_diffs=seed_diffs,
+            prior_diffs=prior_diffs,
             season_labels=season_labels,
             model_names=available_models,
             ensemble_config=ensemble_config,
@@ -943,7 +943,7 @@ class PipelineRunner:
         pd.DataFrame | None
             DataFrame with prob_{model_name} columns (only for
             models with include_in_ensemble=True), plus
-            diff_seed_num and any meta_features columns,
+            diff_prior and any meta_features columns,
             or None if no predictions could be generated.
         """
         train_mask = self._df["season"].isin(train_seasons)
@@ -958,11 +958,11 @@ class PipelineRunner:
         if "result" in test_df.columns:
             preds_df["result"] = test_df["result"].values
 
-        # Add diff_seed_num if available
-        if "diff_seed_num" in test_df.columns:
-            preds_df["diff_seed_num"] = test_df["diff_seed_num"].values
+        # Add diff_prior if available
+        if "diff_prior" in test_df.columns:
+            preds_df["diff_prior"] = test_df["diff_prior"].values
         else:
-            preds_df["diff_seed_num"] = np.zeros(len(test_df))
+            preds_df["diff_prior"] = np.zeros(len(test_df))
 
         # Add meta_features if configured
         meta_feature_names = self.config.ensemble.meta_features
@@ -1201,7 +1201,7 @@ class PipelineRunner:
         }
 
         y_true = train_combined["result"].values.astype(float)
-        seed_diffs = train_combined["diff_seed_num"].values.astype(float)
+        prior_diffs = train_combined["diff_prior"].values.astype(float)
         season_labels = train_combined["season"].values
 
         # Extra features
@@ -1216,7 +1216,7 @@ class PipelineRunner:
         meta, cal, pre_cals = train_meta_learner_loso(
             y_true=y_true,
             model_preds=model_preds,
-            seed_diffs=seed_diffs,
+            prior_diffs=prior_diffs,
             season_labels=season_labels,
             model_names=available_models,
             ensemble_config=ensemble_config,

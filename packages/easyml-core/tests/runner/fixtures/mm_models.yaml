@@ -2,7 +2,7 @@ models:
   logreg_seed:
     type: logistic_regression
     features:
-    - diff_seed_num
+    - diff_prior
     train_seasons: all
     params:
       C: 1.0
@@ -10,7 +10,7 @@ models:
   xgb_core:
     type: xgboost
     features:
-    - diff_seed_num
+    - diff_prior
     - diff_bt_barthag
     - diff_win_pct
     - diff_sr_srs
@@ -33,7 +33,7 @@ models:
   xgb_spread_broad:
     type: xgboost_regression
     features:
-    - diff_seed_num
+    - diff_prior
     - diff_scoring_margin
     - diff_ppg
     - diff_opp_ppg
@@ -117,7 +117,7 @@ models:
   v2_tabnet_clf:
     type: tabnet
     features:
-    - diff_seed_num
+    - diff_prior
     - diff_win_pct
     - diff_ppg
     - diff_opp_ppg

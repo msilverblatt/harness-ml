@@ -19,7 +19,7 @@ class StackedEnsemble:
     """Logistic regression meta-learner over base model predictions.
 
     Feature matrix consists of: [model_pred_1, ..., model_pred_N,
-    seed_diff, extra_feature_1, ...].
+    prior_diff, extra_feature_1, ...].
     """
 
     def __init__(self, model_names: list[str]) -> None:
@@ -29,14 +29,14 @@ class StackedEnsemble:
     def _build_feature_matrix(
         self,
         model_preds: dict[str, np.ndarray],
-        seed_diffs: np.ndarray,
+        prior_diffs: np.ndarray,
         extra_features: dict[str, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Build the feature matrix for the meta-learner."""
         cols = []
         for name in self.model_names:
             cols.append(np.asarray(model_preds[name], dtype=float))
-        cols.append(np.asarray(seed_diffs, dtype=float))
+        cols.append(np.asarray(prior_diffs, dtype=float))
         if extra_features:
             for feat_name in sorted(extra_features.keys()):
                 cols.append(np.asarray(extra_features[feat_name], dtype=float))
@@ -46,7 +46,7 @@ class StackedEnsemble:
         self, extra_features: dict[str, np.ndarray] | None = None
     ) -> list[str]:
         """Return ordered list of feature names matching the feature matrix columns."""
-        names = list(self.model_names) + ["seed_diff"]
+        names = list(self.model_names) + ["prior_diff"]
         if extra_features:
             names.extend(sorted(extra_features.keys()))
         return names
@@ -54,7 +54,7 @@ class StackedEnsemble:
     def fit(
         self,
         model_preds: dict[str, np.ndarray],
-        seed_diffs: np.ndarray,
+        prior_diffs: np.ndarray,
         y_true: np.ndarray,
         C: float = 1.0,
         extra_features: dict[str, np.ndarray] | None = None,
@@ -64,12 +64,12 @@ class StackedEnsemble:
         Parameters
         ----------
         model_preds : dict mapping model_name -> prediction array
-        seed_diffs : seed difference array (higher_seed - lower_seed)
+        prior_diffs : prior difference array (e.g. higher_prior - lower_prior)
         y_true : binary outcome array
         C : regularization strength for LogisticRegression
         extra_features : optional dict of additional feature arrays
         """
-        X = self._build_feature_matrix(model_preds, seed_diffs, extra_features)
+        X = self._build_feature_matrix(model_preds, prior_diffs, extra_features)
         y = np.asarray(y_true, dtype=float)
         self._model = LogisticRegression(C=C, max_iter=1000, solver="lbfgs")
         self._model.fit(X, y)
@@ -77,13 +77,13 @@ class StackedEnsemble:
     def predict(
         self,
         model_preds: dict[str, np.ndarray],
-        seed_diffs: np.ndarray,
+        prior_diffs: np.ndarray,
         extra_features: dict[str, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Return probability array from meta-learner."""
         if self._model is None:
             raise RuntimeError("StackedEnsemble has not been fitted yet.")
-        X = self._build_feature_matrix(model_preds, seed_diffs, extra_features)
+        X = self._build_feature_matrix(model_preds, prior_diffs, extra_features)
         return self._model.predict_proba(X)[:, 1]
 
     def get_coefficients(
@@ -91,7 +91,7 @@ class StackedEnsemble:
     ) -> dict[str, float]:
         """Return model_name -> coefficient mapping.
 
-        Also includes 'seed_diff' and any extra feature names.
+        Also includes 'prior_diff' and any extra feature names.
         """
         if self._model is None:
             raise RuntimeError("StackedEnsemble has not been fitted yet.")
@@ -130,7 +130,7 @@ class StackedEnsemble:
 def train_meta_learner_loso(
     y_true: np.ndarray,
     model_preds: dict[str, np.ndarray],
-    seed_diffs: np.ndarray,
+    prior_diffs: np.ndarray,
     season_labels: np.ndarray,
     model_names: list[str],
     ensemble_config: dict,
@@ -153,7 +153,7 @@ def train_meta_learner_loso(
     ----------
     y_true : array of binary labels
     model_preds : dict mapping model_name -> prediction array
-    seed_diffs : seed difference array
+    prior_diffs : prior difference array
     season_labels : array of season identifiers (same length as y_true)
     model_names : list of model names to include
     ensemble_config : dict with keys like meta_learner.C, calibration,
@@ -165,7 +165,7 @@ def train_meta_learner_loso(
     tuple of (meta_learner, post_calibrator, pre_calibrators_dict)
     """
     y_true = np.asarray(y_true, dtype=float)
-    seed_diffs = np.asarray(seed_diffs, dtype=float)
+    prior_diffs = np.asarray(prior_diffs, dtype=float)
     season_labels = np.asarray(season_labels)
 
     meta_config = ensemble_config.get("meta_learner", {})
@@ -220,7 +220,7 @@ def train_meta_learner_loso(
         fold_meta = StackedEnsemble(model_names)
         fold_meta.fit(
             train_preds,
-            seed_diffs[train_mask],
+            prior_diffs[train_mask],
             y_true[train_mask],
             C=C,
             extra_features=train_extra,
@@ -229,7 +229,7 @@ def train_meta_learner_loso(
         # Step 1e: Predict on held-out season
         oof_preds[val_mask] = fold_meta.predict(
             val_preds,
-            seed_diffs[val_mask],
+            prior_diffs[val_mask],
             extra_features=val_extra,
         )
 
@@ -262,7 +262,7 @@ def train_meta_learner_loso(
     final_meta = StackedEnsemble(model_names)
     final_meta.fit(
         all_preds_cal,
-        seed_diffs,
+        prior_diffs,
         y_true,
         C=C,
         extra_features=extra_features,

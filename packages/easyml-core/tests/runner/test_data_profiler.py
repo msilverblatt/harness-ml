@@ -25,7 +25,7 @@ def sample_parquet(tmp_path) -> Path:
         "Season": np.repeat([2020, 2021, 2022, 2023], 50),
         "TeamAWon": rng.integers(0, 2, size=n).astype(float),
         "TeamAMargin": rng.normal(0, 10, size=n),
-        "diff_seed_num": rng.normal(0, 3, size=n),
+        "diff_prior": rng.normal(0, 3, size=n),
         "diff_sr_srs": rng.normal(0, 5, size=n),
         "diff_adj_net": rng.normal(0, 8, size=n),
         "diff_with_nulls": np.where(
@@ -93,7 +93,7 @@ class TestColumnClassification:
 
     def test_diff_columns_identified(self, sample_profile):
         diff_names = [c.name for c in sample_profile.diff_columns]
-        assert "diff_seed_num" in diff_names
+        assert "diff_prior" in diff_names
         assert "diff_sr_srs" in diff_names
         assert "diff_adj_net" in diff_names
 
@@ -125,7 +125,7 @@ class TestNullDetection:
 
     def test_low_null_not_flagged(self, sample_profile):
         high_null_names = [c.name for c in sample_profile.high_null_columns]
-        assert "diff_seed_num" not in high_null_names
+        assert "diff_prior" not in high_null_names
 
     def test_null_pct_correct(self, sample_profile):
         null_col = next(
@@ -151,7 +151,7 @@ class TestColumnStats:
     def test_numeric_stats_present(self, sample_profile):
         seed_col = next(
             c for c in sample_profile.diff_columns
-            if c.name == "diff_seed_num"
+            if c.name == "diff_prior"
         )
         assert seed_col.mean is not None
         assert seed_col.std is not None
@@ -161,7 +161,7 @@ class TestColumnStats:
     def test_std_positive(self, sample_profile):
         seed_col = next(
             c for c in sample_profile.diff_columns
-            if c.name == "diff_seed_num"
+            if c.name == "diff_prior"
         )
         assert seed_col.std > 0
 
@@ -180,7 +180,7 @@ class TestFormatting:
 
     def test_format_columns(self, sample_profile):
         text = sample_profile.format_columns(category="diff")
-        assert "diff_seed_num" in text
+        assert "diff_prior" in text
 
     def test_format_null_tiers(self, sample_profile):
         text = sample_profile.format_null_tiers()
@@ -224,7 +224,7 @@ class TestEdgeCases:
             "season": [2020, 2021, 2022],
             "result": [1.0, 0.0, 1.0],
             "margin": [5.0, -3.0, 12.0],
-            "diff_seed_num": [1.0, -2.0, 3.0],
+            "diff_prior": [1.0, -2.0, 3.0],
         })
         path = tmp_path / "matchup_features.parquet"
         df.to_parquet(path)

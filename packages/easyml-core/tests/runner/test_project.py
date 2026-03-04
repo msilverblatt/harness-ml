@@ -28,7 +28,7 @@ def project_dir(tmp_path) -> Path:
         "Season": np.repeat([2015, 2016, 2017, 2018, 2019], 60),
         "TeamAWon": rng.integers(0, 2, size=n).astype(float),
         "TeamAMargin": rng.normal(0, 10, size=n),
-        "diff_seed_num": rng.normal(0, 3, size=n),
+        "diff_prior": rng.normal(0, 3, size=n),
         "diff_sr_srs": rng.normal(0, 5, size=n),
         "diff_win_pct": rng.uniform(-0.5, 0.5, size=n),
         "diff_ppg": rng.normal(0, 8, size=n),
@@ -66,13 +66,13 @@ class TestDataAwareness:
 
     def test_available_features_returns_columns(self, project):
         feats = project.available_features()
-        assert "diff_seed_num" in feats
+        assert "diff_prior" in feats
         assert "diff_sr_srs" in feats
 
     def test_available_features_with_prefix(self, project):
         diff_feats = project.available_features(prefix="diff_")
         assert all(f.startswith("diff_") for f in diff_feats)
-        assert "diff_seed_num" in diff_feats
+        assert "diff_prior" in diff_feats
 
     def test_available_features_excludes_non_matching_prefix(self, project):
         diff_feats = project.available_features(prefix="diff_")
@@ -95,7 +95,7 @@ class TestAddModel:
     def test_add_valid_model(self, project):
         project.add_model(
             "logreg_seed", "logistic_regression",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
         )
         config = project.build()
         assert "logreg_seed" in config.models
@@ -103,7 +103,7 @@ class TestAddModel:
     def test_add_model_with_params(self, project):
         project.add_model(
             "xgb_core", "xgboost",
-            features=["diff_seed_num", "diff_sr_srs"],
+            features=["diff_prior", "diff_sr_srs"],
             params={"max_depth": 2, "learning_rate": 0.01},
         )
         config = project.build()
@@ -122,13 +122,13 @@ class TestAddModel:
         with pytest.raises(ValueError, match="Unknown model type"):
             project.add_model(
                 "bad_model", "definitely_not_a_model_type",
-                features=["diff_seed_num"],
+                features=["diff_prior"],
             )
 
     def test_add_regressor(self, project):
         project.add_model(
             "xgb_spread", "xgboost_regression",
-            features=["diff_seed_num", "diff_scoring_margin"],
+            features=["diff_prior", "diff_scoring_margin"],
             mode="regressor",
         )
         config = project.build()
@@ -137,11 +137,11 @@ class TestAddModel:
     def test_add_multiple_models(self, project):
         project.add_model(
             "model_a", "logistic_regression",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
         )
         project.add_model(
             "model_b", "xgboost",
-            features=["diff_seed_num", "diff_sr_srs"],
+            features=["diff_prior", "diff_sr_srs"],
         )
         config = project.build()
         assert len(config.models) == 2
@@ -155,16 +155,16 @@ class TestModelManagement:
     """Models can be removed or excluded."""
 
     def test_remove_model(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
-        project.add_model("m2", "xgboost", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
+        project.add_model("m2", "xgboost", features=["diff_prior"])
         project.remove_model("m1")
         config = project.build()
         assert "m1" not in config.models
         assert "m2" in config.models
 
     def test_exclude_model(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
-        project.add_model("m2", "xgboost", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
+        project.add_model("m2", "xgboost", features=["diff_prior"])
         project.exclude_model("m1")
         config = project.build()
         assert "m1" in config.ensemble.exclude_models
@@ -185,7 +185,7 @@ class TestLeakageDetection:
         )
         project.add_model(
             "m1", "logistic_regression",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
         )
         warnings = project.check_leakage()
         assert len(warnings) == 0
@@ -237,7 +237,7 @@ class TestLeakageDetection:
         """Features without declared sources are not flagged (unknown provenance)."""
         project.add_model(
             "m1", "logistic_regression",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
         )
         # No sources declared
         warnings = project.check_leakage()
@@ -252,13 +252,13 @@ class TestEnsembleConfig:
     """Ensemble can be configured programmatically."""
 
     def test_default_ensemble(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         config = project.build()
         assert config.ensemble.method == "stacked"
         assert config.ensemble.temperature == 1.0
 
     def test_custom_ensemble(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_ensemble(
             method="stacked",
             C=2.5,
@@ -280,14 +280,14 @@ class TestBacktestConfig:
     """Backtest seasons can be configured or auto-detected."""
 
     def test_explicit_seasons(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(seasons=[2016, 2017, 2018])
         config = project.build()
         assert config.backtest.seasons == [2016, 2017, 2018]
 
     def test_auto_detect_seasons(self, project):
         """Auto-detect with default min_train_seasons=3 reserves first 3."""
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest()
         config = project.build()
         # Data has 5 seasons (2015-2019), min_train=3 → holdout [2018, 2019]
@@ -308,7 +308,7 @@ class TestBuild:
             project.build()
 
     def test_build_succeeds_with_valid_config(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         config = project.build()
         assert config is not None
         assert len(config.models) == 1
@@ -322,7 +322,7 @@ class TestYamlSerialization:
     """Config can be saved to YAML files."""
 
     def test_save_to_yaml_creates_files(self, project, tmp_path):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         config_dir = tmp_path / "saved_config"
         project.save_to_yaml(config_dir)
 
@@ -332,7 +332,7 @@ class TestYamlSerialization:
 
     def test_saved_yaml_roundtrips(self, project, tmp_path):
         """Config saved to YAML can be loaded back by the validator."""
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(seasons=[2016, 2017])
 
         config_dir = tmp_path / "saved_config"
@@ -348,7 +348,7 @@ class TestYamlSerialization:
         project.add_source(
             "seeds", temporal_safety="pre_tournament", outputs=["seed_num"],
         )
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         config_dir = tmp_path / "saved_config"
         project.save_to_yaml(config_dir)
 
@@ -367,7 +367,7 @@ class TestChaining:
         config = (
             project
             .set_data(features_dir="data/features")
-            .add_model("m1", "logistic_regression", features=["diff_seed_num"])
+            .add_model("m1", "logistic_regression", features=["diff_prior"])
             .configure_ensemble(method="stacked", C=1.0)
             .configure_backtest(seasons=[2016, 2017])
             .build()
@@ -387,13 +387,13 @@ class TestProviderModels:
         """Consumer features referencing provider outputs pass build()."""
         project.add_model(
             "provider", "xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["predicted_margin"],
             mode="regressor",
         )
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_predicted_margin"],
+            features=["diff_prior", "diff_predicted_margin"],
         )
         config = project.build()
         assert "provider" in config.models
@@ -403,11 +403,11 @@ class TestProviderModels:
         """Consumer can be added before provider — validation at build()."""
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_provided_feat"],
+            features=["diff_prior", "diff_provided_feat"],
         )
         project.add_model(
             "provider", "xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["provided_feat"],
             mode="regressor",
         )
@@ -418,7 +418,7 @@ class TestProviderModels:
         """Features not in data AND not from a provider are still rejected."""
         project.add_model(
             "provider", "xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["some_feat"],
         )
         project.add_model(
@@ -432,13 +432,13 @@ class TestProviderModels:
         """Provider with include_in_ensemble=False is stored in config."""
         project.add_model(
             "provider", "xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["margin"],
             include_in_ensemble=False,
         )
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_margin"],
+            features=["diff_prior", "diff_margin"],
         )
         config = project.build()
         assert config.models["provider"].include_in_ensemble is False
@@ -463,14 +463,14 @@ class TestProviderModels:
         """Team-level provider builds without errors."""
         project.add_model(
             "survival", "survival",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["surv_e8"],
             provides_level="team",
             include_in_ensemble=False,
         )
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_surv_e8"],
+            features=["diff_prior", "diff_surv_e8"],
         )
         config = project.build()
         assert config.models["survival"].provides_level == "team"
@@ -479,13 +479,13 @@ class TestProviderModels:
         """provides_level is correctly stored in config."""
         project.add_model(
             "provider", "xgboost",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["margin"],
             provides_level="matchup",
         )
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_margin"],
+            features=["diff_prior", "diff_margin"],
         )
         config = project.build()
         assert config.models["provider"].provides_level == "matchup"
@@ -498,7 +498,7 @@ class TestProviderModels:
         )
         project.add_model(
             "survival", "survival",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             provides=["surv_e8"],
             provides_level="team",
             include_in_ensemble=False,
@@ -506,7 +506,7 @@ class TestProviderModels:
         )
         project.add_model(
             "consumer", "xgboost",
-            features=["diff_seed_num", "diff_surv_e8"],
+            features=["diff_prior", "diff_surv_e8"],
         )
         config = project.build()
         assert config.models["survival"].provider_isolation == "per_season"
@@ -523,7 +523,7 @@ class TestPresetSupport:
         project.add_model(
             "xgb_core",
             preset="xgboost_classifier",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
         )
         config = project.build()
         assert config.models["xgb_core"].type == "xgboost"
@@ -534,7 +534,7 @@ class TestPresetSupport:
         project.add_model(
             "xgb_custom",
             preset="xgboost_classifier",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             params={"learning_rate": 0.05},
         )
         config = project.build()
@@ -547,7 +547,7 @@ class TestPresetSupport:
         project.add_model(
             "lr_mod",
             preset="logistic_regression",
-            features=["diff_seed_num"],
+            features=["diff_prior"],
             n_seeds=3,
         )
         config = project.build()
@@ -557,7 +557,7 @@ class TestPresetSupport:
         project.add_model(
             "xgb_reg",
             preset="xgboost_regressor",
-            features=["diff_seed_num", "diff_scoring_margin"],
+            features=["diff_prior", "diff_scoring_margin"],
         )
         config = project.build()
         assert config.models["xgb_reg"].mode == "regressor"
@@ -565,14 +565,14 @@ class TestPresetSupport:
 
     def test_no_type_and_no_preset_raises(self, project):
         with pytest.raises(ValueError, match="type.*preset"):
-            project.add_model("bad", features=["diff_seed_num"])
+            project.add_model("bad", features=["diff_prior"])
 
     def test_unknown_preset_raises(self, project):
         with pytest.raises(KeyError, match="Unknown preset"):
             project.add_model(
                 "bad",
                 preset="nonexistent_preset",
-                features=["diff_seed_num"],
+                features=["diff_prior"],
             )
 
 
@@ -585,27 +585,27 @@ class TestAutoDetectSeasons:
 
     def test_auto_detect_excludes_early_seasons(self, project):
         """With 5 seasons and min_train=3, first 3 are excluded."""
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(min_train_seasons=3)
         config = project.build()
         # Data has seasons 2015-2019, min_train=3 → holdout = [2018, 2019]
         assert config.backtest.seasons == [2018, 2019]
 
     def test_auto_detect_min_train_2(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(min_train_seasons=2)
         config = project.build()
         assert config.backtest.seasons == [2017, 2018, 2019]
 
     def test_explicit_seasons_override_auto(self, project):
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(seasons=[2018])
         config = project.build()
         assert config.backtest.seasons == [2018]
 
     def test_auto_detect_returns_empty_when_all_needed_for_training(self, project):
         """If min_train_seasons >= total seasons, returns empty."""
-        project.add_model("m1", "logistic_regression", features=["diff_seed_num"])
+        project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest(min_train_seasons=10)
         config = project.build()
         assert config.backtest.seasons == []

@@ -10,7 +10,7 @@ from easyml.core.runner.meta_learner import StackedEnsemble
 from easyml.core.runner.postprocessing import (
     apply_availability_adjustment,
     apply_ensemble_postprocessing,
-    apply_seed_compression,
+    apply_prior_compression,
 )
 
 
@@ -19,7 +19,7 @@ from easyml.core.runner.postprocessing import (
 # -----------------------------------------------------------------------
 
 def _make_preds_df(n: int = 50, n_models: int = 3, seed: int = 42) -> pd.DataFrame:
-    """Create a predictions DataFrame with prob_* columns and diff_seed_num."""
+    """Create a predictions DataFrame with prob_* columns and diff_prior."""
     rng = np.random.RandomState(seed)
     model_names = [f"model_{i}" for i in range(n_models)]
     data = {}
@@ -27,7 +27,7 @@ def _make_preds_df(n: int = 50, n_models: int = 3, seed: int = 42) -> pd.DataFra
         data[f"prob_{name}"] = rng.beta(2, 2, size=n)
     # Add logreg_seed (should be excluded by pipeline)
     data["prob_logreg_seed"] = rng.beta(2, 2, size=n)
-    data["diff_seed_num"] = rng.choice([-8, -4, -2, -1, 1, 2, 4, 8], size=n).astype(float)
+    data["diff_prior"] = rng.choice([-8, -4, -2, -1, 1, 2, 4, 8], size=n).astype(float)
     return pd.DataFrame(data)
 
 
@@ -38,10 +38,10 @@ def _fit_meta_learner(preds_df: pd.DataFrame, model_names: list[str]) -> Stacked
     y_true = rng.randint(0, 2, size=n).astype(float)
 
     model_preds = {name: preds_df[f"prob_{name}"].values for name in model_names}
-    seed_diffs = preds_df["diff_seed_num"].values
+    prior_diffs = preds_df["diff_prior"].values
 
     meta = StackedEnsemble(model_names)
-    meta.fit(model_preds, seed_diffs, y_true)
+    meta.fit(model_preds, prior_diffs, y_true)
     return meta
 
 
@@ -74,8 +74,8 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
-            "seed_compression_threshold": 4,
+            "prior_compression": 0.0,
+            "prior_compression_threshold": 4,
         }
 
         result = apply_ensemble_postprocessing(
@@ -99,7 +99,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
 
         # This should work without error (logreg_seed is excluded)
@@ -118,7 +118,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
 
         result = apply_ensemble_postprocessing(preds_df, meta, None, config)
@@ -135,7 +135,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
         result_t1 = apply_ensemble_postprocessing(preds_df, meta, None, config_t1)
 
@@ -145,7 +145,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 2.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
         result_t2 = apply_ensemble_postprocessing(preds_df, meta, None, config_t2)
 
@@ -165,14 +165,14 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.1,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
 
         result = apply_ensemble_postprocessing(preds_df, meta, None, config)
         assert result["prob_ensemble"].min() >= 0.1
         assert result["prob_ensemble"].max() <= 0.9
 
-    def test_with_seed_compression(self):
+    def test_with_prior_compression(self):
         preds_df = _make_preds_df(50, 2)
         model_names = ["model_0", "model_1"]
         meta = _fit_meta_learner(preds_df, model_names)
@@ -183,7 +183,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
         result_no = apply_ensemble_postprocessing(preds_df, meta, None, config_no_comp)
 
@@ -193,13 +193,13 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.3,
-            "seed_compression_threshold": 4,
+            "prior_compression": 0.3,
+            "prior_compression_threshold": 4,
         }
         result_comp = apply_ensemble_postprocessing(preds_df, meta, None, config_comp)
 
         # Close seed matchups should be more compressed toward 0.5
-        close_mask = np.abs(preds_df["diff_seed_num"]) <= 4
+        close_mask = np.abs(preds_df["diff_prior"]) <= 4
         if close_mask.sum() > 0:
             dist_no = np.abs(result_no.loc[close_mask, "prob_ensemble"] - 0.5).mean()
             dist_comp = np.abs(result_comp.loc[close_mask, "prob_ensemble"] - 0.5).mean()
@@ -223,7 +223,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
 
         result = apply_ensemble_postprocessing(
@@ -266,7 +266,7 @@ class TestApplyEnsemblePostprocessing:
             "temperature": 1.0,
             "clip_floor": 0.0,
             "availability_adjustment": 0.0,
-            "seed_compression": 0.0,
+            "prior_compression": 0.0,
         }
 
         result_with = apply_ensemble_postprocessing(preds_df, meta, calibrator, config)
@@ -287,9 +287,9 @@ class TestApplySeedCompression:
     def test_compression_toward_half(self):
         probs = np.array([0.8, 0.2, 0.9, 0.1])
         preds = pd.DataFrame({
-            "diff_seed_num": [2, 2, 10, 10],  # first two are close, last two are far
+            "diff_prior": [2, 2, 10, 10],  # first two are close, last two are far
         })
-        result = apply_seed_compression(probs, preds, compression=0.5, threshold=4)
+        result = apply_prior_compression(probs, preds, compression=0.5, threshold=4)
 
         # Close matchups (seed_diff=2) should be compressed toward 0.5
         assert abs(result[0] - 0.65) < 1e-10  # 0.8 * 0.5 + 0.5 * 0.5 = 0.65
@@ -300,28 +300,28 @@ class TestApplySeedCompression:
 
     def test_no_compression(self):
         probs = np.array([0.8, 0.2])
-        preds = pd.DataFrame({"diff_seed_num": [2, 2]})
-        result = apply_seed_compression(probs, preds, compression=0.0, threshold=4)
+        preds = pd.DataFrame({"diff_prior": [2, 2]})
+        result = apply_prior_compression(probs, preds, compression=0.0, threshold=4)
         np.testing.assert_allclose(result, probs)
 
     def test_full_compression(self):
         probs = np.array([0.8, 0.2])
-        preds = pd.DataFrame({"diff_seed_num": [2, 2]})
-        result = apply_seed_compression(probs, preds, compression=1.0, threshold=4)
+        preds = pd.DataFrame({"diff_prior": [2, 2]})
+        result = apply_prior_compression(probs, preds, compression=1.0, threshold=4)
         np.testing.assert_allclose(result, [0.5, 0.5])
 
     def test_missing_seed_column(self):
-        """Without diff_seed_num column, should return unchanged."""
+        """Without diff_prior column, should return unchanged."""
         probs = np.array([0.8, 0.2])
         preds = pd.DataFrame({"other_col": [1, 2]})
-        result = apply_seed_compression(probs, preds, compression=0.5, threshold=4)
+        result = apply_prior_compression(probs, preds, compression=0.5, threshold=4)
         np.testing.assert_allclose(result, probs)
 
-    def test_negative_seed_diffs(self):
+    def test_negative_prior_diffs(self):
         """Negative seed diffs should also be handled (abs value)."""
         probs = np.array([0.8, 0.2])
-        preds = pd.DataFrame({"diff_seed_num": [-2, -2]})
-        result = apply_seed_compression(probs, preds, compression=0.5, threshold=4)
+        preds = pd.DataFrame({"diff_prior": [-2, -2]})
+        result = apply_prior_compression(probs, preds, compression=0.5, threshold=4)
         assert abs(result[0] - 0.65) < 1e-10
         assert abs(result[1] - 0.35) < 1e-10
 

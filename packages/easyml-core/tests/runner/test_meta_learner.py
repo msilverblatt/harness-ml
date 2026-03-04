@@ -17,7 +17,7 @@ from easyml.core.runner.meta_learner import StackedEnsemble, train_meta_learner_
 def _synth_data(n: int = 100, n_models: int = 3, n_seasons: int = 3, seed: int = 42):
     """Generate synthetic data for meta-learner tests.
 
-    Returns dict with y_true, model_preds, seed_diffs, season_labels, model_names.
+    Returns dict with y_true, model_preds, prior_diffs, season_labels, model_names.
     """
     rng = np.random.RandomState(seed)
 
@@ -32,7 +32,7 @@ def _synth_data(n: int = 100, n_models: int = 3, n_seasons: int = 3, seed: int =
         noise = rng.normal(0, 0.1, size=n)
         model_preds[name] = np.clip(true_p + noise, 0.05, 0.95)
 
-    seed_diffs = rng.choice([-8, -4, -2, -1, 1, 2, 4, 8], size=n).astype(float)
+    prior_diffs = rng.choice([-8, -4, -2, -1, 1, 2, 4, 8], size=n).astype(float)
 
     # Assign seasons cyclically
     seasons = np.array([2020 + (i % n_seasons) for i in range(n)])
@@ -40,7 +40,7 @@ def _synth_data(n: int = 100, n_models: int = 3, n_seasons: int = 3, seed: int =
     return {
         "y_true": y_true,
         "model_preds": model_preds,
-        "seed_diffs": seed_diffs,
+        "prior_diffs": prior_diffs,
         "season_labels": seasons,
         "model_names": model_names,
     }
@@ -54,8 +54,8 @@ class TestStackedEnsemble:
     def test_fit_predict_basic(self):
         data = _synth_data(100, 3)
         meta = StackedEnsemble(data["model_names"])
-        meta.fit(data["model_preds"], data["seed_diffs"], data["y_true"])
-        probs = meta.predict(data["model_preds"], data["seed_diffs"])
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
 
         assert len(probs) == 100
         assert np.all(probs >= 0)
@@ -64,7 +64,7 @@ class TestStackedEnsemble:
     def test_coefficients_shape(self):
         data = _synth_data(100, 3)
         meta = StackedEnsemble(data["model_names"])
-        meta.fit(data["model_preds"], data["seed_diffs"], data["y_true"])
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
         coeffs = meta.get_coefficients()
 
         # 3 models + seed_diff = 4 coefficients
@@ -72,7 +72,7 @@ class TestStackedEnsemble:
         assert "model_0" in coeffs
         assert "model_1" in coeffs
         assert "model_2" in coeffs
-        assert "seed_diff" in coeffs
+        assert "prior_diff" in coeffs
 
     def test_predict_before_fit_raises(self):
         meta = StackedEnsemble(["a", "b"])
@@ -91,11 +91,11 @@ class TestStackedEnsemble:
 
         meta = StackedEnsemble(data["model_names"])
         meta.fit(
-            data["model_preds"], data["seed_diffs"], data["y_true"],
+            data["model_preds"], data["prior_diffs"], data["y_true"],
             extra_features=extra,
         )
         probs = meta.predict(
-            data["model_preds"], data["seed_diffs"],
+            data["model_preds"], data["prior_diffs"],
             extra_features=extra,
         )
         coeffs = meta.get_coefficients(extra_features=extra)
@@ -109,16 +109,16 @@ class TestStackedEnsemble:
     def test_custom_C(self):
         data = _synth_data(100, 2)
         meta = StackedEnsemble(data["model_names"])
-        meta.fit(data["model_preds"], data["seed_diffs"], data["y_true"], C=10.0)
-        probs = meta.predict(data["model_preds"], data["seed_diffs"])
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"], C=10.0)
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
         assert len(probs) == 100
 
     def test_save_load_roundtrip(self, tmp_path):
         data = _synth_data(100, 3)
         meta = StackedEnsemble(data["model_names"])
-        meta.fit(data["model_preds"], data["seed_diffs"], data["y_true"])
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
 
-        probs_before = meta.predict(data["model_preds"], data["seed_diffs"])
+        probs_before = meta.predict(data["model_preds"], data["prior_diffs"])
         coeffs_before = meta.get_coefficients()
 
         path = tmp_path / "meta_learner.json"
@@ -128,7 +128,7 @@ class TestStackedEnsemble:
         meta2 = StackedEnsemble([])  # model_names will be overwritten by load
         meta2.load(path)
 
-        probs_after = meta2.predict(data["model_preds"], data["seed_diffs"])
+        probs_after = meta2.predict(data["model_preds"], data["prior_diffs"])
         coeffs_after = meta2.get_coefficients()
 
         np.testing.assert_allclose(probs_before, probs_after, atol=1e-10)
@@ -144,7 +144,7 @@ class TestStackedEnsemble:
     def test_save_file_format(self, tmp_path):
         data = _synth_data(50, 2)
         meta = StackedEnsemble(data["model_names"])
-        meta.fit(data["model_preds"], data["seed_diffs"], data["y_true"])
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
 
         path = tmp_path / "meta.json"
         meta.save(path)
@@ -174,7 +174,7 @@ class TestTrainMetaLearnerLoso:
         meta, post_cal, pre_cals = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
@@ -185,7 +185,7 @@ class TestTrainMetaLearnerLoso:
         assert pre_cals == {}
 
         # Verify final meta-learner can predict
-        probs = meta.predict(data["model_preds"], data["seed_diffs"])
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
         assert len(probs) == 150
         assert np.all(probs >= 0)
         assert np.all(probs <= 1)
@@ -203,7 +203,7 @@ class TestTrainMetaLearnerLoso:
         meta, post_cal, pre_cals = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
@@ -225,7 +225,7 @@ class TestTrainMetaLearnerLoso:
         meta, post_cal, pre_cals = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
@@ -257,7 +257,7 @@ class TestTrainMetaLearnerLoso:
         meta_with, _, pre_cals_with = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=config_with,
@@ -272,7 +272,7 @@ class TestTrainMetaLearnerLoso:
         meta_without, _, _ = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=config_without,
@@ -298,7 +298,7 @@ class TestTrainMetaLearnerLoso:
         meta, _, _ = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
@@ -319,12 +319,12 @@ class TestTrainMetaLearnerLoso:
             meta, _, _ = train_meta_learner_loso(
                 y_true=data["y_true"],
                 model_preds=data["model_preds"],
-                seed_diffs=data["seed_diffs"],
+                prior_diffs=data["prior_diffs"],
                 season_labels=data["season_labels"],
                 model_names=data["model_names"],
                 ensemble_config=ensemble_config,
             )
-            probs = meta.predict(data["model_preds"], data["seed_diffs"])
+            probs = meta.predict(data["model_preds"], data["prior_diffs"])
             assert len(probs) == 150
 
     def test_default_config_values(self):
@@ -333,7 +333,7 @@ class TestTrainMetaLearnerLoso:
         meta, post_cal, pre_cals = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
-            seed_diffs=data["seed_diffs"],
+            prior_diffs=data["prior_diffs"],
             season_labels=data["season_labels"],
             model_names=data["model_names"],
             ensemble_config={},

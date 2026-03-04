@@ -40,7 +40,7 @@ def test_model_config():
         name="xgb_core",
         type="xgboost",
         mode="classifier",
-        features=["diff_seed_num", "diff_adj_em"],
+        features=["diff_prior", "diff_adj_em"],
         params={"max_depth": 3, "learning_rate": 0.05},
     )
     assert mc.type == "xgboost"

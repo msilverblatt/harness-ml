@@ -447,8 +447,8 @@ class EnsembleDef(BaseModel):
     spline_prob_max: float = 0.985
     spline_n_bins: int = 20
     meta_features: list[str] = []
-    seed_compression: float = 0.0
-    seed_compression_threshold: int = 4
+    prior_compression: float = 0.0
+    prior_compression_threshold: int = 4
     temperature: float = 1.0
     clip_floor: float = 0.0
     availability_adjustment: float = 0.1

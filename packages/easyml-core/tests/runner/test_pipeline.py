@@ -50,7 +50,7 @@ def _make_matchup_parquet(
             data["margin"] = rng.standard_normal(n_rows) * 10
 
     if include_seed:
-        seed_col = "diff_seed_num"
+        seed_col = "diff_prior"
         data[seed_col] = rng.integers(-15, 16, size=n_rows).astype(float)
 
     if extra_features:

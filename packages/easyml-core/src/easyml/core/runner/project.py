@@ -8,7 +8,7 @@ Example
 -------
 >>> project = Project("my_project")
 >>> project.set_data(features_dir="data/features")
->>> project.add_model("logreg_seed", "logistic_regression", features=["diff_seed_num"])
+>>> project.add_model("logreg_seed", "logistic_regression", features=["diff_prior"])
 >>> project.configure_backtest(seasons=[2015, 2016, 2017, 2018, 2019])
 >>> results = project.backtest()
 """

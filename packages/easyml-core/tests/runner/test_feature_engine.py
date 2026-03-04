@@ -22,7 +22,7 @@ def _make_features_parquet(path: Path, n: int = 200) -> None:
         "result": rng.integers(0, 2, size=n),
         "diff_x": rng.standard_normal(n),
         "diff_y": rng.standard_normal(n),
-        "diff_seed_num": rng.integers(-15, 16, size=n).astype(float),
+        "diff_prior": rng.integers(-15, 16, size=n).astype(float),
     })
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)

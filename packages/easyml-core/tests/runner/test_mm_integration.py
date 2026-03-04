@@ -59,7 +59,7 @@ def _make_synthetic_matchup_data(
 ) -> None:
     """Create synthetic features parquet with specified features.
 
-    Generates random data with result, season, margin, diff_seed_num,
+    Generates random data with result, season, margin, diff_prior,
     and all requested diff_* feature columns.
     """
     rng = np.random.default_rng(42)
@@ -74,7 +74,7 @@ def _make_synthetic_matchup_data(
         "season": seasons,
         "result": result,
         "margin": margin,
-        "diff_seed_num": rng.integers(-15, 16, size=n_rows).astype(float),
+        "diff_prior": rng.integers(-15, 16, size=n_rows).astype(float),
     }
 
     for feat in feature_names:
@@ -239,7 +239,7 @@ class TestMmConfigValidates:
 
         logreg = result.config.models["logreg_seed"]
         assert logreg.type == "logistic_regression"
-        assert logreg.features == ["diff_seed_num"]
+        assert logreg.features == ["diff_prior"]
         assert logreg.params.get("C") == 1.0
 
     def test_catboost_model(self, tmp_path):
@@ -357,7 +357,7 @@ class TestMmBacktestSmoke:
         # Use a simplified config that only includes trainable models
         # with features that match the synthetic data
         smoke_features = [
-            "diff_seed_num",
+            "diff_prior",
             "diff_feat_a",
             "diff_feat_b",
             "diff_feat_c",
@@ -385,7 +385,7 @@ class TestMmBacktestSmoke:
                 "models": {
                     "logreg_base": {
                         "type": "logistic_regression",
-                        "features": ["diff_seed_num"],
+                        "features": ["diff_prior"],
                         "train_seasons": "all",
                         "params": {"C": 1.0, "max_iter": 200},
                     },
@@ -464,7 +464,7 @@ class TestMmBacktestSmoke:
         config_dir.mkdir()
 
         smoke_features = [
-            "diff_seed_num",
+            "diff_prior",
             "diff_feat_a",
             "diff_feat_b",
         ]
@@ -545,7 +545,7 @@ class TestMmBacktestSmoke:
         config_dir = tmp_path / "config"
         config_dir.mkdir()
 
-        smoke_features = ["diff_seed_num", "diff_feat_a"]
+        smoke_features = ["diff_prior", "diff_feat_a"]
 
         _write_yaml(
             config_dir / "pipeline.yaml",

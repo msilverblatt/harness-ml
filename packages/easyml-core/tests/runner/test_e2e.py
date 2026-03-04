@@ -27,7 +27,7 @@ def scaffolded_project(tmp_path):
     """Scaffold a project into tmp_path and write mock parquet data.
 
     Creates 200 rows across 3 seasons (2022, 2023, 2024) with
-    diff_seed_num feature and result column.  Updates pipeline.yaml
+    diff_prior feature and result column.  Updates pipeline.yaml
     to point at the absolute data path and set seasons.
     """
     project_dir = tmp_path / "test_project"
@@ -41,15 +41,15 @@ def scaffolded_project(tmp_path):
     n_rows = 200
     seasons = rng.choice([2022, 2023, 2024], size=n_rows)
 
-    # diff_seed_num: higher seed advantage -> more likely to win
-    diff_seed_num = rng.standard_normal(n_rows)
-    # result correlated with diff_seed_num so models can learn something
-    prob = 1 / (1 + np.exp(-diff_seed_num))
+    # diff_prior: higher seed advantage -> more likely to win
+    diff_prior = rng.standard_normal(n_rows)
+    # result correlated with diff_prior so models can learn something
+    prob = 1 / (1 + np.exp(-diff_prior))
     result = (rng.random(n_rows) < prob).astype(int)
 
     df = pd.DataFrame({
         "season": seasons,
-        "diff_seed_num": diff_seed_num,
+        "diff_prior": diff_prior,
         "result": result,
     })
     df.to_parquet(features_dir / "features.parquet", index=False)
@@ -72,13 +72,13 @@ def scaffolded_project(tmp_path):
     }
     pipeline_path.write_text(yaml.dump(pipeline_data, default_flow_style=False, sort_keys=False))
 
-    # Update models.yaml to use diff_seed_num feature
+    # Update models.yaml to use diff_prior feature
     models_path = project_dir / "config" / "models.yaml"
     models_data = {
         "models": {
             "logreg_baseline": {
                 "type": "logistic_regression",
-                "features": ["diff_seed_num"],
+                "features": ["diff_prior"],
                 "params": {"C": 1.0, "max_iter": 200},
                 "active": True,
                 "mode": "classifier",

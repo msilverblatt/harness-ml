@@ -32,7 +32,7 @@ def sample_df():
     return pd.DataFrame({
         "result": result,
         "Season": np.repeat([2020, 2021, 2022, 2023], 50),
-        "diff_seed_num": seed,
+        "diff_prior": seed,
         "diff_strong_signal": seed * 2 + rng.normal(0, 0.1, n),
         "diff_weak_signal": rng.normal(0, 10, n),
         "diff_redundant_a": seed * 1.5,
@@ -66,8 +66,8 @@ class TestCorrelations:
     def test_strong_signal_ranks_high(self, sample_df):
         result = compute_feature_correlations(sample_df, top_n=3)
         top_features = result["feature"].tolist()
-        # diff_strong_signal and diff_seed_num should be near the top
-        assert "diff_strong_signal" in top_features or "diff_seed_num" in top_features
+        # diff_strong_signal and diff_prior should be near the top
+        assert "diff_strong_signal" in top_features or "diff_prior" in top_features
 
     def test_top_n_limits_output(self, sample_df):
         result = compute_feature_correlations(sample_df, top_n=3)
@@ -179,7 +179,7 @@ class TestFeatureGroups:
         diff_group = groups["diff"]
         assert "diff_bt_barthag" in diff_group
         assert "diff_bt_adj_o" in diff_group
-        assert "diff_seed_num" in diff_group
+        assert "diff_prior" in diff_group
 
     def test_includes_all_numeric_columns(self, sample_df):
         groups = suggest_feature_groups(sample_df)
@@ -198,9 +198,9 @@ class TestSuggestFeatures:
 
     def test_excludes_specified(self, sample_df):
         features = suggest_features(
-            sample_df, count=5, exclude=["diff_seed_num"]
+            sample_df, count=5, exclude=["diff_prior"]
         )
-        assert "diff_seed_num" not in features
+        assert "diff_prior" not in features
 
     def test_filters_redundant(self, sample_df):
         features = suggest_features(sample_df, count=10)
@@ -253,8 +253,8 @@ class TestFormatReport:
 def sample_feature_defs():
     """Feature definitions matching sample_df columns."""
     return {
-        "diff_seed_num": FeatureDef(
-            name="diff_seed_num", type=FeatureType.PAIRWISE,
+        "diff_prior": FeatureDef(
+            name="diff_prior", type=FeatureType.PAIRWISE,
             formula="seed_num_a - seed_num_b", category="seeding",
         ),
         "diff_strong_signal": FeatureDef(
@@ -303,7 +303,7 @@ class TestStoreAwareCorrelations:
         )
         assert "type" in result.columns
         # Known features should have type "pairwise"
-        seed_row = result[result["feature"] == "diff_seed_num"]
+        seed_row = result[result["feature"] == "diff_prior"]
         assert seed_row["type"].iloc[0] == "pairwise"
 
     def test_unregistered_features_have_empty_type(self, sample_df, sample_feature_defs):

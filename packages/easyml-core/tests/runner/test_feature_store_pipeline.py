@@ -57,7 +57,7 @@ def _make_matchup_features(
         "season": seasons,
         "result": rng.integers(0, 2, size=n_rows),
         "margin": rng.standard_normal(n_rows) * 10,
-        "diff_seed_num": rng.integers(-15, 16, size=n_rows).astype(float),
+        "diff_prior": rng.integers(-15, 16, size=n_rows).astype(float),
         "existing_feat": rng.standard_normal(n_rows),
     }
     if extra_columns:
@@ -134,7 +134,7 @@ class TestFeatureStorePipelineWiring:
             "models": {
                 "logreg_test": {
                     "type": "logistic_regression",
-                    "features": ["diff_seed_num", "diff_adj_em"],
+                    "features": ["diff_prior", "diff_adj_em"],
                     "params": {"C": 1.0, "max_iter": 200},
                 },
             },
@@ -199,7 +199,7 @@ class TestFeatureStorePipelineWiring:
             "models": {
                 "logreg_test": {
                     "type": "logistic_regression",
-                    "features": ["diff_seed_num", "existing_feat_renamed"],
+                    "features": ["diff_prior", "existing_feat_renamed"],
                     "params": {"C": 1.0, "max_iter": 200},
                 },
             },
@@ -244,7 +244,7 @@ class TestFeatureStorePipelineWiring:
             "models": {
                 "logreg_test": {
                     "type": "logistic_regression",
-                    "features": ["diff_seed_num"],
+                    "features": ["diff_prior"],
                     "params": {"C": 1.0, "max_iter": 200},
                 },
             },
@@ -261,5 +261,5 @@ class TestFeatureStorePipelineWiring:
         runner.load()
 
         # Should load normally without error
-        assert "diff_seed_num" in runner._df.columns
+        assert "diff_prior" in runner._df.columns
         assert "result" in runner._df.columns
