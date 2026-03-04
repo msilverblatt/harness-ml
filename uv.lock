@@ -18,6 +18,7 @@ members = [
     "easyml",
     "easyml-core",
     "easyml-plugin",
+    "easyml-sports",
 ]
 
 [[package]]
@@ -522,6 +523,17 @@ requires-dist = [
     { name = "easyml-core", editable = "packages/easyml-core" },
     { name = "mcp", specifier = ">=1.0" },
 ]
+
+[[package]]
+name = "easyml-sports"
+version = "0.1.0"
+source = { editable = "packages/easyml-sports" }
+dependencies = [
+    { name = "easyml-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "easyml-core", editable = "packages/easyml-core" }]
 
 [[package]]
 name = "filelock"

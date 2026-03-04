@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.core.runner.matchups import compute_interactions, generate_pairwise_matchups, predict_all_matchups
+from easyml.core.runner.matchups import compute_interactions, predict_all_matchups
+from easyml.sports.matchups import generate_pairwise_matchups
 from easyml.core.runner.schema import InteractionDef, ModelDef
 
 
