@@ -1,9 +1,0 @@
-"""Backward-compat shim — re-exports from easyml.core.runner."""
-
-from easyml.core.runner.experiment_manager import (  # noqa: F401
-    ChangeReport,
-    ExperimentError,
-    ExperimentManager,
-)
-
-__all__ = ["ChangeReport", "ExperimentError", "ExperimentManager"]

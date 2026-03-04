@@ -5,10 +5,13 @@ description = "AI-driven ML framework with guardrails"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = [
+    "packages/easyml-core",
+    "packages/easyml-plugin",
+]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/*/tests", "tests"]
+testpaths = ["packages/easyml-core/tests", "tests"]
 addopts = "--import-mode=importlib"
 
 [dependency-groups]

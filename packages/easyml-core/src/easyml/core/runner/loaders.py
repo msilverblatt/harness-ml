@@ -9,8 +9,8 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
-from easyml.data.sources import SourceRegistry
-from easyml.features.registry import FeatureRegistry
+from easyml.core.runner.sources import SourceRegistry
+from easyml.core.feature_eng.registry import FeatureRegistry
 from easyml.core.runner.schema import FeatureDecl, SourceDecl
 
 

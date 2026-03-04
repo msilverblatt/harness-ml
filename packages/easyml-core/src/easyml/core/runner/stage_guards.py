@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from easyml.data.guards import GuardrailViolationError, StageGuard
+from easyml.core.runner.guards import GuardrailViolationError, StageGuard
 from easyml.core.runner.schema import DataConfig
 
 logger = logging.getLogger(__name__)

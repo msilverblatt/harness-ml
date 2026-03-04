@@ -7,8 +7,8 @@ from unittest import mock
 
 import pytest
 
-from easyml.data.sources import SourceRegistry
-from easyml.features.registry import FeatureRegistry
+from easyml.core.runner.sources import SourceRegistry
+from easyml.core.feature_eng.registry import FeatureRegistry
 from easyml.core.runner.loaders import load_features, load_sources
 from easyml.core.runner.schema import FeatureDecl, SourceDecl
 

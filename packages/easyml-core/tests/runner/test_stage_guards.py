@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from easyml.data.guards import GuardrailViolationError
+from easyml.core.runner.guards import GuardrailViolationError
 from easyml.core.runner.schema import DataConfig
 from easyml.core.runner.stage_guards import PipelineGuards
 
