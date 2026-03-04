@@ -1,9 +1,3 @@
-"""Experiment logging utilities.
+"""Backward-compat shim — re-exports from easyml.core.runner.experiment_logger."""
 
-The primary logging implementation lives in ``ExperimentManager.log()``.
-This module re-exports the key types for convenience.
-"""
-
-from easyml.experiments.manager import ExperimentError, ExperimentManager
-
-__all__ = ["ExperimentError", "ExperimentManager"]
+from easyml.core.runner.experiment_logger import *  # noqa: F401,F403

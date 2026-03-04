@@ -1,6 +1,6 @@
-"""Backward-compat shim — re-exports from easyml.core.runner."""
+"""Pipeline runner, experiment management, and orchestration for EasyML."""
 
-from easyml.core.runner.experiment_manager import (  # noqa: F401
+from easyml.core.runner.experiment_manager import (
     ChangeReport,
     ExperimentError,
     ExperimentManager,
