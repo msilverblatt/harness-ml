@@ -1,28 +1,28 @@
-"""Backward-compat shim — re-exports from easyml.core.guardrails."""
+"""AI guardrails and MCP server for EasyML."""
 
-from easyml.core.guardrails import (  # noqa: F401
-    AuditLogger,
+from easyml.core.guardrails.audit import AuditLogger
+from easyml.core.guardrails.base import Guardrail, GuardrailError
+from easyml.core.guardrails.execution import run_pipeline_command
+from easyml.core.guardrails.inventory import (
     ConfigProtectionGuardrail,
     CriticalPathGuardrail,
     DoNotRetryGuardrail,
     ExperimentLoggedGuardrail,
     FeatureLeakageGuardrail,
     FeatureStalenessGuardrail,
-    Guardrail,
-    GuardrailError,
     NamingConventionGuardrail,
-    PipelineServer,
     RateLimitGuardrail,
     SanityCheckGuardrail,
     SingleVariableGuardrail,
     TemporalOrderingGuardrail,
-    ToolDef,
-    run_pipeline_command,
 )
+from easyml.core.guardrails.server import PipelineServer, ToolDef
 
 __all__ = [
+    # Base
     "Guardrail",
     "GuardrailError",
+    # Inventory (11 guardrails)
     "ConfigProtectionGuardrail",
     "CriticalPathGuardrail",
     "DoNotRetryGuardrail",
@@ -34,8 +34,11 @@ __all__ = [
     "SanityCheckGuardrail",
     "SingleVariableGuardrail",
     "TemporalOrderingGuardrail",
+    # Execution
     "run_pipeline_command",
+    # Server
     "PipelineServer",
     "ToolDef",
+    # Audit
     "AuditLogger",
 ]
