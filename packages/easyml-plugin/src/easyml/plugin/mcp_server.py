@@ -83,7 +83,7 @@ def manage_models(
       - "list": List all models with type, status, feature count.
       - "presets": Show available model presets.
     """
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "add":
         if not name:
@@ -209,7 +209,7 @@ def manage_data(
         Requires name.
       - "view_dag": Show the full view dependency graph.
     """
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "add":
         if not data_path:
@@ -224,12 +224,12 @@ def manage_data(
     elif action == "validate":
         if not data_path:
             return "**Error**: 'data_path' is required for validate action."
-        from easyml.runner.data_ingest import validate_dataset
+        from easyml.core.runner.data_ingest import validate_dataset
         return validate_dataset(_resolve_project_dir(project_dir), data_path)
     elif action == "fill_nulls":
         if not column:
             return "**Error**: 'column' is required for fill_nulls action."
-        from easyml.runner.data_ingest import fill_nulls
+        from easyml.core.runner.data_ingest import fill_nulls
         return fill_nulls(
             _resolve_project_dir(project_dir),
             column,
@@ -237,7 +237,7 @@ def manage_data(
             value=value,
         )
     elif action == "drop_duplicates":
-        from easyml.runner.data_ingest import drop_duplicates
+        from easyml.core.runner.data_ingest import drop_duplicates
         return drop_duplicates(
             _resolve_project_dir(project_dir),
             columns=columns,
@@ -245,7 +245,7 @@ def manage_data(
     elif action == "rename":
         if not mapping:
             return "**Error**: 'mapping' is required for rename action (JSON string)."
-        from easyml.runner.data_ingest import rename_columns
+        from easyml.core.runner.data_ingest import rename_columns
         parsed = json.loads(mapping) if isinstance(mapping, str) else mapping
         return rename_columns(_resolve_project_dir(project_dir), parsed)
     elif action == "profile":
@@ -363,7 +363,7 @@ def manage_features(
       - "discover": Run feature discovery (correlations, importance,
         redundancy, groupings). Optional: top_n, method (xgboost/mutual_info).
     """
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "add":
         if not name:
@@ -454,7 +454,7 @@ def manage_experiments(
         experiment. Requires experiment_id (exploration ID, e.g. 'expl-002').
         Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
     """
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "create":
         if not description:
@@ -580,7 +580,7 @@ def configure(
         forbidden columns. Optional: add_columns (list), remove_columns (list).
     """
     if action == "init":
-        from easyml.runner import config_writer as cw
+        from easyml.core.runner import config_writer as cw
         return cw.scaffold_init(
             _resolve_project_dir(project_dir, allow_missing=True),
             project_name,
@@ -590,7 +590,7 @@ def configure(
             time_column=time_column,
         )
 
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "ensemble":
         parsed_pre_cal = None
@@ -665,7 +665,7 @@ def pipeline(
       - "show_run": Show results from a run. Optional: run_id (defaults
         to most recent).
     """
-    from easyml.runner import config_writer as cw
+    from easyml.core.runner import config_writer as cw
 
     if action == "run_backtest":
         return cw.run_backtest(

@@ -4,12 +4,12 @@ version = "0.1.0"
 description = "Claude Code plugin for AI-driven ML experimentation"
 requires-python = ">=3.11"
 dependencies = [
-    "easyml-runner",
+    "easyml-core",
     "mcp>=1.0",
 ]
 
 [tool.uv.sources]
-easyml-runner = { workspace = true }
+easyml-core = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
