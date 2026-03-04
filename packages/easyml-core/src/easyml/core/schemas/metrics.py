@@ -19,6 +19,7 @@ from sklearn.metrics import (
     mean_absolute_percentage_error,
     mean_squared_error,
     median_absolute_error,
+    ndcg_score,
     precision_score,
     r2_score,
     recall_score,
@@ -398,6 +399,336 @@ def quantile_loss(
 
 
 # ---------------------------------------------------------------------------
+# Ranking metrics
+# ---------------------------------------------------------------------------
+
+def ndcg_at_k(y_true: np.ndarray, y_pred: np.ndarray, k: int = 10, **kwargs) -> float:
+    """Normalized Discounted Cumulative Gain at k."""
+    k_val = kwargs.get("k", k)
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+    # sklearn ndcg_score expects 2D arrays
+    if y_true_arr.ndim == 1:
+        y_true_arr = y_true_arr.reshape(1, -1)
+        y_pred_arr = y_pred_arr.reshape(1, -1)
+    return float(ndcg_score(y_true_arr, y_pred_arr, k=k_val))
+
+
+def mean_average_precision(y_true: np.ndarray, y_pred: np.ndarray, **kwargs) -> float:
+    """Mean Average Precision — average of AP across queries.
+
+    Expects y_true as binary relevance, y_pred as scores. For single-query
+    data, returns the average precision for that query.
+    """
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+    # If 2D (multiple queries), compute AP per row and average
+    if y_true_arr.ndim == 2:
+        aps = []
+        for row_true, row_pred in zip(y_true_arr, y_pred_arr):
+            if row_true.sum() > 0:
+                aps.append(float(average_precision_score(row_true, row_pred)))
+        return float(np.mean(aps)) if aps else 0.0
+    # Single query
+    return float(average_precision_score(y_true_arr, y_pred_arr))
+
+
+def mrr(y_true: np.ndarray, y_pred: np.ndarray, **kwargs) -> float:
+    """Mean Reciprocal Rank.
+
+    For single-query: y_true is binary relevance, y_pred is predicted scores.
+    Returns 1/rank of the first relevant item by predicted score order.
+    """
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+    if y_true_arr.ndim == 2:
+        rrs = []
+        for row_true, row_pred in zip(y_true_arr, y_pred_arr):
+            order = np.argsort(-row_pred)
+            for rank, idx in enumerate(order, 1):
+                if row_true[idx] > 0:
+                    rrs.append(1.0 / rank)
+                    break
+            else:
+                rrs.append(0.0)
+        return float(np.mean(rrs)) if rrs else 0.0
+    # Single query
+    order = np.argsort(-y_pred_arr)
+    for rank, idx in enumerate(order, 1):
+        if y_true_arr[idx] > 0:
+            return 1.0 / rank
+    return 0.0
+
+
+def precision_at_k(
+    y_true: np.ndarray, y_pred: np.ndarray, k: int = 10, **kwargs
+) -> float:
+    """Precision in the top-k predicted items."""
+    k_val = kwargs.get("k", k)
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+    top_k_idx = np.argsort(-y_pred_arr)[:k_val]
+    return float(y_true_arr[top_k_idx].sum() / k_val) if k_val > 0 else 0.0
+
+
+def recall_at_k(
+    y_true: np.ndarray, y_pred: np.ndarray, k: int = 10, **kwargs
+) -> float:
+    """Recall in the top-k predicted items."""
+    k_val = kwargs.get("k", k)
+    y_true_arr = np.asarray(y_true)
+    y_pred_arr = np.asarray(y_pred)
+    total_relevant = y_true_arr.sum()
+    if total_relevant == 0:
+        return 0.0
+    top_k_idx = np.argsort(-y_pred_arr)[:k_val]
+    return float(y_true_arr[top_k_idx].sum() / total_relevant)
+
+
+def spearman_rank_corr(
+    y_true: np.ndarray, y_pred: np.ndarray, **kwargs
+) -> float:
+    """Spearman rank correlation coefficient."""
+    from scipy.stats import spearmanr
+
+    corr, _ = spearmanr(y_true, y_pred)
+    return float(corr)
+
+
+# ---------------------------------------------------------------------------
+# Survival metrics
+# ---------------------------------------------------------------------------
+
+def concordance_index(
+    y_true: np.ndarray, y_pred: np.ndarray, **kwargs
+) -> float:
+    """Harrell's concordance index (C-index).
+
+    Args:
+        y_true: Observed survival times.
+        y_pred: Predicted risk scores (higher = higher risk = shorter survival).
+        event: Boolean/int array indicating whether the event was observed
+               (1 = event, 0 = censored). Passed via kwargs.
+    """
+    event = kwargs.get("event")
+    times = np.asarray(y_true, dtype=float)
+    risk = np.asarray(y_pred, dtype=float)
+    if event is not None:
+        event_arr = np.asarray(event, dtype=bool)
+    else:
+        event_arr = np.ones(len(times), dtype=bool)
+
+    concordant = 0
+    discordant = 0
+    tied_risk = 0
+    n = len(times)
+
+    for i in range(n):
+        if not event_arr[i]:
+            continue
+        for j in range(n):
+            if i == j:
+                continue
+            if times[j] > times[i]:
+                if risk[j] < risk[i]:
+                    concordant += 1
+                elif risk[j] > risk[i]:
+                    discordant += 1
+                else:
+                    tied_risk += 1
+
+    total = concordant + discordant + tied_risk
+    if total == 0:
+        return 0.5
+    return float((concordant + 0.5 * tied_risk) / total)
+
+
+def time_dependent_brier(
+    y_true: np.ndarray, y_pred: np.ndarray, **kwargs
+) -> float:
+    """Brier score adapted for censored survival data at a given time horizon.
+
+    Args:
+        y_true: Observed survival times.
+        y_pred: Predicted survival probabilities at time_horizon
+                (prob of surviving past time_horizon).
+        event: Boolean/int array indicating event observed. Passed via kwargs.
+        time_horizon: The time point at which to evaluate. Passed via kwargs.
+    """
+    event = kwargs.get("event")
+    time_horizon = kwargs.get("time_horizon")
+    if time_horizon is None:
+        # Default to median observed time
+        time_horizon = float(np.median(y_true))
+
+    times = np.asarray(y_true, dtype=float)
+    surv_prob = np.asarray(y_pred, dtype=float)
+    if event is not None:
+        event_arr = np.asarray(event, dtype=bool)
+    else:
+        event_arr = np.ones(len(times), dtype=bool)
+
+    n = len(times)
+    bs = 0.0
+    count = 0
+    for i in range(n):
+        if times[i] <= time_horizon and event_arr[i]:
+            # Event occurred before horizon: true outcome = 0 (did not survive)
+            bs += surv_prob[i] ** 2
+            count += 1
+        elif times[i] > time_horizon:
+            # Survived past horizon: true outcome = 1
+            bs += (1.0 - surv_prob[i]) ** 2
+            count += 1
+        # Censored before horizon: skip (no information)
+
+    if count == 0:
+        return 0.0
+    return float(bs / count)
+
+
+def cumulative_incidence_auc(
+    y_true: np.ndarray, y_pred: np.ndarray, **kwargs
+) -> float:
+    """AUC for cumulative incidence at a given time horizon.
+
+    Args:
+        y_true: Observed survival times.
+        y_pred: Predicted cumulative incidence (1 - survival probability)
+                at time_horizon.
+        event: Boolean/int array indicating event observed. Passed via kwargs.
+        time_horizon: The time point at which to evaluate. Passed via kwargs.
+    """
+    event = kwargs.get("event")
+    time_horizon = kwargs.get("time_horizon")
+    if time_horizon is None:
+        time_horizon = float(np.median(y_true))
+
+    times = np.asarray(y_true, dtype=float)
+    pred_inc = np.asarray(y_pred, dtype=float)
+    if event is not None:
+        event_arr = np.asarray(event, dtype=bool)
+    else:
+        event_arr = np.ones(len(times), dtype=bool)
+
+    # Binary label: did the event occur before or at time_horizon?
+    binary_label = ((times <= time_horizon) & event_arr).astype(int)
+
+    # Filter out censored-before-horizon cases (ambiguous)
+    usable = (times > time_horizon) | event_arr
+    if usable.sum() < 2 or binary_label[usable].sum() == 0:
+        return float("nan")
+
+    return float(roc_auc_score(binary_label[usable], pred_inc[usable]))
+
+
+# ---------------------------------------------------------------------------
+# Probabilistic metrics
+# ---------------------------------------------------------------------------
+
+def crps(y_true: np.ndarray, y_pred: np.ndarray, **kwargs) -> float:
+    """Continuous Ranked Probability Score.
+
+    For deterministic point predictions, CRPS reduces to MAE.
+    For ensemble predictions (y_pred is 2D: samples x observations), computes
+    the full CRPS via the representation:
+        CRPS = E|X - y| - 0.5 * E|X - X'|
+    where X, X' are independent draws from the predictive distribution.
+    """
+    y_true_arr = np.asarray(y_true, dtype=float)
+    y_pred_arr = np.asarray(y_pred, dtype=float)
+
+    if y_pred_arr.ndim == 1:
+        # Deterministic prediction: CRPS = MAE
+        return float(np.mean(np.abs(y_pred_arr - y_true_arr)))
+
+    # Ensemble predictions: shape (n_samples, n_obs)
+    n_samples = y_pred_arr.shape[0]
+    n_obs = y_pred_arr.shape[1]
+    scores = np.zeros(n_obs)
+    for j in range(n_obs):
+        ens = y_pred_arr[:, j]
+        # E|X - y|
+        term1 = np.mean(np.abs(ens - y_true_arr[j]))
+        # E|X - X'| via double sum
+        diffs = np.abs(ens[:, None] - ens[None, :])
+        term2 = np.mean(diffs)
+        scores[j] = term1 - 0.5 * term2
+    return float(np.mean(scores))
+
+
+def pit_histogram_data(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10, **kwargs
+) -> dict:
+    """PIT (Probability Integral Transform) histogram bin counts.
+
+    For binary/probabilistic predictions: PIT value = predicted prob of
+    the observed outcome. Returns histogram of PIT values.
+
+    Args:
+        y_true: True outcomes (0/1 for binary, or continuous values).
+        y_pred: Predicted probabilities or CDF values at y_true.
+        n_bins: Number of histogram bins.
+    """
+    n_bins_val = kwargs.get("n_bins", n_bins)
+    y_true_arr = np.asarray(y_true, dtype=float)
+    y_pred_arr = np.asarray(y_pred, dtype=float)
+
+    # For binary outcomes, PIT value is p if y=1 else 1-p
+    if set(np.unique(y_true_arr)).issubset({0.0, 1.0}):
+        pit_values = np.where(y_true_arr == 1, y_pred_arr, 1.0 - y_pred_arr)
+    else:
+        # Assume y_pred are already CDF values at y_true
+        pit_values = y_pred_arr
+
+    counts, bin_edges = np.histogram(pit_values, bins=n_bins_val, range=(0.0, 1.0))
+    return {
+        "counts": counts.tolist(),
+        "bin_edges": bin_edges.tolist(),
+    }
+
+
+def sharpness(y_true: np.ndarray, y_pred: np.ndarray, **kwargs) -> float:
+    """Sharpness — variance of predicted probabilities.
+
+    Higher sharpness means the model is more confident (predictions farther
+    from 0.5 on average for binary classification).
+    """
+    y_pred_arr = np.asarray(y_pred, dtype=float)
+    return float(np.var(y_pred_arr))
+
+
+def coverage_at_level(
+    y_true: np.ndarray, y_pred: np.ndarray, level: float = 0.9, **kwargs
+) -> float:
+    """Fraction of true values within prediction intervals.
+
+    Args:
+        y_true: True values.
+        y_pred: 2D array of shape (n, 2) with [lower, upper] bounds per obs,
+                or pass lower and upper via kwargs.
+        level: Nominal coverage level (used for documentation/naming).
+    """
+    y_true_arr = np.asarray(y_true, dtype=float)
+    y_pred_arr = np.asarray(y_pred, dtype=float)
+
+    lower = kwargs.get("lower")
+    upper = kwargs.get("upper")
+
+    if lower is not None and upper is not None:
+        lower_arr = np.asarray(lower, dtype=float)
+        upper_arr = np.asarray(upper, dtype=float)
+    elif y_pred_arr.ndim == 2 and y_pred_arr.shape[1] == 2:
+        lower_arr = y_pred_arr[:, 0]
+        upper_arr = y_pred_arr[:, 1]
+    else:
+        return float("nan")
+
+    covered = ((y_true_arr >= lower_arr) & (y_true_arr <= upper_arr)).mean()
+    return float(covered)
+
+
+# ---------------------------------------------------------------------------
 # Ensemble diagnostics
 # ---------------------------------------------------------------------------
 
@@ -502,3 +833,31 @@ for _name, _fn in [
     ("quantile_loss", quantile_loss),
 ]:
     MetricRegistry.register("regression", _name, _fn)
+
+# Ranking
+for _name, _fn in [
+    ("ndcg_at_k", ndcg_at_k),
+    ("mean_average_precision", mean_average_precision),
+    ("mrr", mrr),
+    ("precision_at_k", precision_at_k),
+    ("recall_at_k", recall_at_k),
+    ("spearman_rank_corr", spearman_rank_corr),
+]:
+    MetricRegistry.register("ranking", _name, _fn)
+
+# Survival
+for _name, _fn in [
+    ("concordance_index", concordance_index),
+    ("time_dependent_brier", time_dependent_brier),
+    ("cumulative_incidence_auc", cumulative_incidence_auc),
+]:
+    MetricRegistry.register("survival", _name, _fn, requires=["event", "time_horizon"])
+
+# Probabilistic
+for _name, _fn in [
+    ("crps", crps),
+    ("pit_histogram_data", pit_histogram_data),
+    ("sharpness", sharpness),
+    ("coverage_at_level", coverage_at_level),
+]:
+    MetricRegistry.register("probabilistic", _name, _fn)
