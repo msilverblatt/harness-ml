@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import easyml.sports  # noqa: F401 — register sports hooks for TeamA/TeamAWon support
+
 from easyml.core.runner.data_profiler import DataProfile, profile_dataset
 from easyml.core.runner.schema import DataConfig
 
