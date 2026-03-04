@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Whitelist of allowed functions in formulas
 _SAFE_FUNCTIONS: dict[str, object] = {
+    # --- core math ---
     "abs": np.abs,
     "log": lambda x: np.log(np.abs(x) + 1),  # safe log: log(|x| + 1)
     "sqrt": lambda x: np.sqrt(np.abs(x)),     # safe sqrt: sqrt(|x|)
@@ -29,6 +30,29 @@ _SAFE_FUNCTIONS: dict[str, object] = {
     "log1p": np.log1p,
     "sign": np.sign,
     "square": np.square,
+    # --- power / distribution ---
+    "reciprocal": lambda x: np.where(x != 0, 1.0 / x, 0.0),
+    "exp": np.exp,
+    "expm1": np.expm1,
+    "power": np.power,
+    # --- cyclical ---
+    "sin_cycle": lambda x, period: np.sin(2 * np.pi * x / period),
+    "cos_cycle": lambda x, period: np.cos(2 * np.pi * x / period),
+    # --- statistical (operate on Series) ---
+    "zscore": lambda x: (x - x.mean()) / (x.std() + 1e-8),
+    "minmax": lambda x: (x - x.min()) / (x.max() - x.min() + 1e-8),
+    "rank_pct": lambda x: x.rank(pct=True),
+    "winsorize": lambda x, lower=0.05, upper=0.95: x.clip(
+        x.quantile(lower), x.quantile(upper)
+    ),
+    # --- comparison ---
+    "maximum": np.maximum,
+    "minimum": np.minimum,
+    "where": np.where,
+    "isnull": lambda x: pd.isna(x).astype(float),
+    # --- composition ---
+    "safe_div": lambda x, y: np.where(y != 0, x / y, 0.0),
+    "pct_of_total": lambda x, y: np.where(y != 0, x / y * 100, 0.0),
 }
 
 # Pattern to match @feature references
@@ -168,10 +192,12 @@ def _resolve_formula(
                 f"Available columns (first 20): {list(df.columns)[:20]}"
             )
 
-    # Replace column tokens in the resolved string (longest first)
+    # Replace column tokens in the resolved string (longest first).
+    # Use word-boundary regex to avoid replacing substrings inside function
+    # names (e.g. replacing "x" inside "exp" or "maximum").
     for token in sorted(already_mapped, key=len, reverse=True):
         var_name = f"_col_{token}"
-        resolved = resolved.replace(token, var_name)
+        resolved = re.sub(rf"\b{re.escape(token)}\b", var_name, resolved)
 
     # Evaluate using pd.eval with local namespace
     try:
