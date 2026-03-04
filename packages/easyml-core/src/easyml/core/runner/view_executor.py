@@ -13,17 +13,21 @@ if TYPE_CHECKING:
         CastStep,
         ConditionalAggStep,
         DeriveStep,
+        DiffStep,
         DistinctStep,
+        EwmStep,
         FilterStep,
         GroupByStep,
         HeadStep,
         IsInStep,
         JoinStep,
+        LagStep,
         RankStep,
         RollingStep,
         SelectStep,
         SortStep,
         TransformStep,
+        TrendStep,
         UnionStep,
         UnpivotStep,
     )
@@ -76,6 +80,10 @@ def execute_step(
         "rank": _execute_rank,
         "cond_agg": _execute_cond_agg,
         "isin": _execute_isin,
+        "lag": _execute_lag,
+        "ewm": _execute_ewm,
+        "diff": _execute_diff,
+        "trend": _execute_trend,
     }
     handler = _dispatch.get(step.op)
     if handler is None:
@@ -378,6 +386,78 @@ def _execute_isin(df: pd.DataFrame, step: IsInStep) -> pd.DataFrame:
     if step.negate:
         mask = ~mask
     return df[mask].reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Lag step
+# ---------------------------------------------------------------------------
+
+
+def _execute_lag(df: pd.DataFrame, step: LagStep) -> pd.DataFrame:
+    """Shift column values within groups (lag/lead)."""
+    result = df.sort_values(step.keys + [step.order_by]).copy()
+    for new_col, spec in step.columns.items():
+        src_col, lag_str = spec.rsplit(":", 1)
+        lag_n = int(lag_str)
+        result[new_col] = result.groupby(step.keys)[src_col].shift(lag_n)
+    return result.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# EWM step
+# ---------------------------------------------------------------------------
+
+
+def _execute_ewm(df: pd.DataFrame, step: EwmStep) -> pd.DataFrame:
+    """Exponentially weighted moving statistic within groups."""
+    result = df.sort_values(step.keys + [step.order_by]).copy()
+    span = step.span
+    for new_col, spec in step.aggs.items():
+        src_col, stat = spec.rsplit(":", 1)
+        result[new_col] = result.groupby(step.keys)[src_col].transform(
+            lambda s: getattr(s.ewm(span=span, adjust=False), stat)()
+        )
+    return result.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Diff step
+# ---------------------------------------------------------------------------
+
+
+def _execute_diff(df: pd.DataFrame, step: DiffStep) -> pd.DataFrame:
+    """First/second differences or percent change within groups."""
+    result = df.sort_values(step.keys + [step.order_by]).copy()
+    for new_col, spec in step.columns.items():
+        src_col, periods_str = spec.rsplit(":", 1)
+        periods = int(periods_str)
+        if step.pct:
+            result[new_col] = result.groupby(step.keys)[src_col].pct_change(
+                periods=periods
+            )
+        else:
+            result[new_col] = result.groupby(step.keys)[src_col].diff(
+                periods=periods
+            )
+    return result.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Trend step
+# ---------------------------------------------------------------------------
+
+
+def _execute_trend(df: pd.DataFrame, step: TrendStep) -> pd.DataFrame:
+    """OLS slope over a rolling window within groups."""
+    result = df.sort_values(step.keys + [step.order_by]).copy()
+    for new_col, src_col in step.columns.items():
+        rolling_obj = (
+            result.groupby(step.keys)[src_col]
+            .rolling(window=step.window, min_periods=step.window)
+        )
+        rolled = rolling_obj.apply(_rolling_slope, raw=False)
+        result[new_col] = rolled.droplevel(list(range(len(step.keys)))).values
+    return result.reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------

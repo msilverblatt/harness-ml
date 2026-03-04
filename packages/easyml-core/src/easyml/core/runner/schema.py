@@ -274,6 +274,45 @@ class IsInStep(BaseModel):
     negate: bool = False
 
 
+class LagStep(BaseModel):
+    """Shift column values within groups (lag/lead)."""
+
+    op: Literal["lag"] = "lag"
+    keys: list[str]           # group columns
+    order_by: str             # sort column
+    columns: dict[str, str]   # {new_col: "source_col:lag_periods"}
+
+
+class EwmStep(BaseModel):
+    """Exponentially weighted moving statistic within groups."""
+
+    op: Literal["ewm"] = "ewm"
+    keys: list[str]
+    order_by: str
+    span: float               # EWM span parameter
+    aggs: dict[str, str]      # {new_col: "source_col:stat"} where stat is mean/std/var
+
+
+class DiffStep(BaseModel):
+    """First/second differences or percent change within groups."""
+
+    op: Literal["diff"] = "diff"
+    keys: list[str]
+    order_by: str
+    columns: dict[str, str]   # {new_col: "source_col:periods"}
+    pct: bool = False         # if True, compute pct_change instead
+
+
+class TrendStep(BaseModel):
+    """OLS slope over a rolling window within groups."""
+
+    op: Literal["trend"] = "trend"
+    keys: list[str]
+    order_by: str
+    window: int
+    columns: dict[str, str]   # {new_col: "source_col"}
+
+
 TransformStep = Annotated[
     Union[
         Annotated[FilterStep, Tag("filter")],
@@ -291,6 +330,10 @@ TransformStep = Annotated[
         Annotated[RankStep, Tag("rank")],
         Annotated[ConditionalAggStep, Tag("cond_agg")],
         Annotated[IsInStep, Tag("isin")],
+        Annotated[LagStep, Tag("lag")],
+        Annotated[EwmStep, Tag("ewm")],
+        Annotated[DiffStep, Tag("diff")],
+        Annotated[TrendStep, Tag("trend")],
     ],
     Discriminator("op"),
 ]
