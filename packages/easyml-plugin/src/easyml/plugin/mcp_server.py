@@ -1,4 +1,4 @@
-"""EasyML MCP server — 6 category-based tools with action dispatch.
+"""EasyML MCP server — thin dispatcher with hot-reloadable handlers.
 
 Tools are grouped by domain. Each tool takes an `action` parameter
 to select the operation, plus action-specific parameters.
@@ -7,13 +7,22 @@ All tools accept project_dir (defaults to cwd) and return markdown.
 from __future__ import annotations
 
 import functools
+import importlib
 import json
-import traceback
-from pathlib import Path
+import os
 
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("easyml")
+_DEV_MODE = os.environ.get("EASYML_DEV", "0") == "1"
+
+
+def _load_handler(module_name: str):
+    """Load (and optionally hot-reload) a handler module."""
+    mod = importlib.import_module(f"easyml.plugin.handlers.{module_name}")
+    if _DEV_MODE:
+        importlib.reload(mod)
+    return mod
 
 
 def _safe_tool(fn):
@@ -31,25 +40,8 @@ def _safe_tool(fn):
     return wrapper
 
 
-def _resolve_project_dir(project_dir: str | None, *, allow_missing: bool = False) -> Path:
-    """Resolve project directory from param or cwd."""
-    if project_dir:
-        p = Path(project_dir).resolve()
-    else:
-        p = Path.cwd()
-
-    if not allow_missing:
-        config_dir = p / "config"
-        if not config_dir.exists():
-            raise ValueError(
-                f"No config/ directory found at {p}. "
-                f"Is this an easyml project? Run scaffold_project() first."
-            )
-    return p
-
-
 # -----------------------------------------------------------------------
-# 1. manage_models — add, remove, list, presets
+# 1. manage_models
 # -----------------------------------------------------------------------
 
 
@@ -62,10 +54,12 @@ def manage_models(
     preset: str | None = None,
     features: list[str] | None = None,
     params: str | dict | None = None,
-    active: bool = True,
-    include_in_ensemble: bool = True,
+    active: bool | None = None,
+    include_in_ensemble: bool | None = None,
     mode: str | None = None,
     prediction_type: str | None = None,
+    cdf_scale: float | None = None,
+    zero_fill_features: list[str] | None = None,
     purge: bool = False,
     project_dir: str | None = None,
 ) -> str:
@@ -74,64 +68,40 @@ def manage_models(
     Actions:
       - "add": Add a model. Requires name + (model_type or preset).
         Optional: features, params (JSON string), active, include_in_ensemble,
-        mode (e.g. "classifier", "regressor"), prediction_type (e.g. "margin").
+        mode (e.g. "classifier", "regressor"), prediction_type (e.g. "margin"),
+        cdf_scale (float, scales regressor output to a probability via CDF),
+        zero_fill_features (list of feature columns to fill with 0 before
+        NaN row removal during training).
       - "update": Update an existing model in place. Requires name.
         Optional: features, params (JSON string), active, include_in_ensemble,
-        mode, prediction_type. Merges params with existing.
+        mode, prediction_type, cdf_scale, zero_fill_features. Merges params
+        with existing.
+        Pass active=true or include_in_ensemble=true to explicitly re-enable.
       - "remove": Disable a model (sets active=false, include_in_ensemble=false).
         Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
       - "presets": Show available model presets.
     """
-    from easyml.core.runner import config_writer as cw
-
-    if action == "add":
-        if not name:
-            return "**Error**: 'name' is required for add action."
-        parsed_params = json.loads(params) if isinstance(params, str) else params
-        return cw.add_model(
-            _resolve_project_dir(project_dir),
-            name,
-            model_type=model_type,
-            preset=preset,
-            features=features,
-            params=parsed_params,
-            active=active,
-            include_in_ensemble=include_in_ensemble,
-            mode=mode,
-            prediction_type=prediction_type,
-        )
-    elif action == "update":
-        if not name:
-            return "**Error**: 'name' is required for update action."
-        parsed_params = json.loads(params) if isinstance(params, str) else params
-        # Forward booleans only when they differ from the MCP default (True),
-        # so omitting them doesn't accidentally overwrite the model's value.
-        return cw.update_model(
-            _resolve_project_dir(project_dir),
-            name,
-            features=features,
-            params=parsed_params,
-            active=False if active is False else None,
-            include_in_ensemble=False if include_in_ensemble is False else None,
-            mode=mode,
-            prediction_type=prediction_type,
-        )
-    elif action == "remove":
-        if not name:
-            return "**Error**: 'name' is required for remove action."
-        return cw.remove_model(_resolve_project_dir(project_dir), name, purge=purge)
-    elif action == "list":
-        return cw.show_models(_resolve_project_dir(project_dir))
-    elif action == "presets":
-        return cw.show_presets()
-    else:
-        return f"**Error**: Unknown action '{action}'. Use: add, update, remove, list, presets."
+    return _load_handler("models").dispatch(
+        action,
+        name=name,
+        model_type=model_type,
+        preset=preset,
+        features=features,
+        params=params,
+        active=active,
+        include_in_ensemble=include_in_ensemble,
+        mode=mode,
+        prediction_type=prediction_type,
+        cdf_scale=cdf_scale,
+        zero_fill_features=zero_fill_features,
+        purge=purge,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
-# 2. manage_data — add, validate, fill_nulls, drop_duplicates, rename,
-#                  profile, list_features, status, list_sources
+# 2. manage_data
 # -----------------------------------------------------------------------
 
 
@@ -209,117 +179,30 @@ def manage_data(
         Requires name.
       - "view_dag": Show the full view dependency graph.
     """
-    from easyml.core.runner import config_writer as cw
-
-    if action == "add":
-        if not data_path:
-            return "**Error**: 'data_path' is required for add action."
-        return cw.add_dataset(
-            _resolve_project_dir(project_dir),
-            data_path,
-            join_on=join_on,
-            prefix=prefix,
-            auto_clean=auto_clean,
-        )
-    elif action == "validate":
-        if not data_path:
-            return "**Error**: 'data_path' is required for validate action."
-        from easyml.core.runner.data_ingest import validate_dataset
-        return validate_dataset(_resolve_project_dir(project_dir), data_path)
-    elif action == "fill_nulls":
-        if not column:
-            return "**Error**: 'column' is required for fill_nulls action."
-        from easyml.core.runner.data_ingest import fill_nulls
-        return fill_nulls(
-            _resolve_project_dir(project_dir),
-            column,
-            strategy=strategy,
-            value=value,
-        )
-    elif action == "drop_duplicates":
-        from easyml.core.runner.data_ingest import drop_duplicates
-        return drop_duplicates(
-            _resolve_project_dir(project_dir),
-            columns=columns,
-        )
-    elif action == "rename":
-        if not mapping:
-            return "**Error**: 'mapping' is required for rename action (JSON string)."
-        from easyml.core.runner.data_ingest import rename_columns
-        parsed = json.loads(mapping) if isinstance(mapping, str) else mapping
-        return rename_columns(_resolve_project_dir(project_dir), parsed)
-    elif action == "profile":
-        return cw.profile_data(_resolve_project_dir(project_dir), category=category)
-    elif action == "list_features":
-        return cw.available_features(_resolve_project_dir(project_dir), prefix=prefix)
-    elif action == "status":
-        return cw.feature_store_status(_resolve_project_dir(project_dir))
-    elif action == "list_sources":
-        return cw.list_sources(_resolve_project_dir(project_dir))
-    elif action == "add_source":
-        if not name:
-            return "**Error**: 'name' is required for add_source."
-        if not data_path:
-            return "**Error**: 'data_path' is required for add_source."
-        return cw.add_source(
-            _resolve_project_dir(project_dir),
-            name,
-            data_path,
-            format=format,
-        )
-    elif action == "add_view":
-        if not name:
-            return "**Error**: 'name' is required for add_view."
-        if not source:
-            return "**Error**: 'source' is required for add_view."
-        parsed_steps = json.loads(steps) if isinstance(steps, str) else (steps or [])
-        return cw.add_view(
-            _resolve_project_dir(project_dir),
-            name,
-            source,
-            parsed_steps,
-            description=description,
-        )
-    elif action == "update_view":
-        if not name:
-            return "**Error**: 'name' is required for update_view."
-        parsed_steps = None
-        if steps is not None:
-            parsed_steps = json.loads(steps) if isinstance(steps, str) else steps
-        return cw.update_view(
-            _resolve_project_dir(project_dir),
-            name,
-            source=source,
-            steps=parsed_steps,
-            description=description if description else None,
-        )
-    elif action == "remove_view":
-        if not name:
-            return "**Error**: 'name' is required for remove_view."
-        return cw.remove_view(_resolve_project_dir(project_dir), name)
-    elif action == "list_views":
-        return cw.list_views(_resolve_project_dir(project_dir))
-    elif action == "preview_view":
-        if not name:
-            return "**Error**: 'name' is required for preview_view."
-        return cw.preview_view(_resolve_project_dir(project_dir), name, n_rows=n_rows)
-    elif action == "set_features_view":
-        if not name:
-            return "**Error**: 'name' is required for set_features_view."
-        return cw.set_features_view(_resolve_project_dir(project_dir), name)
-    elif action == "view_dag":
-        return cw.view_dag(_resolve_project_dir(project_dir))
-    else:
-        return (
-            f"**Error**: Unknown action '{action}'. "
-            "Use: add, validate, fill_nulls, drop_duplicates, rename, profile, "
-            "list_features, status, list_sources, add_source, add_view, update_view, "
-            "remove_view, list_views, preview_view, set_features_view, view_dag."
-        )
+    return _load_handler("data").dispatch(
+        action,
+        data_path=data_path,
+        join_on=join_on,
+        prefix=prefix,
+        auto_clean=auto_clean,
+        column=column,
+        strategy=strategy,
+        value=value,
+        columns=columns,
+        mapping=mapping,
+        category=category,
+        name=name,
+        source=source,
+        steps=steps,
+        description=description,
+        format=format,
+        n_rows=n_rows,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
-# 3. manage_features — add, add_batch, test_transformations, discover
+# 3. manage_features
 # -----------------------------------------------------------------------
 
 
@@ -362,57 +245,30 @@ def manage_features(
         Optional: test_interactions.
       - "discover": Run feature discovery (correlations, importance,
         redundancy, groupings). Optional: top_n, method (xgboost/mutual_info).
+      - "diversity": Analyze feature diversity across models. Returns
+        overlap matrix, diversity score, redundant pairs, and suggestions.
     """
-    from easyml.core.runner import config_writer as cw
-
-    if action == "add":
-        if not name:
-            return "**Error**: 'name' is required for add action."
-        if not formula and not type and not source and not condition:
-            return (
-                "**Error**: Provide at least one of: type, formula, source, or condition."
-            )
-        return cw.add_feature(
-            _resolve_project_dir(project_dir),
-            name,
-            formula,
-            type=type,
-            source=source,
-            column=column,
-            condition=condition,
-            pairwise_mode=pairwise_mode,
-            category=category,
-            description=description,
-        )
-    elif action == "add_batch":
-        if not features:
-            return "**Error**: 'features' (JSON array) is required for add_batch action."
-        parsed = json.loads(features) if isinstance(features, str) else features
-        return cw.add_features_batch(_resolve_project_dir(project_dir), parsed)
-    elif action == "test_transformations":
-        if not features:
-            return "**Error**: 'features' (JSON array of column names) is required."
-        parsed = json.loads(features) if isinstance(features, str) else features
-        return cw.test_feature_transformations(
-            _resolve_project_dir(project_dir),
-            parsed,
-            test_interactions=test_interactions,
-        )
-    elif action == "discover":
-        return cw.discover_features(
-            _resolve_project_dir(project_dir),
-            top_n=top_n,
-            method=method,
-        )
-    else:
-        return (
-            f"**Error**: Unknown action '{action}'. "
-            "Use: add, add_batch, test_transformations, discover."
-        )
+    return _load_handler("features").dispatch(
+        action,
+        name=name,
+        formula=formula,
+        description=description,
+        type=type,
+        source=source,
+        column=column,
+        condition=condition,
+        pairwise_mode=pairwise_mode,
+        category=category,
+        features=features,
+        test_interactions=test_interactions,
+        top_n=top_n,
+        method=method,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
-# 4. manage_experiments — create, write_overlay, run, promote, quick_run, explore
+# 4. manage_experiments
 # -----------------------------------------------------------------------
 
 
@@ -454,83 +310,22 @@ def manage_experiments(
         experiment. Requires experiment_id (exploration ID, e.g. 'expl-002').
         Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
     """
-    from easyml.core.runner import config_writer as cw
-
-    if action == "create":
-        if not description:
-            return "**Error**: 'description' is required for create action."
-        return cw.experiment_create(
-            _resolve_project_dir(project_dir),
-            description,
-            hypothesis=hypothesis,
-        )
-    elif action == "write_overlay":
-        if not experiment_id:
-            return "**Error**: 'experiment_id' is required for write_overlay action."
-        if not overlay:
-            return "**Error**: 'overlay' (JSON string) is required for write_overlay action."
-        parsed = json.loads(overlay) if isinstance(overlay, str) else overlay
-        return cw.write_overlay(
-            _resolve_project_dir(project_dir),
-            experiment_id,
-            parsed,
-        )
-    elif action == "run":
-        if not experiment_id:
-            return "**Error**: 'experiment_id' is required for run action."
-        return cw.run_experiment(
-            _resolve_project_dir(project_dir),
-            experiment_id,
-            primary_metric=primary_metric,
-            variant=variant,
-        )
-    elif action == "promote":
-        if not experiment_id:
-            return "**Error**: 'experiment_id' is required for promote action."
-        return cw.promote_experiment(
-            _resolve_project_dir(project_dir),
-            experiment_id,
-            primary_metric=primary_metric,
-        )
-    elif action == "quick_run":
-        if not description:
-            return "**Error**: 'description' is required for quick_run action."
-        if not overlay:
-            return "**Error**: 'overlay' (JSON string) is required for quick_run action."
-        return cw.quick_run_experiment(
-            _resolve_project_dir(project_dir),
-            description,
-            overlay,
-            hypothesis=hypothesis,
-            primary_metric=primary_metric,
-        )
-    elif action == "explore":
-        if not search_space:
-            return "**Error**: 'search_space' (JSON with axes + budget) is required for explore action."
-        parsed = json.loads(search_space) if isinstance(search_space, str) else search_space
-        return cw.run_exploration(
-            _resolve_project_dir(project_dir),
-            parsed,
-        )
-    elif action == "promote_trial":
-        if not experiment_id:
-            return "**Error**: 'experiment_id' (exploration ID, e.g. 'expl-002') is required for promote_trial."
-        return cw.promote_exploration_trial(
-            _resolve_project_dir(project_dir),
-            experiment_id,
-            trial=trial,
-            primary_metric=primary_metric,
-            hypothesis=hypothesis,
-        )
-    else:
-        return (
-            f"**Error**: Unknown action '{action}'. "
-            "Use: create, write_overlay, run, promote, quick_run, explore, promote_trial."
-        )
+    return _load_handler("experiments").dispatch(
+        action,
+        experiment_id=experiment_id,
+        description=description,
+        hypothesis=hypothesis,
+        overlay=overlay,
+        primary_metric=primary_metric,
+        variant=variant,
+        search_space=search_space,
+        trial=trial,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
-# 5. configure — init, ensemble, backtest, show, check_guardrails
+# 5. configure
 # -----------------------------------------------------------------------
 
 
@@ -548,6 +343,9 @@ def configure(
     exclude_models: list[str] | None = None,
     calibration: str | None = None,
     pre_calibration: str | dict | None = None,
+    prior_feature: str | None = None,
+    spline_prob_max: float | None = None,
+    spline_n_bins: int | None = None,
     cv_strategy: str | None = None,
     seasons: list[int] | None = None,
     metrics: list[str] | None = None,
@@ -565,7 +363,11 @@ def configure(
         Optional: method, temperature, exclude_models,
         calibration ('spline'/'isotonic'/'platt'/'none' — post-ensemble calibration),
         pre_calibration (JSON dict of {model_name: method} for per-model calibration
-        applied before the meta-learner, e.g. '{"xgb_core": "platt"}').
+        applied before the meta-learner, e.g. '{"xgb_core": "platt"}'),
+        prior_feature (str, column name for the privileged feature passed to the
+        meta-learner alongside model predictions; when None, zeros are used),
+        spline_prob_max (float, upper clip for spline calibration, default 0.985),
+        spline_n_bins (int, number of bins for spline calibration, default 20).
       - "backtest": Update backtest config.
         Optional: cv_strategy, seasons, metrics, min_train_folds.
       - "show": Show the full resolved project configuration.
@@ -579,65 +381,33 @@ def configure(
         The denylist is checked by check_guardrails() to catch models using
         forbidden columns. Optional: add_columns (list), remove_columns (list).
     """
-    if action == "init":
-        from easyml.core.runner import config_writer as cw
-        return cw.scaffold_init(
-            _resolve_project_dir(project_dir, allow_missing=True),
-            project_name,
-            task=task or "classification",
-            target_column=target_column or "result",
-            key_columns=key_columns,
-            time_column=time_column,
-        )
-
-    from easyml.core.runner import config_writer as cw
-
-    if action == "ensemble":
-        parsed_pre_cal = None
-        if pre_calibration is not None:
-            parsed_pre_cal = json.loads(pre_calibration) if isinstance(pre_calibration, str) else pre_calibration
-        return cw.configure_ensemble(
-            _resolve_project_dir(project_dir),
-            method=method,
-            temperature=temperature,
-            exclude_models=exclude_models,
-            calibration=calibration,
-            pre_calibration=parsed_pre_cal,
-        )
-    elif action == "backtest":
-        return cw.configure_backtest(
-            _resolve_project_dir(project_dir),
-            cv_strategy=cv_strategy,
-            seasons=seasons,
-            metrics=metrics,
-            min_train_folds=min_train_folds,
-        )
-    elif action == "show":
-        return cw.show_config(_resolve_project_dir(project_dir))
-    elif action == "check_guardrails":
-        return cw.check_guardrails(_resolve_project_dir(project_dir))
-    elif action == "exclude_columns":
-        return cw.configure_exclude_columns(
-            _resolve_project_dir(project_dir),
-            add_columns=add_columns,
-            remove_columns=remove_columns,
-        )
-    elif action == "set_denylist":
-        return cw.configure_denylist(
-            _resolve_project_dir(project_dir),
-            add_columns=add_columns,
-            remove_columns=remove_columns,
-        )
-    else:
-        return (
-            f"**Error**: Unknown action '{action}'. "
-            "Use: init, ensemble, backtest, show, check_guardrails, "
-            "exclude_columns, set_denylist."
-        )
+    return _load_handler("config").dispatch(
+        action,
+        project_name=project_name,
+        task=task,
+        target_column=target_column,
+        key_columns=key_columns,
+        time_column=time_column,
+        method=method,
+        temperature=temperature,
+        exclude_models=exclude_models,
+        calibration=calibration,
+        pre_calibration=pre_calibration,
+        prior_feature=prior_feature,
+        spline_prob_max=spline_prob_max,
+        spline_n_bins=spline_n_bins,
+        cv_strategy=cv_strategy,
+        seasons=seasons,
+        metrics=metrics,
+        min_train_folds=min_train_folds,
+        add_columns=add_columns,
+        remove_columns=remove_columns,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
-# 6. pipeline — run_backtest, predict, diagnostics, list_runs, show_run
+# 6. pipeline
 # -----------------------------------------------------------------------
 
 
@@ -665,40 +435,14 @@ def pipeline(
       - "show_run": Show results from a run. Optional: run_id (defaults
         to most recent).
     """
-    from easyml.core.runner import config_writer as cw
-
-    if action == "run_backtest":
-        return cw.run_backtest(
-            _resolve_project_dir(project_dir),
-            experiment_id=experiment_id,
-            variant=variant,
-        )
-    elif action == "predict":
-        if season is None:
-            return "**Error**: 'season' is required for predict action."
-        return cw.run_predict(
-            _resolve_project_dir(project_dir),
-            season,
-            run_id=run_id,
-            variant=variant,
-        )
-    elif action == "diagnostics":
-        return cw.show_diagnostics(
-            _resolve_project_dir(project_dir),
-            run_id=run_id,
-        )
-    elif action == "list_runs":
-        return cw.list_runs(_resolve_project_dir(project_dir))
-    elif action == "show_run":
-        return cw.show_run(
-            _resolve_project_dir(project_dir),
-            run_id=run_id,
-        )
-    else:
-        return (
-            f"**Error**: Unknown action '{action}'. "
-            "Use: run_backtest, predict, diagnostics, list_runs, show_run."
-        )
+    return _load_handler("pipeline").dispatch(
+        action,
+        experiment_id=experiment_id,
+        variant=variant,
+        run_id=run_id,
+        season=season,
+        project_dir=project_dir,
+    )
 
 
 # -----------------------------------------------------------------------
