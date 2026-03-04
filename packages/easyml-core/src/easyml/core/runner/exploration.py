@@ -188,6 +188,7 @@ def _make_objective(
     pred_cache: Any,  # PredictionCache
     trials_dir: Path,
     trial_results: list[dict],
+    on_progress=None,
 ) -> Any:  # Callable[[optuna.Trial], float]
     """Build the Optuna objective function."""
 
@@ -237,6 +238,14 @@ def _make_objective(
             trial.set_user_attr(k, v)
         trial.set_user_attr("overlay", overlay)
 
+        # Report progress after each trial
+        if on_progress:
+            on_progress(
+                trial.number + 1,
+                space.budget,
+                f"Trial {trial.number + 1}/{space.budget}",
+            )
+
         # Return the primary metric value
         primary = space.primary_metric
         # Try exact match, then with _score suffix
@@ -260,6 +269,7 @@ def run_exploration(
     project_dir: Path,
     search_space: dict | ExplorationSpace,
     config_dir: Path | None = None,
+    on_progress=None,
 ) -> dict:
     """Run a Bayesian exploration over the search space.
 
@@ -271,6 +281,9 @@ def run_exploration(
         Search space definition (parsed from MCP JSON or already validated).
     config_dir : Path | None
         Config directory override. Defaults to ``project_dir / "config"``.
+    on_progress : callable, optional
+        Callback ``(current: int, total: int, message: str) -> None``
+        invoked after each trial completes.
 
     Returns
     -------
@@ -348,7 +361,7 @@ def run_exploration(
 
     objective = _make_objective(
         project_dir, config_dir, space, pred_cache,
-        trials_dir, trial_results,
+        trials_dir, trial_results, on_progress=on_progress,
     )
 
     study.optimize(

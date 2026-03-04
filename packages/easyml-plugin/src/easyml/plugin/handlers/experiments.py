@@ -90,14 +90,20 @@ def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
         return err
     parsed = parse_json_param(search_space)
 
-    # TODO (Task 5.12): Runner needs a callback parameter so we can stream
-    # per-trial progress via ctx.report_progress(). For now, before/after.
+    def _progress_callback(current, total, message):
+        """Sync progress callback that logs trial progress."""
+        import logging
+        logging.getLogger(__name__).info("Exploration progress: %s", message)
+        if ctx is not None:
+            ctx.report_progress(progress=current, total=total, message=message)
+
     if ctx is not None:
         ctx.report_progress(progress=0, total=1, message="Starting exploration...")
 
     result = cw.run_exploration(
         resolve_project_dir(project_dir),
         parsed,
+        on_progress=_progress_callback,
     )
 
     if ctx is not None:

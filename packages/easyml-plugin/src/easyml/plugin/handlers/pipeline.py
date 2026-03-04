@@ -10,8 +10,13 @@ from easyml.plugin.handlers._validation import (
 def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
-    # TODO (Task 5.12): Runner needs a callback parameter so we can stream
-    # progress via ctx.report_progress(). For now we report before/after.
+    def _progress_callback(current, total, message):
+        """Sync progress callback that logs fold progress."""
+        import logging
+        logging.getLogger(__name__).info("Backtest progress: %s", message)
+        if ctx is not None:
+            ctx.report_progress(progress=current, total=total, message=message)
+
     if ctx is not None:
         ctx.report_progress(progress=0, total=1, message="Starting backtest...")
 
@@ -19,6 +24,7 @@ def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs)
         resolve_project_dir(project_dir),
         experiment_id=experiment_id,
         variant=variant,
+        on_progress=_progress_callback,
     )
 
     if ctx is not None:

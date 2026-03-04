@@ -735,7 +735,7 @@ class PipelineRunner:
 
         return meta, cal, pre_cals
 
-    def backtest(self) -> dict[str, Any]:
+    def backtest(self, on_progress=None) -> dict[str, Any]:
         """Run real ensemble backtesting with cross-validation.
 
         Two-pass approach:
@@ -743,6 +743,12 @@ class PipelineRunner:
                   seasons, predict the test season's matchups.
           Pass 2: Train LOSO meta-learner (one per held-out season), apply
                   ensemble post-processing.
+
+        Parameters
+        ----------
+        on_progress : callable, optional
+            Callback ``(current: int, total: int, message: str) -> None``
+            invoked after each CV fold and at key pipeline stages.
 
         Returns
         -------
@@ -767,15 +773,26 @@ class PipelineRunner:
 
         # Generate CV folds from strategy
         cv_folds = generate_cv_folds(self._df, bt_config)
+        n_folds = len(cv_folds)
+
+        if on_progress:
+            on_progress(0, n_folds, "Starting backtest...")
 
         # Pass 1: per-fold OOF predictions
         season_data: dict[int, pd.DataFrame] = {}
-        for train_seasons, test_season in cv_folds:
+        for fold_idx, (train_seasons, test_season) in enumerate(cv_folds):
             preds_df = self._generate_season_predictions_from_fold(
                 train_seasons, test_season, active_models
             )
             if preds_df is not None and len(preds_df) > 0:
                 season_data[test_season] = preds_df
+
+            if on_progress:
+                on_progress(
+                    fold_idx + 1,
+                    n_folds,
+                    f"Fold {fold_idx + 1}/{n_folds} (season {test_season})",
+                )
 
         if not season_data:
             raise ValueError("No valid holdout seasons produced predictions.")

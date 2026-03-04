@@ -1414,6 +1414,7 @@ def run_backtest(
     *,
     experiment_id: str | None = None,
     variant: str | None = None,
+    on_progress=None,
 ) -> str:
     """Run a full backtest and return formatted results.
 
@@ -1464,7 +1465,7 @@ def run_backtest(
             run_dir=run_dir,
         )
         runner.load()
-        result = runner.backtest()
+        result = runner.backtest(on_progress=on_progress)
 
         return _format_backtest_result(result, run_id=run_id)
     except Exception as exc:
@@ -2080,6 +2081,7 @@ def promote_experiment(
 def run_exploration(
     project_dir: Path,
     search_space: dict,
+    on_progress=None,
 ) -> str:
     """Run a Bayesian exploration over a search space.
 
@@ -2096,6 +2098,7 @@ def run_exploration(
             project_dir=project_dir,
             search_space=search_space,
             config_dir=config_dir,
+            on_progress=on_progress,
         )
         return result["report"]
     except ImportError as exc:
