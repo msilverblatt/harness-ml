@@ -313,6 +313,43 @@ class TrendStep(BaseModel):
     columns: dict[str, str]   # {new_col: "source_col"}
 
 
+class EncodeStep(BaseModel):
+    """Categorical encoding (frequency, ordinal, target LOO, target temporal)."""
+
+    op: Literal["encode"] = "encode"
+    column: str
+    method: str               # "target_loo", "target_temporal", "frequency", "ordinal"
+    output: str | None = None # output column name (defaults to f"{column}_encoded")
+
+
+class BinStep(BaseModel):
+    """Discretize a continuous column into bins."""
+
+    op: Literal["bin"] = "bin"
+    column: str
+    method: str               # "quantile", "uniform", "custom", "kmeans"
+    n_bins: int = 10
+    output: str | None = None
+    boundaries: list[float] | None = None  # for custom method
+
+
+class DatetimeStep(BaseModel):
+    """Extract calendar features from a datetime column."""
+
+    op: Literal["datetime"] = "datetime"
+    column: str
+    extract: list[str] | None = None    # ["year", "month", "day", "dayofweek", "hour", "quarter", "weekofyear"]
+    cyclical: list[str] | None = None   # ["month", "dayofweek", "hour"] -- adds sin/cos pairs
+
+
+class NullIndicatorStep(BaseModel):
+    """Create binary indicators for missing values."""
+
+    op: Literal["null_indicator"] = "null_indicator"
+    columns: list[str]
+    prefix: str = "missing_"
+
+
 TransformStep = Annotated[
     Union[
         Annotated[FilterStep, Tag("filter")],
@@ -334,6 +371,10 @@ TransformStep = Annotated[
         Annotated[EwmStep, Tag("ewm")],
         Annotated[DiffStep, Tag("diff")],
         Annotated[TrendStep, Tag("trend")],
+        Annotated[EncodeStep, Tag("encode")],
+        Annotated[BinStep, Tag("bin")],
+        Annotated[DatetimeStep, Tag("datetime")],
+        Annotated[NullIndicatorStep, Tag("null_indicator")],
     ],
     Discriminator("op"),
 ]

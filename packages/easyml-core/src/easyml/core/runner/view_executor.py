@@ -10,11 +10,14 @@ import pandas as pd
 
 if TYPE_CHECKING:
     from easyml.core.runner.schema import (
+        BinStep,
         CastStep,
         ConditionalAggStep,
+        DatetimeStep,
         DeriveStep,
         DiffStep,
         DistinctStep,
+        EncodeStep,
         EwmStep,
         FilterStep,
         GroupByStep,
@@ -22,6 +25,7 @@ if TYPE_CHECKING:
         IsInStep,
         JoinStep,
         LagStep,
+        NullIndicatorStep,
         RankStep,
         RollingStep,
         SelectStep,
@@ -84,6 +88,10 @@ def execute_step(
         "ewm": _execute_ewm,
         "diff": _execute_diff,
         "trend": _execute_trend,
+        "encode": _execute_encode,
+        "bin": _execute_bin,
+        "datetime": _execute_datetime,
+        "null_indicator": _execute_null_indicator,
     }
     handler = _dispatch.get(step.op)
     if handler is None:
@@ -458,6 +466,151 @@ def _execute_trend(df: pd.DataFrame, step: TrendStep) -> pd.DataFrame:
         rolled = rolling_obj.apply(_rolling_slope, raw=False)
         result[new_col] = rolled.droplevel(list(range(len(step.keys)))).values
     return result.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Encode step
+# ---------------------------------------------------------------------------
+
+_CYCLICAL_PERIODS: dict[str, int] = {
+    "month": 12,
+    "dayofweek": 7,
+    "hour": 24,
+    "quarter": 4,
+    "weekofyear": 53,
+    "day": 31,
+    "minute": 60,
+    "second": 60,
+}
+
+
+def _execute_encode(df: pd.DataFrame, step: EncodeStep) -> pd.DataFrame:
+    """Categorical encoding."""
+    result = df.copy()
+    col = step.column
+    out = step.output if step.output is not None else f"{col}_encoded"
+    method = step.method
+
+    if method == "frequency":
+        freq = result[col].value_counts(normalize=True)
+        result[out] = result[col].map(freq)
+    elif method == "ordinal":
+        freq = result[col].value_counts()
+        # most common = 1
+        rank_map = {v: i + 1 for i, v in enumerate(freq.index)}
+        result[out] = result[col].map(rank_map)
+    elif method == "target_loo":
+        if "target" not in result.columns:
+            raise ValueError("target_loo encoding requires a 'target' column")
+        global_mean = result["target"].mean()
+        group_sum = result.groupby(col)["target"].transform("sum")
+        group_count = result.groupby(col)["target"].transform("count")
+        # leave-one-out: (sum - this_row) / (count - 1)
+        result[out] = (group_sum - result["target"]) / (group_count - 1)
+        # Groups with only 1 member get NaN; fill with global mean
+        result[out] = result[out].fillna(global_mean)
+    elif method == "target_temporal":
+        if "target" not in result.columns:
+            raise ValueError("target_temporal encoding requires a 'target' column")
+        # For each row, mean of target for all prior rows with same category
+        result[out] = np.nan
+        for cat in result[col].unique():
+            mask = result[col] == cat
+            targets = result.loc[mask, "target"]
+            expanding_mean = targets.expanding().mean().shift(1)
+            result.loc[mask, out] = expanding_mean.values
+    else:
+        raise ValueError(f"Unknown encode method: {method!r}")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Bin step
+# ---------------------------------------------------------------------------
+
+
+def _execute_bin(df: pd.DataFrame, step: BinStep) -> pd.DataFrame:
+    """Discretize a continuous column into bins."""
+    result = df.copy()
+    col = step.column
+    out = step.output if step.output is not None else f"{col}_binned"
+    method = step.method
+
+    if method == "quantile":
+        result[out] = pd.qcut(result[col], step.n_bins, labels=False, duplicates="drop")
+    elif method == "uniform":
+        result[out] = pd.cut(result[col], step.n_bins, labels=False)
+    elif method == "custom":
+        if step.boundaries is None:
+            raise ValueError("custom binning requires 'boundaries'")
+        result[out] = pd.cut(result[col], bins=step.boundaries, labels=False)
+    elif method == "kmeans":
+        from sklearn.cluster import KMeans
+
+        vals = result[col].dropna().values.reshape(-1, 1)
+        km = KMeans(n_clusters=step.n_bins, random_state=42, n_init=10)
+        km.fit(vals)
+        # Predict labels for all rows (including NaN handled separately)
+        labels = pd.Series(np.nan, index=result.index)
+        non_null_mask = result[col].notna()
+        labels[non_null_mask] = km.predict(
+            result.loc[non_null_mask, col].values.reshape(-1, 1)
+        )
+        result[out] = labels
+    else:
+        raise ValueError(f"Unknown bin method: {method!r}")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Datetime step
+# ---------------------------------------------------------------------------
+
+
+def _execute_datetime(df: pd.DataFrame, step: DatetimeStep) -> pd.DataFrame:
+    """Extract calendar features from a datetime column."""
+    result = df.copy()
+    dt = pd.to_datetime(result[step.column])
+
+    if step.extract:
+        for part in step.extract:
+            if part == "weekofyear":
+                result[f"{step.column}_{part}"] = dt.dt.isocalendar().week.astype(int)
+            else:
+                result[f"{step.column}_{part}"] = getattr(dt.dt, part)
+
+    if step.cyclical:
+        for part in step.cyclical:
+            period = _CYCLICAL_PERIODS.get(part)
+            if period is None:
+                raise ValueError(
+                    f"No known period for cyclical encoding of {part!r}. "
+                    f"Known: {sorted(_CYCLICAL_PERIODS)}"
+                )
+            if part == "weekofyear":
+                raw = dt.dt.isocalendar().week.astype(int)
+            else:
+                raw = getattr(dt.dt, part)
+            result[f"{step.column}_{part}_sin"] = np.sin(2 * np.pi * raw / period)
+            result[f"{step.column}_{part}_cos"] = np.cos(2 * np.pi * raw / period)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Null indicator step
+# ---------------------------------------------------------------------------
+
+
+def _execute_null_indicator(df: pd.DataFrame, step: NullIndicatorStep) -> pd.DataFrame:
+    """Create binary indicators for missing values."""
+    result = df.copy()
+    prefix = step.prefix
+    for col in step.columns:
+        result[f"{prefix}{col}"] = result[col].isna().astype(int)
+    return result
 
 
 # ---------------------------------------------------------------------------
