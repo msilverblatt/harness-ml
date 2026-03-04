@@ -71,12 +71,26 @@ def _handle_diversity(*, project_dir, **_kwargs):
     return cw.feature_diversity_report(resolve_project_dir(project_dir))
 
 
+def _handle_auto_search(*, features, search_types, top_n, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    parsed_features = parse_json_param(features) if features else None
+    parsed_search_types = parse_json_param(search_types) if search_types else None
+    return cw.auto_search_features(
+        resolve_project_dir(project_dir),
+        features=parsed_features,
+        search_types=parsed_search_types,
+        top_n=top_n,
+    )
+
+
 ACTIONS = {
     "add": _handle_add,
     "add_batch": _handle_add_batch,
     "test_transformations": _handle_test_transformations,
     "discover": _handle_discover,
     "diversity": _handle_diversity,
+    "auto_search": _handle_auto_search,
 }
 
 

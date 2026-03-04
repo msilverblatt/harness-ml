@@ -253,6 +253,7 @@ async def manage_features(
     test_interactions: bool = True,
     top_n: int = 20,
     method: str = "xgboost",
+    search_types: str | list | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Create and analyze features.
@@ -277,6 +278,11 @@ async def manage_features(
         redundancy, groupings). Optional: top_n, method (xgboost/mutual_info).
       - "diversity": Analyze feature diversity across models. Returns
         overlap matrix, diversity score, redundant pairs, and suggestions.
+      - "auto_search": Systematically search for new candidate features via
+        interactions (pairwise arithmetic), lags, and rolling means.
+        Optional: features (JSON array of column names to search over;
+        defaults to all feature columns), search_types (JSON array from
+        ["interactions", "lags", "rolling"]; defaults to all), top_n.
     """
     return _load_handler("features").dispatch(
         action,
@@ -294,6 +300,7 @@ async def manage_features(
         test_interactions=test_interactions,
         top_n=top_n,
         method=method,
+        search_types=search_types,
         project_dir=project_dir,
     )
 

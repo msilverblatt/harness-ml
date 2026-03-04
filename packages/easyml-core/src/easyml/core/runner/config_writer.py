@@ -978,6 +978,71 @@ def discover_features(
     return format_discovery_report(correlations, importance, redundant, groups)
 
 
+def auto_search_features(
+    project_dir: Path,
+    features: list[str] | None = None,
+    *,
+    search_types: list[str] | None = None,
+    top_n: int = 20,
+) -> str:
+    """Run automated feature search over given columns.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Root project directory.
+    features : list[str] | None
+        Column names to search over. If None, uses all feature columns.
+    search_types : list[str] | None
+        Which search types to run: "interactions", "lags", "rolling".
+        Defaults to all three.
+    top_n : int
+        Number of top results to return.
+
+    Returns
+    -------
+    str
+        Markdown-formatted report of top candidates.
+    """
+    from easyml.core.runner.auto_search import auto_search, format_auto_search_report
+    from easyml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+    from easyml.core.runner.schema import DataConfig
+
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+    except Exception:
+        config = DataConfig()
+
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
+
+    # Resolve feature columns
+    if features:
+        feature_cols = [c for c in features if c in df.columns]
+        missing = [c for c in features if c not in df.columns]
+        if missing:
+            logger.warning("Columns not found in dataset, skipping: %s", missing)
+    else:
+        feature_cols = get_feature_columns(df, config)
+
+    if not feature_cols:
+        return "**Error**: No feature columns found to search over."
+
+    target_col = config.target_column
+
+    results = auto_search(
+        df,
+        target_col=target_col,
+        feature_cols=feature_cols,
+        search_types=search_types,
+        top_n=top_n,
+    )
+    return format_auto_search_report(results)
+
+
 # -----------------------------------------------------------------------
 # Experiment tools
 # -----------------------------------------------------------------------
