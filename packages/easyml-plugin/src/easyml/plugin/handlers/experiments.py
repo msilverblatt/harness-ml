@@ -132,7 +132,8 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
     return result
 
 
-def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
+async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
+    import asyncio
     from easyml.core.runner import config_writer as cw
 
     err = validate_required(search_space, "search_space")
@@ -140,24 +141,32 @@ def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
         return err
     parsed = parse_json_param(search_space)
 
+    loop = asyncio.get_running_loop()
+
     def _progress_callback(current, total, message):
-        """Sync progress callback that logs trial progress."""
+        """Sync callback running in thread — schedules async progress on event loop."""
         import logging
         logging.getLogger(__name__).info("Exploration progress: %s", message)
         if ctx is not None:
-            ctx.report_progress(progress=current, total=total, message=message)
+            asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(progress=current, total=total, message=message),
+                loop,
+            )
 
     if ctx is not None:
-        ctx.report_progress(progress=0, total=1, message="Starting exploration...")
+        await ctx.report_progress(progress=0, total=1, message="Starting exploration...")
 
-    result = cw.run_exploration(
-        resolve_project_dir(project_dir),
-        parsed,
-        on_progress=_progress_callback,
+    result = await loop.run_in_executor(
+        None,
+        lambda: cw.run_exploration(
+            resolve_project_dir(project_dir),
+            parsed,
+            on_progress=_progress_callback,
+        ),
     )
 
     if ctx is not None:
-        ctx.report_progress(progress=1, total=1, message="Exploration complete.")
+        await ctx.report_progress(progress=1, total=1, message="Exploration complete.")
 
     if detail == "summary":
         return _summarize_exploration(result)

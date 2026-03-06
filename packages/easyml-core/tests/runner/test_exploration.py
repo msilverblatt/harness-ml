@@ -50,6 +50,18 @@ class TestAxisDef:
         axis = AxisDef(key="x", type="subset", candidates=["a", "b"], min_size=1)
         assert axis.candidates == ["a", "b"]
 
+    def test_type_alias_int(self):
+        axis = AxisDef(key="x", type="int", low=1, high=10)
+        assert axis.type == "integer"
+
+    def test_type_alias_float(self):
+        axis = AxisDef(key="x", type="float", low=0.0, high=1.0)
+        assert axis.type == "continuous"
+
+    def test_choices_alias_for_values(self):
+        axis = AxisDef(key="x", type="categorical", choices=["a", "b", "c"])
+        assert axis.values == ["a", "b", "c"]
+
 
 class TestExplorationSpace:
     def test_from_dict(self):

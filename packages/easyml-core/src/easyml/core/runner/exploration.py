@@ -43,6 +43,13 @@ _LOWER_IS_BETTER = {"brier", "brier_score", "ece", "log_loss"}
 # Schema
 # ---------------------------------------------------------------------------
 
+_AXIS_TYPE_ALIASES = {
+    "int": "integer",
+    "float": "continuous",
+    "real": "continuous",
+}
+
+
 class AxisDef(BaseModel):
     """A single dimension in the exploration search space."""
 
@@ -60,6 +67,20 @@ class AxisDef(BaseModel):
     # subset
     candidates: list[str] | None = None
     min_size: int = 1
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Resolve type aliases
+            if "type" in data:
+                data["type"] = _AXIS_TYPE_ALIASES.get(data["type"], data["type"])
+            # Accept 'choices' as alias for 'values'
+            if "choices" in data and "values" not in data:
+                data["values"] = data.pop("choices")
+            # Accept 'step' for integer axes (Optuna uses it)
+            # step is silently ignored since Optuna handles it natively
+        return data
 
     @model_validator(mode="after")
     def _validate_axis(self) -> AxisDef:
