@@ -75,6 +75,7 @@ class MLPModel(BaseModel):
         weight_decay: float = 0.0,
         early_stopping_rounds: int | None = None,
         seed_stride: int = 1,
+        seed: int = 0,
     ):
         super().__init__(params)
         if mode not in ("classifier", "regressor"):
@@ -87,6 +88,7 @@ class MLPModel(BaseModel):
         self._weight_decay = weight_decay
         self._early_stopping_rounds = early_stopping_rounds
         self._seed_stride = seed_stride
+        self._base_seed = seed
         self._models: list = []  # populated by fit()
         self._feature_means: np.ndarray | None = None
         self._feature_stds: np.ndarray | None = None
@@ -96,19 +98,20 @@ class MLPModel(BaseModel):
         if not self._normalize:
             return X
         if fit:
-            self._feature_means = X.mean(axis=0)
-            self._feature_stds = X.std(axis=0)
+            self._feature_means = np.nanmean(X, axis=0)
+            self._feature_stds = np.nanstd(X, axis=0)
             # Avoid division by zero for constant features
-            self._feature_stds[self._feature_stds == 0] = 1.0
-        return (X - self._feature_means) / self._feature_stds
+            self._feature_stds[self._feature_stds < 1e-8] = 1.0
+        result = (X - self._feature_means) / self._feature_stds
+        return np.nan_to_num(result, nan=0.0)
 
     def fit(self, X: np.ndarray, y: np.ndarray, *, eval_set=None) -> None:
         import torch
         import torch.nn as nn
 
-        hidden_dims = self.params.get("hidden_dims", [128, 64])
+        hidden_dims = self.params.get("hidden_layers", self.params.get("hidden_dims", [128, 64]))
         dropout = self.params.get("dropout", 0.0)
-        lr = self.params.get("lr", 0.001)
+        lr = self.params.get("learning_rate", self.params.get("lr", 0.001))
         epochs = self.params.get("epochs", 10)
         batch_size = self.params.get("batch_size", 32)
 
@@ -126,15 +129,20 @@ class MLPModel(BaseModel):
         X_val_t = None
         y_val_t = None
         if eval_set is not None:
-            X_val, y_val = eval_set
+            # Accept both (X, y) tuple and [(X, y)] list-of-tuples format
+            if isinstance(eval_set, list):
+                X_val, y_val = eval_set[0]
+            else:
+                X_val, y_val = eval_set
             X_val = self._normalize_features(X_val)
             X_val_t = torch.tensor(X_val, dtype=torch.float32)
             y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1)
 
         self._models = []
         for i in range(self._n_seeds):
-            seed = i * self._seed_stride
+            seed = self._base_seed + i * self._seed_stride
             torch.manual_seed(seed)
+            np.random.seed(seed)
             model = _build_mlp(
                 X.shape[1], hidden_dims, dropout, self._mode,
                 batch_norm=self._batch_norm,
@@ -145,6 +153,7 @@ class MLPModel(BaseModel):
 
             best_val_loss = float("inf")
             patience_counter = 0
+            best_state = None
 
             model.train()
             n = len(X_t)
@@ -170,12 +179,15 @@ class MLPModel(BaseModel):
                     if val_loss < best_val_loss:
                         best_val_loss = val_loss
                         patience_counter = 0
+                        best_state = {k: v.clone() for k, v in model.state_dict().items()}
                     else:
                         patience_counter += 1
                     if patience_counter >= self._early_stopping_rounds:
                         break
                     model.train()
 
+            if best_state is not None:
+                model.load_state_dict(best_state)
             model.eval()
             self._models.append(model)
 
@@ -196,8 +208,8 @@ class MLPModel(BaseModel):
         return np.mean(preds, axis=0)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        raw = self._raw_predictions(X)
         if self._mode == "classifier":
+            raw = self._raw_predictions(X)
             # Raw outputs are logits; apply sigmoid
             return 1.0 / (1.0 + np.exp(-raw))
         else:
@@ -205,9 +217,37 @@ class MLPModel(BaseModel):
                 raise ValueError(
                     "cdf_scale must be set to convert regressor margins to probabilities"
                 )
-            from scipy.stats import norm
+            # Per-seed CDF conversion then average (Jensen's inequality matters)
+            return self._per_seed_proba(X, self._cdf_scale)
 
-            return norm.cdf(raw / self._cdf_scale)
+    def _per_seed_proba(self, X: np.ndarray, scale: float) -> np.ndarray:
+        """Convert margins to probabilities per seed, then average.
+
+        Uses logistic sigmoid: P = 1 / (1 + exp(-margin/scale)).
+        Averaging probabilities instead of margins avoids Jensen's
+        inequality bias for multi-seed models.
+        """
+        import torch
+
+        X = self._normalize_features(X)
+        X_t = torch.tensor(X, dtype=torch.float32)
+        all_probs = []
+        with torch.no_grad():
+            for model in self._models:
+                margins = model(X_t).squeeze(1).numpy()
+                z = margins / scale
+                # Numerically stable logistic sigmoid
+                probs = np.where(
+                    z >= 0,
+                    1.0 / (1.0 + np.exp(-z)),
+                    np.exp(z) / (1.0 + np.exp(z)),
+                )
+                all_probs.append(probs)
+        return np.mean(all_probs, axis=0)
+
+    def set_cdf_scale(self, scale: float) -> None:
+        """Set CDF scale for regressor probability conversion."""
+        self._cdf_scale = scale
 
     def predict_margin(self, X: np.ndarray) -> np.ndarray:
         if self._mode != "regressor":
@@ -234,6 +274,7 @@ class MLPModel(BaseModel):
             "weight_decay": self._weight_decay,
             "early_stopping_rounds": self._early_stopping_rounds,
             "seed_stride": self._seed_stride,
+            "base_seed": self._base_seed,
         }
         if self._normalize and self._feature_means is not None:
             meta["feature_means"] = self._feature_means.tolist()
@@ -259,6 +300,7 @@ class MLPModel(BaseModel):
         instance._weight_decay = meta.get("weight_decay", 0.0)
         instance._early_stopping_rounds = meta.get("early_stopping_rounds")
         instance._seed_stride = meta.get("seed_stride", 1)
+        instance._base_seed = meta.get("base_seed", 0)
         instance._fitted = True
 
         if instance._normalize and "feature_means" in meta:
@@ -268,7 +310,7 @@ class MLPModel(BaseModel):
             instance._feature_means = None
             instance._feature_stds = None
 
-        hidden_dims = instance.params.get("hidden_dims", [128, 64])
+        hidden_dims = instance.params.get("hidden_layers", instance.params.get("hidden_dims", [128, 64]))
         dropout = instance.params.get("dropout", 0.0)
 
         instance._models = []

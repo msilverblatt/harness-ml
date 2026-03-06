@@ -18,6 +18,7 @@ _FIT_KEYS = frozenset({
 _WRAPPER_KEYS = frozenset({
     "normalize", "val_fraction", "learning_rate",
     "scheduler_step_size", "scheduler_gamma", "seed_stride",
+    "seed", "n_seeds",
 })
 
 # Aliases: user-facing name -> TabNet parameter name
@@ -112,12 +113,13 @@ class TabNetModel(BaseModel):
 
         init_kwargs, fit_kwargs = self._split_params()
 
-        # Scheduler params
+        # Scheduler params (TabNet expects these in __init__, not fit)
         if self._scheduler_step_size is not None and self._scheduler_gamma is not None:
-            fit_kwargs["scheduler_params"] = {
+            init_kwargs["scheduler_params"] = {
                 "step_size": self._scheduler_step_size,
                 "gamma": self._scheduler_gamma,
             }
+            init_kwargs["scheduler_fn"] = __import__("torch.optim.lr_scheduler", fromlist=["StepLR"]).StepLR
 
         # Validation split
         if eval_set is not None:

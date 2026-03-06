@@ -250,10 +250,15 @@ def predict_single_model(
         return np.mean(all_preds, axis=0)
     else:
         if is_regressor:
-            margins = model.predict_margin(X_test)
             scale = cdf_scale if cdf_scale is not None else model_def.cdf_scale
             if scale is None:
                 raise ValueError("cdf_scale required for regressor predictions")
+            # If model supports set_cdf_scale, let it handle per-seed CDF
+            # conversion internally (avoids Jensen's inequality bias)
+            if hasattr(model, "set_cdf_scale"):
+                model.set_cdf_scale(scale)
+                return model.predict_proba(X_test)
+            margins = model.predict_margin(X_test)
             return _margin_to_prob(margins, scale)
         else:
             return model.predict_proba(X_test)

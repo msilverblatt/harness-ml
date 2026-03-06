@@ -7,28 +7,39 @@ from easyml.plugin.handlers._validation import (
 )
 
 
-def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
+async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
+    import asyncio
     from easyml.core.runner import config_writer as cw
 
+    loop = asyncio.get_running_loop()
+
     def _progress_callback(current, total, message):
-        """Sync progress callback that logs fold progress."""
+        """Sync callback running in thread — schedules async progress on event loop."""
         import logging
         logging.getLogger(__name__).info("Backtest progress: %s", message)
         if ctx is not None:
-            ctx.report_progress(progress=current, total=total, message=message)
+            asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(progress=current, total=total, message=message),
+                loop,
+            )
 
     if ctx is not None:
-        ctx.report_progress(progress=0, total=1, message="Starting backtest...")
+        await ctx.report_progress(progress=0, total=1, message="Starting backtest...")
 
-    result = cw.run_backtest(
-        resolve_project_dir(project_dir),
-        experiment_id=experiment_id,
-        variant=variant,
-        on_progress=_progress_callback,
+    # Run the sync backtest in a thread so the event loop stays free
+    # for sending progress updates
+    result = await loop.run_in_executor(
+        None,
+        lambda: cw.run_backtest(
+            resolve_project_dir(project_dir),
+            experiment_id=experiment_id,
+            variant=variant,
+            on_progress=_progress_callback,
+        ),
     )
 
     if ctx is not None:
-        ctx.report_progress(progress=1, total=1, message="Backtest complete.")
+        await ctx.report_progress(progress=1, total=1, message="Backtest complete.")
 
     return result
 
@@ -199,11 +210,15 @@ ACTIONS = {
 }
 
 
-def dispatch(action: str, **kwargs) -> str:
+async def dispatch(action: str, **kwargs) -> str:
     """Dispatch a pipeline action."""
+    import asyncio
+
     err = validate_enum(action, set(ACTIONS), "action")
     if err:
         return err
     result = ACTIONS[action](**kwargs)
+    if asyncio.iscoroutine(result):
+        result = await result
     hints = collect_hints(action, tool="pipeline", **kwargs)
     return format_response_with_hints(result, hints)
