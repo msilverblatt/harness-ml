@@ -287,6 +287,14 @@ class TestConfigureBacktest:
         result = configure_backtest(project, cv_strategy="expanding_window")
         assert "expanding_window" in result
 
+    def test_configure_backtest_fold_column(self, tmp_path):
+        from easyml.core.runner.config_writer import scaffold_init
+        scaffold_init(tmp_path, "test_proj", task="binary")
+        result = configure_backtest(tmp_path, fold_column="year")
+        pipeline = yaml.safe_load((tmp_path / "config" / "pipeline.yaml").read_text())
+        assert pipeline["backtest"]["fold_column"] == "year"
+        assert "year" in result
+
 
 class TestExperimentCreate:
     """Test experiment_create."""

@@ -407,6 +407,7 @@ async def configure(
     fold_values: list[int] | None = None,
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
+    fold_column: str | None = None,
     add_columns: list[str] | None = None,
     remove_columns: list[str] | None = None,
     detail: str | None = None,
@@ -421,7 +422,7 @@ async def configure(
       - "update_data": Update data config post-init.
         Optional: target_column, key_columns, time_column.
       - "ensemble": Update ensemble config.
-        Optional: method, temperature, exclude_models,
+        Optional: method ('stacked'/'average'/'weighted'), temperature, exclude_models,
         calibration ('spline'/'isotonic'/'platt'/'none' — post-ensemble calibration),
         pre_calibration (JSON dict of {model_name: method} for per-model calibration
         applied before the meta-learner, e.g. '{"xgb_core": "platt"}'),
@@ -430,7 +431,7 @@ async def configure(
         spline_prob_max (float, upper clip for spline calibration, default 0.985),
         spline_n_bins (int, number of bins for spline calibration, default 20).
       - "backtest": Update backtest config.
-        Optional: cv_strategy, fold_values, metrics, min_train_folds.
+        Optional: cv_strategy, fold_values, metrics, min_train_folds, fold_column.
       - "show": Show the full resolved project configuration.
         Optional: detail ("summary" for key settings only, "full" (default) for
         everything), section (e.g. "models", "ensemble", "backtest" to show only
@@ -465,6 +466,7 @@ async def configure(
         fold_values=fold_values,
         metrics=metrics,
         min_train_folds=min_train_folds,
+        fold_column=fold_column,
         add_columns=add_columns,
         remove_columns=remove_columns,
         detail=detail,

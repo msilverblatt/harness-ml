@@ -40,7 +40,7 @@ def _handle_ensemble(*, method, temperature, exclude_models, calibration, pre_ca
     return cw.configure_ensemble(resolve_project_dir(project_dir), **kw)
 
 
-def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, project_dir, **_kwargs):
+def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, fold_column, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
     return cw.configure_backtest(
@@ -49,6 +49,7 @@ def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, proj
         fold_values=fold_values,
         metrics=metrics,
         min_train_folds=min_train_folds,
+        fold_column=fold_column,
     )
 
 
