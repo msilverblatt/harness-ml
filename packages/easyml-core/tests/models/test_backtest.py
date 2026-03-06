@@ -106,6 +106,30 @@ def test_backtest_pooled_arrays():
     assert len(result.pooled_y_pred) == 4
 
 
+def test_backtest_supports_extended_metrics():
+    """BacktestRunner should accept auc_roc, f1, precision, recall."""
+    runner = BacktestRunner(metrics=["brier", "accuracy", "auc_roc", "f1", "precision", "recall"])
+
+    result = runner.run({
+        1: {"preds": {"m1": np.array([0.9, 0.1, 0.8, 0.3])}, "y": np.array([1, 0, 1, 0])},
+    })
+
+    assert "auc_roc" in result.pooled_metrics
+    assert "f1" in result.pooled_metrics
+    assert "precision" in result.pooled_metrics
+    assert "recall" in result.pooled_metrics
+    assert 0.0 <= result.pooled_metrics["auc_roc"] <= 1.0
+
+
+def test_backtest_auc_alias():
+    """'auc' should be accepted as alias for 'auc_roc'."""
+    runner = BacktestRunner(metrics=["auc"])
+    result = runner.run({
+        1: {"preds": {"m1": np.array([0.9, 0.1, 0.8, 0.3])}, "y": np.array([1, 0, 1, 0])},
+    })
+    assert "auc" in result.pooled_metrics
+
+
 def test_backtest_unknown_metric():
     with pytest.raises(ValueError, match="Unknown metric"):
         BacktestRunner(metrics=["nonexistent"])

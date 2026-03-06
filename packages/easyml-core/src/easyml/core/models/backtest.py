@@ -45,11 +45,43 @@ def _ece(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
     return float(ece)
 
 
+def _auc_roc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Area under ROC curve."""
+    from sklearn.metrics import roc_auc_score
+    try:
+        return float(roc_auc_score(y_true, y_pred))
+    except ValueError:
+        return float("nan")
+
+
+def _f1(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """F1 score at threshold 0.5."""
+    from sklearn.metrics import f1_score
+    return float(f1_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
+
+
+def _precision(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Precision at threshold 0.5."""
+    from sklearn.metrics import precision_score
+    return float(precision_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
+
+
+def _recall(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Recall at threshold 0.5."""
+    from sklearn.metrics import recall_score
+    return float(recall_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
+
+
 _METRIC_REGISTRY: dict[str, callable] = {
     "brier": _brier_score,
     "accuracy": _accuracy,
     "log_loss": _log_loss,
     "ece": _ece,
+    "auc_roc": _auc_roc,
+    "auc": _auc_roc,       # alias
+    "f1": _f1,
+    "precision": _precision,
+    "recall": _recall,
 }
 
 
@@ -90,7 +122,8 @@ class BacktestRunner:
     ----------
     metrics : list[str]
         List of metric names to compute. Supported: ``"brier"``,
-        ``"accuracy"``, ``"log_loss"``, ``"ece"``.
+        ``"accuracy"``, ``"log_loss"``, ``"ece"``, ``"auc_roc"``
+        (alias ``"auc"``), ``"f1"``, ``"precision"``, ``"recall"``.
     """
 
     def __init__(self, metrics: list[str] | None = None) -> None:
