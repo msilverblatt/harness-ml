@@ -37,18 +37,43 @@ def _handle_write_overlay(*, experiment_id, overlay, project_dir, **_kwargs):
     )
 
 
-def _handle_run(*, experiment_id, primary_metric, variant, project_dir, **_kwargs):
+async def _handle_run(*, experiment_id, primary_metric, variant, ctx, project_dir, **_kwargs):
+    import asyncio
     from easyml.core.runner import config_writer as cw
 
     err = validate_required(experiment_id, "experiment_id")
     if err:
         return err
-    return cw.run_experiment(
-        resolve_project_dir(project_dir),
-        experiment_id,
-        primary_metric=primary_metric,
-        variant=variant,
+
+    loop = asyncio.get_running_loop()
+
+    def _progress_callback(current, total, message):
+        import logging
+        logging.getLogger(__name__).info("Experiment progress: %s", message)
+        if ctx is not None:
+            asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(progress=current, total=total, message=message),
+                loop,
+            )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=1, message=f"Running experiment {experiment_id}...")
+
+    result = await loop.run_in_executor(
+        None,
+        lambda: cw.run_experiment(
+            resolve_project_dir(project_dir),
+            experiment_id,
+            primary_metric=primary_metric,
+            variant=variant,
+            on_progress=_progress_callback,
+        ),
     )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=1, total=1, message="Experiment complete.")
+
+    return result
 
 
 def _handle_promote(*, experiment_id, primary_metric, project_dir, **_kwargs):
@@ -64,7 +89,8 @@ def _handle_promote(*, experiment_id, primary_metric, project_dir, **_kwargs):
     )
 
 
-def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, project_dir, **_kwargs):
+async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, ctx, project_dir, **_kwargs):
+    import asyncio
     from easyml.core.runner import config_writer as cw
 
     err = validate_required(description, "description")
@@ -73,13 +99,37 @@ def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, proje
     err = validate_required(overlay, "overlay")
     if err:
         return err
-    return cw.quick_run_experiment(
-        resolve_project_dir(project_dir),
-        description,
-        overlay,
-        hypothesis=hypothesis,
-        primary_metric=primary_metric,
+
+    loop = asyncio.get_running_loop()
+
+    def _progress_callback(current, total, message):
+        import logging
+        logging.getLogger(__name__).info("Experiment progress: %s", message)
+        if ctx is not None:
+            asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(progress=current, total=total, message=message),
+                loop,
+            )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=1, message="Starting experiment...")
+
+    result = await loop.run_in_executor(
+        None,
+        lambda: cw.quick_run_experiment(
+            resolve_project_dir(project_dir),
+            description,
+            overlay,
+            hypothesis=hypothesis,
+            primary_metric=primary_metric,
+            on_progress=_progress_callback,
+        ),
     )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=1, total=1, message="Experiment complete.")
+
+    return result
 
 
 def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
@@ -209,11 +259,15 @@ ACTIONS = {
 }
 
 
-def dispatch(action: str, **kwargs) -> str:
+async def dispatch(action: str, **kwargs) -> str:
     """Dispatch a manage_experiments action."""
+    import asyncio
+
     err = validate_enum(action, set(ACTIONS), "action")
     if err:
         return err
     result = ACTIONS[action](**kwargs)
+    if asyncio.iscoroutine(result):
+        result = await result
     hints = collect_hints(action, tool="experiments", **kwargs)
     return format_response_with_hints(result, hints)

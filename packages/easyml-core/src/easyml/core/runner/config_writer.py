@@ -1614,6 +1614,7 @@ def run_experiment(
     *,
     primary_metric: str = "brier",
     variant: str | None = None,
+    on_progress=None,
 ) -> str:
     """Run a full experiment: backtest with overlay, compare to baseline.
 
@@ -1657,7 +1658,7 @@ def run_experiment(
             overlay=overlay,
         )
         runner.load()
-        exp_result = runner.backtest()
+        exp_result = runner.backtest(on_progress=on_progress)
 
         # Run baseline backtest (without overlay)
         baseline_runner = PipelineRunner(
@@ -1666,7 +1667,7 @@ def run_experiment(
             variant=variant,
         )
         baseline_runner.load()
-        baseline_result = baseline_runner.backtest()
+        baseline_result = baseline_runner.backtest(on_progress=on_progress)
 
         # Build comparison
         exp_metrics = exp_result.get("metrics", {})
@@ -1780,6 +1781,7 @@ def quick_run_experiment(
     *,
     hypothesis: str = "",
     primary_metric: str = "brier",
+    on_progress=None,
 ) -> str:
     """Create, configure, and run an experiment in a single call.
 
@@ -1818,6 +1820,7 @@ def quick_run_experiment(
         project_dir,
         experiment_id,
         primary_metric=primary_metric,
+        on_progress=on_progress,
     )
 
     # Combine results

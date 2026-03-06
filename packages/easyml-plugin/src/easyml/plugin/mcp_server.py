@@ -363,7 +363,7 @@ async def manage_experiments(
       - "compare": Compare two experiments side by side. Requires
         experiment_ids (list of 2 experiment IDs).
     """
-    return _load_handler("experiments").dispatch(
+    return await _load_handler("experiments").dispatch(
         action,
         ctx=ctx,
         experiment_id=experiment_id,
