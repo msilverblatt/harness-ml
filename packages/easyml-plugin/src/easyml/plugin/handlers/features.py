@@ -66,9 +66,22 @@ def _handle_discover(*, top_n, method, project_dir, **_kwargs):
 
 
 def _handle_diversity(*, project_dir, **_kwargs):
-    from easyml.core.runner import config_writer as cw
+    import yaml
+    from easyml.core.runner.feature_diversity import format_diversity_report
 
-    return cw.feature_diversity_report(resolve_project_dir(project_dir))
+    proj = resolve_project_dir(project_dir)
+    config_path = proj / "config" / "pipeline.yaml"
+    if not config_path.exists():
+        return "**Error**: No pipeline.yaml found. Run `configure(action='init')` first."
+
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f) or {}
+
+    models = cfg.get("models", {})
+    if not models:
+        return "**Error**: No models configured. Add models first with `manage_models(action='add', ...)`."
+
+    return format_diversity_report(models)
 
 
 def _handle_auto_search(*, features, search_types, top_n, project_dir, **_kwargs):
