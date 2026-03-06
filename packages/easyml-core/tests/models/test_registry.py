@@ -98,3 +98,86 @@ def test_default_params_empty():
     model = MockModel()
     assert model.params == {}
     assert model._fitted is False
+
+
+# --- kwargs forwarding tests ---
+
+
+class MockModelWithKwargs(BaseModel):
+    """Model whose constructor accepts specific keyword arguments."""
+
+    def __init__(self, params: dict | None = None, *, mode: str = "classifier"):
+        super().__init__(params)
+        self.mode = mode
+
+    def fit(self, X, y):
+        self._fitted = True
+
+    def predict_proba(self, X):
+        return np.full(len(X), 0.5)
+
+    @property
+    def is_regression(self):
+        return False
+
+    def save(self, path):
+        pass
+
+    @classmethod
+    def load(cls, path):
+        return cls()
+
+
+class MockModelWithVarKeyword(BaseModel):
+    """Model whose constructor accepts **kwargs."""
+
+    def __init__(self, params: dict | None = None, **kwargs):
+        super().__init__(params)
+        self.extra = kwargs
+
+    def fit(self, X, y):
+        self._fitted = True
+
+    def predict_proba(self, X):
+        return np.full(len(X), 0.5)
+
+    @property
+    def is_regression(self):
+        return False
+
+    def save(self, path):
+        pass
+
+    @classmethod
+    def load(cls, path):
+        return cls()
+
+
+def test_create_with_kwargs():
+    """create() forwards matching kwargs to the model constructor."""
+    registry = ModelRegistry()
+    registry.register("mock_kw", MockModelWithKwargs)
+    model = registry.create("mock_kw", params={"depth": 3}, mode="regressor")
+    assert isinstance(model, MockModelWithKwargs)
+    assert model.params == {"depth": 3}
+    assert model.mode == "regressor"
+
+
+def test_create_filters_unknown_kwargs():
+    """create() silently drops kwargs the constructor doesn't accept."""
+    registry = ModelRegistry()
+    registry.register("mock_kw", MockModelWithKwargs)
+    model = registry.create("mock_kw", params={"depth": 3}, mode="regressor", unknown_arg="foo")
+    assert isinstance(model, MockModelWithKwargs)
+    assert model.mode == "regressor"
+    # unknown_arg should have been silently dropped
+    assert not hasattr(model, "unknown_arg")
+
+
+def test_create_var_keyword():
+    """create() forwards all kwargs when constructor has **kwargs."""
+    registry = ModelRegistry()
+    registry.register("mock_var", MockModelWithVarKeyword)
+    model = registry.create("mock_var", params={"depth": 3}, mode="regressor", custom="value")
+    assert isinstance(model, MockModelWithVarKeyword)
+    assert model.extra == {"mode": "regressor", "custom": "value"}
