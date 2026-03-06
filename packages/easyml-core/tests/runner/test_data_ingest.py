@@ -14,6 +14,7 @@ from easyml.core.runner.data_ingest import (
     fill_nulls,
     drop_duplicates,
     rename_columns,
+    derive_column,
     _detect_join_keys,
     _auto_clean,
     _compute_correlation_preview,
@@ -705,6 +706,110 @@ class TestRenameColumns:
 
         with pytest.raises(ValueError, match="not found"):
             rename_columns(tmp_path, {"nonexistent": "new"})
+
+
+class TestDeriveColumn:
+    """Test derive_column tool."""
+
+    def _setup_features(self, tmp_path, df):
+        """Helper to create a features parquet in the standard location."""
+        feat_dir = tmp_path / "data" / "features"
+        feat_dir.mkdir(parents=True)
+        df.to_parquet(feat_dir / "features.parquet", index=False)
+
+    def test_simple_expression(self, tmp_path):
+        """close - open arithmetic."""
+        df = pd.DataFrame({
+            "open": [10.0, 20.0, 30.0],
+            "close": [12.0, 18.0, 35.0],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = derive_column(tmp_path, "spread", "close - open")
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "spread" in updated.columns
+        pd.testing.assert_series_equal(
+            updated["spread"],
+            pd.Series([2.0, -2.0, 5.0], name="spread"),
+        )
+
+    def test_grouped_shift(self, tmp_path):
+        """close.shift(-1) / close - 1 with group_by=ticker."""
+        df = pd.DataFrame({
+            "ticker": ["A", "A", "A", "B", "B", "B"],
+            "close": [100.0, 110.0, 121.0, 50.0, 55.0, 60.0],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = derive_column(
+            tmp_path, "fwd_return",
+            "close.shift(-1) / close - 1",
+            group_by="ticker",
+        )
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "fwd_return" in updated.columns
+        # For ticker A: 110/100 - 1 = 0.1, 121/110 - 1 = 0.1, NaN
+        assert updated["fwd_return"].iloc[0] == pytest.approx(0.1)
+        assert updated["fwd_return"].iloc[1] == pytest.approx(0.1)
+        assert pd.isna(updated["fwd_return"].iloc[2])
+        # For ticker B: 55/50 - 1 = 0.1, 60/55 - 1 ~= 0.0909, NaN
+        assert updated["fwd_return"].iloc[3] == pytest.approx(0.1)
+        assert updated["fwd_return"].iloc[4] == pytest.approx(60.0 / 55.0 - 1)
+        assert pd.isna(updated["fwd_return"].iloc[5])
+
+    def test_binary_threshold(self, tmp_path):
+        """(value > 0).astype(int)."""
+        df = pd.DataFrame({
+            "value": [-1.0, 0.0, 1.0, 2.0, -0.5],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = derive_column(tmp_path, "is_positive", "(value > 0).astype(int)")
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "is_positive" in updated.columns
+        expected = pd.Series([0, 0, 1, 1, 0], name="is_positive")
+        pd.testing.assert_series_equal(updated["is_positive"], expected)
+
+    def test_datetime_extract(self, tmp_path):
+        """date.dt.year."""
+        df = pd.DataFrame({
+            "date": pd.to_datetime(["2020-01-15", "2021-06-20", "2022-12-01"]),
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = derive_column(tmp_path, "year", "date.dt.year")
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "year" in updated.columns
+        assert list(updated["year"]) == [2020, 2021, 2022]
+
+    def test_dtype_cast(self, tmp_path):
+        """Verify dtype parameter casts the result."""
+        df = pd.DataFrame({
+            "value": [1.5, 2.7, 3.1],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = derive_column(tmp_path, "rounded", "value", dtype="int")
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert updated["rounded"].dtype in [np.int64, np.int32, int]
+
+    def test_missing_features_file_raises(self, tmp_path):
+        """Raises FileNotFoundError if features parquet doesn't exist."""
+        with pytest.raises(FileNotFoundError):
+            derive_column(tmp_path, "x", "1 + 1")
+
+    def test_bad_expression_raises(self, tmp_path):
+        """Raises ValueError on invalid expression."""
+        df = pd.DataFrame({"x": [1.0, 2.0]})
+        self._setup_features(tmp_path, df)
+
+        with pytest.raises(ValueError, match="expression"):
+            derive_column(tmp_path, "bad", "nonexistent_col + 1")
 
 
 class TestEndToEndConfigDrivenPath:

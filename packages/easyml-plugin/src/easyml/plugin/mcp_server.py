@@ -143,6 +143,10 @@ async def manage_data(
     description: str = "",
     format: str = "auto",
     n_rows: int = 5,
+    # Derive column parameters:
+    expression: str | None = None,
+    group_by: str | None = None,
+    dtype: str | None = None,
     # Batch parameters:
     sources: str | list | None = None,
     views: str | list | None = None,
@@ -160,6 +164,11 @@ async def manage_data(
         Optional: columns (subset to check).
       - "rename": Rename columns. Requires mapping (JSON string of
         {"old_name": "new_name"} pairs).
+      - "derive_column": Derive a new column from a pandas expression.
+        Requires name, expression. Supports arithmetic ("close - open"),
+        shifts with groupby ("close.shift(-1) / close - 1"), boolean
+        thresholds ("(value > 0).astype(int)"), and datetime accessors
+        ("date.dt.year"). Optional: group_by (for .shift() etc.), dtype.
       - "profile": Profile the features dataset. Optional: category.
       - "list_features": List available feature columns. Optional: prefix.
       - "status": Quick overview of the feature store (row/column count,
@@ -225,6 +234,9 @@ async def manage_data(
         value=value,
         columns=columns,
         mapping=mapping,
+        expression=expression,
+        group_by=group_by,
+        dtype=dtype,
         category=category,
         name=name,
         source=source,
@@ -292,7 +304,7 @@ async def manage_features(
         defaults to all feature columns), search_types (JSON array from
         ["interactions", "lags", "rolling"]; defaults to all), top_n.
     """
-    return _load_handler("features").dispatch(
+    return await _load_handler("features").dispatch(
         action,
         ctx=ctx,
         name=name,

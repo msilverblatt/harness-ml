@@ -571,6 +571,26 @@ def add_dataset(
     return result.format_summary()
 
 
+def derive_column(
+    project_dir: Path,
+    name: str,
+    expression: str,
+    *,
+    group_by: str | None = None,
+    dtype: str | None = None,
+) -> str:
+    """Derive a new column from a pandas expression and save to the feature store."""
+    from easyml.core.runner.data_ingest import derive_column as _derive
+
+    return _derive(
+        Path(project_dir),
+        name,
+        expression,
+        group_by=group_by,
+        dtype=dtype,
+    )
+
+
 def profile_data(project_dir: Path, category: str | None = None) -> str:
     """Profile the features dataset."""
     from easyml.core.runner.data_utils import get_features_df, load_data_config
@@ -1001,10 +1021,15 @@ def discover_features(
     *,
     top_n: int = 20,
     method: str = "xgboost",
+    on_progress: callable | None = None,
 ) -> str:
     """Run feature discovery analysis."""
     from easyml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
     from easyml.core.runner.schema import DataConfig
+
+    def _report(step, total, msg):
+        if on_progress is not None:
+            on_progress(step, total, msg)
 
     project_dir = Path(project_dir)
     try:
@@ -1014,6 +1039,7 @@ def discover_features(
 
     import pandas as pd
 
+    _report(0, 5, "Loading feature data...")
     try:
         df = get_features_df(project_dir, config)
     except FileNotFoundError:
@@ -1041,13 +1067,17 @@ def discover_features(
         suggest_feature_groups,
     )
 
+    _report(1, 5, "Computing feature correlations...")
     correlations = compute_feature_correlations(
         df, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
     )
+    _report(2, 5, "Computing feature importance (method=%s)..." % method)
     importance = compute_feature_importance(
         df, method=method, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
     )
+    _report(3, 5, "Detecting redundant features...")
     redundant = detect_redundant_features(df, feature_columns=feature_cols)
+    _report(4, 5, "Suggesting feature groups...")
     groups = suggest_feature_groups(df, feature_columns=feature_cols, feature_defs=feat_defs)
 
     return format_discovery_report(correlations, importance, redundant, groups)

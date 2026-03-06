@@ -61,6 +61,24 @@ def _handle_rename(*, mapping, project_dir, **_kwargs):
     return rename_columns(resolve_project_dir(project_dir), parsed)
 
 
+def _handle_derive_column(*, name, expression, group_by, dtype, project_dir, **_kwargs):
+    err = validate_required(name, "name")
+    if err:
+        return err
+    err = validate_required(expression, "expression")
+    if err:
+        return err
+    from easyml.core.runner import config_writer as cw
+
+    return cw.derive_column(
+        resolve_project_dir(project_dir),
+        name,
+        expression,
+        group_by=group_by,
+        dtype=dtype,
+    )
+
+
 def _handle_profile(*, category, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
@@ -300,6 +318,7 @@ ACTIONS = {
     "fill_nulls": _handle_fill_nulls,
     "drop_duplicates": _handle_drop_duplicates,
     "rename": _handle_rename,
+    "derive_column": _handle_derive_column,
     "profile": _handle_profile,
     "list_features": _handle_list_features,
     "status": _handle_status,

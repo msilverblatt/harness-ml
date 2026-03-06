@@ -696,6 +696,115 @@ def drop_duplicates(
     return f"Dropped {n_dropped} duplicate rows {subset_desc}. {len(df)} rows remaining."
 
 
+def derive_column(
+    project_dir: Path,
+    name: str,
+    expression: str,
+    *,
+    group_by: str | None = None,
+    dtype: str | None = None,
+    features_dir: str | None = None,
+) -> str:
+    """Derive a new column from a pandas expression and save to the feature store.
+
+    Supports arithmetic (``close - open``), shifts with groupby
+    (``close.shift(-1) / close - 1``), boolean thresholds
+    (``(value > 0).astype(int)``), and datetime accessors (``date.dt.year``).
+
+    Parameters
+    ----------
+    project_dir : Path
+        Root project directory.
+    name : str
+        Name for the new column.
+    expression : str
+        Python expression referencing existing columns by name.
+    group_by : str | None
+        If provided, the expression is evaluated per-group (enables ``.shift()``
+        and other group-aware operations).
+    dtype : str | None
+        Optional dtype to cast the result to (e.g. ``"int"``, ``"float"``).
+    features_dir : str | None
+        Override path to features directory.
+
+    Returns
+    -------
+    str
+        Markdown summary of the derived column.
+    """
+    project_dir = Path(project_dir)
+    from easyml.core.runner.data_utils import get_features_path, load_data_config
+
+    if features_dir is not None:
+        try:
+            config = load_data_config(project_dir)
+            parquet_path = Path(features_dir) / config.features_file
+        except Exception:
+            parquet_path = Path(features_dir) / "features.parquet"
+    else:
+        try:
+            config = load_data_config(project_dir)
+            parquet_path = get_features_path(project_dir, config)
+        except Exception:
+            parquet_path = project_dir / "data" / "features" / "features.parquet"
+
+    if not parquet_path.exists():
+        raise FileNotFoundError(f"Features file not found: {parquet_path}")
+
+    df = pd.read_parquet(parquet_path)
+
+    # Build a namespace from DataFrame columns for safe eval
+    namespace = {col: df[col] for col in df.columns}
+    # Allow numpy, pandas, and Python builtins needed for expressions
+    namespace["np"] = np
+    namespace["pd"] = pd
+    namespace["int"] = int
+    namespace["float"] = float
+    namespace["str"] = str
+    namespace["bool"] = bool
+    namespace["abs"] = abs
+    namespace["round"] = round
+    namespace["min"] = min
+    namespace["max"] = max
+    namespace["len"] = len
+
+    try:
+        if group_by is not None:
+            # Evaluate expression per-group so .shift() etc. work correctly
+            def _eval_group(grp):
+                ns = {col: grp[col] for col in grp.columns}
+                ns["np"] = np
+                ns["pd"] = pd
+                ns["int"] = int
+                ns["float"] = float
+                ns["str"] = str
+                ns["bool"] = bool
+                ns["abs"] = abs
+                ns["round"] = round
+                ns["min"] = min
+                ns["max"] = max
+                ns["len"] = len
+                return eval(expression, {"__builtins__": {}}, ns)  # noqa: S307
+
+            result = df.groupby(group_by, group_keys=False).apply(
+                lambda grp: grp.assign(**{name: _eval_group(grp)})
+            )[name]
+        else:
+            result = eval(expression, {"__builtins__": {}}, namespace)  # noqa: S307
+    except Exception as exc:
+        raise ValueError(
+            f"Failed to evaluate expression '{expression}': {exc}"
+        ) from exc
+
+    if dtype is not None:
+        result = result.astype(dtype)
+
+    df[name] = result.values if hasattr(result, "values") else result
+    df.to_parquet(parquet_path, index=False)
+
+    return f"Derived column '{name}' from expression `{expression}`. {len(df)} rows written."
+
+
 def rename_columns(
     project_dir: Path,
     mapping: dict[str, str],
