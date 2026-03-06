@@ -370,6 +370,42 @@ def configure_backtest(
     )
 
 
+def update_data_config(
+    project_dir: Path,
+    *,
+    target_column: str | None = None,
+    key_columns: list[str] | None = None,
+    time_column: str | None = None,
+) -> str:
+    """Update data section of pipeline.yaml (target_column, key_columns, time_column)."""
+    config_dir = _get_config_dir(Path(project_dir))
+    pipeline_path = config_dir / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    if "data" not in data:
+        data["data"] = {}
+
+    d = data["data"]
+    updates = []
+
+    if target_column is not None:
+        d["target_column"] = target_column
+        updates.append(f"- Target column: {target_column}")
+    if key_columns is not None:
+        d["key_columns"] = key_columns
+        updates.append(f"- Key columns: {key_columns}")
+    if time_column is not None:
+        d["time_column"] = time_column
+        updates.append(f"- Time column: {time_column}")
+
+    if not updates:
+        return "**No changes** — provide at least one of: target_column, key_columns, time_column."
+
+    _save_yaml(pipeline_path, data)
+
+    return "**Updated data config**\n" + "\n".join(updates)
+
+
 def configure_exclude_columns(
     project_dir: Path,
     *,

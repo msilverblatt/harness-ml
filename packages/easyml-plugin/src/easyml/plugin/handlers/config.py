@@ -187,6 +187,17 @@ def _handle_check_guardrails(*, project_dir, **_kwargs):
     return cw.check_guardrails(resolve_project_dir(project_dir))
 
 
+def _handle_update_data(*, target_column, key_columns, time_column, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.update_data_config(
+        resolve_project_dir(project_dir),
+        target_column=target_column,
+        key_columns=key_columns,
+        time_column=time_column,
+    )
+
+
 def _handle_exclude_columns(*, add_columns, remove_columns, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
@@ -209,6 +220,7 @@ def _handle_set_denylist(*, add_columns, remove_columns, project_dir, **_kwargs)
 
 ACTIONS = {
     "init": _handle_init,
+    "update_data": _handle_update_data,
     "ensemble": _handle_ensemble,
     "backtest": _handle_backtest,
     "show": _handle_show,

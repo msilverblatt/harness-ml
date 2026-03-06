@@ -23,6 +23,7 @@ from easyml.core.runner.config_writer import (
     show_config,
     show_models,
     show_presets,
+    update_data_config,
     update_model,
     write_overlay,
 )
@@ -675,6 +676,49 @@ class TestAvailableFeaturesDeclarative:
         result = available_features(project, prefix="diff_")
         assert "diff_x" in result
         assert "season" not in result
+
+
+class TestUpdateDataConfig:
+    """Test update_data_config."""
+
+    def test_update_data_config(self, tmp_path):
+        """update_data_config should update target_column, key_columns, time_column in pipeline.yaml."""
+        from easyml.core.runner.config_writer import scaffold_init
+
+        scaffold_init(tmp_path, "test_proj", task="binary", target_column="result")
+
+        result = update_data_config(
+            tmp_path,
+            target_column="outcome",
+            key_columns=["id", "date"],
+            time_column="year",
+        )
+
+        pipeline = yaml.safe_load((tmp_path / "config" / "pipeline.yaml").read_text())
+        assert pipeline["data"]["target_column"] == "outcome"
+        assert pipeline["data"]["key_columns"] == ["id", "date"]
+        assert pipeline["data"]["time_column"] == "year"
+        assert "outcome" in result
+
+    def test_update_data_config_partial(self, tmp_path):
+        """update_data_config with only target_column should not touch other fields."""
+        from easyml.core.runner.config_writer import scaffold_init
+
+        scaffold_init(tmp_path, "test_proj", task="binary", target_column="result",
+                      key_columns=["a", "b"], time_column="season")
+
+        update_data_config(tmp_path, target_column="label")
+
+        pipeline = yaml.safe_load((tmp_path / "config" / "pipeline.yaml").read_text())
+        assert pipeline["data"]["target_column"] == "label"
+        assert pipeline["data"]["key_columns"] == ["a", "b"]
+        assert pipeline["data"]["time_column"] == "season"
+
+    def test_update_data_config_no_changes(self, tmp_path):
+        """update_data_config with no arguments returns no-change message."""
+        project = _setup_project(tmp_path)
+        result = update_data_config(project)
+        assert "No changes" in result
 
 
 class TestConfigureExcludeColumns:

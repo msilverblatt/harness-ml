@@ -418,6 +418,8 @@ async def configure(
     Actions:
       - "init": Initialize a new easyml project.
         Optional: project_name, task, target_column, key_columns, time_column.
+      - "update_data": Update data config post-init.
+        Optional: target_column, key_columns, time_column.
       - "ensemble": Update ensemble config.
         Optional: method, temperature, exclude_models,
         calibration ('spline'/'isotonic'/'platt'/'none' — post-ensemble calibration),
@@ -509,7 +511,8 @@ async def pipeline(
       - "compare_runs": Compare metrics from two runs side by side.
         Requires run_ids (list of 2 run IDs).
     """
-    return _load_handler("pipeline").dispatch(
+    import asyncio
+    result = _load_handler("pipeline").dispatch(
         action,
         ctx=ctx,
         experiment_id=experiment_id,
@@ -520,6 +523,9 @@ async def pipeline(
         detail=detail,
         project_dir=project_dir,
     )
+    if asyncio.iscoroutine(result):
+        result = await result
+    return result
 
 
 # -----------------------------------------------------------------------
