@@ -233,7 +233,16 @@ def _make_objective(
                 prediction_cache=pred_cache,
             )
             runner.load()
-            bt_result = runner.backtest()
+
+            def _trial_progress(fold_idx, n_folds, msg, _t=trial.number, _b=space.budget):
+                if on_progress:
+                    on_progress(
+                        _t,
+                        _b,
+                        f"Trial {_t + 1}/{_b} — {msg}",
+                    )
+
+            bt_result = runner.backtest(on_progress=_trial_progress)
         except Exception as exc:
             logger.warning("Trial %d failed: %s", trial.number, exc)
             (trial_dir / "error.txt").write_text(str(exc))
