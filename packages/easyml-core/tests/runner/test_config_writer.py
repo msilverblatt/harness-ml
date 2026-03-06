@@ -13,6 +13,7 @@ from easyml.core.runner.config_writer import (
     _save_yaml,
     add_feature,
     add_model,
+    add_target,
     available_features,
     configure_backtest,
     configure_denylist,
@@ -20,7 +21,9 @@ from easyml.core.runner.config_writer import (
     configure_exclude_columns,
     experiment_create,
     inspect_data,
+    list_targets,
     remove_model,
+    set_active_target,
     show_config,
     show_models,
     show_presets,
@@ -914,3 +917,61 @@ class TestInspectData:
         assert "Error" in result
         assert "nonexistent" in result
         assert "feat_a" in result  # available columns listed
+
+
+# -----------------------------------------------------------------------
+# Target profiles
+# -----------------------------------------------------------------------
+
+class TestTargetProfiles:
+    """Tests for add_target, list_targets, set_active_target."""
+
+    def test_add_target(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = add_target(project, "winner", column="result", task="binary", metrics=["brier", "accuracy"])
+        assert "winner" in result
+
+        data = _load_yaml(tmp_path / "config" / "pipeline.yaml")
+        target = data["data"]["targets"]["winner"]
+        assert target["column"] == "result"
+        assert target["task"] == "binary"
+        assert target["metrics"] == ["brier", "accuracy"]
+
+    def test_add_multiple_targets(self, tmp_path):
+        project = _setup_project(tmp_path)
+        add_target(project, "winner", column="result", task="binary")
+        add_target(project, "spread", column="margin", task="regression", metrics=["rmse"])
+
+        data = _load_yaml(tmp_path / "config" / "pipeline.yaml")
+        assert "winner" in data["data"]["targets"]
+        assert "spread" in data["data"]["targets"]
+        assert data["data"]["targets"]["spread"]["column"] == "margin"
+        assert data["data"]["targets"]["spread"]["task"] == "regression"
+
+    def test_list_targets(self, tmp_path):
+        project = _setup_project(tmp_path)
+        add_target(project, "winner", column="result", task="binary", metrics=["brier"])
+        add_target(project, "spread", column="margin", task="regression")
+
+        result = list_targets(project)
+        assert "winner" in result
+        assert "spread" in result
+        assert "result" in result
+        assert "margin" in result
+
+    def test_set_active_target(self, tmp_path):
+        project = _setup_project(tmp_path)
+        add_target(project, "spread", column="margin", task="regression", metrics=["rmse", "mae"])
+        result = set_active_target(project, "spread")
+        assert "spread" in result
+
+        data = _load_yaml(tmp_path / "config" / "pipeline.yaml")
+        assert data["data"]["target_column"] == "margin"
+        assert data["data"]["task"] == "regression"
+        assert data["backtest"]["metrics"] == ["rmse", "mae"]
+
+    def test_set_active_target_unknown(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = set_active_target(project, "nonexistent")
+        assert "Error" in result
+        assert "nonexistent" in result

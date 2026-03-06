@@ -508,6 +508,115 @@ def configure_denylist(
 
 
 # -----------------------------------------------------------------------
+# Target profile tools
+# -----------------------------------------------------------------------
+
+def add_target(
+    project_dir: Path,
+    name: str,
+    *,
+    column: str,
+    task: str = "binary",
+    metrics: list[str] | None = None,
+) -> str:
+    """Add a named target profile to data.targets in pipeline.yaml.
+
+    Returns markdown confirmation.
+    """
+    project_dir = Path(project_dir)
+    pipeline_path = _get_config_dir(project_dir) / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    if "data" not in data:
+        data["data"] = {}
+    if "targets" not in data["data"]:
+        data["data"]["targets"] = {}
+
+    target_def: dict = {"column": column, "task": task}
+    if metrics:
+        target_def["metrics"] = metrics
+
+    data["data"]["targets"][name] = target_def
+    _save_yaml(pipeline_path, data)
+
+    lines = [f"**Added target profile `{name}`**"]
+    lines.append(f"- Column: `{column}`")
+    lines.append(f"- Task: `{task}`")
+    if metrics:
+        lines.append(f"- Metrics: {metrics}")
+    return "\n".join(lines)
+
+
+def list_targets(project_dir: Path) -> str:
+    """List all named target profiles from pipeline.yaml.
+
+    Returns markdown-formatted list.
+    """
+    project_dir = Path(project_dir)
+    pipeline_path = _get_config_dir(project_dir) / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    targets = data.get("data", {}).get("targets", {})
+    active_column = data.get("data", {}).get("target_column", "result")
+    active_task = data.get("data", {}).get("task", "classification")
+
+    if not targets:
+        return (
+            f"**No named target profiles defined.**\n"
+            f"- Default target: `{active_column}` (task: `{active_task}`)\n"
+            f"- Use `add_target` to define named profiles."
+        )
+
+    lines = ["**Target Profiles**\n"]
+    for name, tgt in targets.items():
+        col = tgt.get("column", "?")
+        task = tgt.get("task", "binary")
+        metrics = tgt.get("metrics", [])
+        active_marker = " **(active)**" if col == active_column and task == active_task else ""
+        line = f"- **{name}**{active_marker}: column=`{col}`, task=`{task}`"
+        if metrics:
+            line += f", metrics={metrics}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def set_active_target(project_dir: Path, name: str) -> str:
+    """Set a named target profile as the active target.
+
+    Updates data.target_column, data.task, and optionally backtest.metrics.
+    Returns markdown confirmation.
+    """
+    project_dir = Path(project_dir)
+    pipeline_path = _get_config_dir(project_dir) / "pipeline.yaml"
+    data = _load_yaml(pipeline_path)
+
+    targets = data.get("data", {}).get("targets", {})
+    if name not in targets:
+        available = ", ".join(sorted(targets.keys())) if targets else "(none defined)"
+        return f"**Error**: Unknown target `{name}`. Available targets: {available}"
+
+    tgt = targets[name]
+    data["data"]["target_column"] = tgt["column"]
+    data["data"]["task"] = tgt.get("task", "binary")
+
+    metrics = tgt.get("metrics", [])
+    if metrics:
+        if "backtest" not in data:
+            data["backtest"] = {}
+        data["backtest"]["metrics"] = metrics
+
+    _save_yaml(pipeline_path, data)
+
+    lines = [f"**Activated target profile `{name}`**"]
+    lines.append(f"- target_column: `{tgt['column']}`")
+    lines.append(f"- task: `{tgt.get('task', 'binary')}`")
+    if metrics:
+        lines.append(f"- backtest.metrics updated to: {metrics}")
+    return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------
 # Data tools
 # -----------------------------------------------------------------------
 

@@ -219,6 +219,38 @@ def _handle_set_denylist(*, add_columns, remove_columns, project_dir, **_kwargs)
     )
 
 
+def _handle_add_target(*, name, target_column, task, metrics, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    if not name:
+        return "**Error**: `name` is required for add_target."
+    if not target_column:
+        return "**Error**: `target_column` is required for add_target."
+
+    parsed_metrics = parse_json_param(metrics) if isinstance(metrics, str) else metrics
+    return cw.add_target(
+        resolve_project_dir(project_dir),
+        name,
+        column=target_column,
+        task=task or "binary",
+        metrics=parsed_metrics,
+    )
+
+
+def _handle_list_targets(*, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.list_targets(resolve_project_dir(project_dir))
+
+
+def _handle_set_target(*, name, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    if not name:
+        return "**Error**: `name` is required for set_target."
+    return cw.set_active_target(resolve_project_dir(project_dir), name)
+
+
 ACTIONS = {
     "init": _handle_init,
     "update_data": _handle_update_data,
@@ -228,6 +260,9 @@ ACTIONS = {
     "check_guardrails": _handle_check_guardrails,
     "exclude_columns": _handle_exclude_columns,
     "set_denylist": _handle_set_denylist,
+    "add_target": _handle_add_target,
+    "list_targets": _handle_list_targets,
+    "set_target": _handle_set_target,
 }
 
 

@@ -395,6 +395,17 @@ class ViewDef(BaseModel):
 
 
 # -----------------------------------------------------------------------
+# Target profiles
+# -----------------------------------------------------------------------
+
+class TargetProfile(BaseModel):
+    """Named target definition with task type and metrics."""
+    column: str
+    task: str = "binary"
+    metrics: list[str] = []
+
+
+# -----------------------------------------------------------------------
 # Data config
 # -----------------------------------------------------------------------
 
@@ -416,6 +427,9 @@ class DataConfig(BaseModel):
     exclude_columns: list[str] = []             # columns to never use as features
     entity_features_path: str | None = None      # path to entity-level features parquet
 
+    # Named target profiles
+    targets: dict[str, TargetProfile] = {}
+
     # Column name normalization
     column_renames: dict[str, str] = {}  # {old_name: new_name}
 
@@ -430,6 +444,16 @@ class DataConfig(BaseModel):
     # Declarative views (ETL)
     views: dict[str, ViewDef] = {}
     features_view: str | None = None  # which view becomes the prediction table
+
+    def resolve_target(self, name: str | None = None) -> tuple[str, str, list[str]]:
+        """Resolve a target profile by name. Returns (column, task, metrics)."""
+        if name is None:
+            return self.target_column, self.task, []
+        if name not in self.targets:
+            available = ", ".join(sorted(self.targets.keys())) if self.targets else "(none defined)"
+            raise ValueError(f"Unknown target '{name}'. Available targets: {available}")
+        tp = self.targets[name]
+        return tp.column, tp.task, list(tp.metrics)
 
 
 # -----------------------------------------------------------------------

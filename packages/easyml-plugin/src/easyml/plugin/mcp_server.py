@@ -417,6 +417,7 @@ async def manage_experiments(
 async def configure(
     action: str,
     ctx: Context,
+    name: str | None = None,
     project_name: str | None = None,
     task: str | None = None,
     target_column: str | None = None,
@@ -472,10 +473,18 @@ async def configure(
       - "set_denylist": Add/remove columns from the feature leakage denylist.
         The denylist is checked by check_guardrails() to catch models using
         forbidden columns. Optional: add_columns (list), remove_columns (list).
+      - "add_target": Add a named target profile.
+        Requires: name, target_column. Optional: task (default "binary"),
+        metrics (list of metric names or JSON string).
+      - "list_targets": List all named target profiles with details.
+      - "set_target": Set a named target profile as the active target.
+        Requires: name. Updates data.target_column, data.task, and
+        backtest.metrics (if the profile defines metrics).
     """
     return _load_handler("config").dispatch(
         action,
         ctx=ctx,
+        name=name,
         project_name=project_name,
         task=task,
         target_column=target_column,

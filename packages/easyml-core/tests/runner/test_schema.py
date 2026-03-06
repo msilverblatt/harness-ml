@@ -21,6 +21,7 @@ from easyml.core.runner.schema import (
     ServerToolDef,
     SourceConfig,
     SourceDecl,
+    TargetProfile,
 )
 
 
@@ -833,3 +834,56 @@ class TestCvStrategyAliases:
     def test_invalid_strategy_rejected(self):
         with pytest.raises(ValidationError, match="Invalid cv_strategy"):
             BacktestConfig(cv_strategy="bogus")
+
+
+# -----------------------------------------------------------------------
+# Target profiles
+# -----------------------------------------------------------------------
+
+class TestTargetProfile:
+    """Tests for TargetProfile and DataConfig.resolve_target."""
+
+    def test_target_profile_schema(self):
+        tp = TargetProfile(column="spread", task="regression", metrics=["rmse", "mae"])
+        assert tp.column == "spread"
+        assert tp.task == "regression"
+        assert tp.metrics == ["rmse", "mae"]
+
+    def test_target_profile_defaults(self):
+        tp = TargetProfile(column="result")
+        assert tp.task == "binary"
+        assert tp.metrics == []
+
+    def test_data_config_with_targets(self):
+        dc = DataConfig(targets={
+            "winner": TargetProfile(column="result", task="binary", metrics=["brier", "accuracy"]),
+            "spread": TargetProfile(column="margin", task="regression", metrics=["rmse"]),
+            "total": TargetProfile(column="total_points", task="regression"),
+        })
+        assert len(dc.targets) == 3
+        assert dc.targets["winner"].column == "result"
+        assert dc.targets["spread"].task == "regression"
+        assert dc.targets["total"].metrics == []
+
+    def test_data_config_resolve_target(self):
+        dc = DataConfig(targets={
+            "winner": TargetProfile(column="result", task="binary", metrics=["brier"]),
+        })
+        col, task, metrics = dc.resolve_target("winner")
+        assert col == "result"
+        assert task == "binary"
+        assert metrics == ["brier"]
+
+    def test_data_config_resolve_target_default(self):
+        dc = DataConfig(target_column="my_target", task="regression")
+        col, task, metrics = dc.resolve_target(None)
+        assert col == "my_target"
+        assert task == "regression"
+        assert metrics == []
+
+    def test_data_config_resolve_target_unknown(self):
+        dc = DataConfig(targets={
+            "winner": TargetProfile(column="result"),
+        })
+        with pytest.raises(ValueError, match="Unknown target 'bogus'"):
+            dc.resolve_target("bogus")
