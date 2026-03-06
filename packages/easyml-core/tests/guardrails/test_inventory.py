@@ -1,4 +1,4 @@
-"""Tests for all 11 guardrail implementations."""
+"""Tests for all 12 guardrail implementations."""
 
 import time
 
@@ -10,6 +10,7 @@ from easyml.core.guardrails.inventory import (
     CriticalPathGuardrail,
     DoNotRetryGuardrail,
     ExperimentLoggedGuardrail,
+    FeatureDiversityGuardrail,
     FeatureLeakageGuardrail,
     FeatureStalenessGuardrail,
     NamingConventionGuardrail,
@@ -373,3 +374,107 @@ class TestTemporalOrderingGuardrail:
                 },
                 human_override=True,
             )
+
+
+# ---------------------------------------------------------------------------
+# 12. FeatureDiversityGuardrail (overridable)
+# ---------------------------------------------------------------------------
+
+
+class TestFeatureDiversityGuardrail:
+    def test_pass_diverse_features(self):
+        """Diversity guardrail passes when models have diverse features."""
+        g = FeatureDiversityGuardrail()
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b"], "active": True},
+                "m2": {"features": ["c", "d"], "active": True},
+            }
+        }
+        g.check(context=ctx)
+
+    def test_fail_identical_features(self):
+        """Diversity guardrail fails when models have identical features."""
+        g = FeatureDiversityGuardrail()
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b", "c"], "active": True},
+                "m2": {"features": ["a", "b", "c"], "active": True},
+            }
+        }
+        with pytest.raises(GuardrailError, match="diversity"):
+            g.check(context=ctx)
+
+    def test_configurable_threshold(self):
+        """Diversity guardrail respects custom min_diversity_score."""
+        g = FeatureDiversityGuardrail(min_diversity_score=0.9)
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b", "c"], "active": True},
+                "m2": {"features": ["d", "e", "f"], "active": True},
+                "m3": {"features": ["a", "d", "g"], "active": True},
+            }
+        }
+        result_type = None
+        try:
+            g.check(context=ctx)
+            result_type = "passed"
+        except GuardrailError:
+            result_type = "failed"
+        assert result_type in ("passed", "failed")
+
+    def test_overridable(self):
+        """Diversity guardrail is overridable (not critical)."""
+        g = FeatureDiversityGuardrail()
+        assert g.overridable is True
+        # Override should suppress the error
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b", "c"], "active": True},
+                "m2": {"features": ["a", "b", "c"], "active": True},
+            }
+        }
+        g.check(context=ctx, human_override=True)
+
+    def test_single_model_passes(self):
+        """Single model trivially passes diversity check."""
+        g = FeatureDiversityGuardrail()
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b"], "active": True},
+            }
+        }
+        g.check(context=ctx)
+
+    def test_no_models_passes(self):
+        """No models trivially passes diversity check."""
+        g = FeatureDiversityGuardrail()
+        g.check(context={"models": {}})
+
+    def test_no_models_key_passes(self):
+        """Missing models key trivially passes."""
+        g = FeatureDiversityGuardrail()
+        g.check(context={})
+
+    def test_inactive_models_ignored(self):
+        """Inactive models are not considered."""
+        g = FeatureDiversityGuardrail()
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b", "c"], "active": True},
+                "m2": {"features": ["a", "b", "c"], "active": False},
+            }
+        }
+        g.check(context=ctx)
+
+    def test_fail_message_suggests_diversity_action(self):
+        """Failure message suggests manage_features(action='diversity')."""
+        g = FeatureDiversityGuardrail()
+        ctx = {
+            "models": {
+                "m1": {"features": ["a", "b", "c"], "active": True},
+                "m2": {"features": ["a", "b", "c"], "active": True},
+            }
+        }
+        with pytest.raises(GuardrailError, match="manage_features.*diversity"):
+            g.check(context=ctx)

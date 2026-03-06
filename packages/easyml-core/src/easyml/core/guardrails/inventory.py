@@ -1,9 +1,9 @@
-"""Full guardrail inventory — all 11 concrete guardrail implementations.
+"""Full guardrail inventory — all 12 concrete guardrail implementations.
 
 Overridable:
     SanityCheckGuardrail, NamingConventionGuardrail, DoNotRetryGuardrail,
     SingleVariableGuardrail, ConfigProtectionGuardrail, RateLimitGuardrail,
-    ExperimentLoggedGuardrail, FeatureStalenessGuardrail
+    ExperimentLoggedGuardrail, FeatureStalenessGuardrail, FeatureDiversityGuardrail
 
 Non-overridable:
     FeatureLeakageGuardrail, CriticalPathGuardrail, TemporalOrderingGuardrail
@@ -381,4 +381,49 @@ class TemporalOrderingGuardrail(Guardrail):
                 f"Temporal leakage: training folds {future} overlap with "
                 f"or follow test fold {test_fold}.",
                 source="TemporalOrderingGuardrail",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 12. FeatureDiversityGuardrail (overridable)
+# ---------------------------------------------------------------------------
+
+class FeatureDiversityGuardrail(Guardrail):
+    """Checks that ensemble models use sufficiently diverse feature sets.
+
+    Context keys:
+        models (dict[str, dict]): Model configs with ``"features"`` and
+            ``"active"`` keys.
+    """
+
+    def __init__(self, min_diversity_score: float = 0.5) -> None:
+        super().__init__(
+            name="feature_diversity",
+            overridable=True,
+            description=(
+                f"Checks that model feature diversity score >= {min_diversity_score}."
+            ),
+        )
+        self.min_diversity_score = min_diversity_score
+
+    def _check(self, context: dict) -> None:
+        from easyml.core.runner.feature_diversity import compute_diversity_score
+
+        models = context.get("models", {})
+        if not models:
+            return
+
+        # Filter to active models
+        active = {k: v for k, v in models.items() if v.get("active", True)}
+        if len(active) <= 1:
+            return  # trivially diverse
+
+        score = compute_diversity_score(active)
+        if score < self.min_diversity_score:
+            self._fail(
+                f"Low feature diversity: score={score:.2f} "
+                f"(min={self.min_diversity_score:.2f}). "
+                f"Use manage_features(action='diversity') to analyze overlap "
+                f"and diversify feature sets across models.",
+                source="FeatureDiversityGuardrail",
             )
