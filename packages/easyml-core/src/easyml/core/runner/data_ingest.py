@@ -753,44 +753,27 @@ def derive_column(
 
     df = pd.read_parquet(parquet_path)
 
-    # Build a namespace from DataFrame columns for safe eval
-    namespace = {col: df[col] for col in df.columns}
-    # Allow numpy, pandas, and Python builtins needed for expressions
-    namespace["np"] = np
-    namespace["pd"] = pd
-    namespace["int"] = int
-    namespace["float"] = float
-    namespace["str"] = str
-    namespace["bool"] = bool
-    namespace["abs"] = abs
-    namespace["round"] = round
-    namespace["min"] = min
-    namespace["max"] = max
-    namespace["len"] = len
+    def _build_eval_ns(frame):
+        """Build a restricted namespace for eval from a DataFrame."""
+        ns = {col: frame[col] for col in frame.columns}
+        ns["np"] = np
+        ns["pd"] = pd
+        for builtin_name, builtin_obj in [
+            ("int", int), ("float", float), ("str", str), ("bool", bool),
+            ("abs", abs), ("round", round), ("min", min), ("max", max), ("len", len),
+        ]:
+            ns[builtin_name] = builtin_obj
+        return ns
 
     try:
         if group_by is not None:
-            # Evaluate expression per-group so .shift() etc. work correctly
-            def _eval_group(grp):
-                ns = {col: grp[col] for col in grp.columns}
-                ns["np"] = np
-                ns["pd"] = pd
-                ns["int"] = int
-                ns["float"] = float
-                ns["str"] = str
-                ns["bool"] = bool
-                ns["abs"] = abs
-                ns["round"] = round
-                ns["min"] = min
-                ns["max"] = max
-                ns["len"] = len
-                return eval(expression, {"__builtins__": {}}, ns)  # noqa: S307
-
             result = df.groupby(group_by, group_keys=False).apply(
-                lambda grp: grp.assign(**{name: _eval_group(grp)})
+                lambda grp: grp.assign(
+                    **{name: eval(expression, {"__builtins__": {}}, _build_eval_ns(grp))}  # noqa: S307
+                )
             )[name]
         else:
-            result = eval(expression, {"__builtins__": {}}, namespace)  # noqa: S307
+            result = eval(expression, {"__builtins__": {}}, _build_eval_ns(df))  # noqa: S307
     except Exception as exc:
         raise ValueError(
             f"Failed to evaluate expression '{expression}': {exc}"
@@ -802,7 +785,92 @@ def derive_column(
     df[name] = result.values if hasattr(result, "values") else result
     df.to_parquet(parquet_path, index=False)
 
-    return f"Derived column '{name}' from expression `{expression}`. {len(df)} rows written."
+    n_null = int(df[name].isna().sum())
+    summary = f"Derived column `{name}` from `{expression}`."
+    if group_by:
+        summary += f" Grouped by `{group_by}`."
+    summary += f"\n- Non-null: {len(df) - n_null}/{len(df)}"
+    if n_null > 0:
+        summary += f" ({n_null} NaN values)"
+    summary += f"\n- dtype: {df[name].dtype}"
+    sample = df[name].dropna()
+    if len(sample) > 0:
+        summary += f"\n- Sample values: {list(sample.head(5).values)}"
+    return summary
+
+
+def drop_rows(
+    project_dir: Path,
+    *,
+    column: str | None = None,
+    condition: str = "null",
+    features_dir: str | None = None,
+) -> str:
+    """Drop rows from the features file by condition.
+
+    Two modes:
+    1. condition="null" with column="col_name" — drops rows where that column is NaN.
+    2. condition="<pandas query expression>" — drops rows where expression is True.
+
+    Parameters
+    ----------
+    column : str | None
+        Column to check for NaN (required when condition="null").
+    condition : str
+        "null" to drop NaN rows in the specified column, or a pandas query
+        expression (e.g. "value < 0") to drop matching rows.
+    features_dir : str | None
+        Override path to features directory.
+
+    Returns
+    -------
+    str
+        Markdown summary of the operation.
+    """
+    project_dir = Path(project_dir)
+    from easyml.core.runner.data_utils import get_features_path, load_data_config
+
+    if features_dir is not None:
+        try:
+            config = load_data_config(project_dir)
+            parquet_path = Path(features_dir) / config.features_file
+        except Exception:
+            parquet_path = Path(features_dir) / "features.parquet"
+    else:
+        try:
+            config = load_data_config(project_dir)
+            parquet_path = get_features_path(project_dir, config)
+        except Exception:
+            parquet_path = project_dir / "data" / "features" / "features.parquet"
+
+    if not parquet_path.exists():
+        raise FileNotFoundError(f"Features file not found: {parquet_path}")
+
+    df = pd.read_parquet(parquet_path)
+    n_before = len(df)
+
+    if condition == "null":
+        if column is None:
+            return "**Error**: `column` is required when condition is 'null'."
+        if column not in df.columns:
+            raise ValueError(f"Column '{column}' not found in features file")
+        df = df.dropna(subset=[column])
+    else:
+        try:
+            mask = df.eval(condition)
+        except Exception as exc:
+            raise ValueError(
+                f"Failed to evaluate condition '{condition}': {exc}"
+            ) from exc
+        df = df[~mask]
+
+    n_dropped = n_before - len(df)
+
+    if n_dropped == 0:
+        return f"No rows matched condition — nothing dropped. {len(df)} rows remain."
+
+    df.to_parquet(parquet_path, index=False)
+    return f"Dropped {n_dropped} rows ({condition}). {len(df)} rows remaining."
 
 
 def rename_columns(

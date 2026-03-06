@@ -591,6 +591,113 @@ def derive_column(
     )
 
 
+def drop_rows(
+    project_dir: Path,
+    *,
+    column: str | None = None,
+    condition: str = "null",
+) -> str:
+    """Drop rows from the feature store by condition."""
+    from easyml.core.runner.data_ingest import drop_rows as _drop
+
+    return _drop(
+        Path(project_dir),
+        column=column,
+        condition=condition,
+    )
+
+
+def inspect_data(project_dir: Path, *, column: str | None = None) -> str:
+    """Inspect the features dataset.
+
+    Without column: overview of all columns (shape, dtypes, null counts).
+    With column: detailed statistics for that specific column.
+    """
+    from easyml.core.runner.data_utils import get_features_df, load_data_config
+    from easyml.core.runner.schema import DataConfig
+
+    project_dir = Path(project_dir)
+    try:
+        config = load_data_config(project_dir)
+    except Exception:
+        config = DataConfig()
+
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found. Ingest data or set a features_view."
+
+    if column is not None:
+        return _inspect_column(df, column)
+    return _inspect_overview(df)
+
+
+def _inspect_overview(df) -> str:
+    """Return a markdown overview of all columns in the DataFrame."""
+    n_rows, n_cols = df.shape
+    lines = [
+        f"## Data Overview: {n_rows:,} rows x {n_cols} columns\n",
+        "| Column | Dtype | Nulls | Null% |",
+        "|--------|-------|-------|-------|",
+    ]
+    for col in df.columns:
+        dtype = str(df[col].dtype)
+        null_count = int(df[col].isna().sum())
+        null_pct = (null_count / n_rows * 100) if n_rows > 0 else 0.0
+        lines.append(f"| {col} | {dtype} | {null_count:,} | {null_pct:.1f}% |")
+    return "\n".join(lines)
+
+
+def _inspect_column(df, column: str) -> str:
+    """Return detailed statistics for a single column."""
+    if column not in df.columns:
+        available = ", ".join(f"`{c}`" for c in sorted(df.columns))
+        return f"**Error**: Column `{column}` not found. Available columns: {available}"
+
+    series = df[column]
+    dtype = str(series.dtype)
+    non_null = int(series.notna().sum())
+    n_unique = int(series.nunique())
+    n_rows = len(series)
+
+    lines = [
+        f"## Column: `{column}`\n",
+        f"- **Dtype**: {dtype}",
+        f"- **Non-null**: {non_null:,} / {n_rows:,}",
+        f"- **Unique values**: {n_unique:,}",
+    ]
+
+    import pandas as pd
+
+    if pd.api.types.is_numeric_dtype(series):
+        desc = series.describe()
+        lines.append("")
+        lines.append("### Statistics")
+        lines.append(f"- **Mean**: {desc['mean']:.4f}")
+        lines.append(f"- **Std**: {desc['std']:.4f}")
+        lines.append(f"- **Min**: {desc['min']:.4f}")
+        lines.append(f"- **25%**: {desc['25%']:.4f}")
+        lines.append(f"- **50%**: {desc['50%']:.4f}")
+        lines.append(f"- **75%**: {desc['75%']:.4f}")
+        lines.append(f"- **Max**: {desc['max']:.4f}")
+
+    if n_unique <= 20:
+        lines.append("")
+        lines.append("### Value Counts")
+        vc = series.value_counts(dropna=False)
+        for val, count in vc.items():
+            pct = count / n_rows * 100 if n_rows > 0 else 0.0
+            label = "NaN" if pd.isna(val) else str(val)
+            lines.append(f"- `{label}`: {count:,} ({pct:.1f}%)")
+    elif n_unique > 20:
+        lines.append("")
+        lines.append("### Sample Values (first 10)")
+        for val in series.dropna().unique()[:10]:
+            lines.append(f"- `{val}`")
+
+    return "\n".join(lines)
+
+
 def profile_data(project_dir: Path, category: str | None = None) -> str:
     """Profile the features dataset."""
     from easyml.core.runner.data_utils import get_features_df, load_data_config

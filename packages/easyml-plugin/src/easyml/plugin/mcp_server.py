@@ -143,6 +143,8 @@ async def manage_data(
     description: str = "",
     format: str = "auto",
     n_rows: int = 5,
+    # Drop rows parameters:
+    condition: str | None = None,
     # Derive column parameters:
     expression: str | None = None,
     group_by: str | None = None,
@@ -156,12 +158,20 @@ async def manage_data(
 
     Actions:
       - "add": Ingest a dataset (CSV/parquet/Excel). Requires data_path.
-        Optional: join_on, prefix, auto_clean.
+        Without join_on: APPENDS rows to existing data (use for adding more
+        records of the same schema). With join_on: MERGES columns from the
+        new dataset onto existing rows by matching on the specified key
+        columns (use for enriching with new features). Optional: prefix
+        (column name prefix for merged columns), auto_clean (default true).
       - "validate": Preview a dataset without ingesting. Requires data_path.
       - "fill_nulls": Fill nulls in a column. Requires column.
         Optional: strategy (median/mean/mode/zero/value), value.
       - "drop_duplicates": Drop duplicate rows.
         Optional: columns (subset to check).
+      - "drop_rows": Drop rows from the feature store. Use column +
+        condition="null" to drop rows with NaN in that column, or provide a
+        pandas query expression as condition to drop matching rows. Examples:
+        condition="null", column="future_return_20d"; condition="value < 0".
       - "rename": Rename columns. Requires mapping (JSON string of
         {"old_name": "new_name"} pairs).
       - "derive_column": Derive a new column from a pandas expression.
@@ -230,6 +240,7 @@ async def manage_data(
         prefix=prefix,
         auto_clean=auto_clean,
         column=column,
+        condition=condition,
         strategy=strategy,
         value=value,
         columns=columns,

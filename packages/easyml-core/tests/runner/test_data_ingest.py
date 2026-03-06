@@ -13,6 +13,7 @@ from easyml.core.runner.data_ingest import (
     validate_dataset,
     fill_nulls,
     drop_duplicates,
+    drop_rows,
     rename_columns,
     derive_column,
     _detect_join_keys,
@@ -915,3 +916,63 @@ class TestEndToEndConfigDrivenPath:
         guards = PipelineGuards(config, tmp_path)
         guards.guard_train()  # Should not raise
         guards.guard_backtest()  # Should not raise
+
+
+class TestDropRows:
+    """Test drop_rows tool."""
+
+    def _setup_features(self, tmp_path, df):
+        feat_dir = tmp_path / "data" / "features"
+        feat_dir.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(feat_dir / "features.parquet", index=False)
+
+    def test_drop_nulls_in_column(self, tmp_path):
+        df = pd.DataFrame({
+            "a": [1.0, 2.0, 3.0, 4.0, 5.0],
+            "b": [10.0, np.nan, 30.0, np.nan, 50.0],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = drop_rows(tmp_path, column="b", condition="null")
+        assert "2" in msg  # 2 rows dropped
+        assert "3" in msg  # 3 rows remaining
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert len(updated) == 3
+        assert updated["b"].isna().sum() == 0
+        assert list(updated["a"]) == [1.0, 3.0, 5.0]
+
+    def test_drop_by_expression(self, tmp_path):
+        df = pd.DataFrame({
+            "value": [0.5, 1.5, -0.3, 2.0, 0.8],
+        })
+        self._setup_features(tmp_path, df)
+
+        msg = drop_rows(tmp_path, condition="value < 1")
+        assert "Dropped" in msg
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert len(updated) == 2
+        assert all(v >= 1 for v in updated["value"])
+
+    def test_drop_null_requires_column(self, tmp_path):
+        df = pd.DataFrame({"x": [1.0, 2.0]})
+        self._setup_features(tmp_path, df)
+
+        msg = drop_rows(tmp_path, condition="null")
+        assert "Error" in msg
+        assert "column" in msg.lower()
+
+    def test_no_rows_matched(self, tmp_path):
+        df = pd.DataFrame({"x": [1.0, 2.0, 3.0]})
+        self._setup_features(tmp_path, df)
+
+        msg = drop_rows(tmp_path, column="x", condition="null")
+        assert "nothing dropped" in msg.lower()
+
+    def test_invalid_expression_raises(self, tmp_path):
+        df = pd.DataFrame({"x": [1.0, 2.0]})
+        self._setup_features(tmp_path, df)
+
+        with pytest.raises(ValueError, match="condition"):
+            drop_rows(tmp_path, condition="nonexistent_col > 0")

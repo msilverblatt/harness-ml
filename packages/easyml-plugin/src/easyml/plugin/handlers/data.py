@@ -61,6 +61,16 @@ def _handle_rename(*, mapping, project_dir, **_kwargs):
     return rename_columns(resolve_project_dir(project_dir), parsed)
 
 
+def _handle_drop_rows(*, column, condition, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.drop_rows(
+        resolve_project_dir(project_dir),
+        column=column,
+        condition=condition or "null",
+    )
+
+
 def _handle_derive_column(*, name, expression, group_by, dtype, project_dir, **_kwargs):
     err = validate_required(name, "name")
     if err:
@@ -282,6 +292,12 @@ def _handle_add_views_batch(*, views, project_dir, **_kwargs):
     return summary
 
 
+def _handle_inspect(*, column, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+
+    return cw.inspect_data(resolve_project_dir(project_dir), column=column)
+
+
 def _handle_check_freshness(*, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
@@ -317,6 +333,7 @@ ACTIONS = {
     "validate": _handle_validate,
     "fill_nulls": _handle_fill_nulls,
     "drop_duplicates": _handle_drop_duplicates,
+    "drop_rows": _handle_drop_rows,
     "rename": _handle_rename,
     "derive_column": _handle_derive_column,
     "profile": _handle_profile,
