@@ -179,6 +179,10 @@ async def manage_data(
         shifts with groupby ("close.shift(-1) / close - 1"), boolean
         thresholds ("(value > 0).astype(int)"), and datetime accessors
         ("date.dt.year"). Optional: group_by (for .shift() etc.), dtype.
+      - "inspect": Detailed data inspection. Without column: shows shape,
+        all columns with dtypes, null counts, and null percentages. With
+        column: shows detailed statistics (mean/std/quartiles for numeric,
+        value counts for categorical). Use this for EDA before modeling.
       - "profile": Profile the features dataset. Optional: category.
       - "list_features": List available feature columns. Optional: prefix.
       - "status": Quick overview of the feature store (row/column count,

@@ -336,6 +336,7 @@ ACTIONS = {
     "drop_rows": _handle_drop_rows,
     "rename": _handle_rename,
     "derive_column": _handle_derive_column,
+    "inspect": _handle_inspect,
     "profile": _handle_profile,
     "list_features": _handle_list_features,
     "status": _handle_status,

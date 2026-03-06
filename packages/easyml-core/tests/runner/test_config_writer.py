@@ -19,6 +19,7 @@ from easyml.core.runner.config_writer import (
     configure_ensemble,
     configure_exclude_columns,
     experiment_create,
+    inspect_data,
     remove_model,
     show_config,
     show_models,
@@ -845,3 +846,71 @@ class TestAddFeatureRedundancyWarning:
         add_feature(project, "feat_a", formula="diff_x + diff_y")
         result = add_feature(project, "feat_b", formula="diff_x - diff_y")
         assert "warning" not in result.lower() and "identical" not in result.lower()
+
+
+def _setup_inspect_project(tmp_path: Path) -> Path:
+    """Create a project with a features parquet suitable for inspect tests."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    feat_dir = tmp_path / "data" / "features"
+    feat_dir.mkdir(parents=True)
+
+    pipeline = {
+        "data": {
+            "target_column": "target",
+            "features_dir": str(feat_dir),
+        },
+    }
+    (config_dir / "pipeline.yaml").write_text(
+        yaml.dump(pipeline, default_flow_style=False)
+    )
+
+    df = pd.DataFrame({
+        "feat_a": [1.0, 2.0, 3.0, float("nan"), 5.0],
+        "feat_b": ["cat", "dog", "cat", "bird", "dog"],
+        "target": [0, 1, 1, 0, 1],
+    })
+    df.to_parquet(feat_dir / "features.parquet", index=False)
+    return tmp_path
+
+
+class TestInspectData:
+    """Tests for inspect_data."""
+
+    def test_inspect_all(self, tmp_path):
+        project = _setup_inspect_project(tmp_path)
+        result = inspect_data(project)
+        assert "5" in result  # 5 rows
+        assert "3 columns" in result
+        assert "feat_a" in result
+        assert "feat_b" in result
+        assert "target" in result
+        # feat_a has 1 null
+        assert "1" in result
+        assert "20.0%" in result
+
+    def test_inspect_specific_column_numeric(self, tmp_path):
+        project = _setup_inspect_project(tmp_path)
+        result = inspect_data(project, column="feat_a")
+        assert "feat_a" in result
+        assert "Mean" in result
+        assert "Std" in result
+        assert "Min" in result
+        assert "25%" in result
+        assert "50%" in result
+        assert "75%" in result
+        assert "Max" in result
+
+    def test_inspect_specific_column_categorical(self, tmp_path):
+        project = _setup_inspect_project(tmp_path)
+        result = inspect_data(project, column="target")
+        assert "Value Counts" in result
+        assert "0" in result
+        assert "1" in result
+
+    def test_inspect_unknown_column(self, tmp_path):
+        project = _setup_inspect_project(tmp_path)
+        result = inspect_data(project, column="nonexistent")
+        assert "Error" in result
+        assert "nonexistent" in result
+        assert "feat_a" in result  # available columns listed
