@@ -353,7 +353,8 @@ def configure_backtest(
     bt = data["backtest"]
 
     if cv_strategy is not None:
-        bt["cv_strategy"] = cv_strategy
+        from easyml.core.runner.schema import _CV_STRATEGY_ALIASES
+        bt["cv_strategy"] = _CV_STRATEGY_ALIASES.get(cv_strategy, cv_strategy)
     if fold_values is not None:
         bt["fold_values"] = fold_values
     if metrics is not None:
