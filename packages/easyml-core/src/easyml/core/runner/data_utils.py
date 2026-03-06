@@ -21,10 +21,12 @@ def get_feature_columns(
     config: DataConfig,
     *,
     numeric_only: bool = True,
+    fold_column: str | None = None,
 ) -> list[str]:
-    """Identify feature columns by excluding keys, target, time, and explicit exclusions.
+    """Identify feature columns by excluding keys, target, time, fold, and explicit exclusions.
 
-    Features = all columns except key_columns + target_column + time_column + exclude_columns.
+    Features = all columns except key_columns + target_column + time_column
+    + fold_column + exclude_columns.
     No prefix convention — works for any naming scheme.
 
     Parameters
@@ -35,6 +37,8 @@ def get_feature_columns(
         Project data configuration.
     numeric_only : bool
         If True (default), only return numeric columns.
+    fold_column : str | None
+        If provided, exclude this column (prevents fold leakage).
 
     Returns
     -------
@@ -45,6 +49,8 @@ def get_feature_columns(
     if config.time_column:
         non_feature.add(config.time_column)
     non_feature.update(config.exclude_columns)
+    if fold_column:
+        non_feature.add(fold_column)
 
     if numeric_only:
         candidates = df.select_dtypes(include=[np.number]).columns

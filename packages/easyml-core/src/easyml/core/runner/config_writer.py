@@ -1264,8 +1264,11 @@ def discover_features(
     # Get feature columns and feature_defs from config if available
     feature_cols = None
     feat_defs = None
+    pipeline_data = _load_yaml(_get_config_dir(project_dir) / "pipeline.yaml")
+    backtest_data = pipeline_data.get("backtest", {})
+    fold_col = backtest_data.get("fold_column")
     if config is not None:
-        feature_cols = get_feature_columns(df, config)
+        feature_cols = get_feature_columns(df, config, fold_column=fold_col)
         if config.feature_defs:
             feat_defs = dict(config.feature_defs)
 
@@ -1341,13 +1344,16 @@ def auto_search_features(
         return "**Error**: No feature data found. Ingest data or set a features_view."
 
     # Resolve feature columns
+    pipeline_data = _load_yaml(_get_config_dir(project_dir) / "pipeline.yaml")
+    backtest_data = pipeline_data.get("backtest", {})
+    fold_col = backtest_data.get("fold_column")
     if features:
         feature_cols = [c for c in features if c in df.columns]
         missing = [c for c in features if c not in df.columns]
         if missing:
             logger.warning("Columns not found in dataset, skipping: %s", missing)
     else:
-        feature_cols = get_feature_columns(df, config)
+        feature_cols = get_feature_columns(df, config, fold_column=fold_col)
 
     if not feature_cols:
         return "**Error**: No feature columns found to search over."
@@ -2320,7 +2326,9 @@ def show_diagnostics(
         from easyml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
         config = load_data_config(project_dir)
         df = get_features_df(project_dir, config)
-        feature_cols = get_feature_columns(df, config)
+        _pi_data = _load_yaml(_get_config_dir(project_dir) / "pipeline.yaml")
+        _pi_fold_col = _pi_data.get("backtest", {}).get("fold_column")
+        feature_cols = get_feature_columns(df, config, fold_column=_pi_fold_col)
         if feature_cols and config.target_column in df.columns:
             from easyml.core.runner.feature_discovery import compute_feature_importance
             importance_df = compute_feature_importance(

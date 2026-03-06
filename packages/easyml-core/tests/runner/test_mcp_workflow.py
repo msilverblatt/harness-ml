@@ -39,7 +39,7 @@ from easyml.core.runner.feature_discovery import (
 from easyml.core.runner.pipeline_planner import plan_execution
 from easyml.core.runner.presets import list_presets
 from easyml.core.runner.scaffold import scaffold_project
-from easyml.core.runner.schema import ProjectConfig
+from easyml.core.runner.schema import DataConfig, ProjectConfig
 from easyml.core.runner.transformation_tester import run_transformation_tests
 
 
@@ -634,6 +634,27 @@ class TestFeatureToolsGenericColumns:
         assert "customer_id" not in features
         assert "cohort_month" not in features
         assert "churned" not in features
+
+    def test_get_feature_columns_excludes_fold_column(self):
+        """get_feature_columns excludes fold_column when provided."""
+        df = pd.DataFrame({
+            "feat_a": [1.0, 2.0],
+            "feat_b": [3.0, 4.0],
+            "target": [0, 1],
+            "year": [2022, 2023],
+            "fold": [1, 2],
+        })
+        config = DataConfig(target_column="target", time_column="year")
+
+        # Without fold_column, fold is included
+        cols = get_feature_columns(df, config)
+        assert "fold" in cols
+
+        # With fold_column, fold is excluded
+        cols = get_feature_columns(df, config, fold_column="fold")
+        assert "fold" not in cols
+        assert "feat_a" in cols
+        assert "feat_b" in cols
 
 
 class TestGranularDataTools:
