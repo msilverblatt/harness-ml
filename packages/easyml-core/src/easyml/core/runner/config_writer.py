@@ -878,6 +878,18 @@ def add_feature(
             lines.append(f"- **{k.title()}**: {v:.4f}")
     lines.append(f"- **Category**: {category}")
 
+    # Check for redundant formulas
+    if formula and config.feature_defs:
+        warnings = []
+        for fname, fdef in config.feature_defs.items():
+            if fname != name and getattr(fdef, "formula", None) == formula:
+                warnings.append(
+                    f"**Warning**: Formula is identical to existing feature `{fname}`"
+                )
+        if warnings:
+            lines.append("")
+            lines.extend(warnings)
+
     return "\n".join(lines)
 
 

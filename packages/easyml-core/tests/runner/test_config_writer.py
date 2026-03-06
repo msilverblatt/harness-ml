@@ -794,3 +794,31 @@ def test_discover_features_respects_denylist(tmp_path):
     # Run discovery — denylist column should not appear
     result = discover_features(project)
     assert "leaky_col" not in result
+
+
+# -----------------------------------------------------------------------
+# add_feature redundancy warning tests
+# -----------------------------------------------------------------------
+
+
+class TestAddFeatureRedundancyWarning:
+    """Test that adding a feature with an identical formula warns the user."""
+
+    def test_add_feature_redundancy_warning(self, tmp_path):
+        """Adding a feature with identical formula to existing should include a warning."""
+        project = _setup_project(tmp_path)
+
+        # Add first feature
+        add_feature(project, "momentum_10d", formula="diff_x * diff_y")
+
+        # Add feature with same formula — should warn
+        result = add_feature(project, "return_10d", formula="diff_x * diff_y")
+        assert "warning" in result.lower() or "identical" in result.lower()
+
+    def test_add_feature_no_warning_different_formula(self, tmp_path):
+        """Adding a feature with different formula should not warn."""
+        project = _setup_project(tmp_path)
+
+        add_feature(project, "feat_a", formula="diff_x + diff_y")
+        result = add_feature(project, "feat_b", formula="diff_x - diff_y")
+        assert "warning" not in result.lower() and "identical" not in result.lower()
