@@ -14,6 +14,7 @@ from easyml.sports.competitions.schemas import (
     SeedingMode,
     StandingsEntry,
 )
+from easyml.sports.competitions.simulator import CompetitionSimulator
 from easyml.sports.competitions.structure import build_structure
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "CompetitionConfig",
     "CompetitionFormat",
     "CompetitionResult",
+    "CompetitionSimulator",
     "CompetitionStructure",
     "GroupConfig",
     "KnockoutConfig",
