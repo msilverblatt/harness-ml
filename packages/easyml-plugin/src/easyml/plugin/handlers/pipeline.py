@@ -33,15 +33,15 @@ def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs)
     return result
 
 
-def _handle_predict(*, season, run_id, variant, project_dir, **_kwargs):
+def _handle_predict(*, fold_value, run_id, variant, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
-    err = validate_required(season, "season")
+    err = validate_required(fold_value, "fold_value")
     if err:
         return err
     return cw.run_predict(
         resolve_project_dir(project_dir),
-        season,
+        fold_value,
         run_id=run_id,
         variant=variant,
     )
@@ -98,17 +98,17 @@ def _summarize_show_run(full_output: str) -> str:
     """Extract condensed view from full run output."""
     lines = full_output.strip().split("\n")
     summary_lines = []
-    in_per_season = False
+    in_per_fold = False
     for line in lines:
         stripped = line.strip()
-        # Detect per-season breakdown section and skip it for summary
-        if "per-season" in stripped.lower() or "per season" in stripped.lower():
-            in_per_season = True
+        # Detect per-fold breakdown section and skip it for summary
+        if "per-fold" in stripped.lower() or "per fold" in stripped.lower():
+            in_per_fold = True
             continue
-        if in_per_season:
+        if in_per_fold:
             # Stop skipping when we hit the next section header
-            if stripped.startswith("#") and "per-season" not in stripped.lower():
-                in_per_season = False
+            if stripped.startswith("#") and "per-fold" not in stripped.lower():
+                in_per_fold = False
             else:
                 continue
         summary_lines.append(line)

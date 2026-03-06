@@ -28,7 +28,7 @@ class SourceMeta(BaseModel):
     name: str
     category: str  # e.g. "external", "internal", "derived"
     outputs: list[str]  # output file/dir paths
-    temporal_safety: Literal["pre_tournament", "post_tournament", "mixed", "unknown"]
+    temporal_safety: Literal["pre_event", "post_event", "mixed", "unknown"]
     leakage_notes: str = ""
     freshness_check: str | None = None  # how freshness is checked
 
@@ -42,7 +42,7 @@ class FeatureMeta(BaseModel):
 
     name: str
     category: str
-    level: Literal["team", "matchup"]
+    level: Literal["entity", "pairwise"]
     output_columns: list[str]
     nan_strategy: str = "median"
     temporal_filter: TemporalFilter | None = None
@@ -174,7 +174,7 @@ class GuardrailViolation(BaseModel):
 # ---------------------------------------------------------------------------
 
 class Fold(BaseModel):
-    """One CV fold with index arrays (e.g. LOSO season split)."""
+    """One CV fold with index arrays (e.g. LOSO fold split)."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

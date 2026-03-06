@@ -269,12 +269,12 @@ async def manage_features(
     Actions:
       - "add": Create a feature. Requires name + at least one of: type,
         formula, source, or condition.
-        Types: "team" (entity-level, auto-generates pairwise), "pairwise"
-        (matchup-level formula), "matchup" (context column), "regime" (boolean flag).
+        Types: "entity" (entity-level, auto-generates pairwise), "pairwise"
+        (instance-level formula), "instance" (context column), "regime" (boolean flag).
         Optional: type, source, column, formula, condition, pairwise_mode
         (diff/ratio/both/none), category, description.
         If type is omitted, it is inferred: formula -> pairwise, condition -> regime,
-        source -> team.
+        source -> entity.
       - "add_batch": Create multiple features. Requires features (JSON array
         of {name, formula?, type?, source?, column?, condition?, pairwise_mode?,
         category?, description?} objects). Handles @-references between features
@@ -404,7 +404,7 @@ async def configure(
     spline_prob_max: float | None = None,
     spline_n_bins: int | None = None,
     cv_strategy: str | None = None,
-    seasons: list[int] | None = None,
+    fold_values: list[int] | None = None,
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
     add_columns: list[str] | None = None,
@@ -428,7 +428,7 @@ async def configure(
         spline_prob_max (float, upper clip for spline calibration, default 0.985),
         spline_n_bins (int, number of bins for spline calibration, default 20).
       - "backtest": Update backtest config.
-        Optional: cv_strategy, seasons, metrics, min_train_folds.
+        Optional: cv_strategy, fold_values, metrics, min_train_folds.
       - "show": Show the full resolved project configuration.
         Optional: detail ("summary" for key settings only, "full" (default) for
         everything), section (e.g. "models", "ensemble", "backtest" to show only
@@ -460,7 +460,7 @@ async def configure(
         spline_prob_max=spline_prob_max,
         spline_n_bins=spline_n_bins,
         cv_strategy=cv_strategy,
-        seasons=seasons,
+        fold_values=fold_values,
         metrics=metrics,
         min_train_folds=min_train_folds,
         add_columns=add_columns,
@@ -485,7 +485,7 @@ async def pipeline(
     variant: str | None = None,
     run_id: str | None = None,
     run_ids: list[str] | None = None,
-    season: int | None = None,
+    fold_value: int | None = None,
     detail: str | None = None,
     project_dir: str | None = None,
 ) -> str:
@@ -493,9 +493,9 @@ async def pipeline(
 
     Actions:
       - "run_backtest": Run a full backtest. Returns metrics, meta-learner
-        weights, per-season breakdown. Optional: experiment_id (applies
+        weights, per-fold breakdown. Optional: experiment_id (applies
         overlay), variant.
-      - "predict": Generate predictions for a target season. Requires season.
+      - "predict": Generate predictions for a target fold. Requires fold_value.
         Optional: run_id, variant.
       - "diagnostics": Show per-model diagnostics (brier, accuracy, ECE,
         log_loss, agreement, calibration). Optional: run_id.
@@ -516,7 +516,7 @@ async def pipeline(
         variant=variant,
         run_id=run_id,
         run_ids=run_ids,
-        season=season,
+        fold_value=fold_value,
         detail=detail,
         project_dir=project_dir,
     )

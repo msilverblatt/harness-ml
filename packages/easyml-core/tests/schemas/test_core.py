@@ -9,7 +9,7 @@ def test_feature_meta_basic():
     fm = FeatureMeta(
         name="scoring_margin",
         category="offense",
-        level="team",
+        level="entity",
         output_columns=["scoring_margin", "scoring_margin_std"],
     )
     assert fm.name == "scoring_margin"
@@ -19,7 +19,7 @@ def test_feature_meta_temporal_filter():
     fm = FeatureMeta(
         name="test",
         category="test",
-        level="team",
+        level="entity",
         output_columns=["x"],
         temporal_filter=TemporalFilter(exclude_event_types=["tournament"]),
     )
@@ -29,7 +29,7 @@ def test_feature_meta_tainted_columns():
     fm = FeatureMeta(
         name="test",
         category="test",
-        level="team",
+        level="entity",
         output_columns=["x"],
         tainted_columns=["kp_adj_o", "kp_sos"],
     )
@@ -135,10 +135,10 @@ def test_source_meta():
         name="kenpom_archive",
         category="external",
         outputs=["data/external/kenpom/"],
-        temporal_safety="pre_tournament",
+        temporal_safety="pre_event",
         leakage_notes="Archive endpoint returns ratings as of Selection Sunday",
     )
-    assert sm.temporal_safety == "pre_tournament"
+    assert sm.temporal_safety == "pre_event"
 
 
 def test_source_meta_defaults():

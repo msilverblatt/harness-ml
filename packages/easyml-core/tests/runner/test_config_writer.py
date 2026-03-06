@@ -424,7 +424,7 @@ def _setup_declarative_project_with_defs(tmp_path: Path) -> Path:
     pipeline["data"]["feature_defs"] = {
         "adj_em": {
             "name": "adj_em",
-            "type": "team",
+            "type": "entity",
             "source": "kenpom",
             "column": "adj_em",
             "category": "efficiency",
@@ -451,25 +451,25 @@ def _setup_declarative_project_with_defs(tmp_path: Path) -> Path:
 class TestAddFeatureDeclarative:
     """Test add_feature with declarative type= parameter (FeatureStore path)."""
 
-    def test_add_team_feature_via_type(self, tmp_path):
-        """add_feature(type='team') uses FeatureStore and mentions auto-pairwise."""
+    def test_add_entity_feature_via_type(self, tmp_path):
+        """add_feature(type='entity') uses FeatureStore and mentions auto-pairwise."""
         project = _setup_declarative_project(tmp_path)
         result = add_feature(
             project, "adj_em",
-            type="team", source="kenpom", column="adj_em",
+            type="entity", source="kenpom", column="adj_em",
         )
-        assert "Added team feature" in result
+        assert "Added entity feature" in result
         assert "adj_em" in result
         # Should mention auto-generated pairwise
         assert "Auto-generated pairwise" in result
         assert "diff_adj_em" in result
 
-    def test_add_team_feature_with_description(self, tmp_path):
+    def test_add_entity_feature_with_description(self, tmp_path):
         """Description is included in output."""
         project = _setup_declarative_project(tmp_path)
         result = add_feature(
             project, "adj_em",
-            type="team", source="kenpom", column="adj_em",
+            type="entity", source="kenpom", column="adj_em",
             description="Adjusted efficiency margin",
         )
         assert "Adjusted efficiency margin" in result
@@ -485,14 +485,14 @@ class TestAddFeatureDeclarative:
         assert "late_season" in result
         assert "Correlation" in result
 
-    def test_add_matchup_feature_via_type(self, tmp_path):
-        """add_feature(type='matchup', column='...') works."""
+    def test_add_instance_feature_via_type(self, tmp_path):
+        """add_feature(type='instance', column='...') works."""
         project = _setup_declarative_project(tmp_path)
         result = add_feature(
             project, "day_feat",
-            type="matchup", column="day_num",
+            type="instance", column="day_num",
         )
-        assert "Added matchup feature" in result
+        assert "Added instance feature" in result
         assert "Correlation" in result
 
     def test_add_pairwise_formula_feature(self, tmp_path):
@@ -505,12 +505,12 @@ class TestAddFeatureDeclarative:
         assert "Added pairwise feature" in result
         assert "Correlation" in result
 
-    def test_add_team_feature_includes_stats(self, tmp_path):
-        """Team feature output includes null rate, correlation, category."""
+    def test_add_entity_feature_includes_stats(self, tmp_path):
+        """Entity feature output includes null rate, correlation, category."""
         project = _setup_declarative_project(tmp_path)
         result = add_feature(
             project, "adj_em",
-            type="team", source="kenpom", column="adj_em",
+            type="entity", source="kenpom", column="adj_em",
             category="efficiency",
         )
         assert "Null rate" in result
@@ -584,7 +584,7 @@ class TestAvailableFeaturesDeclarative:
         project = _setup_declarative_project_with_defs(tmp_path)
         result = available_features(project)
         assert "Declarative Features" in result
-        assert "Team" in result
+        assert "Entity" in result
         assert "adj_em" in result
 
     def test_type_filter(self, tmp_path):
@@ -593,8 +593,8 @@ class TestAvailableFeaturesDeclarative:
         result = available_features(project, type_filter="regime")
         assert "Declarative Features" in result
         assert "late_season" in result
-        # Should not include team features when filtering by regime
-        assert "Team" not in result
+        # Should not include entity features when filtering by regime
+        assert "Entity" not in result
 
     def test_prefix_filter_still_works(self, tmp_path):
         """Prefix filter still works on fallback column listing."""

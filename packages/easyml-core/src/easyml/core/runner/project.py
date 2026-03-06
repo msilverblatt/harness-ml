@@ -201,7 +201,7 @@ class Project:
         name : str
             Source identifier.
         temporal_safety : str
-            One of: "pre_tournament", "post_tournament", "mixed", "unknown".
+            One of: "pre_event", "post_event", "mixed", "unknown".
         outputs : list[str]
             Column names this source produces.
         leakage_notes : str
@@ -254,7 +254,7 @@ class Project:
                 if feat not in lineage:
                     continue  # Unknown source — can't check
                 source_name, safety, notes = lineage[feat]
-                if safety in ("post_tournament", "mixed", "unknown"):
+                if safety in ("post_event", "mixed", "unknown"):
                     warnings.append(
                         _LeakageWarning(
                             model_name=model_name,
@@ -304,8 +304,8 @@ class Project:
         provides : list[str] | None
             Feature columns this model outputs for downstream models.
         provides_level : str
-            "matchup" for per-matchup outputs, "team" for per-team outputs
-            that get differenced into matchup pairs.
+            "instance" for per-instance outputs, "entity" for per-entity outputs
+            that get differenced into pairwise features.
         include_in_ensemble : bool
             If False, model trains and provides features but its prob_*
             column is excluded from the meta-learner.
@@ -359,7 +359,7 @@ class Project:
                 cdf_scale=cdf_scale,
                 train_folds=train_folds or "all",
                 provides=provides or [],
-                provides_level=provides_level or "matchup",
+                provides_level=provides_level or "instance",
                 include_in_ensemble=include_in_ensemble,
                 provider_isolation=provider_isolation or "none",
             )

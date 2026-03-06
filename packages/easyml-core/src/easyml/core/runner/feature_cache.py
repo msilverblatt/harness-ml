@@ -1,7 +1,7 @@
 """Content-addressed feature cache with manifest and cascade invalidation.
 
 Stores computed feature Series as individual parquet files, organized by
-feature type (team/, pairwise/, matchup/, regime/). A JSON manifest tracks
+feature type (entity/, pairwise/, instance/, regime/). A JSON manifest tracks
 cache keys and dependency relationships for cascade invalidation.
 """
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_FEATURE_TYPES = ("team", "pairwise", "matchup", "regime")
+_FEATURE_TYPES = ("entity", "pairwise", "instance", "regime")
 
 
 @dataclass

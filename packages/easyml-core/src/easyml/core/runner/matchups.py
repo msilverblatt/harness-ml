@@ -73,7 +73,7 @@ def compute_interactions(
 
 
 def generate_pairwise_matchups(*args, **kwargs):
-    """Generate all pairwise matchup features for seeded teams.
+    """Generate all pairwise features for entities.
 
     .. deprecated::
         This function has moved to the ``easyml-sports`` plugin.

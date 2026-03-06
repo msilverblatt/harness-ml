@@ -203,7 +203,7 @@ class TestBuildDiagnosticsReport:
         assert "accuracy" in report.columns
         assert "ece" in report.columns
         assert "log_loss" in report.columns
-        assert "n_games" in report.columns
+        assert "n_samples" in report.columns
         assert list(report["season"]) == [2023, 2024]
 
     def test_single_fold(self):
@@ -216,7 +216,7 @@ class TestBuildDiagnosticsReport:
         }
         report = build_diagnostics_report(fold_data, fold_column="season")
         assert len(report) == 1
-        assert report["n_games"].iloc[0] == 4
+        assert report["n_samples"].iloc[0] == 4
 
     def test_empty_input(self):
         """Empty input returns empty DataFrame."""
@@ -266,7 +266,7 @@ class TestGenerateMarkdownReport:
             "accuracy": [0.76, 0.74],
             "ece": [0.03, 0.04],
             "log_loss": [0.52, 0.54],
-            "n_games": [50, 50],
+            "n_samples": [50, 50],
         })
         report = generate_markdown_report(pooled, diagnostics_df=diag_df, fold_column="season")
         assert "Per-Fold Breakdown" in report
@@ -370,7 +370,7 @@ class TestExportBacktestArtifacts:
             "accuracy": [0.76, 0.74],
             "ece": [0.03, 0.04],
             "log_loss": [0.52, 0.54],
-            "n_games": [3, 2],
+            "n_samples": [3, 2],
         })
         pick_log = pd.DataFrame({
             "game_id": [0, 1, 2],

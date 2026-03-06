@@ -125,16 +125,16 @@ class TestFeatureStoreInit:
         assert store._source_dfs == {}
 
     def test_init_with_feature_defs(self, project_dir, config):
-        feat = FeatureDef(name="adj_em", type=FeatureType.TEAM, source="kenpom")
+        feat = FeatureDef(name="adj_em", type=FeatureType.ENTITY, source="kenpom")
         config.feature_defs = {"adj_em": feat}
         st = FeatureStore(project_dir, config)
         assert "adj_em" in st._registry
-        assert st._registry["adj_em"].type == FeatureType.TEAM
+        assert st._registry["adj_em"].type == FeatureType.ENTITY
 
     def test_cache_dir_created(self, store: FeatureStore):
         cache_dir = store.project_dir / "data" / "features" / "cache"
         assert cache_dir.exists()
-        assert (cache_dir / "team").exists()
+        assert (cache_dir / "entity").exists()
         assert (cache_dir / "pairwise").exists()
 
 
@@ -146,7 +146,7 @@ class TestFeatureStoreInit:
 class TestTeamFeatures:
     def test_add_team_feature(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         result = store.add(feat)
@@ -155,7 +155,7 @@ class TestTeamFeatures:
 
     def test_auto_pairwise_diff(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.DIFF,
         )
@@ -168,7 +168,7 @@ class TestTeamFeatures:
 
     def test_auto_pairwise_both(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.BOTH,
         )
@@ -178,7 +178,7 @@ class TestTeamFeatures:
 
     def test_auto_pairwise_none(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.NONE,
         )
@@ -190,7 +190,7 @@ class TestTeamFeatures:
         config.feature_store.auto_pairwise = False
         st = FeatureStore(project_dir, config)
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.DIFF,
         )
@@ -199,7 +199,7 @@ class TestTeamFeatures:
 
     def test_compute_pairwise_series(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.DIFF,
         )
@@ -211,7 +211,7 @@ class TestTeamFeatures:
 
     def test_caching_hit(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         store.add(feat)
@@ -221,7 +221,7 @@ class TestTeamFeatures:
 
     def test_missing_source_error(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="nonexistent_source", column="adj_em",
         )
         with pytest.raises(ValueError, match="not found in config.sources"):
@@ -229,7 +229,7 @@ class TestTeamFeatures:
 
     def test_missing_column_error(self, store: FeatureStore):
         feat = FeatureDef(
-            name="bad_col", type=FeatureType.TEAM,
+            name="bad_col", type=FeatureType.ENTITY,
             source="kenpom", column="nonexistent_column",
         )
         with pytest.raises(ValueError, match="not found in source"):
@@ -237,7 +237,7 @@ class TestTeamFeatures:
 
     def test_team_feature_requires_source(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
         )
         with pytest.raises(ValueError, match="requires a 'source'"):
             store.add(feat)
@@ -245,7 +245,7 @@ class TestTeamFeatures:
     def test_column_defaults_to_name(self, store: FeatureStore):
         """When column is not specified, uses feature name as column name."""
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom",
         )
         result = store.add(feat)
@@ -261,7 +261,7 @@ class TestTeamFeatures:
 class TestMatchupFeatures:
     def test_add_matchup_from_column(self, store: FeatureStore):
         feat = FeatureDef(
-            name="day_num_feat", type=FeatureType.MATCHUP,
+            name="day_num_feat", type=FeatureType.INSTANCE,
             column="day_num",
         )
         result = store.add(feat)
@@ -271,7 +271,7 @@ class TestMatchupFeatures:
 
     def test_add_matchup_with_formula(self, store: FeatureStore):
         feat = FeatureDef(
-            name="day_neutral", type=FeatureType.MATCHUP,
+            name="day_neutral", type=FeatureType.INSTANCE,
             formula="day_num * is_neutral",
         )
         result = store.add(feat)
@@ -280,7 +280,7 @@ class TestMatchupFeatures:
 
     def test_matchup_column_missing(self, store: FeatureStore):
         feat = FeatureDef(
-            name="bad", type=FeatureType.MATCHUP,
+            name="bad", type=FeatureType.INSTANCE,
             column="nonexistent",
         )
         with pytest.raises(ValueError, match="not found in matchup"):
@@ -289,7 +289,7 @@ class TestMatchupFeatures:
     def test_matchup_name_used_as_column(self, store: FeatureStore):
         """When neither column nor formula given, uses name as column."""
         feat = FeatureDef(
-            name="day_num", type=FeatureType.MATCHUP,
+            name="day_num", type=FeatureType.INSTANCE,
         )
         result = store.add(feat)
         assert result.name == "day_num"
@@ -381,7 +381,7 @@ class TestResolve:
     def test_resolve_features(self, store: FeatureStore):
         # Add a matchup feature
         feat = FeatureDef(
-            name="day_num_f", type=FeatureType.MATCHUP,
+            name="day_num_f", type=FeatureType.INSTANCE,
             column="day_num",
         )
         store.add(feat)
@@ -393,12 +393,12 @@ class TestResolve:
     def test_resolve_sets_by_category(self, store: FeatureStore):
         # Add team features with categories
         feat1 = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             category="efficiency",
         )
         feat2 = FeatureDef(
-            name="adj_tempo", type=FeatureType.TEAM,
+            name="adj_tempo", type=FeatureType.ENTITY,
             source="kenpom", column="adj_tempo",
             category="tempo",
         )
@@ -417,7 +417,7 @@ class TestResolve:
 
     def test_available_all(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         store.add(feat)
@@ -428,18 +428,18 @@ class TestResolve:
 
     def test_available_by_type(self, store: FeatureStore):
         feat1 = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         feat2 = FeatureDef(
-            name="day_num_f", type=FeatureType.MATCHUP,
+            name="day_num_f", type=FeatureType.INSTANCE,
             column="day_num",
         )
         store.add(feat1)
         store.add(feat2)
 
-        team_feats = store.available(type_filter=FeatureType.TEAM)
-        matchup_feats = store.available(type_filter=FeatureType.MATCHUP)
+        team_feats = store.available(type_filter=FeatureType.ENTITY)
+        matchup_feats = store.available(type_filter=FeatureType.INSTANCE)
 
         team_names = {f.name for f in team_feats}
         matchup_names = {f.name for f in matchup_feats}
@@ -450,11 +450,11 @@ class TestResolve:
 
     def test_compute_all(self, store: FeatureStore):
         feat1 = FeatureDef(
-            name="day_num_f", type=FeatureType.MATCHUP,
+            name="day_num_f", type=FeatureType.INSTANCE,
             column="day_num",
         )
         feat2 = FeatureDef(
-            name="neutral_f", type=FeatureType.MATCHUP,
+            name="neutral_f", type=FeatureType.INSTANCE,
             column="is_neutral",
         )
         store.add(feat1)
@@ -477,7 +477,7 @@ class TestResolve:
 class TestRemoveFeature:
     def test_remove_cascades_to_derivatives(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
             pairwise_mode=PairwiseMode.BOTH,
         )
@@ -497,7 +497,7 @@ class TestRemoveFeature:
 
     def test_remove_matchup_feature(self, store: FeatureStore):
         feat = FeatureDef(
-            name="day_num_f", type=FeatureType.MATCHUP,
+            name="day_num_f", type=FeatureType.INSTANCE,
             column="day_num",
         )
         store.add(feat)
@@ -514,7 +514,7 @@ class TestRemoveFeature:
 class TestRefresh:
     def test_refresh_all(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         store.add(feat)
@@ -524,7 +524,7 @@ class TestRefresh:
 
     def test_refresh_specific_source(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         store.add(feat)
@@ -540,7 +540,7 @@ class TestRefresh:
 class TestSaveRegistry:
     def test_save_persists_to_config(self, store: FeatureStore):
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         store.add(feat)
@@ -572,7 +572,7 @@ class TestSourceLoading:
         )
         st = FeatureStore(project_dir, config)
         feat = FeatureDef(
-            name="extra_stat", type=FeatureType.TEAM,
+            name="extra_stat", type=FeatureType.ENTITY,
             source="extra", column="extra_stat",
         )
         result = st.add(feat)
@@ -582,7 +582,7 @@ class TestSourceLoading:
         """Auto format detection for .parquet files."""
         # kenpom source has format="parquet", this tests the path
         feat = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="adj_em",
         )
         result = store.add(feat)
@@ -592,7 +592,7 @@ class TestSourceLoading:
         config.sources["nopath"] = SourceConfig(name="nopath")
         st = FeatureStore(project_dir, config)
         feat = FeatureDef(
-            name="x", type=FeatureType.TEAM,
+            name="x", type=FeatureType.ENTITY,
             source="nopath", column="x",
         )
         with pytest.raises(ValueError, match="no path"):

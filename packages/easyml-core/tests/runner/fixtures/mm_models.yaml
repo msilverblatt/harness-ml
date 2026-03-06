@@ -3,7 +3,7 @@ models:
     type: logistic_regression
     features:
     - diff_prior
-    train_seasons: all
+    train_folds: all
     params:
       C: 1.0
 
@@ -15,7 +15,7 @@ models:
     - diff_win_pct
     - diff_sr_srs
     - diff_net_efficiency
-    train_seasons: all
+    train_folds: all
     params:
       max_depth: 4
       learning_rate: 0.01
@@ -48,7 +48,7 @@ models:
     - diff_fg3_pct
     - diff_fg_pct
     - diff_or_pct
-    train_seasons: all
+    train_folds: all
     params:
       max_depth: 1
       learning_rate: 0.01
@@ -102,7 +102,7 @@ models:
     - diff_sr_trb_pct
     - diff_topg
     - diff_vs_top100_net_eff
-    train_seasons: all
+    train_folds: all
     params:
       hidden_layers: [128, 64]
       dropout: 0.4
@@ -122,7 +122,7 @@ models:
     - diff_ppg
     - diff_opp_ppg
     - diff_scoring_margin
-    train_seasons: all
+    train_folds: all
     params:
       n_d: 16
       n_a: 16
@@ -146,7 +146,7 @@ models:
     - diff_bt_top_player_bpm
     - diff_bt_efg_pct
     - diff_bt_efg_pct_def
-    train_seasons: all
+    train_folds: all
     params:
       iterations: 1000
       depth: 4
@@ -163,7 +163,7 @@ models:
     - diff_adj_de
     - diff_adj_net
     - diff_adj_oe
-    train_seasons: all
+    train_folds: all
     params:
       C: 0.01
       l1_ratio: 1.0
@@ -174,7 +174,7 @@ models:
     - diff_travel_distance_mi
     - diff_travel_time_zones
     - diff_travel_cbrt_distance
-    train_seasons: all
+    train_folds: all
     params:
       max_depth: 1
       learning_rate: 0.01
@@ -191,7 +191,7 @@ models:
   gnn_hetero:
     type: gnn
     feature_sets: []
-    train_seasons: all
+    train_folds: all
     params:
       embedding_dim: 64
       num_gnn_layers: 3
@@ -202,7 +202,7 @@ models:
     - seed_num
     - win_pct_last5
     - scoring_margin
-    train_seasons: all
+    train_folds: all
     params:
       max_depth: 3
       learning_rate: 0.03

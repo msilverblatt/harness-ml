@@ -39,7 +39,7 @@ def _make_feature_decls(**kwargs: tuple[str, str, list[str]]) -> dict[str, Featu
             module=module,
             function="compute",
             category=category,
-            level="team",
+            level="entity",
             columns=columns,
         )
     return out
@@ -96,7 +96,7 @@ class TestInjectFoldPlaceholder:
         source.to_parquet(parquet_path)
 
         df = pd.DataFrame({"team_id": [1]})
-        pattern = str(tmp_path / "data_{season}.parquet")
+        pattern = str(tmp_path / "data_{fold_value}.parquet")
         inj = InjectionDef(
             source_type="parquet",
             path_pattern=pattern,

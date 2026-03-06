@@ -180,7 +180,7 @@ class TestLeakageDetection:
     def test_no_leakage_with_safe_sources(self, project):
         project.add_source(
             "seeds",
-            temporal_safety="pre_tournament",
+            temporal_safety="pre_event",
             outputs=["seed_num"],
         )
         project.add_model(
@@ -193,7 +193,7 @@ class TestLeakageDetection:
     def test_detects_post_tournament_leakage(self, project):
         project.add_source(
             "leaky_source",
-            temporal_safety="post_tournament",
+            temporal_safety="post_event",
             outputs=["leaky_stat"],
             leakage_notes="Includes tournament game results",
         )
@@ -203,13 +203,13 @@ class TestLeakageDetection:
         )
         warnings = project.check_leakage()
         assert len(warnings) == 1
-        assert warnings[0].temporal_safety == "post_tournament"
+        assert warnings[0].temporal_safety == "post_event"
         assert warnings[0].model_name == "m1"
 
     def test_build_raises_on_leakage(self, project):
         project.add_source(
             "leaky_source",
-            temporal_safety="post_tournament",
+            temporal_safety="post_event",
             outputs=["leaky_stat"],
         )
         project.add_model(
@@ -346,7 +346,7 @@ class TestYamlSerialization:
 
     def test_sources_saved_when_present(self, project, tmp_path):
         project.add_source(
-            "seeds", temporal_safety="pre_tournament", outputs=["seed_num"],
+            "seeds", temporal_safety="pre_event", outputs=["seed_num"],
         )
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
         config_dir = tmp_path / "saved_config"
@@ -465,7 +465,7 @@ class TestProviderModels:
             "survival", "survival",
             features=["diff_prior"],
             provides=["surv_e8"],
-            provides_level="team",
+            provides_level="entity",
             include_in_ensemble=False,
         )
         project.add_model(
@@ -473,7 +473,7 @@ class TestProviderModels:
             features=["diff_prior", "diff_surv_e8"],
         )
         config = project.build()
-        assert config.models["survival"].provides_level == "team"
+        assert config.models["survival"].provides_level == "entity"
 
     def test_provides_level_stored(self, project):
         """provides_level is correctly stored in config."""
@@ -481,14 +481,14 @@ class TestProviderModels:
             "provider", "xgboost",
             features=["diff_prior"],
             provides=["margin"],
-            provides_level="matchup",
+            provides_level="instance",
         )
         project.add_model(
             "consumer", "xgboost",
             features=["diff_prior", "diff_margin"],
         )
         config = project.build()
-        assert config.models["provider"].provides_level == "matchup"
+        assert config.models["provider"].provides_level == "instance"
 
     def test_provider_isolation_stored(self, project_dir):
         """provider_isolation is correctly stored in config."""
@@ -500,7 +500,7 @@ class TestProviderModels:
             "survival", "survival",
             features=["diff_prior"],
             provides=["surv_e8"],
-            provides_level="team",
+            provides_level="entity",
             include_in_ensemble=False,
             provider_isolation="per_fold",
         )

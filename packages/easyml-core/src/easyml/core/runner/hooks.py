@@ -110,7 +110,7 @@ def get_column_renames() -> dict[str, str]:
 
     Returns a dict of {old_name: new_name} for normalizing column names.
     Core provides no default renames; plugins add domain-specific ones
-    (e.g. TeamAWon -> result, Season -> season).
+    (e.g. EntityAOutcome -> result, Period -> fold).
     """
     renames: dict[str, str] = {}  # Plugins provide all renames
     extra = HookRegistry.call_all(COLUMN_RENAMES)

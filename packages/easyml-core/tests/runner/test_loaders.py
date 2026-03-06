@@ -51,7 +51,7 @@ class TestLoadFeatures:
                     module="test_feat_mod",
                     function="compute_eff",
                     category="efficiency",
-                    level="team",
+                    level="entity",
                     columns=["adj_oe", "adj_de"],
                     nan_strategy="median",
                 )
@@ -82,14 +82,14 @@ class TestLoadFeatures:
                     module="mod_a",
                     function="feat_a",
                     category="cat_a",
-                    level="team",
+                    level="entity",
                     columns=["col_a"],
                 ),
                 "feature_b": FeatureDecl(
                     module="mod_b",
                     function="feat_b",
                     category="cat_b",
-                    level="matchup",
+                    level="pairwise",
                     columns=["col_b1", "col_b2"],
                 ),
             }
@@ -97,7 +97,7 @@ class TestLoadFeatures:
             assert len(registry) == 2
             assert "feature_a" in registry
             assert "feature_b" in registry
-            assert registry.get_metadata("feature_b").level == "matchup"
+            assert registry.get_metadata("feature_b").level == "pairwise"
         finally:
             _cleanup_module("mod_a")
             _cleanup_module("mod_b")
@@ -110,7 +110,7 @@ class TestLoadFeatures:
                 module="nonexistent_module_xyz",
                 function="fn",
                 category="cat",
-                level="team",
+                level="entity",
                 columns=["x"],
             )
         }
@@ -127,7 +127,7 @@ class TestLoadFeatures:
                     module="mod_no_fn",
                     function="missing_function",
                     category="cat",
-                    level="team",
+                    level="entity",
                     columns=["x"],
                 )
             }
@@ -157,7 +157,7 @@ class TestLoadSources:
                     module="test_src_mod",
                     function="scrape_data",
                     category="external",
-                    temporal_safety="pre_tournament",
+                    temporal_safety="pre_event",
                     outputs=["data/raw/kenpom/"],
                     leakage_notes="Pre-tournament only",
                 )
@@ -166,7 +166,7 @@ class TestLoadSources:
             assert "kenpom" in registry
             meta = registry.get_metadata("kenpom")
             assert meta.category == "external"
-            assert meta.temporal_safety == "pre_tournament"
+            assert meta.temporal_safety == "pre_event"
         finally:
             _cleanup_module("test_src_mod")
 

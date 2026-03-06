@@ -18,7 +18,7 @@ def apply_ensemble_postprocessing(
     meta_learner: StackedEnsemble,
     calibrator,
     ensemble_config: dict,
-    team_features: pd.DataFrame | None = None,
+    entity_features: pd.DataFrame | None = None,
     pre_calibrators: dict | None = None,
 ) -> pd.DataFrame:
     """Apply full 9-step ensemble post-processing pipeline.

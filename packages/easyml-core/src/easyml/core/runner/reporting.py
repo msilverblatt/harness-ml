@@ -22,7 +22,7 @@ def build_pick_log(
     fold_id: int,
     fold_column: str = "fold",
 ) -> pd.DataFrame:
-    """Build per-game pick log from predictions DataFrame.
+    """Build per-prediction pick log from predictions DataFrame.
 
     Parameters
     ----------
@@ -95,8 +95,10 @@ def build_diagnostics_report(
     Returns
     -------
     pd.DataFrame
-        Columns: {fold_column}, brier_score, accuracy, ece, log_loss, n_games.
+        Columns: {fold_column}, brier_score, accuracy, ece, log_loss, n_samples.
     """
+    _META_KEYS = {"model", "fold_id"}
+
     rows = []
     for fold_id in sorted(fold_data.keys()):
         df = fold_data[fold_id]
@@ -112,14 +114,11 @@ def build_diagnostics_report(
         if ensemble_metrics is None:
             continue
 
-        rows.append({
-            fold_column: fold_id,
-            "brier_score": ensemble_metrics["brier_score"],
-            "accuracy": ensemble_metrics["accuracy"],
-            "ece": ensemble_metrics["ece"],
-            "log_loss": ensemble_metrics["log_loss"],
-            "n_games": len(df),
-        })
+        row = {fold_column: fold_id, "n_samples": len(df)}
+        for k, v in ensemble_metrics.items():
+            if k not in _META_KEYS:
+                row[k] = v
+        rows.append(row)
 
     return pd.DataFrame(rows)
 
@@ -164,21 +163,19 @@ def generate_markdown_report(
 
     # Top-Line Metrics
     sections.append("## Top-Line Metrics\n")
+    def _fmt(val: object, fmt: str = ".4f") -> str:
+        try:
+            return f"{val:{fmt}}"
+        except (TypeError, ValueError):
+            return str(val)
+
     if "ensemble" in pooled_metrics:
         m = pooled_metrics["ensemble"]
         sections.append("| Metric | Value |")
         sections.append("|--------|-------|")
-        def _fmt(val: object, fmt: str = ".4f") -> str:
-            try:
-                return f"{val:{fmt}}"
-            except (TypeError, ValueError):
-                return str(val)
-
-        sections.append(f"| Brier Score | {_fmt(m.get('brier_score', 'N/A'))} |")
-        sections.append(f"| Accuracy | {_fmt(m.get('accuracy', 'N/A'))} |")
-        sections.append(f"| ECE | {_fmt(m.get('ece', 'N/A'))} |")
-        sections.append(f"| Log Loss | {_fmt(m.get('log_loss', 'N/A'))} |")
-        sections.append(f"| N Samples | {m.get('n_samples', 'N/A')} |")
+        for key, val in m.items():
+            label = key.replace("_", " ").title()
+            sections.append(f"| {label} | {_fmt(val)} |")
     else:
         sections.append("No ensemble metrics available.")
     sections.append("")
@@ -186,22 +183,19 @@ def generate_markdown_report(
     # Per-Fold Breakdown
     if diagnostics_df is not None and len(diagnostics_df) > 0:
         sections.append("## Per-Fold Breakdown\n")
-        sections.append(
-            "| Fold | Brier | Accuracy | ECE | Log Loss | Games |"
-        )
-        sections.append(
-            "|------|-------|----------|-----|----------|-------|"
-        )
+        # Determine metric columns dynamically (exclude fold identifier and n_samples)
+        meta_cols = {fold_column, "fold", "n_samples"}
+        metric_cols = [c for c in diagnostics_df.columns if c not in meta_cols]
+        header_labels = ["Fold"] + [c.replace("_", " ").title() for c in metric_cols] + ["Games"]
+        sections.append("| " + " | ".join(header_labels) + " |")
+        sections.append("|" + "|".join(["------"] * len(header_labels)) + "|")
         for _, row in diagnostics_df.iterrows():
             fold_val = row.get(fold_column, row.get("fold", "?"))
-            sections.append(
-                f"| {int(fold_val)} "
-                f"| {row['brier_score']:.4f} "
-                f"| {row['accuracy']:.4f} "
-                f"| {row['ece']:.4f} "
-                f"| {row['log_loss']:.4f} "
-                f"| {int(row['n_games'])} |"
-            )
+            cells = [str(int(fold_val))]
+            for col in metric_cols:
+                cells.append(f"{row[col]:.4f}")
+            cells.append(str(int(row["n_samples"])))
+            sections.append("| " + " | ".join(cells) + " |")
         sections.append("")
 
     # Meta-Learner Coefficients

@@ -41,7 +41,7 @@ class TestDataPipelineRefresh:
                         "path": "data/raw/kenpom.csv",
                         "format": "csv",
                         "join_on": ["team_id", "season"],
-                        "temporal_safety": "pre_tournament",
+                        "temporal_safety": "pre_event",
                         "columns": {
                             "adj_oe": {"null_strategy": "zero"},
                             "adj_de": {"coerce_numeric": True},

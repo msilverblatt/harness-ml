@@ -493,7 +493,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200},
                 "active": True,
                 "provides": ["predicted_prob"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "consumer": {
@@ -530,7 +530,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200, "C": 2.0},
                 "active": True,
                 "provides": ["score"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": True,
             },
             "consumer": {
@@ -565,7 +565,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200},
                 "active": True,
                 "provides": ["base_score"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "mid": {
@@ -574,7 +574,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200},
                 "active": True,
                 "provides": ["mid_score"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "top": {
@@ -609,7 +609,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200, "C": 2.0},
                 "active": True,
                 "provides": ["predicted_prob"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "consumer": {
@@ -650,7 +650,7 @@ class TestProviderModelsBacktest:
                 "params": {"max_iter": 200},
                 "active": True,
                 "provides": ["score"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "consumer": {
@@ -943,7 +943,7 @@ class TestPredictionCacheIntegration:
                 "params": {"max_iter": 200},
                 "active": True,
                 "provides": ["score"],
-                "provides_level": "matchup",
+                "provides_level": "instance",
                 "include_in_ensemble": False,
             },
             "consumer": {

@@ -370,8 +370,8 @@ class TemporalOrderingGuardrail(Guardrail):
         )
 
     def _check(self, context: dict) -> None:
-        training_folds = context.get("training_folds", context.get("training_seasons", []))
-        test_fold = context.get("test_fold", context.get("test_season"))
+        training_folds = context.get("training_folds", [])
+        test_fold = context.get("test_fold")
         if test_fold is None or not training_folds:
             return
 

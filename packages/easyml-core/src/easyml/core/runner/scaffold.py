@@ -78,9 +78,9 @@ def _sources_yaml() -> dict:
                 "module": "features.my_features",
                 "function": "compute_features",
                 "category": "strength",
-                "temporal_safety": "pre_tournament",
+                "temporal_safety": "pre_event",
                 "outputs": ["feature_a", "feature_b"],
-                "leakage_notes": "Uses regular-season data only, safe for tournament prediction",
+                "leakage_notes": "Uses only pre-event data, safe for prediction",
             },
         },
         "guardrails": {
@@ -95,36 +95,36 @@ def _sources_yaml_comment() -> str:
 # Data Source Declarations — Temporal Safety & Leakage Tracking
 #
 # Every data source should declare its temporal_safety level:
-#   pre_tournament  — Uses only data available before the tournament
-#   post_tournament — Contains post-tournament outcomes (LEAKAGE if used for prediction)
-#   mixed           — Contains both pre and post data (needs careful filtering)
-#   unknown         — Not yet audited (treat as potential leakage)
+#   pre_event   — Uses only data available before the prediction target
+#   post_event  — Contains post-event outcomes (LEAKAGE if used for prediction)
+#   mixed       — Contains both pre and post data (needs careful filtering)
+#   unknown     — Not yet audited (treat as potential leakage)
 #
 # The guardrails.feature_leakage_denylist lists column names that should NEVER
-# be used as model features (e.g., end-of-season stats that include tournament results).
+# be used as model features (e.g., statistics that include target-period outcomes).
 #
 # Example leakage patterns to watch for:
-#   - Season-final statistics that include tournament game results
-#   - Aggregate career stats computed from future data
-#   - Rankings/ratings published after tournament selection
-#   - Features derived from the tournament bracket itself (seed-based features ARE safe)
+#   - Final statistics that include target-period outcomes
+#   - Aggregate stats computed from future data
+#   - Rankings/ratings published after the prediction cutoff
+#   - Features derived from outcome data
 
 sources:
   example_source:
     module: features.my_features
     function: compute_features
     category: strength
-    temporal_safety: pre_tournament
+    temporal_safety: pre_event
     outputs:
     - feature_a
     - feature_b
-    leakage_notes: Uses regular-season data only, safe for tournament prediction
+    leakage_notes: Uses only pre-event data, safe for prediction
 
 guardrails:
   feature_leakage_denylist: []
   # Add column names that must never be used as features, e.g.:
-  # - final_season_wins  (includes tournament games)
-  # - career_total_pake  (includes future tournament results)
+  # - final_period_wins  (includes target-period outcomes)
+  # - career_total_score (includes future outcomes)
 """
 
 

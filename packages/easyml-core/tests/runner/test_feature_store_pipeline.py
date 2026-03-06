@@ -107,7 +107,7 @@ class TestFeatureStorePipelineWiring:
                 "feature_defs": {
                     "adj_em": {
                         "name": "adj_em",
-                        "type": "team",
+                        "type": "entity",
                         "source": "kenpom",
                         "column": "adj_em",
                         "pairwise_mode": "diff",
@@ -181,7 +181,7 @@ class TestFeatureStorePipelineWiring:
                 "feature_defs": {
                     "existing_feat_renamed": {
                         "name": "existing_feat_renamed",
-                        "type": "matchup",
+                        "type": "instance",
                         "column": "existing_feat",
                     },
                 },

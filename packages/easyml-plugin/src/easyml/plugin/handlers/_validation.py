@@ -103,12 +103,12 @@ def _config_hints(action: str, **kwargs) -> list[str]:
                 "Adjust with `spline_n_bins` if you have fewer samples."
             )
     if action == "backtest":
-        seasons = kwargs.get("seasons")
+        fold_values = kwargs.get("fold_values")
         min_folds = kwargs.get("min_train_folds")
-        if seasons and min_folds and len(seasons) <= min_folds:
+        if fold_values and min_folds and len(fold_values) <= min_folds:
             hints.append(
-                "**Hint**: `min_train_folds` is >= number of seasons. "
-                "Early seasons will have no training data. Consider reducing it."
+                "**Hint**: `min_train_folds` is >= number of fold values. "
+                "Early folds will have no training data. Consider reducing it."
             )
     return hints
 

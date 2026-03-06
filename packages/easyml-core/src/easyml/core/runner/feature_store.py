@@ -1,21 +1,20 @@
-"""Declarative feature store with support for team, pairwise, matchup, and regime features.
+"""Declarative feature store with support for entity, pairwise, instance, and regime features.
 
 Manages the lifecycle of features from entity-level data sources through to
-matchup-level pairwise derivatives. Handles auto-pairwise generation (diff,
-ratio, both), formula evaluation, regime flag creation, and caching via
-the FeatureCache.
+pairwise derivatives. Handles auto-pairwise generation (diff, ratio, both),
+formula evaluation, regime flag creation, and caching via the FeatureCache.
 
 Feature types:
-- team: Per-entity per-period metric loaded from a source. Auto-generates
-  pairwise derivatives (diff, ratio) on the matchup DataFrame.
-- pairwise: Per-matchup feature computed from a formula against matchup data.
-- matchup: Per-game context property (column or formula from matchup data).
+- entity: Per-entity per-period metric loaded from a source. Auto-generates
+  pairwise derivatives (diff, ratio) on the instance DataFrame.
+- pairwise: Per-instance feature computed from a formula against instance data.
+- instance: Per-instance context property (column or formula).
 - regime: Temporal/contextual boolean flag (0/1) from a condition expression.
 
 Typical usage via the MCP tool layer or Project API::
 
     store = FeatureStore(project_dir, data_config)
-    result = store.add(FeatureDef(name="adj_em", type="team", source="kenpom"))
+    result = store.add(FeatureDef(name="adj_em", type="entity", source="kenpom"))
     df = store.resolve(["diff_adj_em", "ratio_adj_em"])
 """
 from __future__ import annotations
@@ -168,9 +167,9 @@ class FeatureStore:
         registers the feature definition, and returns a result summary.
         """
         handlers = {
-            FeatureType.TEAM: self._add_team_feature,
+            FeatureType.ENTITY: self._add_team_feature,
             FeatureType.PAIRWISE: self._add_pairwise_feature,
-            FeatureType.MATCHUP: self._add_matchup_feature,
+            FeatureType.INSTANCE: self._add_matchup_feature,
             FeatureType.REGIME: self._add_regime_feature,
         }
 
@@ -204,7 +203,7 @@ class FeatureStore:
         # Cache entity-level data
         cache_key = self._cache.compute_key(
             name=feature.name,
-            feature_type="team",
+            feature_type="entity",
             source=feature.source,
             column=entity_col,
         )
@@ -213,7 +212,7 @@ class FeatureStore:
             feature.name,
             cache_key,
             entity_series,
-            feature_type="team",
+            feature_type="entity",
             source=feature.source,
         )
 
@@ -476,7 +475,7 @@ class FeatureStore:
 
         cache_key = self._cache.compute_key(
             name=feature.name,
-            feature_type="matchup",
+            feature_type="instance",
             column=feature.column,
             formula=feature.formula,
         )
@@ -484,7 +483,7 @@ class FeatureStore:
             feature.name,
             cache_key,
             series,
-            feature_type="matchup",
+            feature_type="instance",
         )
 
         target = self.config.target_column
@@ -642,7 +641,7 @@ class FeatureStore:
             for name, feat in self._registry.items():
                 if feat.category != cat_name:
                     continue
-                if feat.type == FeatureType.TEAM:
+                if feat.type == FeatureType.ENTITY:
                     # Return derivatives instead of the team feature itself
                     entry = self._cache._entries.get(name)
                     if entry and entry.derivatives:

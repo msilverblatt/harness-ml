@@ -759,7 +759,7 @@ def add_feature(
         elif condition is not None:
             type = "regime"
         elif source is not None:
-            type = "team"
+            type = "entity"
         else:
             raise ValueError(
                 "Must provide type, formula, condition, or source."
@@ -791,7 +791,7 @@ def add_feature(
     if description:
         lines.append(f"_{description}_\n")
 
-    if feature_type == FeatureType.TEAM:
+    if feature_type == FeatureType.ENTITY:
         cache_entry = store._cache._entries.get(name)
         if cache_entry and cache_entry.derivatives:
             lines.append("**Auto-generated pairwise:**")
@@ -857,7 +857,7 @@ def add_features_batch(
             elif feat_condition is not None:
                 feat_type = "regime"
             elif feat_source is not None:
-                feat_type = "team"
+                feat_type = "entity"
             else:
                 feat_type = "pairwise"
 

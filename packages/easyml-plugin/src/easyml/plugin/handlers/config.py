@@ -40,13 +40,13 @@ def _handle_ensemble(*, method, temperature, exclude_models, calibration, pre_ca
     return cw.configure_ensemble(resolve_project_dir(project_dir), **kw)
 
 
-def _handle_backtest(*, cv_strategy, seasons, metrics, min_train_folds, project_dir, **_kwargs):
+def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
     return cw.configure_backtest(
         resolve_project_dir(project_dir),
         cv_strategy=cv_strategy,
-        seasons=seasons,
+        fold_values=fold_values,
         metrics=metrics,
         min_train_folds=min_train_folds,
     )
@@ -170,8 +170,8 @@ def _summarize_config(full_output: str) -> str:
     # Backtest
     bt = cfg.get("backtest", {})
     if bt:
-        seasons = bt.get("seasons", [])
-        lines.append(f"- **Backtest**: {len(seasons)} seasons, cv={bt.get('cv_strategy', '?')}")
+        fold_values = bt.get("fold_values", [])
+        lines.append(f"- **Backtest**: {len(fold_values)} folds, cv={bt.get('cv_strategy', '?')}")
 
     # Features count
     features = cfg.get("features", {})

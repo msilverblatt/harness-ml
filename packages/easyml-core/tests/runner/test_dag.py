@@ -258,7 +258,7 @@ class TestEndToEnd:
             "survival": _model(
                 features=["seed_num", "win_pct"],
                 provides=["surv_e8", "surv_f4"],
-                provides_level="team",
+                provides_level="entity",
                 include_in_ensemble=False,
             ),
             "xgb_trajectory": _model(

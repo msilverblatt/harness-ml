@@ -465,7 +465,6 @@ def run_backtest(ctx: click.Context, run_dir: str | None, json_output: bool) -> 
 
 @run.command("predict")
 @click.option("--fold-value", "fold_value", required=True, type=int, help="Target fold value to predict.")
-@click.option("--season", "fold_value", type=int, hidden=True, help="Deprecated alias for --fold-value.")
 @click.option("--run-id", default=None, help="Optional run identifier.")
 @click.pass_context
 def run_predict(ctx: click.Context, fold_value: int, run_id: str | None) -> None:

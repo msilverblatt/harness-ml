@@ -96,7 +96,7 @@ class TestFeatureDeclarations:
                 "module": "my_project.features.efficiency",
                 "function": "compute_adj_efficiency",
                 "category": "efficiency",
-                "level": "team",
+                "level": "entity",
                 "columns": ["adj_oe", "adj_de", "adj_net"],
                 "nan_strategy": "median",
             }
@@ -115,7 +115,7 @@ class TestFeatureDeclarations:
                 "module": "mod",
                 "function": "fn",
                 "category": "cat",
-                "level": "team",
+                "level": "entity",
                 "columns": ["col1"],
             }
         }
@@ -133,7 +133,7 @@ class TestSourceDeclarations:
                 "module": "my_project.sources.kenpom",
                 "function": "scrape_kenpom",
                 "category": "external",
-                "temporal_safety": "pre_tournament",
+                "temporal_safety": "pre_event",
                 "outputs": ["data/raw/kenpom/"],
                 "leakage_notes": "Uses pre-tournament snapshots only",
             }
@@ -141,7 +141,7 @@ class TestSourceDeclarations:
         cfg = ProjectConfig(**proj)
         assert "kenpom" in cfg.sources
         src = cfg.sources["kenpom"]
-        assert src.temporal_safety == "pre_tournament"
+        assert src.temporal_safety == "pre_event"
         assert src.leakage_notes == "Uses pre-tournament snapshots only"
 
 
@@ -277,7 +277,7 @@ class TestFullConfig:
                 "module": "m",
                 "function": "f",
                 "category": "c",
-                "level": "team",
+                "level": "entity",
                 "columns": ["x"],
             }
         }
@@ -286,7 +286,7 @@ class TestFullConfig:
                 "module": "m",
                 "function": "f",
                 "category": "external",
-                "temporal_safety": "pre_tournament",
+                "temporal_safety": "pre_event",
                 "outputs": ["data/"],
             }
         }
@@ -328,15 +328,6 @@ class TestModelDefExtensions:
             train_folds="last_5",
         )
         assert m.train_folds == "last_5"
-
-    def test_backward_compat_train_seasons(self):
-        """Old 'train_seasons' key still works and maps to train_folds."""
-        m = ModelDef(
-            type="xgboost",
-            features=["diff_prior"],
-            train_seasons="last_3",
-        )
-        assert m.train_folds == "last_3"
 
     def test_cdf_scale(self):
         m = ModelDef(
@@ -448,11 +439,6 @@ class TestFeaturesConfig:
         assert fc.first_period == 2010
         assert fc.momentum_window == 5
 
-    def test_backward_compat_first_season(self):
-        """Old 'first_season' key still works and maps to first_period."""
-        fc = FeaturesConfig(first_season=2008)
-        assert fc.first_period == 2008
-
 
 class TestDataConfigExtensions:
     """DataConfig ML problem definition fields."""
@@ -491,13 +477,13 @@ class TestDataConfigExtensions:
         assert d.exclude_columns == []
         assert d.outputs_dir is None
 
-    def test_team_features_path_default(self):
+    def test_entity_features_path_default(self):
         d = DataConfig()
-        assert d.team_features_path is None
+        assert d.entity_features_path is None
 
-    def test_team_features_path_set(self):
-        d = DataConfig(team_features_path="data/features/team_features.parquet")
-        assert d.team_features_path == "data/features/team_features.parquet"
+    def test_entity_features_path_set(self):
+        d = DataConfig(entity_features_path="data/features/team_features.parquet")
+        assert d.entity_features_path == "data/features/team_features.parquet"
 
 
 class TestProjectConfigFeatureConfig:
@@ -652,22 +638,6 @@ class TestBacktestConfigExtensions:
         assert bt.n_folds is None
         assert bt.purge_gap == 1
 
-    def test_backward_compat_seasons(self):
-        """Old 'seasons' key still works and maps to fold_values."""
-        bt = BacktestConfig(
-            cv_strategy="leave_one_out",
-            seasons=[2022, 2023],
-        )
-        assert bt.fold_values == [2022, 2023]
-
-    def test_backward_compat_leave_one_season_out(self):
-        """Old 'leave_one_season_out' cv_strategy still works and maps to leave_one_out."""
-        bt = BacktestConfig(
-            cv_strategy="leave_one_season_out",
-            fold_values=[2023, 2024],
-        )
-        assert bt.cv_strategy == "leave_one_out"
-
 
 class TestColumnCleaningRule:
     """ColumnCleaningRule schema and defaults."""
@@ -725,7 +695,7 @@ class TestSourceConfig:
                 "adj_oe": ColumnCleaningRule(null_strategy="zero"),
                 "adj_de": ColumnCleaningRule(coerce_numeric=True),
             },
-            temporal_safety="pre_tournament",
+            temporal_safety="pre_event",
         )
         assert src.columns["adj_oe"].null_strategy == "zero"
         assert src.columns["adj_de"].coerce_numeric is True
@@ -748,7 +718,7 @@ class TestDataConfigSources:
                 "kenpom": SourceConfig(
                     name="kenpom",
                     path="data/raw/kenpom.csv",
-                    temporal_safety="pre_tournament",
+                    temporal_safety="pre_event",
                 ),
             },
             default_cleaning=ColumnCleaningRule(null_strategy="zero"),
@@ -772,9 +742,9 @@ class TestDeclarativeFeatureSchemas:
 
     def test_feature_type_enum(self):
         from easyml.core.runner.schema import FeatureType
-        assert FeatureType.TEAM == "team"
+        assert FeatureType.ENTITY == "entity"
         assert FeatureType.PAIRWISE == "pairwise"
-        assert FeatureType.MATCHUP == "matchup"
+        assert FeatureType.INSTANCE == "instance"
         assert FeatureType.REGIME == "regime"
 
     def test_pairwise_mode_enum(self):
@@ -786,16 +756,16 @@ class TestDeclarativeFeatureSchemas:
 
     def test_feature_def_minimal(self):
         from easyml.core.runner.schema import FeatureDef, FeatureType
-        fd = FeatureDef(name="adj_em", type=FeatureType.TEAM)
+        fd = FeatureDef(name="adj_em", type=FeatureType.ENTITY)
         assert fd.name == "adj_em"
-        assert fd.type == FeatureType.TEAM
+        assert fd.type == FeatureType.ENTITY
         assert fd.pairwise_mode.value == "diff"
         assert fd.enabled is True
 
     def test_feature_def_full(self):
         from easyml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
         fd = FeatureDef(
-            name="adj_em", type=FeatureType.TEAM,
+            name="adj_em", type=FeatureType.ENTITY,
             source="kenpom", column="AdjEM",
             pairwise_mode=PairwiseMode.BOTH,
             category="efficiency",
@@ -831,7 +801,7 @@ class TestDeclarativeFeatureSchemas:
         from easyml.core.runner.schema import DataConfig, FeatureDef, FeatureType
         dc = DataConfig(
             feature_defs={
-                "adj_em": FeatureDef(name="adj_em", type=FeatureType.TEAM, source="kenpom", column="AdjEM"),
+                "adj_em": FeatureDef(name="adj_em", type=FeatureType.ENTITY, source="kenpom", column="AdjEM"),
             }
         )
         assert "adj_em" in dc.feature_defs

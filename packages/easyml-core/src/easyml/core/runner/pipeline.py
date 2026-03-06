@@ -54,38 +54,38 @@ class ProviderContext:
     """
 
     # {provider_name: {col_name: {"train": array, "test": array}}}
-    matchup: dict[str, dict[str, dict[str, np.ndarray]]] = field(
+    instance: dict[str, dict[str, dict[str, np.ndarray]]] = field(
         default_factory=dict
     )
 
-    # {provider_name: DataFrame with team rows}
-    team: dict[str, pd.DataFrame] = field(default_factory=dict)
+    # {provider_name: DataFrame with entity rows}
+    entity: dict[str, pd.DataFrame] = field(default_factory=dict)
 
     # Configurable fold column name (defaults to "fold")
     fold_column: str = "fold"
 
-    def store_matchup(
+    def store_instance(
         self,
         model_name: str,
         provides: list[str],
         train_values: np.ndarray,
         test_values: np.ndarray,
     ) -> None:
-        """Store matchup-level provider predictions for both splits."""
-        self.matchup[model_name] = {}
+        """Store instance-level provider predictions for both splits."""
+        self.instance[model_name] = {}
         for col in provides:
-            self.matchup[model_name][col] = {
+            self.instance[model_name][col] = {
                 "train": train_values,
                 "test": test_values,
             }
 
-    def store_team(
+    def store_entity(
         self,
         model_name: str,
-        team_df: pd.DataFrame,
+        entity_df: pd.DataFrame,
     ) -> None:
-        """Store team-level provider predictions (team rows)."""
-        self.team[model_name] = team_df
+        """Store entity-level provider predictions (entity rows)."""
+        self.entity[model_name] = entity_df
 
     def inject(
         self,
@@ -120,74 +120,74 @@ class ProviderContext:
         for dep_name in sorted(deps):
             dep_def = models[dep_name]
 
-            if dep_def.provides_level == "team" and dep_name in self.team:
-                df = self._inject_team(df, dep_name, dep_def)
-            elif dep_name in self.matchup:
+            if dep_def.provides_level == "entity" and dep_name in self.entity:
+                df = self._inject_entity(df, dep_name, dep_def)
+            elif dep_name in self.instance:
                 for col in dep_def.provides:
-                    if col in self.matchup[dep_name]:
-                        values = self.matchup[dep_name][col][split]
-                        # Matchup-level: value IS the diff already
+                    if col in self.instance[dep_name]:
+                        values = self.instance[dep_name][col][split]
+                        # Instance-level: value IS the diff already
                         df[col] = values
                         df[f"diff_{col}"] = values
 
         return df
 
-    def _inject_team(
+    def _inject_entity(
         self,
         df: pd.DataFrame,
         provider_name: str,
         provider_def: ModelDef,
     ) -> pd.DataFrame:
-        """Inject team-level features via TeamA/TeamB lookup + differencing."""
-        team_df = self.team[provider_name]
+        """Inject entity-level features via entity_a/entity_b lookup + differencing."""
+        entity_df = self.entity[provider_name]
 
-        # Detect team ID column name
-        team_id_col = next(
-            (c for c in ("team_id", "TeamID") if c in team_df.columns),
+        # Detect entity ID column name
+        entity_id_col = next(
+            (c for c in ("entity_id", "entity_a_id") if c in entity_df.columns),
             None,
         )
-        # Use configured fold column for the team DataFrame
+        # Use configured fold column for the entity DataFrame
         fold_col = next(
-            (c for c in (self.fold_column,) if c in team_df.columns),
+            (c for c in (self.fold_column,) if c in entity_df.columns),
             None,
         )
-        if not team_id_col or not fold_col:
+        if not entity_id_col or not fold_col:
             logger.warning(
-                "Team provider %s output missing team_id or %s columns, "
+                "Entity provider %s output missing entity_id or %s columns, "
                 "skipping injection",
                 provider_name,
                 self.fold_column,
             )
             return df
 
-        # Detect matchup team columns via hook system
+        # Detect pairwise entity columns via hook system
         a_candidates, b_candidates = get_entity_column_candidates()
-        team_a_col = next(
+        entity_a_col = next(
             (c for c in a_candidates if c in df.columns), None
         )
-        team_b_col = next(
+        entity_b_col = next(
             (c for c in b_candidates if c in df.columns), None
         )
         df_fold_col = self.fold_column
 
-        if not team_a_col or not team_b_col:
+        if not entity_a_col or not entity_b_col:
             logger.warning(
-                "Cannot inject team-level features: missing team columns"
+                "Cannot inject entity-level features: missing entity columns"
             )
             return df
 
         for col in provider_def.provides:
-            if col not in team_df.columns:
+            if col not in entity_df.columns:
                 continue
 
-            lookup = team_df.set_index([team_id_col, fold_col])[col].to_dict()
+            lookup = entity_df.set_index([entity_id_col, fold_col])[col].to_dict()
 
             a_vals = [
-                lookup.get((row[team_a_col], row[df_fold_col]), 0.0)
+                lookup.get((row[entity_a_col], row[df_fold_col]), 0.0)
                 for _, row in df.iterrows()
             ]
             b_vals = [
-                lookup.get((row[team_b_col], row[df_fold_col]), 0.0)
+                lookup.get((row[entity_b_col], row[df_fold_col]), 0.0)
                 for _, row in df.iterrows()
             ]
 
@@ -232,7 +232,7 @@ class PipelineRunner:
         self.config: ProjectConfig | None = config
         self._registry: ModelRegistry | None = None
         self._df: pd.DataFrame | None = None
-        self._team_df: pd.DataFrame | None = None
+        self._entity_df: pd.DataFrame | None = None
         self._guards: PipelineGuards | None = None
         self._pred_cache = prediction_cache
         self._cache_stats: dict[str, int] = {"hits": 0, "misses": 0}
@@ -296,7 +296,7 @@ class PipelineRunner:
         Uses get_features_df() which resolves views if configured,
         otherwise falls back to the features parquet file.
 
-        Also loads team features if any model has
+        Also loads entity features if any model has
         ``provides_level="team"``.
         """
         from easyml.core.runner.data_utils import get_features_df
@@ -310,7 +310,7 @@ class PipelineRunner:
 
             store = FeatureStore(self.project_dir, self.config.data)
 
-            # Pre-compute all registered features.  For team features this
+            # Pre-compute all registered features.  For entity features this
             # triggers pairwise derivative generation (diff_*, ratio_*) and
             # registers the derivatives in the store's internal registry.
             store.compute_all()
@@ -332,22 +332,22 @@ class PipelineRunner:
                     if col not in self._df.columns:
                         self._df[col] = feature_df[col].values
 
-        # Load team features if any model has provides_level="team"
-        has_team_providers = any(
-            m.provides and m.provides_level == "team"
+        # Load entity features if any model has provides_level="entity"
+        has_entity_providers = any(
+            m.provides and m.provides_level == "entity"
             for m in self.config.models.values()
         )
-        if has_team_providers and self.config.data.team_features_path:
-            team_path = Path(self.config.data.team_features_path)
-            if not team_path.is_absolute():
-                team_path = self.project_dir / team_path
-            if team_path.exists():
-                self._team_df = pd.read_parquet(team_path)
-                logger.info("Loaded team features: %s", team_path)
+        if has_entity_providers and self.config.data.entity_features_path:
+            entity_path = Path(self.config.data.entity_features_path)
+            if not entity_path.is_absolute():
+                entity_path = self.project_dir / entity_path
+            if entity_path.exists():
+                self._entity_df = pd.read_parquet(entity_path)
+                logger.info("Loaded entity features: %s", entity_path)
             else:
                 logger.warning(
-                    "Team features path configured but not found: %s",
-                    team_path,
+                    "Entity features path configured but not found: %s",
+                    entity_path,
                 )
 
         # Create diff_prior alias from prior_feature config
@@ -390,8 +390,7 @@ class PipelineRunner:
 
         for inj_name, inj_def in self.config.injections.items():
             path_pattern = inj_def.path_pattern or ""
-            if "{fold_value}" in path_pattern or "{season}" in path_pattern:
-                # Per-fold injection (supports {fold_value} and {season} for backward compat)
+            if "{fold_value}" in path_pattern:
                 for fold_val in self._df[fold_col].unique():
                     mask = self._df[fold_col] == fold_val
                     fold_df = self._df[mask].copy()
@@ -490,7 +489,7 @@ class PipelineRunner:
 
                     # If this model provides features, predict on full
                     # data and store for downstream consumers
-                    if model_def.provides and model_def.provides_level == "matchup":
+                    if model_def.provides and model_def.provides_level == "instance":
                         train_preds = predict_single_model(
                             model=model,
                             model_def=model_def,
@@ -498,7 +497,7 @@ class PipelineRunner:
                             feature_columns=feature_cols,
                             cdf_scale=metrics.get("cdf_scale"),
                         )
-                        context.store_matchup(
+                        context.store_instance(
                             model_name, model_def.provides,
                             train_preds, train_preds,
                         )
@@ -522,7 +521,7 @@ class PipelineRunner:
         """Generate predictions for a target fold.
 
         1. Load trained models from models_dir (or train fresh)
-        2. Build all pairwise matchups from team features + seeds
+        2. Build all pairwise instances from entity features
         3. Predict each matchup with each model
         4. Train production meta-learner on backtest predictions
         5. Apply ensemble post-processing
@@ -628,7 +627,7 @@ class PipelineRunner:
                     )
 
                     # Store provider outputs for downstream consumers
-                    if model_def.provides and model_def.provides_level == "matchup":
+                    if model_def.provides and model_def.provides_level == "instance":
                         train_preds = predict_single_model(
                             model=model,
                             model_def=model_def,
@@ -636,7 +635,7 @@ class PipelineRunner:
                             feature_columns=feature_cols,
                             cdf_scale=cdf_scale,
                         )
-                        context.store_matchup(
+                        context.store_instance(
                             model_name, model_def.provides,
                             train_preds, probs,
                         )
@@ -1101,7 +1100,7 @@ class PipelineRunner:
                     # If this model provides features, predict on train
                     # data too and store outputs for downstream consumers
                     if model_def.provides:
-                        if model_def.provides_level == "matchup":
+                        if model_def.provides_level == "instance":
                             train_preds = predict_single_model(
                                 model=model,
                                 model_def=model_def,
@@ -1109,18 +1108,18 @@ class PipelineRunner:
                                 feature_columns=feature_cols,
                                 cdf_scale=cdf_scale,
                             )
-                            context.store_matchup(
+                            context.store_instance(
                                 model_name,
                                 model_def.provides,
                                 train_preds,
                                 probs,
                             )
-                        elif model_def.provides_level == "team":
-                            # Team-level providers need special handling
-                            # with team_df and per-team predictions
+                        elif model_def.provides_level == "entity":
+                            # Entity-level providers need special handling
+                            # with entity_df and per-entity predictions
                             logger.info(
-                                "Team-level provider %s — team feature "
-                                "injection requires team_df",
+                                "Entity-level provider %s — entity feature "
+                                "injection requires entity_df",
                                 model_name,
                             )
 

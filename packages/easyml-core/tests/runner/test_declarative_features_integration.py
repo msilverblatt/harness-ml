@@ -138,7 +138,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="efficiency",
             )
@@ -146,7 +146,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_tempo",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="pace",
             )
@@ -182,7 +182,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="efficiency",
             )
@@ -190,7 +190,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_tempo",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="pace",
             )
@@ -233,7 +233,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="neutral_site",
-                type=FeatureType.MATCHUP,
+                type=FeatureType.INSTANCE,
                 column="is_neutral",
             )
         )
@@ -278,7 +278,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
             )
         )
@@ -294,7 +294,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="neutral",
-                type=FeatureType.MATCHUP,
+                type=FeatureType.INSTANCE,
                 column="is_neutral",
             )
         )
@@ -327,7 +327,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 pairwise_mode=PairwiseMode.BOTH,
             )
@@ -351,7 +351,7 @@ class TestFullWorkflow:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 pairwise_mode=PairwiseMode.NONE,
             )
@@ -384,7 +384,7 @@ class TestCaching:
         store1.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
             )
         )
@@ -412,7 +412,7 @@ class TestCaching:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
             )
         )
@@ -447,7 +447,7 @@ class TestRemoval:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 pairwise_mode=PairwiseMode.BOTH,
             )
@@ -481,7 +481,7 @@ class TestRemoval:
         store.add(
             FeatureDef(
                 name="neutral_site",
-                type=FeatureType.MATCHUP,
+                type=FeatureType.INSTANCE,
                 column="is_neutral",
             )
         )
@@ -513,7 +513,7 @@ class TestResolveSets:
         store.add(
             FeatureDef(
                 name="adj_em",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="efficiency",
             )
@@ -521,7 +521,7 @@ class TestResolveSets:
         store.add(
             FeatureDef(
                 name="adj_oe",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="efficiency",
             )
@@ -529,7 +529,7 @@ class TestResolveSets:
         store.add(
             FeatureDef(
                 name="adj_tempo",
-                type=FeatureType.TEAM,
+                type=FeatureType.ENTITY,
                 source="team_stats",
                 category="pace",
             )
@@ -579,7 +579,7 @@ class TestMCPToolIntegration:
         result = add_feature(
             project_dir,
             "adj_em",
-            type="team",
+            type="entity",
             source="team_stats",
             category="efficiency",
         )
