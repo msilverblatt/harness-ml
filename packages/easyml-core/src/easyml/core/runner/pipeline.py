@@ -479,6 +479,7 @@ class PipelineRunner:
                         model_def=model_def,
                         train_df=model_train_df,
                         registry=self._registry,
+                        target_column=self.config.data.target_column,
                     )
 
                     # Compute fingerprint including upstream dependencies
@@ -623,6 +624,7 @@ class PipelineRunner:
                         registry=self._registry,
                         target_fold=fold_value,
                         fold_column=fold_col,
+                        target_column=self.config.data.target_column,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -819,9 +821,20 @@ class PipelineRunner:
 
         # Pass 1: per-fold OOF predictions
         fold_data: dict[int, pd.DataFrame] = {}
+        n_models = len(active_models)
         for fold_idx, (train_folds, test_fold) in enumerate(cv_folds):
+            # Per-model progress within each fold
+            def _model_progress(model_idx: int, model_name: str, fold_i: int = fold_idx, tf: int = test_fold):
+                if on_progress:
+                    on_progress(
+                        fold_i,
+                        n_folds,
+                        f"Fold {fold_i + 1}/{n_folds} (fold {tf}) — training {model_name} ({model_idx + 1}/{n_models})",
+                    )
+
             preds_df = self._generate_predictions_for_fold(
-                train_folds, test_fold, active_models
+                train_folds, test_fold, active_models,
+                on_model_progress=_model_progress,
             )
             if preds_df is not None and len(preds_df) > 0:
                 fold_data[test_fold] = preds_df
@@ -830,7 +843,7 @@ class PipelineRunner:
                 on_progress(
                     fold_idx + 1,
                     n_folds,
-                    f"Fold {fold_idx + 1}/{n_folds} (fold {test_fold})",
+                    f"Fold {fold_idx + 1}/{n_folds} complete (fold {test_fold})",
                 )
 
         if not fold_data:
@@ -974,6 +987,7 @@ class PipelineRunner:
         train_folds: list[int],
         test_fold: int,
         active_models: dict[str, ModelDef],
+        on_model_progress=None,
     ) -> pd.DataFrame | None:
         """Train on specified folds, predict test_fold.
 
@@ -1044,8 +1058,12 @@ class PipelineRunner:
         model_fingerprints: dict[str, str] = {}
 
         # Train and predict in wave order (providers before consumers)
+        model_idx = 0
         for wave in waves:
             for model_name in wave:
+                if on_model_progress is not None:
+                    on_model_progress(model_idx, model_name)
+                model_idx += 1
                 model_def = resolved_models[model_name]
                 model_deps = deps.get(model_name, set())
 
@@ -1092,6 +1110,7 @@ class PipelineRunner:
                         train_df=model_train_df,
                         registry=self._registry,
                         fold_column=fold_col,
+                        target_column=self.config.data.target_column,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")

@@ -26,6 +26,7 @@ def train_single_model(
     target_fold: int | None = None,
     fold_column: str | None = None,
     augment_symmetry: bool = False,
+    target_column: str = "result",
 ) -> tuple[Any, list[str], dict[str, Any]]:
     """Train a single model from its ModelDef.
 
@@ -52,6 +53,8 @@ def train_single_model(
         Required when target_fold is set or train_folds != 'all'.
     augment_symmetry : bool
         If True, double data by negating diff_* features and flipping labels.
+    target_column : str
+        Name of the target column for classifiers (default: 'result').
 
     Returns
     -------
@@ -71,6 +74,11 @@ def train_single_model(
 
     # Get feature columns that exist in the data
     feature_cols = [f for f in model_def.features if f in df.columns]
+
+    # Auto-exclude fold column from features
+    if fold_column:
+        feature_cols = [f for f in feature_cols if f != fold_column]
+
     if not feature_cols:
         raise ValueError(
             f"No features found in data for model {model_name}. "
@@ -108,7 +116,7 @@ def train_single_model(
             y_val = (
                 val_df["margin"].values.astype(np.float64)
                 if is_regressor
-                else val_df["result"].values.astype(np.float64)
+                else val_df[target_column].values.astype(np.float64)
             )
             fit_kwargs["eval_set"] = [(X_val, y_val)]
 
@@ -121,7 +129,7 @@ def train_single_model(
             )
         y = df["margin"].values.astype(np.float64)
     else:
-        y = df["result"].values.astype(np.float64)
+        y = df[target_column].values.astype(np.float64)
 
     # Augment symmetry if requested
     if augment_symmetry:
@@ -403,14 +411,24 @@ def _create_model(
 
     The registry.create() method inspects each model's constructor and
     forwards only the kwargs it accepts (mode, cdf_scale, n_seeds, etc.).
+    Params from model_def.params that match constructor kwargs (e.g.
+    normalize, batch_norm, weight_decay for MLP/TabNet) are forwarded
+    as keyword arguments rather than staying in the params dict.
     """
     is_regressor = _is_regressor(model_def)
     mode = "regressor" if is_regressor else model_def.mode
-    n_seeds = model_def.n_seeds
+    # Build kwargs from params first, then overlay model_def-level fields.
+    # This lets params like n_seeds, normalize, etc. flow through to
+    # model constructors that accept them as explicit keyword arguments.
+    extra_kwargs: dict[str, Any] = {}
+    extra_kwargs.update(params)
+    extra_kwargs["mode"] = mode
+    extra_kwargs["cdf_scale"] = cdf_scale
+    # Only set n_seeds from model_def if not already in params
+    if "n_seeds" not in extra_kwargs:
+        extra_kwargs["n_seeds"] = model_def.n_seeds
     return registry.create(
         model_type,
         params=params,
-        mode=mode,
-        cdf_scale=cdf_scale,
-        n_seeds=n_seeds,
+        **extra_kwargs,
     )

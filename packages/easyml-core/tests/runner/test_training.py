@@ -435,3 +435,71 @@ class TestGenericModelCreation:
         )
         assert np.all(probs > 0)
         assert np.all(probs < 1)
+
+
+# -----------------------------------------------------------------------
+# Tests: target_column and fold column exclusion
+# -----------------------------------------------------------------------
+
+class TestTargetColumn:
+    """Test custom target_column support."""
+
+    def test_train_single_model_custom_target_column(self):
+        """train_single_model should use target_column param instead of hardcoded 'result'."""
+        df = pd.DataFrame({
+            "feat_a": np.random.randn(100),
+            "feat_b": np.random.randn(100),
+            "outcome": np.random.randint(0, 2, 100),
+            "fold": [1]*50 + [2]*50,
+        })
+
+        model_def = ModelDef(
+            name="test_lr",
+            type="logistic_regression",
+            features=["feat_a", "feat_b"],
+            mode="classifier",
+        )
+
+        registry = ModelRegistry.with_defaults()
+
+        # Should work with target_column="outcome" even though no "result" column exists
+        model, features, metrics = train_single_model(
+            model_name="test_lr",
+            model_def=model_def,
+            train_df=df,
+            registry=registry,
+            target_column="outcome",
+        )
+        assert model is not None
+        assert features == ["feat_a", "feat_b"]
+
+
+class TestFoldColumnExclusion:
+    """Test auto-exclusion of fold column from features."""
+
+    def test_train_excludes_fold_column_from_features(self):
+        """If fold_column is in the model's feature list, it should be silently excluded."""
+        df = pd.DataFrame({
+            "feat_a": np.random.randn(100),
+            "fold": [1]*50 + [2]*50,
+            "result": np.random.randint(0, 2, 100),
+        })
+
+        model_def = ModelDef(
+            name="test_lr",
+            type="logistic_regression",
+            features=["feat_a", "fold"],
+            mode="classifier",
+        )
+
+        registry = ModelRegistry.with_defaults()
+
+        model, feature_cols, metrics = train_single_model(
+            model_name="test_lr",
+            model_def=model_def,
+            train_df=df,
+            registry=registry,
+            fold_column="fold",
+        )
+        assert "fold" not in feature_cols
+        assert "feat_a" in feature_cols
