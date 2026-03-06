@@ -806,3 +806,30 @@ class TestDeclarativeFeatureSchemas:
         )
         assert "adj_em" in dc.feature_defs
         assert dc.feature_store.auto_pairwise is True
+
+
+class TestCvStrategyAliases:
+    """Test cv_strategy alias resolution in BacktestConfig."""
+
+    def test_loso_alias(self):
+        assert BacktestConfig(cv_strategy="loso").cv_strategy == "leave_one_out"
+
+    def test_loo_alias(self):
+        assert BacktestConfig(cv_strategy="loo").cv_strategy == "leave_one_out"
+
+    def test_expanding_alias(self):
+        assert BacktestConfig(cv_strategy="expanding").cv_strategy == "expanding_window"
+
+    def test_sliding_alias(self):
+        assert BacktestConfig(cv_strategy="sliding").cv_strategy == "sliding_window"
+
+    def test_purged_alias(self):
+        assert BacktestConfig(cv_strategy="purged").cv_strategy == "purged_kfold"
+
+    def test_canonical_names_still_work(self):
+        for name in ("leave_one_out", "expanding_window", "sliding_window", "purged_kfold"):
+            assert BacktestConfig(cv_strategy=name).cv_strategy == name
+
+    def test_invalid_strategy_rejected(self):
+        with pytest.raises(ValidationError, match="Invalid cv_strategy"):
+            BacktestConfig(cv_strategy="bogus")

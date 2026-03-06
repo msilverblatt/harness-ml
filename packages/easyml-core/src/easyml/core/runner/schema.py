@@ -552,6 +552,14 @@ class EnsembleDef(BaseModel):
 
 _CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold"}
 
+_CV_STRATEGY_ALIASES = {
+    "loso": "leave_one_out",
+    "loo": "leave_one_out",
+    "expanding": "expanding_window",
+    "sliding": "sliding_window",
+    "purged": "purged_kfold",
+}
+
 
 class BacktestConfig(BaseModel):
     """Backtest configuration."""
@@ -568,10 +576,12 @@ class BacktestConfig(BaseModel):
     @field_validator("cv_strategy")
     @classmethod
     def _validate_cv_strategy(cls, v: str) -> str:
+        v = _CV_STRATEGY_ALIASES.get(v, v)
         if v not in _CV_STRATEGIES:
             raise ValueError(
                 f"Invalid cv_strategy {v!r}. "
-                f"Must be one of: {sorted(_CV_STRATEGIES)}"
+                f"Must be one of: {sorted(_CV_STRATEGIES)} "
+                f"(aliases: {sorted(_CV_STRATEGY_ALIASES.keys())})"
             )
         return v
 
