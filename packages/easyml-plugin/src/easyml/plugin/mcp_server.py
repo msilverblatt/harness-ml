@@ -512,7 +512,81 @@ async def configure(
 
 
 # -----------------------------------------------------------------------
-# 6. pipeline
+# 6. manage_competitions
+# -----------------------------------------------------------------------
+
+
+@mcp.tool()
+@_safe_tool
+async def manage_competitions(
+    action: str,
+    ctx: Context,
+    config: str | None = None,
+    name: str | None = None,
+    n_sims: int | None = None,
+    seed: int | None = None,
+    pool_size: int | None = None,
+    n_brackets: int | None = None,
+    picks: str | None = None,
+    actuals: str | None = None,
+    adjustments: str | None = None,
+    format_type: str | None = None,
+    output_dir: str | None = None,
+    top_n: int | None = None,
+    project_dir: str | None = None,
+) -> str:
+    """Manage competition simulations, brackets, and scoring.
+
+    Actions:
+      - "create": Create a competition from config. Requires config (JSON
+        with format, n_participants, seeding, scoring, rounds, etc.).
+        Optional: name (defaults to "default").
+      - "list_formats": Show available competition formats (single_elimination,
+        double_elimination, round_robin, swiss, group_knockout).
+      - "simulate": Run Monte Carlo simulations. Requires name.
+        Optional: n_sims (default 10000), seed (default 42).
+      - "standings": Get standings distributions from simulation.
+        Optional: name, top_n.
+      - "round_probs": Entity progression probabilities per round.
+        Optional: name, top_n.
+      - "generate_brackets": Generate pool-aware brackets. Requires pool_size.
+        Optional: name, n_brackets, n_sims, seed.
+      - "score_bracket": Score picks vs actuals. Requires picks (JSON),
+        actuals (JSON). Optional: name.
+      - "adjust": Apply probability adjustments. Requires adjustments (JSON
+        with entity_multipliers, probability_overrides, external_weight).
+        Optional: name.
+      - "explain": Generate pick explanations for generated brackets.
+        Optional: name.
+      - "profiles": Entity profiles sorted by champion probability.
+        Optional: name, top_n.
+      - "confidence": Pre-competition diagnostics (model disagreement).
+        Optional: name.
+      - "export": Export results. Requires output_dir.
+        Optional: name, format_type (json/markdown/csv).
+      - "list_strategies": Show available bracket generation strategies.
+    """
+    return _load_handler("competitions").dispatch(
+        action,
+        ctx=ctx,
+        config=config,
+        name=name,
+        n_sims=n_sims,
+        seed=seed,
+        pool_size=pool_size,
+        n_brackets=n_brackets,
+        picks=picks,
+        actuals=actuals,
+        adjustments=adjustments,
+        format_type=format_type,
+        output_dir=output_dir,
+        top_n=top_n,
+        project_dir=project_dir,
+    )
+
+
+# -----------------------------------------------------------------------
+# 7. pipeline
 # -----------------------------------------------------------------------
 
 

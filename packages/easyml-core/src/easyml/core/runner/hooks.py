@@ -50,6 +50,7 @@ POST_PREDICTION = "post_prediction"
 FEATURE_TYPE = "feature_type"
 COLUMN_CANDIDATES = "column_candidates"
 COLUMN_RENAMES = "column_renames"
+COMPETITION_NARRATIVE = "competition_narrative"
 
 # Default column candidates for entity identification (domain-agnostic)
 _DEFAULT_A_CANDIDATES = ["entity_a", "group_a"]

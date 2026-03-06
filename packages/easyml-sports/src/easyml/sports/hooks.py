@@ -4,6 +4,7 @@ from __future__ import annotations
 from easyml.core.runner.hooks import (
     COLUMN_CANDIDATES,
     COLUMN_RENAMES,
+    COMPETITION_NARRATIVE,
     HookRegistry,
 )
 
@@ -18,6 +19,12 @@ def register() -> None:
     """
     HookRegistry.register(COLUMN_CANDIDATES, _sports_column_candidates)
     HookRegistry.register(COLUMN_RENAMES, _sports_column_renames)
+    HookRegistry.register(COMPETITION_NARRATIVE, _default_competition_narrative)
+
+
+def _default_competition_narrative(*args, **kwargs) -> None:
+    """Default competition narrative hook. Domain plugins override with real narratives."""
+    return None
 
 
 def _sports_column_candidates() -> dict[str, list[str]]:
