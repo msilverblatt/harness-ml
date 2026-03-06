@@ -780,6 +780,29 @@ class TestConfigureDenylist:
         assert data["guardrails"]["feature_leakage_denylist"].count("leaked_col") == 1
 
 
+def test_discover_features_on_progress(tmp_path):
+    """on_progress callback is invoked with correlation and importance messages."""
+    from easyml.core.runner.config_writer import discover_features
+
+    project = _setup_project(tmp_path)
+    # Add target_column to pipeline so discovery can compute correlations/importance
+    pipeline_path = project / "config" / "pipeline.yaml"
+    pipeline = yaml.safe_load(pipeline_path.read_text())
+    pipeline["data"]["target_column"] = "result"
+    pipeline_path.write_text(yaml.dump(pipeline, default_flow_style=False))
+
+    messages = []
+
+    def progress_cb(step, total, msg):
+        messages.append(msg)
+
+    discover_features(project, on_progress=progress_cb)
+
+    assert len(messages) >= 3
+    assert any("correlation" in m.lower() for m in messages)
+    assert any("importance" in m.lower() for m in messages)
+
+
 def test_discover_features_respects_denylist(tmp_path):
     """Columns in the denylist should not appear in feature discovery results."""
     from easyml.core.runner.config_writer import discover_features

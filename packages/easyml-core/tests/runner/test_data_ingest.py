@@ -812,6 +812,51 @@ class TestDeriveColumn:
             derive_column(tmp_path, "bad", "nonexistent_col + 1")
 
 
+class TestDeriveColumnTargetEngineering:
+    """Integration test: derive_column for target engineering (forward return + binary target)."""
+
+    def _setup_features(self, tmp_path, df):
+        feat_dir = tmp_path / "data" / "features"
+        feat_dir.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(feat_dir / "features.parquet", index=False)
+
+    def test_forward_return_then_binary_target(self, tmp_path):
+        """Create forward return with group_by, then derive binary target from it."""
+        df = pd.DataFrame({
+            "ticker": ["A", "A", "A", "A", "B", "B", "B", "B"],
+            "close": [100.0, 110.0, 105.0, 120.0, 50.0, 55.0, 52.0, 60.0],
+        })
+        self._setup_features(tmp_path, df)
+
+        # Step 1: derive forward return grouped by ticker
+        derive_column(
+            tmp_path, "fwd_return",
+            "close.shift(-1) / close - 1",
+            group_by="ticker",
+        )
+
+        updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "fwd_return" in updated.columns
+        # Ticker A row 0: 110/100 - 1 = 0.1
+        assert updated["fwd_return"].iloc[0] == pytest.approx(0.1)
+        # Last row per group should be NaN
+        assert pd.isna(updated["fwd_return"].iloc[3])
+        assert pd.isna(updated["fwd_return"].iloc[7])
+
+        # Step 2: derive binary target from forward return
+        derive_column(
+            tmp_path, "target",
+            "(fwd_return > 0).astype(int)",
+        )
+
+        final = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
+        assert "target" in final.columns
+        # Ticker A: fwd_return = [0.1, -0.0455, 0.1429, NaN] -> target = [1, 0, 1, NaN-cast-to-int]
+        assert final["target"].iloc[0] == 1
+        assert final["target"].iloc[1] == 0
+        assert final["target"].iloc[2] == 1
+
+
 class TestEndToEndConfigDrivenPath:
     """Full path: DataConfig -> ingest -> profiler -> guards all use same config."""
 
