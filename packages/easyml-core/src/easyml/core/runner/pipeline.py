@@ -9,6 +9,14 @@ are trained in dependency order using topological wave sorting.
 """
 from __future__ import annotations
 
+import os
+import platform
+
+# Prevent OpenMP deadlock between LightGBM and PyTorch on macOS.
+# Uses setdefault so users can override with their own value.
+if platform.system() == "Darwin":
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
