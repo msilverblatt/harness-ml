@@ -15,6 +15,12 @@ from easyml.sports.competitions.schemas import (
     StandingsEntry,
 )
 from easyml.sports.competitions.adjustments import apply_adjustments
+from easyml.sports.competitions.confidence import (
+    compute_feature_outliers,
+    compute_model_disagreement,
+    generate_confidence_report,
+)
+from easyml.sports.competitions.explainer import CompetitionExplainer
 from easyml.sports.competitions.optimizer import (
     BUILTIN_STRATEGIES,
     CompetitionOptimizer,
@@ -28,6 +34,7 @@ __all__ = [
     "AdjustmentConfig",
     "BUILTIN_STRATEGIES",
     "CompetitionConfig",
+    "CompetitionExplainer",
     "CompetitionFormat",
     "CompetitionOptimizer",
     "CompetitionResult",
@@ -44,4 +51,7 @@ __all__ = [
     "StrategyFn",
     "apply_adjustments",
     "build_structure",
+    "compute_feature_outliers",
+    "compute_model_disagreement",
+    "generate_confidence_report",
 ]
