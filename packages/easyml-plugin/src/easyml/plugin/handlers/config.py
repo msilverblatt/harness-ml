@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from easyml.plugin.handlers._common import resolve_project_dir, parse_json_param
 from easyml.plugin.handlers._validation import (
-    validate_enum, collect_hints, format_response_with_hints,
+    validate_enum, validate_required, collect_hints, format_response_with_hints,
 )
 
 
@@ -222,10 +222,12 @@ def _handle_set_denylist(*, add_columns, remove_columns, project_dir, **_kwargs)
 def _handle_add_target(*, name, target_column, task, metrics, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
-    if not name:
-        return "**Error**: `name` is required for add_target."
-    if not target_column:
-        return "**Error**: `target_column` is required for add_target."
+    err = validate_required(name, "name")
+    if err:
+        return err
+    err = validate_required(target_column, "target_column")
+    if err:
+        return err
 
     parsed_metrics = parse_json_param(metrics) if isinstance(metrics, str) else metrics
     return cw.add_target(
@@ -246,8 +248,9 @@ def _handle_list_targets(*, project_dir, **_kwargs):
 def _handle_set_target(*, name, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
-    if not name:
-        return "**Error**: `name` is required for set_target."
+    err = validate_required(name, "name")
+    if err:
+        return err
     return cw.set_active_target(resolve_project_dir(project_dir), name)
 
 

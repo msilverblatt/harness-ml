@@ -55,14 +55,38 @@ def _handle_test_transformations(*, features, test_interactions, project_dir, **
     )
 
 
-def _handle_discover(*, top_n, method, project_dir, **_kwargs):
+async def _handle_discover(*, top_n, method, ctx, project_dir, **_kwargs):
+    import asyncio
     from easyml.core.runner import config_writer as cw
 
-    return cw.discover_features(
-        resolve_project_dir(project_dir),
-        top_n=top_n,
-        method=method,
+    loop = asyncio.get_running_loop()
+
+    def _progress_callback(current, total, message):
+        import logging
+        logging.getLogger(__name__).info("Feature discovery progress: %s", message)
+        if ctx is not None:
+            asyncio.run_coroutine_threadsafe(
+                ctx.report_progress(progress=current, total=total, message=message),
+                loop,
+            )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=1, message="Starting feature discovery...")
+
+    result = await loop.run_in_executor(
+        None,
+        lambda: cw.discover_features(
+            resolve_project_dir(project_dir),
+            top_n=top_n,
+            method=method,
+            on_progress=_progress_callback,
+        ),
     )
+
+    if ctx is not None:
+        await ctx.report_progress(progress=1, total=1, message="Feature discovery complete.")
+
+    return result
 
 
 def _handle_diversity(*, project_dir, **_kwargs):
@@ -107,11 +131,15 @@ ACTIONS = {
 }
 
 
-def dispatch(action: str, **kwargs) -> str:
+async def dispatch(action: str, **kwargs) -> str:
     """Dispatch a manage_features action."""
+    import asyncio
+
     err = validate_enum(action, set(ACTIONS), "action")
     if err:
         return err
     result = ACTIONS[action](**kwargs)
+    if asyncio.iscoroutine(result):
+        result = await result
     hints = collect_hints(action, tool="features", **kwargs)
     return format_response_with_hints(result, hints)
