@@ -9,7 +9,7 @@ Example
 >>> project = Project("my_project")
 >>> project.set_data(features_dir="data/features")
 >>> project.add_model("logreg_seed", "logistic_regression", features=["diff_prior"])
->>> project.configure_backtest(seasons=[2015, 2016, 2017, 2018, 2019])
+>>> project.configure_backtest(fold_values=[2015, 2016, 2017, 2018, 2019])
 >>> results = project.backtest()
 """
 from __future__ import annotations
@@ -69,7 +69,7 @@ class Project:
         self._models: dict[str, ModelDef] = {}
         self._ensemble = EnsembleDef(method="stacked")
         self._backtest = BacktestConfig(
-            cv_strategy="leave_one_season_out",
+            cv_strategy="leave_one_out",
             metrics=["brier", "accuracy", "ece", "log_loss"],
         )
         self._sources: dict[str, SourceDecl] = {}
@@ -282,7 +282,7 @@ class Project:
         n_seeds: int | None = None,
         pre_calibration: str | None = None,
         cdf_scale: float | None = None,
-        train_seasons: str | None = None,
+        train_folds: str | None = None,
         provides: list[str] | None = None,
         provides_level: str | None = None,
         include_in_ensemble: bool = True,
@@ -310,8 +310,8 @@ class Project:
             If False, model trains and provides features but its prob_*
             column is excluded from the meta-learner.
         provider_isolation : str
-            "none" or "per_season". "per_season" retrains provider per
-            training season for leak-free features.
+            "none" or "per_fold". "per_fold" retrains provider per
+            training fold for leak-free features.
         """
         if preset is not None:
             from easyml.core.runner.presets import apply_preset
@@ -328,8 +328,8 @@ class Project:
                 overrides["mode"] = mode
             if n_seeds is not None:
                 overrides["n_seeds"] = n_seeds
-            if train_seasons is not None:
-                overrides["train_seasons"] = train_seasons
+            if train_folds is not None:
+                overrides["train_folds"] = train_folds
             if pre_calibration is not None:
                 overrides["pre_calibration"] = pre_calibration
             if cdf_scale is not None:
@@ -357,7 +357,7 @@ class Project:
                 n_seeds=n_seeds or 1,
                 pre_calibration=pre_calibration,
                 cdf_scale=cdf_scale,
-                train_seasons=train_seasons or "all",
+                train_folds=train_folds or "all",
                 provides=provides or [],
                 provides_level=provides_level or "matchup",
                 include_in_ensemble=include_in_ensemble,
@@ -420,41 +420,44 @@ class Project:
 
     def configure_backtest(
         self,
-        cv_strategy: str = "leave_one_season_out",
-        seasons: list[int] | None = None,
+        cv_strategy: str = "leave_one_out",
+        fold_values: list[int] | None = None,
         metrics: list[str] | None = None,
         min_train_folds: int = 1,
-        min_train_seasons: int = 3,
+        min_train_initial: int = 3,
     ) -> "Project":
         """Configure the backtest strategy.
 
-        If *seasons* is not provided and data is available, auto-detects
-        holdout-eligible seasons from the parquet file, reserving the
-        first *min_train_seasons* as training-only.
+        If *fold_values* is not provided and data is available, auto-detects
+        holdout-eligible fold values from the parquet file, reserving the
+        first *min_train_initial* as training-only.
 
         Parameters
         ----------
-        min_train_seasons : int
-            When auto-detecting, the earliest N seasons are reserved for
+        min_train_initial : int
+            When auto-detecting, the earliest N fold values are reserved for
             training and excluded from the holdout list.  Ignored when
-            *seasons* is provided explicitly.
+            *fold_values* is provided explicitly.
         """
-        if seasons is None:
-            seasons = self._auto_detect_seasons(min_train_seasons=min_train_seasons)
+        if fold_values is None:
+            fold_values = self._auto_detect_folds(min_train_initial=min_train_initial)
 
         self._backtest = BacktestConfig(
             cv_strategy=cv_strategy,
-            seasons=seasons or [],
+            fold_values=fold_values or [],
             metrics=metrics or ["brier", "accuracy", "ece", "log_loss"],
             min_train_folds=min_train_folds,
         )
         return self
 
-    def _auto_detect_seasons(self, min_train_seasons: int = 3) -> list[int]:
-        """Detect holdout-eligible seasons from the data.
+    def _auto_detect_folds(self, min_train_initial: int = 3) -> list[int]:
+        """Detect holdout-eligible fold values from the data.
 
-        Returns all unique seasons after reserving the first
-        *min_train_seasons* for training.
+        Uses the configured time_column if set, otherwise falls back to
+        heuristic column name detection.
+
+        Returns all unique fold values after reserving the first
+        *min_train_initial* for training.
         """
         parquet_path = (
             self.project_dir / self._data.features_dir / self._data.features_file
@@ -464,23 +467,32 @@ class Project:
 
         import pandas as pd
 
-        # Read only the season column
-        season_col = None
-        for candidate in ["Season", "season"]:
+        # Use configured time_column if available, otherwise heuristic
+        time_col = None
+        if self._data.time_column:
             try:
-                df = pd.read_parquet(parquet_path, columns=[candidate])
-                season_col = candidate
-                break
+                df = pd.read_parquet(parquet_path, columns=[self._data.time_column])
+                time_col = self._data.time_column
             except (KeyError, Exception):
-                continue
+                pass
 
-        if season_col is None:
+        if time_col is None:
+            # Broader heuristic fallback
+            for candidate in ["Season", "season", "year", "Year", "period", "Period", "date"]:
+                try:
+                    df = pd.read_parquet(parquet_path, columns=[candidate])
+                    time_col = candidate
+                    break
+                except (KeyError, Exception):
+                    continue
+
+        if time_col is None:
             return []
 
-        all_seasons = sorted(df[season_col].dropna().unique().astype(int).tolist())
-        if len(all_seasons) <= min_train_seasons:
+        all_values = sorted(df[time_col].dropna().unique().astype(int).tolist())
+        if len(all_values) <= min_train_initial:
             return []
-        return all_seasons[min_train_seasons:]
+        return all_values[min_train_initial:]
 
     # ------------------------------------------------------------------
     # Build / validate

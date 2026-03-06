@@ -560,7 +560,7 @@ def format_exploration_report(
     )
     if total_total > 0:
         pct = total_hits / total_total * 100
-        lines.append(f"**Cache reuse**: {pct:.0f}% of model-season predictions were cache hits")
+        lines.append(f"**Cache reuse**: {pct:.0f}% of model-fold predictions were cache hits")
 
     lines.append(f"**Budget used**: {len(completed)}/{space.budget} trials completed, {pruned} pruned\n")
 

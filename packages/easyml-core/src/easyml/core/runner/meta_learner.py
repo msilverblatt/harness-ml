@@ -1,7 +1,7 @@
 """Stacked meta-learner for ensemble prediction.
 
 Provides StackedEnsemble class and train_meta_learner_loso() for
-leave-one-season-out training with nested calibrator CV.
+leave-one-out training with nested calibrator CV.
 """
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def train_meta_learner_loso(
     y_true: np.ndarray,
     model_preds: dict[str, np.ndarray],
     prior_diffs: np.ndarray,
-    season_labels: np.ndarray,
+    fold_labels: np.ndarray,
     model_names: list[str],
     ensemble_config: dict,
     extra_features: dict[str, np.ndarray] | None = None,
@@ -139,12 +139,12 @@ def train_meta_learner_loso(
     """Train stacked meta-learner with LOSO + nested calibrator CV.
 
     Algorithm:
-    1. For each training season (nested CV):
-       a. Hold out that season
-       b. Fit per-model pre-calibration on remaining seasons ONLY
+    1. For each training fold (nested CV):
+       a. Hold out that fold
+       b. Fit per-model pre-calibration on remaining folds ONLY
        c. Pre-calibrate both train and val predictions
        d. Train meta-learner on pre-calibrated train predictions
-       e. Predict on held-out season -> OOF meta-learner predictions
+       e. Predict on held-out fold -> OOF meta-learner predictions
     2. Fit post-calibrator on nested OOF meta-learner predictions (min 20 samples)
     3. Fit final pre-calibrators on ALL data
     4. Fit final meta-learner on ALL pre-calibrated data
@@ -154,7 +154,7 @@ def train_meta_learner_loso(
     y_true : array of binary labels
     model_preds : dict mapping model_name -> prediction array
     prior_diffs : prior difference array
-    season_labels : array of season identifiers (same length as y_true)
+    fold_labels : array of fold identifiers (same length as y_true)
     model_names : list of model names to include
     ensemble_config : dict with keys like meta_learner.C, calibration,
         pre_calibration, spline_prob_max, spline_n_bins
@@ -166,20 +166,20 @@ def train_meta_learner_loso(
     """
     y_true = np.asarray(y_true, dtype=float)
     prior_diffs = np.asarray(prior_diffs, dtype=float)
-    season_labels = np.asarray(season_labels)
+    fold_labels = np.asarray(fold_labels)
 
     meta_config = ensemble_config.get("meta_learner", {})
     C = meta_config.get("C", 1.0)
     cal_method = ensemble_config.get("calibration", "spline")
     pre_cal_config = ensemble_config.get("pre_calibration", {})
 
-    unique_seasons = sorted(set(season_labels))
+    unique_folds = sorted(set(fold_labels))
 
     # Step 1: Nested LOSO for OOF predictions
     oof_preds = np.full(len(y_true), np.nan)
 
-    for held_out_season in unique_seasons:
-        val_mask = season_labels == held_out_season
+    for held_out_fold in unique_folds:
+        val_mask = fold_labels == held_out_fold
         train_mask = ~val_mask
 
         n_train = train_mask.sum()
@@ -226,7 +226,7 @@ def train_meta_learner_loso(
             extra_features=train_extra,
         )
 
-        # Step 1e: Predict on held-out season
+        # Step 1e: Predict on held-out fold
         oof_preds[val_mask] = fold_meta.predict(
             val_preds,
             prior_diffs[val_mask],

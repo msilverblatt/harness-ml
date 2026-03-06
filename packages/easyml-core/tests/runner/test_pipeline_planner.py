@@ -40,8 +40,8 @@ def _make_config(
 
     if backtest is None:
         backtest = {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2022, 2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2022, 2023, 2024],
         }
 
     return ProjectConfig(
@@ -233,10 +233,10 @@ class TestBacktestConfigChanged:
 
     def test_backtest_change_full_retrain(self):
         current = _make_config(
-            backtest={"cv_strategy": "leave_one_season_out", "seasons": [2022, 2023, 2024]}
+            backtest={"cv_strategy": "leave_one_out", "fold_values": [2022, 2023, 2024]}
         )
         new = _make_config(
-            backtest={"cv_strategy": "leave_one_season_out", "seasons": [2022, 2023, 2024, 2025]}
+            backtest={"cv_strategy": "leave_one_out", "fold_values": [2022, 2023, 2024, 2025]}
         )
         plan = plan_execution(current, new)
         # Should have a train "all" step

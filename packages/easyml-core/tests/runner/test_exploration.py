@@ -170,6 +170,7 @@ class TestNextExplorationDir:
 class TestFormatReport:
     def test_produces_markdown(self):
         """Smoke test with a mock study."""
+        pytest.importorskip("optuna")
         import optuna
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 

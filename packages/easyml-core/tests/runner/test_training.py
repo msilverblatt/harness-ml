@@ -9,7 +9,7 @@ from easyml.core.models.registry import ModelRegistry
 from easyml.core.runner.schema import ModelDef
 from easyml.core.runner.training import (
     _augment_matchup_symmetry,
-    _filter_train_seasons,
+    _filter_train_folds,
     _fit_cdf_scale,
     _is_regressor,
     _margin_to_prob,
@@ -177,26 +177,26 @@ class TestMultiSeedTraining:
 
 
 class TestValidationSetSplitting:
-    """Train with target_season filters data correctly."""
+    """Train with target_fold filters data correctly."""
 
-    def test_target_season_filters(self):
+    def test_target_fold_filters(self):
         df = _make_train_df(n_seasons=4)
         model_def = ModelDef(
             type="logistic_regression",
             features=["diff_x"],
             params={"max_iter": 200},
         )
-        # With target_season=2024, only 2022 and 2023 should be used
+        # With target_fold=2024, only 2022 and 2023 should be used
         model, feat_cols, metrics = train_single_model(
             "logreg", model_def, df, _get_registry(),
-            target_season=2024,
+            target_fold=2024, fold_column="season",
         )
         assert model is not None
 
-    def test_target_season_no_data_raises(self):
-        """If target_season filters all data, raise ValueError."""
+    def test_target_fold_no_data_raises(self):
+        """If target_fold filters all data, raise ValueError."""
         df = _make_train_df()
-        # All seasons are 2022-2024, target_season=2022 means < 2022 -> empty
+        # All folds are 2022-2024, target_fold=2022 means < 2022 -> empty
         model_def = ModelDef(
             type="logistic_regression",
             features=["diff_x"],
@@ -205,7 +205,7 @@ class TestValidationSetSplitting:
         with pytest.raises(ValueError, match="No training data"):
             train_single_model(
                 "logreg", model_def, df, _get_registry(),
-                target_season=2022,
+                target_fold=2022, fold_column="season",
             )
 
 
@@ -257,28 +257,28 @@ class TestMatchupSymmetryAugmentation:
 # Tests: helper functions
 # -----------------------------------------------------------------------
 
-class TestFilterTrainSeasons:
-    """Test _filter_train_seasons."""
+class TestFilterTrainFolds:
+    """Test _filter_train_folds."""
 
     def test_all_returns_everything(self):
         df = pd.DataFrame({"season": [2020, 2021, 2022, 2023]})
-        result = _filter_train_seasons(df, "all")
+        result = _filter_train_folds(df, "all", fold_column="season")
         assert len(result) == 4
 
     def test_last_n_filters(self):
         df = pd.DataFrame({"season": [2020, 2021, 2022, 2023]})
-        result = _filter_train_seasons(df, "last_2")
+        result = _filter_train_folds(df, "last_2", fold_column="season")
         assert set(result["season"]) == {2022, 2023}
 
-    def test_target_season_filters(self):
+    def test_target_fold_filters(self):
         df = pd.DataFrame({"season": [2020, 2021, 2022, 2023]})
-        result = _filter_train_seasons(df, "all", target_season=2022)
+        result = _filter_train_folds(df, "all", target_fold=2022, fold_column="season")
         assert set(result["season"]) == {2020, 2021}
 
-    def test_last_n_with_target_season(self):
+    def test_last_n_with_target_fold(self):
         df = pd.DataFrame({"season": [2020, 2021, 2022, 2023]})
-        result = _filter_train_seasons(df, "last_2", target_season=2023)
-        # target_season filters to < 2023 => [2020, 2021, 2022]
+        result = _filter_train_folds(df, "last_2", target_fold=2023, fold_column="season")
+        # target_fold filters to < 2023 => [2020, 2021, 2022]
         # last_2 keeps > max(2022) - 2 = > 2020 => [2021, 2022]
         assert set(result["season"]) == {2021, 2022}
 

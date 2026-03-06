@@ -19,9 +19,9 @@ def test_loso_basic():
     assert len(folds) == 2  # 2016, 2017 (2015 has 0 prior folds so it's skipped)
     # 2016 uses [2015] as training (1 fold), 2017 uses [2015, 2016] (2 folds)
     for fold in folds:
-        train_seasons = set(fold_ids[fold.train_idx])
-        test_season = set(fold_ids[fold.test_idx])
-        assert max(train_seasons) < min(test_season)
+        train_folds = set(fold_ids[fold.train_idx])
+        test_fold = set(fold_ids[fold.test_idx])
+        assert max(train_folds) < min(test_fold)
 
 
 def test_loso_min_train_folds():

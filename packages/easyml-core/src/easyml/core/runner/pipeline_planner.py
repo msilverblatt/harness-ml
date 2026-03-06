@@ -13,7 +13,7 @@ class PipelineStep:
     stage: str              # "train", "ensemble", "all"
     target: str             # model name or "all"
     reason: str             # why this needs to run
-    estimated_scope: str    # "1 model", "3 seasons", etc.
+    estimated_scope: str    # "1 model", "3 folds", etc.
 
 
 @dataclass
@@ -112,14 +112,14 @@ def plan_execution(
     current_bt = current_config.backtest.model_dump()
     new_bt = new_config.backtest.model_dump()
     if current_bt != new_bt:
-        n_seasons = len(new_config.backtest.seasons)
+        n_folds = len(new_config.backtest.fold_values)
         n_models = len([m for m in new_models.values() if m.active])
         return PipelinePlan(
             steps=[PipelineStep(
                 stage="train",
                 target="all",
                 reason="Backtest config changed",
-                estimated_scope=f"{n_models} models x {n_seasons} seasons",
+                estimated_scope=f"{n_models} models x {n_folds} folds",
             )],
             reason="Backtest configuration changed — full retrain required.",
         )

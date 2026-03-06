@@ -277,23 +277,23 @@ class TestEnsembleConfig:
 # -----------------------------------------------------------------------
 
 class TestBacktestConfig:
-    """Backtest seasons can be configured or auto-detected."""
+    """Backtest fold values can be configured or auto-detected."""
 
-    def test_explicit_seasons(self, project):
+    def test_explicit_fold_values(self, project):
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(seasons=[2016, 2017, 2018])
+        project.configure_backtest(fold_values=[2016, 2017, 2018])
         config = project.build()
-        assert config.backtest.seasons == [2016, 2017, 2018]
+        assert config.backtest.fold_values == [2016, 2017, 2018]
 
-    def test_auto_detect_seasons(self, project):
-        """Auto-detect with default min_train_seasons=3 reserves first 3."""
+    def test_auto_detect_folds(self, project):
+        """Auto-detect with default min_train_initial=3 reserves first 3."""
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
         project.configure_backtest()
         config = project.build()
-        # Data has 5 seasons (2015-2019), min_train=3 → holdout [2018, 2019]
-        assert 2015 not in config.backtest.seasons
-        assert 2018 in config.backtest.seasons
-        assert 2019 in config.backtest.seasons
+        # Data has 5 folds (2015-2019), min_train=3 → holdout [2018, 2019]
+        assert 2015 not in config.backtest.fold_values
+        assert 2018 in config.backtest.fold_values
+        assert 2019 in config.backtest.fold_values
 
 
 # -----------------------------------------------------------------------
@@ -333,7 +333,7 @@ class TestYamlSerialization:
     def test_saved_yaml_roundtrips(self, project, tmp_path):
         """Config saved to YAML can be loaded back by the validator."""
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(seasons=[2016, 2017])
+        project.configure_backtest(fold_values=[2016, 2017])
 
         config_dir = tmp_path / "saved_config"
         project.save_to_yaml(config_dir)
@@ -369,11 +369,11 @@ class TestChaining:
             .set_data(features_dir="data/features")
             .add_model("m1", "logistic_regression", features=["diff_prior"])
             .configure_ensemble(method="stacked", C=1.0)
-            .configure_backtest(seasons=[2016, 2017])
+            .configure_backtest(fold_values=[2016, 2017])
             .build()
         )
         assert "m1" in config.models
-        assert config.backtest.seasons == [2016, 2017]
+        assert config.backtest.fold_values == [2016, 2017]
 
 
 # -----------------------------------------------------------------------
@@ -502,14 +502,14 @@ class TestProviderModels:
             provides=["surv_e8"],
             provides_level="team",
             include_in_ensemble=False,
-            provider_isolation="per_season",
+            provider_isolation="per_fold",
         )
         project.add_model(
             "consumer", "xgboost",
             features=["diff_prior", "diff_surv_e8"],
         )
         config = project.build()
-        assert config.models["survival"].provider_isolation == "per_season"
+        assert config.models["survival"].provider_isolation == "per_fold"
 
 
 # -----------------------------------------------------------------------
@@ -577,35 +577,35 @@ class TestPresetSupport:
 
 
 # -----------------------------------------------------------------------
-# Tests: auto-detect seasons with min_train_seasons
+# Tests: auto-detect folds with min_train_initial
 # -----------------------------------------------------------------------
 
-class TestAutoDetectSeasons:
-    """configure_backtest auto-detects holdout seasons."""
+class TestAutoDetectFolds:
+    """configure_backtest auto-detects holdout fold values."""
 
-    def test_auto_detect_excludes_early_seasons(self, project):
-        """With 5 seasons and min_train=3, first 3 are excluded."""
+    def test_auto_detect_excludes_early_folds(self, project):
+        """With 5 folds and min_train_initial=3, first 3 are excluded."""
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(min_train_seasons=3)
+        project.configure_backtest(min_train_initial=3)
         config = project.build()
-        # Data has seasons 2015-2019, min_train=3 → holdout = [2018, 2019]
-        assert config.backtest.seasons == [2018, 2019]
+        # Data has folds 2015-2019, min_train_initial=3 → holdout = [2018, 2019]
+        assert config.backtest.fold_values == [2018, 2019]
 
     def test_auto_detect_min_train_2(self, project):
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(min_train_seasons=2)
+        project.configure_backtest(min_train_initial=2)
         config = project.build()
-        assert config.backtest.seasons == [2017, 2018, 2019]
+        assert config.backtest.fold_values == [2017, 2018, 2019]
 
-    def test_explicit_seasons_override_auto(self, project):
+    def test_explicit_fold_values_override_auto(self, project):
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(seasons=[2018])
+        project.configure_backtest(fold_values=[2018])
         config = project.build()
-        assert config.backtest.seasons == [2018]
+        assert config.backtest.fold_values == [2018]
 
     def test_auto_detect_returns_empty_when_all_needed_for_training(self, project):
-        """If min_train_seasons >= total seasons, returns empty."""
+        """If min_train_initial >= total folds, returns empty."""
         project.add_model("m1", "logistic_regression", features=["diff_prior"])
-        project.configure_backtest(min_train_seasons=10)
+        project.configure_backtest(min_train_initial=10)
         config = project.build()
-        assert config.backtest.seasons == []
+        assert config.backtest.fold_values == []

@@ -1,6 +1,6 @@
 """Model training internals for the pipeline runner.
 
-Handles per-model training with feature extraction, train season filtering,
+Handles per-model training with feature extraction, train fold filtering,
 regressor CDF conversion, multi-seed averaging, validation set splitting,
 and matchup symmetry augmentation.
 """
@@ -25,12 +25,13 @@ def train_single_model(
     model_def: ModelDef,
     train_df: pd.DataFrame,
     registry: ModelRegistry,
-    target_season: int | None = None,
+    target_fold: int | None = None,
+    fold_column: str | None = None,
     augment_symmetry: bool = False,
 ) -> tuple[Any, list[str], dict[str, Any]]:
     """Train a single model from its ModelDef.
 
-    Handles: feature extraction, train_seasons filtering,
+    Handles: feature extraction, train period filtering,
     data augmentation (matchup symmetry), regressor target (margin) vs
     classifier (result), multi-seed training and averaging, CDF scale
     fitting for regressors.
@@ -42,12 +43,15 @@ def train_single_model(
     model_def : ModelDef
         Model definition with type, features, params, mode, n_seeds, etc.
     train_df : pd.DataFrame
-        Training data with columns for features, 'result', 'season',
-        and optionally 'margin'.
+        Training data with columns for features, target column,
+        fold column, and optionally 'margin'.
     registry : ModelRegistry
         Model registry for creating model instances.
-    target_season : int | None
-        If set, filter training data to seasons < target_season.
+    target_fold : int | None
+        If set, filter training data to fold values < target_fold.
+    fold_column : str | None
+        Column name used for fold/period splitting (e.g. 'season', 'year').
+        Required when target_fold is set or train_folds != 'all'.
     augment_symmetry : bool
         If True, double data by negating diff_* features and flipping labels.
 
@@ -58,13 +62,13 @@ def train_single_model(
         feature_columns: list of feature column names used
         metrics_dict: dict with training metadata (e.g. cdf_scale)
     """
-    # Filter by train_seasons
-    df = _filter_train_seasons(train_df, model_def.train_seasons, target_season)
+    # Filter by train_folds setting
+    df = _filter_train_folds(train_df, model_def.train_folds, target_fold, fold_column)
 
     if len(df) == 0:
         raise ValueError(
             f"No training data for model {model_name} after filtering "
-            f"(train_seasons={model_def.train_seasons}, target_season={target_season})"
+            f"(train_folds={model_def.train_folds}, target_fold={target_fold})"
         )
 
     # Get feature columns that exist in the data
@@ -75,7 +79,40 @@ def train_single_model(
             f"Requested: {model_def.features}"
         )
 
+    # Zero-fill specified features before dropping NaN rows
+    if model_def.zero_fill_features:
+        for col in model_def.zero_fill_features:
+            if col in df.columns:
+                df[col] = df[col].fillna(0.0)
+
+    # Drop rows with NaN in any feature column
+    df = df.dropna(subset=feature_cols)
+
+    if len(df) == 0:
+        raise ValueError(
+            f"No training data for model {model_name} after dropping NaN rows"
+        )
+
     is_regressor = _is_regressor(model_def)
+
+    # Fold-based early stopping validation split.
+    # When a model has early_stopping_rounds in its params, carve the most
+    # recent fold as a validation set for early stopping.
+    fit_kwargs: dict[str, Any] = {}
+    if "early_stopping_rounds" in model_def.params and fold_column and fold_column in df.columns and len(df) > 0:
+        max_fold = df[fold_column].max()
+        val_mask = df[fold_column] == max_fold
+        remaining_train = int((~val_mask).sum())
+        if int(val_mask.sum()) > 10 and remaining_train > 10:
+            val_df = df[val_mask]
+            df = df[~val_mask]
+            X_val = val_df[feature_cols].values.astype(np.float64)
+            y_val = (
+                val_df["margin"].values.astype(np.float64)
+                if is_regressor
+                else val_df["result"].values.astype(np.float64)
+            )
+            fit_kwargs["eval_set"] = [(X_val, y_val)]
 
     # Extract X, y
     X = df[feature_cols].values.astype(np.float64)
@@ -120,14 +157,14 @@ def train_single_model(
             params = dict(model_def.params)
             params["random_state"] = seed_idx
             model = _create_model(registry, model_type, params, model_def)
-            model.fit(X, y)
+            model.fit(X, y, **fit_kwargs)
             models.append(model)
         metrics["n_seeds"] = n_seeds
         return models, feature_cols, metrics
     else:
         params = dict(model_def.params)
         model = _create_model(registry, model_type, params, model_def)
-        model.fit(X, y)
+        model.fit(X, y, **fit_kwargs)
         return model, feature_cols, metrics
 
 
@@ -257,33 +294,37 @@ def _augment_matchup_symmetry(
     return np.vstack([X, X_aug]), np.concatenate([y, y_aug])
 
 
-def _filter_train_seasons(
+def _filter_train_folds(
     df: pd.DataFrame,
-    train_seasons: str,
-    target_season: int | None = None,
+    train_folds: str,
+    target_fold: int | None = None,
+    fold_column: str | None = None,
 ) -> pd.DataFrame:
-    """Filter training data by season constraints.
+    """Filter training data by fold constraints.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Data with 'season' column.
-    train_seasons : str
+        Data with the fold column.
+    train_folds : str
         One of 'all' or 'last_N' (e.g. 'last_5').
-    target_season : int | None
-        If set, filter to seasons < target_season (for backtesting).
+    target_fold : int | None
+        If set, filter to fold values < target_fold (for backtesting).
+    fold_column : str | None
+        Column name used for fold/period splitting.
+        Required when target_fold is set or train_folds != 'all'.
     """
     result = df
-    if target_season is not None:
-        result = result[result["season"] < target_season]
-    if train_seasons == "all":
+    if target_fold is not None and fold_column and fold_column in result.columns:
+        result = result[result[fold_column] < target_fold]
+    if train_folds == "all":
         return result
-    elif train_seasons.startswith("last_"):
-        n = int(train_seasons.split("_")[1])
-        if len(result) == 0:
+    elif train_folds.startswith("last_"):
+        n = int(train_folds.split("_")[1])
+        if len(result) == 0 or not fold_column or fold_column not in result.columns:
             return result
-        max_season = result["season"].max()
-        return result[result["season"] > max_season - n]
+        max_fold = result[fold_column].max()
+        return result[result[fold_column] > max_fold - n]
     return result
 
 

@@ -638,7 +638,7 @@ def run_sweep(
         return {"is_sweep": False, "variants": variants}
 
     # Shared prediction cache across variants — unchanged models
-    # only need to train once for each holdout season.
+    # only need to train once for each holdout fold.
     cache_dir = experiments_dir / experiment_id / ".cache"
     pred_cache = PredictionCache(cache_dir)
 

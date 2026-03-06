@@ -154,7 +154,7 @@ def inspect_features(ctx: click.Context) -> None:
 def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
     """Profile the features dataset.
 
-    Shows shape, seasons, null rates, and summary statistics.
+    Shows shape, periods, null rates, and summary statistics.
     """
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
@@ -437,7 +437,7 @@ def run_train(ctx: click.Context, run_id: str | None) -> None:
 @click.option("--json-output", is_flag=True, help="Output raw JSON instead of markdown.")
 @click.pass_context
 def run_backtest(ctx: click.Context, run_dir: str | None, json_output: bool) -> None:
-    """Run backtesting across all configured seasons."""
+    """Run backtesting across all configured folds."""
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
 
@@ -464,11 +464,12 @@ def run_backtest(ctx: click.Context, run_dir: str | None, json_output: bool) -> 
 
 
 @run.command("predict")
-@click.option("--season", required=True, type=int, help="Target season to predict.")
+@click.option("--fold-value", "fold_value", required=True, type=int, help="Target fold value to predict.")
+@click.option("--season", "fold_value", type=int, hidden=True, help="Deprecated alias for --fold-value.")
 @click.option("--run-id", default=None, help="Optional run identifier.")
 @click.pass_context
-def run_predict(ctx: click.Context, season: int, run_id: str | None) -> None:
-    """Generate predictions for a target season."""
+def run_predict(ctx: click.Context, fold_value: int, run_id: str | None) -> None:
+    """Generate predictions for a target fold value."""
     config_dir = ctx.obj["config_dir"]
     gender = ctx.obj["gender"]
 
@@ -481,8 +482,8 @@ def run_predict(ctx: click.Context, season: int, run_id: str | None) -> None:
         variant=variant,
     )
     runner.load()
-    preds = runner.predict(season, run_id=run_id)
-    click.echo(f"Predicted {len(preds)} matchups for season {season}")
+    preds = runner.predict(fold_value, run_id=run_id)
+    click.echo(f"Predicted {len(preds)} matchups for fold {fold_value}")
 
 
 @run.command("pipeline")

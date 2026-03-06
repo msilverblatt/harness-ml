@@ -177,21 +177,21 @@ class TestMmConfigValidates:
         assert result.valid, f"Validation failed:\n{result.format()}"
 
         assert result.config.feature_config is not None
-        assert result.config.feature_config.first_season == 2003
+        assert result.config.feature_config.first_period == 2003
         assert result.config.feature_config.momentum_window == 10
 
-    def test_backtest_seasons(self, tmp_path):
-        """Backtest seasons are correctly parsed."""
+    def test_backtest_fold_values(self, tmp_path):
+        """Backtest fold values are correctly parsed."""
         config_dir = _setup_mm_config_dir(tmp_path)
         result = validate_project(config_dir)
         assert result.valid, f"Validation failed:\n{result.format()}"
 
-        seasons = result.config.backtest.seasons
-        assert len(seasons) == 10
-        assert 2015 in seasons
-        assert 2025 in seasons
+        fold_values = result.config.backtest.fold_values
+        assert len(fold_values) == 10
+        assert 2015 in fold_values
+        assert 2025 in fold_values
         # 2020 should not be present (no tournament that year)
-        assert 2020 not in seasons
+        assert 2020 not in fold_values
 
     def test_exclude_models_list(self, tmp_path):
         """Exclude models list from ensemble config is properly parsed."""
@@ -372,8 +372,9 @@ class TestMmBacktestSmoke:
                     "features_dir": str(tmp_path / "data" / "features"),
                 },
                 "backtest": {
-                    "cv_strategy": "leave_one_season_out",
-                    "seasons": [2022, 2023, 2024],
+                    "cv_strategy": "leave_one_out",
+                    "fold_column": "season",
+                    "fold_values": [2022, 2023, 2024],
                     "metrics": ["brier", "accuracy"],
                 },
             },
@@ -386,13 +387,13 @@ class TestMmBacktestSmoke:
                     "logreg_base": {
                         "type": "logistic_regression",
                         "features": ["diff_prior"],
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {"C": 1.0, "max_iter": 200},
                     },
                     "xgb_core": {
                         "type": "xgboost",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {
                             "max_depth": 3,
                             "learning_rate": 0.1,
@@ -402,7 +403,7 @@ class TestMmBacktestSmoke:
                     "xgb_spread": {
                         "type": "xgboost_regression",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {
                             "max_depth": 1,
                             "learning_rate": 0.1,
@@ -427,14 +428,15 @@ class TestMmBacktestSmoke:
             },
         )
 
-        # Create synthetic data
+        # Create synthetic data with 5 seasons so temporal filtering
+        # in train_single_model always finds prior data for each test fold
         features_dir = tmp_path / "data" / "features"
         _make_synthetic_matchup_data(
             features_dir / "features.parquet",
             feature_names=smoke_features,
-            n_rows=300,
-            n_seasons=3,
-            season_start=2022,
+            n_rows=500,
+            n_seasons=5,
+            season_start=2020,
         )
 
         # Run backtest
@@ -453,9 +455,8 @@ class TestMmBacktestSmoke:
         assert result["metrics"]["brier"] <= 1.0
         assert result["metrics"]["accuracy"] >= 0
         assert result["metrics"]["accuracy"] <= 1.0
-        # LOSO skips the first season (2022) since it has no prior
-        # training seasons, so we get 2 folds (2023, 2024)
-        assert len(result["per_fold"]) == 2
+        # 3 test folds (2022, 2023, 2024), each with prior data available
+        assert len(result["per_fold"]) == 3
         assert len(result["models_trained"]) == 3
 
     def test_backtest_with_stacked_calibration(self, tmp_path):
@@ -478,8 +479,9 @@ class TestMmBacktestSmoke:
                     "features_dir": str(tmp_path / "data" / "features"),
                 },
                 "backtest": {
-                    "cv_strategy": "leave_one_season_out",
-                    "seasons": [2022, 2023, 2024],
+                    "cv_strategy": "leave_one_out",
+                    "fold_column": "season",
+                    "fold_values": [2022, 2023, 2024],
                     "metrics": ["brier", "accuracy"],
                 },
             },
@@ -492,13 +494,13 @@ class TestMmBacktestSmoke:
                     "logreg_a": {
                         "type": "logistic_regression",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {"C": 1.0, "max_iter": 200},
                     },
                     "logreg_b": {
                         "type": "logistic_regression",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {"C": 0.5, "max_iter": 200},
                     },
                 }
@@ -524,9 +526,9 @@ class TestMmBacktestSmoke:
         _make_synthetic_matchup_data(
             features_dir / "features.parquet",
             feature_names=smoke_features,
-            n_rows=400,
-            n_seasons=3,
-            season_start=2022,
+            n_rows=500,
+            n_seasons=5,
+            season_start=2020,
         )
 
         runner = PipelineRunner(
@@ -556,8 +558,9 @@ class TestMmBacktestSmoke:
                     "features_dir": str(tmp_path / "data" / "features"),
                 },
                 "backtest": {
-                    "cv_strategy": "leave_one_season_out",
-                    "seasons": [2022, 2023, 2024],
+                    "cv_strategy": "leave_one_out",
+                    "fold_column": "season",
+                    "fold_values": [2022, 2023, 2024],
                     "metrics": ["brier", "accuracy"],
                 },
             },
@@ -570,13 +573,13 @@ class TestMmBacktestSmoke:
                     "logreg_active": {
                         "type": "logistic_regression",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {"C": 1.0, "max_iter": 200},
                     },
                     "logreg_excluded": {
                         "type": "logistic_regression",
                         "features": smoke_features,
-                        "train_seasons": "all",
+                        "train_folds": "all",
                         "params": {"C": 0.1, "max_iter": 200},
                     },
                 }
@@ -597,9 +600,9 @@ class TestMmBacktestSmoke:
         _make_synthetic_matchup_data(
             features_dir / "features.parquet",
             feature_names=smoke_features,
-            n_rows=300,
-            n_seasons=3,
-            season_start=2022,
+            n_rows=500,
+            n_seasons=5,
+            season_start=2020,
         )
 
         runner = PipelineRunner(
@@ -636,7 +639,7 @@ class TestAllExportsImportable:
             compute_brier_score,
             compute_ece,
             compute_calibration_curve,
-            evaluate_season_predictions,
+            evaluate_fold_predictions,
             compute_fingerprint,
             is_cached,
             save_fingerprint,
@@ -654,7 +657,7 @@ class TestAllExportsImportable:
         assert callable(compute_brier_score)
         assert callable(compute_ece)
         assert callable(compute_calibration_curve)
-        assert callable(evaluate_season_predictions)
+        assert callable(evaluate_fold_predictions)
         assert callable(compute_fingerprint)
         assert callable(is_cached)
         assert callable(save_fingerprint)
@@ -683,8 +686,8 @@ class TestAllExportsImportable:
     def test_features_config_importable(self):
         from easyml.core.runner import FeaturesConfig
 
-        fc = FeaturesConfig(first_season=2003, momentum_window=10)
-        assert fc.first_season == 2003
+        fc = FeaturesConfig(first_period=2003, momentum_window=10)
+        assert fc.first_period == 2003
         assert fc.momentum_window == 10
 
     def test_run_manager_importable(self):

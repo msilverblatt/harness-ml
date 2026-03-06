@@ -32,7 +32,7 @@ class TestStoreAndLookup:
         cache.store("xgb_core", 2024, "abc123", sample_preds)
         assert cache.lookup("xgb_core", 2024, "different") is None
 
-    def test_different_season_returns_none(self, cache, sample_preds):
+    def test_different_fold_value_returns_none(self, cache, sample_preds):
         cache.store("xgb_core", 2024, "abc123", sample_preds)
         assert cache.lookup("xgb_core", 2023, "abc123") is None
 
@@ -79,7 +79,7 @@ class TestOverwrite:
 class TestDirectoryLayout:
     def test_path_structure(self, cache, sample_preds):
         path = cache.store("xgb_core", 2024, "abc123", sample_preds)
-        # cache_dir / model_name / season / fingerprint.parquet
+        # cache_dir / model_name / fold_value / fingerprint.parquet
         assert path.parent.name == "2024"
         assert path.parent.parent.name == "xgb_core"
         assert path.name == "abc123.parquet"
@@ -108,7 +108,7 @@ class TestPrune:
     def test_prune_on_empty_cache(self, cache):
         assert cache.prune() == 0
 
-    def test_prune_per_model_per_season(self, cache):
+    def test_prune_per_model_per_fold_value(self, cache):
         import time
 
         for i in range(3):

@@ -27,8 +27,8 @@ def _minimal_pipeline() -> dict:
             "features_dir": "data/features",
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2023, 2024],
         },
     }
 
@@ -346,7 +346,7 @@ class TestRunPredict:
         runner = CliRunner()
         result = runner.invoke(main, ["run", "predict", "--help"])
         assert result.exit_code == 0
-        assert "--season" in result.output
+        assert "--fold-value" in result.output
 
     def test_predict_invocation(self, tmp_path, monkeypatch):
         """Predict command creates PipelineRunner and calls predict."""
@@ -363,8 +363,8 @@ class TestRunPredict:
             def load(self):
                 calls.append(("load",))
 
-            def predict(self, season, run_id=None):
-                calls.append(("predict", season, run_id))
+            def predict(self, fold_value, run_id=None):
+                calls.append(("predict", fold_value, run_id))
                 import pandas as pd
                 return pd.DataFrame({"x": [1, 2, 3]})
 
@@ -373,11 +373,11 @@ class TestRunPredict:
         runner = CliRunner()
         result = runner.invoke(
             main,
-            ["--config-dir", str(tmp_path), "run", "predict", "--season", "2024"],
+            ["--config-dir", str(tmp_path), "run", "predict", "--fold-value", "2024"],
         )
         assert result.exit_code == 0
         assert "3 matchups" in result.output
-        # Verify predict was called with correct season
+        # Verify predict was called with correct fold value
         predict_calls = [c for c in calls if c[0] == "predict"]
         assert len(predict_calls) == 1
         assert predict_calls[0][1] == 2024

@@ -50,8 +50,8 @@ class DataProfile:
     path: str
     n_rows: int
     n_cols: int
-    seasons: list[int] = field(default_factory=list)
-    season_counts: dict[int, int] = field(default_factory=dict)
+    periods: list[int] = field(default_factory=list)
+    period_counts: dict[int, int] = field(default_factory=dict)
     label_column: str | None = None
     label_distribution: dict[str, Any] = field(default_factory=dict)
     margin_column: str | None = None
@@ -78,12 +78,12 @@ class DataProfile:
         lines.append(f"Dataset: {self.path}")
         lines.append(f"Shape: {self.n_rows} rows x {self.n_cols} columns")
 
-        if self.seasons:
-            lines.append(f"Seasons: {self.seasons[0]}-{self.seasons[-1]} ({len(self.seasons)} seasons)")
-            # Show per-season counts for all seasons
-            if self.season_counts:
-                counts = [f"{s}:{self.season_counts.get(s, 0)}" for s in self.seasons]
-                lines.append(f"Season counts: {', '.join(counts)}")
+        if self.periods:
+            lines.append(f"Periods: {self.periods[0]}-{self.periods[-1]} ({len(self.periods)} periods)")
+            # Show per-period counts for all periods
+            if self.period_counts:
+                counts = [f"{p}:{self.period_counts.get(p, 0)}" for p in self.periods]
+                lines.append(f"Period counts: {', '.join(counts)}")
 
         if self.label_column:
             dist = self.label_distribution
@@ -262,14 +262,14 @@ def _profile_with_config(
     high_null_threshold: float,
 ) -> None:
     """Profile using DataConfig fields for column identification."""
-    # Time/season analysis
+    # Time/period analysis
     time_col = config.time_column
     if time_col and time_col in df.columns:
         profile.time_column = time_col
-        seasons = sorted(df[time_col].dropna().unique().astype(int))
-        profile.seasons = seasons
-        profile.season_counts = df[time_col].value_counts().to_dict()
-        profile.season_counts = {int(k): int(v) for k, v in profile.season_counts.items()}
+        periods = sorted(df[time_col].dropna().unique().astype(int))
+        profile.periods = periods
+        profile.period_counts = df[time_col].value_counts().to_dict()
+        profile.period_counts = {int(k): int(v) for k, v in profile.period_counts.items()}
 
     # Label analysis
     label_col = config.target_column
@@ -309,14 +309,14 @@ def _profile_with_heuristics(
     high_null_threshold: float,
 ) -> None:
     """Profile using hardcoded heuristics (backward-compat path)."""
-    # Season analysis
-    season_col = _find_column(df, ["Season", "season"])
-    if season_col:
-        profile.time_column = season_col
-        seasons = sorted(df[season_col].dropna().unique().astype(int))
-        profile.seasons = seasons
-        profile.season_counts = df[season_col].value_counts().to_dict()
-        profile.season_counts = {int(k): int(v) for k, v in profile.season_counts.items()}
+    # Time/period analysis
+    time_col = _find_column(df, ["Season", "season", "year", "Year", "period", "Period", "date"])
+    if time_col:
+        profile.time_column = time_col
+        periods = sorted(df[time_col].dropna().unique().astype(int))
+        profile.periods = periods
+        profile.period_counts = df[time_col].value_counts().to_dict()
+        profile.period_counts = {int(k): int(v) for k, v in profile.period_counts.items()}
 
     # Label analysis
     label_col = _find_column(df, get_label_candidates())
@@ -342,7 +342,7 @@ def _profile_with_heuristics(
         }
 
     # Column profiles
-    skip_cols = {season_col, label_col, margin_col} - {None}
+    skip_cols = {time_col, label_col, margin_col} - {None}
     # Also skip ID-like columns (via hook system for extensibility)
     id_patterns = get_id_patterns()
 

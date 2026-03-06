@@ -61,12 +61,12 @@ class TestProfileBasics:
     def test_col_count(self, sample_profile):
         assert sample_profile.n_cols == 9
 
-    def test_seasons_detected(self, sample_profile):
-        assert sample_profile.seasons == [2020, 2021, 2022, 2023]
+    def test_periods_detected(self, sample_profile):
+        assert sample_profile.periods == [2020, 2021, 2022, 2023]
 
-    def test_season_counts(self, sample_profile):
-        assert sample_profile.season_counts[2020] == 50
-        assert sample_profile.season_counts[2023] == 50
+    def test_period_counts(self, sample_profile):
+        assert sample_profile.period_counts[2020] == 50
+        assert sample_profile.period_counts[2023] == 50
 
     def test_label_detected(self, sample_profile):
         assert sample_profile.label_column == "TeamAWon"
@@ -188,7 +188,7 @@ class TestFormatting:
         text = sample_profile.format_null_tiers()
         assert "0% null" in text
 
-    def test_format_summary_with_seasons(self, sample_profile):
+    def test_format_summary_with_periods(self, sample_profile):
         text = sample_profile.format_summary()
         assert "2020" in text
 
@@ -198,9 +198,9 @@ class TestFormatting:
 # -----------------------------------------------------------------------
 
 class TestEdgeCases:
-    """Edge cases: empty data, no season column, etc."""
+    """Edge cases: empty data, no time column, etc."""
 
-    def test_no_season_column(self, tmp_path):
+    def test_no_time_column(self, tmp_path):
         df = pd.DataFrame({
             "feature_a": [1.0, 2.0, 3.0],
             "result": [1.0, 0.0, 1.0],
@@ -208,7 +208,7 @@ class TestEdgeCases:
         path = tmp_path / "matchup_features.parquet"
         df.to_parquet(path)
         profile = profile_dataset(path)
-        assert profile.seasons == []
+        assert profile.periods == []
 
     def test_no_label_column(self, tmp_path):
         df = pd.DataFrame({

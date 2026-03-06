@@ -3,7 +3,7 @@
 Orchestrates model training, backtesting, and evaluation by loading
 ProjectConfig and delegating to easyml-models components.  Supports
 real ensemble backtesting with stacked meta-learner and per-model
-feature subsets, training season filtering, and regressor models.
+feature subsets, training fold filtering, and regressor models.
 Provider models (whose outputs become features for downstream models)
 are trained in dependency order using topological wave sorting.
 """
@@ -49,8 +49,8 @@ class ProviderContext:
 
     Matchup-level providers store raw prediction arrays keyed by
     column name and split (train/test).  Team-level providers store
-    team-season DataFrames that get differenced into matchup pairs
-    at injection time.
+    team DataFrames (keyed by fold) that get differenced into matchup
+    pairs at injection time.
     """
 
     # {provider_name: {col_name: {"train": array, "test": array}}}
@@ -58,8 +58,11 @@ class ProviderContext:
         default_factory=dict
     )
 
-    # {provider_name: DataFrame with team-season rows}
+    # {provider_name: DataFrame with team rows}
     team: dict[str, pd.DataFrame] = field(default_factory=dict)
+
+    # Configurable fold column name (defaults to "fold")
+    fold_column: str = "fold"
 
     def store_matchup(
         self,
@@ -81,7 +84,7 @@ class ProviderContext:
         model_name: str,
         team_df: pd.DataFrame,
     ) -> None:
-        """Store team-level provider predictions (team-season rows)."""
+        """Store team-level provider predictions (team rows)."""
         self.team[model_name] = team_df
 
     def inject(
@@ -138,20 +141,22 @@ class ProviderContext:
         """Inject team-level features via TeamA/TeamB lookup + differencing."""
         team_df = self.team[provider_name]
 
-        # Detect team ID and season column names
+        # Detect team ID column name
         team_id_col = next(
             (c for c in ("team_id", "TeamID") if c in team_df.columns),
             None,
         )
-        season_col = next(
-            (c for c in ("season", "Season") if c in team_df.columns),
+        # Use configured fold column for the team DataFrame
+        fold_col = next(
+            (c for c in (self.fold_column,) if c in team_df.columns),
             None,
         )
-        if not team_id_col or not season_col:
+        if not team_id_col or not fold_col:
             logger.warning(
-                "Team provider %s output missing team_id/season columns, "
+                "Team provider %s output missing team_id or %s columns, "
                 "skipping injection",
                 provider_name,
+                self.fold_column,
             )
             return df
 
@@ -163,7 +168,7 @@ class ProviderContext:
         team_b_col = next(
             (c for c in b_candidates if c in df.columns), None
         )
-        df_season_col = "season" if "season" in df.columns else "Season"
+        df_fold_col = self.fold_column
 
         if not team_a_col or not team_b_col:
             logger.warning(
@@ -175,14 +180,14 @@ class ProviderContext:
             if col not in team_df.columns:
                 continue
 
-            lookup = team_df.set_index([team_id_col, season_col])[col].to_dict()
+            lookup = team_df.set_index([team_id_col, fold_col])[col].to_dict()
 
             a_vals = [
-                lookup.get((row[team_a_col], row[df_season_col]), 0.0)
+                lookup.get((row[team_a_col], row[df_fold_col]), 0.0)
                 for _, row in df.iterrows()
             ]
             b_vals = [
-                lookup.get((row[team_b_col], row[df_season_col]), 0.0)
+                lookup.get((row[team_b_col], row[df_fold_col]), 0.0)
                 for _, row in df.iterrows()
             ]
 
@@ -345,6 +350,11 @@ class PipelineRunner:
                     team_path,
                 )
 
+        # Create diff_prior alias from prior_feature config
+        prior_feat = self.config.ensemble.prior_feature
+        if prior_feat and prior_feat in self._df.columns and "diff_prior" not in self._df.columns:
+            self._df["diff_prior"] = self._df[prior_feat]
+
         # Apply feature injections if configured
         if self.config.injections:
             self._apply_injections()
@@ -355,7 +365,19 @@ class PipelineRunner:
             self._df = compute_interactions(self._df, self.config.interactions)
 
     def _normalize_columns(self) -> None:
-        """Auto-detect domain-specific columns and rename to easyml convention."""
+        """Auto-detect domain-specific columns and rename to easyml convention.
+
+        Applies renames from two sources:
+        1. Config-level column_renames (from pipeline.yaml data section)
+        2. Hook-registered renames (from plugins like easyml-sports)
+        Config renames take priority.
+        """
+        # Apply config-level renames first
+        for old_name, new_name in self.config.data.column_renames.items():
+            if old_name in self._df.columns and new_name not in self._df.columns:
+                self._df = self._df.rename(columns={old_name: new_name})
+
+        # Then apply hook-registered renames
         for old_name, new_name in get_column_renames().items():
             if old_name in self._df.columns and new_name not in self._df.columns:
                 self._df = self._df.rename(columns={old_name: new_name})
@@ -364,13 +386,16 @@ class PipelineRunner:
         """Apply configured feature injections to the loaded data."""
         from easyml.core.runner.feature_utils import inject_features
 
+        fold_col = self.config.backtest.fold_column
+
         for inj_name, inj_def in self.config.injections.items():
-            if "{season}" in (inj_def.path_pattern or ""):
-                # Per-season injection
-                for season in self._df["season"].unique():
-                    mask = self._df["season"] == season
-                    season_df = self._df[mask].copy()
-                    injected = inject_features(season_df, inj_def, season=int(season))
+            path_pattern = inj_def.path_pattern or ""
+            if "{fold_value}" in path_pattern or "{season}" in path_pattern:
+                # Per-fold injection (supports {fold_value} and {season} for backward compat)
+                for fold_val in self._df[fold_col].unique():
+                    mask = self._df[fold_col] == fold_val
+                    fold_df = self._df[mask].copy()
+                    injected = inject_features(fold_df, inj_def, fold_value=int(fold_val))
                     for col in inj_def.columns:
                         if col in injected.columns:
                             self._df.loc[mask, col] = injected[col].values
@@ -416,6 +441,7 @@ class PipelineRunner:
             output_dir = output_dir / run_id
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        fold_col = self.config.backtest.fold_column
         active_models = self._get_active_models()
         if not active_models:
             raise ValueError("No active models to train.")
@@ -425,7 +451,7 @@ class PipelineRunner:
         deps = infer_dependencies(active_models, pmap)
         waves = topological_waves(deps)
 
-        context = ProviderContext()
+        context = ProviderContext(fold_column=fold_col)
         trained_names: list[str] = []
         # Track fingerprints so dependents can include upstream hashes
         model_fingerprints: dict[str, str] = {}
@@ -491,9 +517,9 @@ class PipelineRunner:
         }
 
     def predict(
-        self, season: int, run_id: str | None = None
+        self, fold_value: int, run_id: str | None = None
     ) -> pd.DataFrame:
-        """Generate predictions for a target season.
+        """Generate predictions for a target fold.
 
         1. Load trained models from models_dir (or train fresh)
         2. Build all pairwise matchups from team features + seeds
@@ -504,8 +530,8 @@ class PipelineRunner:
 
         Parameters
         ----------
-        season : int
-            Target season to predict.
+        fold_value : int
+            Target fold value to predict.
         run_id : str | None
             Optional run identifier for locating model artifacts.
 
@@ -520,6 +546,7 @@ class PipelineRunner:
         if self._guards:
             self._guards.guard_predict()
 
+        fold_col = self.config.backtest.fold_column
         active_models = self._get_active_models()
         if not active_models:
             raise ValueError("No active models for prediction.")
@@ -540,16 +567,16 @@ class PipelineRunner:
         waves = topological_waves(deps)
 
         # Split data
-        train_df = self._df[self._df["season"] < season].copy()
-        test_mask = self._df["season"] == season
+        train_df = self._df[self._df[fold_col] < fold_value].copy()
+        test_mask = self._df[fold_col] == fold_value
         test_df = self._df[test_mask].copy()
 
         if len(test_df) == 0:
-            logger.warning("No data found for season %d", season)
+            logger.warning("No data found for fold %d", fold_value)
             return pd.DataFrame()
 
         # Build predictions DataFrame
-        preds_df = test_df[["season"]].copy()
+        preds_df = test_df[[fold_col]].copy()
         if "result" in test_df.columns:
             preds_df["result"] = test_df["result"].values
 
@@ -566,7 +593,7 @@ class PipelineRunner:
                 preds_df[feat_name] = test_df[feat_name].values
 
         # Train and predict in wave order (providers before consumers)
-        context = ProviderContext()
+        context = ProviderContext(fold_column=fold_col)
         trained_count = 0
 
         for wave in waves:
@@ -587,7 +614,8 @@ class PipelineRunner:
                         model_def=model_def,
                         train_df=model_train_df,
                         registry=self._registry,
-                        target_season=season,
+                        target_fold=fold_value,
+                        fold_column=fold_col,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -620,8 +648,8 @@ class PipelineRunner:
 
                 except Exception:
                     logger.exception(
-                        "Failed to train/predict %s for season %d",
-                        model_name, season,
+                        "Failed to train/predict %s for fold %d",
+                        model_name, fold_value,
                     )
                     continue
 
@@ -643,7 +671,7 @@ class PipelineRunner:
         if ensemble_config["method"] == "stacked" and "result" in self._df.columns:
             try:
                 # Generate backtest predictions for meta-learner training
-                bt_data = self._generate_backtest_for_meta(season, active_models)
+                bt_data = self._generate_backtest_for_meta(fold_value, active_models)
                 if bt_data:
                     meta, cal, pre_cals = self._train_production_meta(
                         bt_data, ensemble_config, active_model_names,
@@ -666,36 +694,40 @@ class PipelineRunner:
 
     def _generate_backtest_for_meta(
         self,
-        target_season: int,
+        target_fold: int,
         active_models: dict[str, ModelDef],
     ) -> dict[int, pd.DataFrame]:
         """Generate backtest predictions for training the production meta-learner.
 
-        Trains on data before target_season, using LOSO within that data.
+        Trains on data before target_fold, using leave-one-out within that data.
         """
-        # Use all seasons before target for meta-learner training
-        available_df = self._df[self._df["season"] < target_season]
+        fold_col = self.config.backtest.fold_column
+
+        # Use all folds before target for meta-learner training
+        available_df = self._df[self._df[fold_col] < target_fold]
         if len(available_df) == 0:
             return {}
 
-        seasons = sorted(available_df["season"].unique())
-        season_data: dict[int, pd.DataFrame] = {}
+        folds = sorted(available_df[fold_col].unique())
+        fold_data: dict[int, pd.DataFrame] = {}
 
-        for holdout in seasons:
-            preds_df = self._generate_season_predictions(holdout, active_models)
+        for holdout in folds:
+            preds_df = self._generate_fold_predictions(holdout, active_models)
             if preds_df is not None and len(preds_df) > 0:
-                season_data[holdout] = preds_df
+                fold_data[holdout] = preds_df
 
-        return season_data
+        return fold_data
 
     def _train_production_meta(
         self,
-        season_data: dict[int, pd.DataFrame],
+        fold_data: dict[int, pd.DataFrame],
         ensemble_config: dict,
         active_model_names: list[str],
     ) -> tuple:
-        """Train the production meta-learner on all backtest seasons."""
-        all_dfs = [season_data[s] for s in sorted(season_data.keys())]
+        """Train the production meta-learner on all backtest folds."""
+        fold_col = self.config.backtest.fold_column
+
+        all_dfs = [fold_data[s] for s in sorted(fold_data.keys())]
         combined = pd.concat(all_dfs, ignore_index=True)
 
         available_models = [
@@ -713,7 +745,7 @@ class PipelineRunner:
 
         y_true = combined["result"].values.astype(float)
         prior_diffs = combined["diff_prior"].values.astype(float)
-        season_labels = combined["season"].values
+        fold_labels = combined[fold_col].values
 
         extra_features = None
         meta_feature_names = ensemble_config.get("meta_features", [])
@@ -727,7 +759,7 @@ class PipelineRunner:
             y_true=y_true,
             model_preds=model_preds,
             prior_diffs=prior_diffs,
-            season_labels=season_labels,
+            fold_labels=fold_labels,
             model_names=available_models,
             ensemble_config=ensemble_config,
             extra_features=extra_features if extra_features else None,
@@ -740,8 +772,8 @@ class PipelineRunner:
 
         Two-pass approach:
           Pass 1: Per CV fold, train all active models on the training
-                  seasons, predict the test season's matchups.
-          Pass 2: Train LOSO meta-learner (one per held-out season), apply
+                  folds, predict the test fold's matchups.
+          Pass 2: Train LOSO meta-learner (one per held-out fold), apply
                   ensemble post-processing.
 
         Parameters
@@ -779,23 +811,23 @@ class PipelineRunner:
             on_progress(0, n_folds, "Starting backtest...")
 
         # Pass 1: per-fold OOF predictions
-        season_data: dict[int, pd.DataFrame] = {}
-        for fold_idx, (train_seasons, test_season) in enumerate(cv_folds):
-            preds_df = self._generate_season_predictions_from_fold(
-                train_seasons, test_season, active_models
+        fold_data: dict[int, pd.DataFrame] = {}
+        for fold_idx, (train_folds, test_fold) in enumerate(cv_folds):
+            preds_df = self._generate_predictions_for_fold(
+                train_folds, test_fold, active_models
             )
             if preds_df is not None and len(preds_df) > 0:
-                season_data[test_season] = preds_df
+                fold_data[test_fold] = preds_df
 
             if on_progress:
                 on_progress(
                     fold_idx + 1,
                     n_folds,
-                    f"Fold {fold_idx + 1}/{n_folds} (season {test_season})",
+                    f"Fold {fold_idx + 1}/{n_folds} (fold {test_fold})",
                 )
 
-        if not season_data:
-            raise ValueError("No valid holdout seasons produced predictions.")
+        if not fold_data:
+            raise ValueError("No valid holdout folds produced predictions.")
 
         # Only models with include_in_ensemble=True participate in ensemble
         active_model_names = [
@@ -806,27 +838,27 @@ class PipelineRunner:
         # Pass 2: meta-learner + post-processing
         meta_coefficients = None
         if ensemble_config["method"] == "stacked":
-            meta_coefficients = self._apply_stacked_ensemble(season_data, ensemble_config, active_model_names)
+            meta_coefficients = self._apply_stacked_ensemble(fold_data, ensemble_config, active_model_names)
         else:
             # Simple average
-            for holdout in season_data:
+            for holdout in fold_data:
                 prob_cols = [
-                    c for c in season_data[holdout].columns
+                    c for c in fold_data[holdout].columns
                     if c.startswith("prob_")
                 ]
                 if prob_cols:
-                    season_data[holdout] = season_data[holdout].copy()
-                    season_data[holdout]["prob_ensemble"] = (
-                        season_data[holdout][prob_cols].mean(axis=1)
+                    fold_data[holdout] = fold_data[holdout].copy()
+                    fold_data[holdout]["prob_ensemble"] = (
+                        fold_data[holdout][prob_cols].mean(axis=1)
                     )
 
-        result = self._compute_backtest_metrics(season_data, active_model_names)
+        result = self._compute_backtest_metrics(fold_data, active_model_names)
 
         if meta_coefficients is not None:
             result["meta_coefficients"] = meta_coefficients
 
         # Generate reporting artifacts
-        result = self._generate_report(result, season_data)
+        result = self._generate_report(result, fold_data)
 
         failed = sorted(self._failed_models)
         result["models_failed"] = failed
@@ -847,7 +879,7 @@ class PipelineRunner:
     def _generate_report(
         self,
         result: dict[str, Any],
-        season_data: dict[int, pd.DataFrame],
+        fold_data: dict[int, pd.DataFrame],
     ) -> dict[str, Any]:
         """Generate diagnostics report, pick log, and markdown report.
 
@@ -860,14 +892,14 @@ class PipelineRunner:
             generate_markdown_report,
         )
 
-        # Build per-season diagnostics
-        diagnostics_df = build_diagnostics_report(season_data)
+        # Build per-fold diagnostics
+        diagnostics_df = build_diagnostics_report(fold_data)
 
-        # Build combined pick log across seasons
+        # Build combined pick log across folds
         pick_logs = []
-        for season, df in sorted(season_data.items()):
+        for fold_id, df in sorted(fold_data.items()):
             if "prob_ensemble" in df.columns:
-                pick_logs.append(build_pick_log(df, season))
+                pick_logs.append(build_pick_log(df, fold_id))
         pick_log = pd.concat(pick_logs, ignore_index=True) if pick_logs else pd.DataFrame()
 
         # Wrap pooled metrics for generate_markdown_report
@@ -892,7 +924,7 @@ class PipelineRunner:
         if self.run_dir is not None:
             export_backtest_artifacts(
                 run_dir=self.run_dir,
-                season_data=season_data,
+                fold_data=fold_data,
                 pooled_metrics=pooled_for_report,
                 diagnostics_df=diagnostics_df,
                 pick_log=pick_log,
@@ -910,32 +942,33 @@ class PipelineRunner:
         return result
 
     # ------------------------------------------------------------------
-    # Pass 1: Generate per-season predictions
+    # Pass 1: Generate per-fold predictions
     # ------------------------------------------------------------------
 
-    def _generate_season_predictions(
+    def _generate_fold_predictions(
         self,
-        holdout_season: int,
+        holdout_fold: int,
         active_models: dict[str, ModelDef],
     ) -> pd.DataFrame | None:
         """Train all active models on non-holdout data, predict holdout.
 
-        Delegates to _generate_season_predictions_from_fold with all
-        seasons except the holdout as training seasons.
+        Delegates to _generate_predictions_for_fold with all
+        folds except the holdout as training folds.
         """
-        all_seasons = sorted(self._df["season"].unique())
-        train_seasons = [s for s in all_seasons if s != holdout_season]
-        return self._generate_season_predictions_from_fold(
-            train_seasons, holdout_season, active_models
+        fold_col = self.config.backtest.fold_column
+        all_folds = sorted(self._df[fold_col].unique())
+        train_folds = [s for s in all_folds if s != holdout_fold]
+        return self._generate_predictions_for_fold(
+            train_folds, holdout_fold, active_models
         )
 
-    def _generate_season_predictions_from_fold(
+    def _generate_predictions_for_fold(
         self,
-        train_seasons: list[int],
-        test_season: int,
+        train_folds: list[int],
+        test_fold: int,
         active_models: dict[str, ModelDef],
     ) -> pd.DataFrame | None:
-        """Train on specified seasons, predict test_season.
+        """Train on specified folds, predict test_fold.
 
         Models are trained in dependency order: providers first,
         then consumers that use provider outputs as features.
@@ -944,10 +977,10 @@ class PipelineRunner:
 
         Parameters
         ----------
-        train_seasons : list[int]
-            Seasons to include in training data.
-        test_season : int
-            Season to predict.
+        train_folds : list[int]
+            Fold values to include in training data.
+        test_fold : int
+            Fold value to predict.
         active_models : dict[str, ModelDef]
             Active model definitions.
 
@@ -959,15 +992,16 @@ class PipelineRunner:
             diff_prior and any meta_features columns,
             or None if no predictions could be generated.
         """
-        train_mask = self._df["season"].isin(train_seasons)
-        test_mask = self._df["season"] == test_season
+        fold_col = self.config.backtest.fold_column
+        train_mask = self._df[fold_col].isin(train_folds)
+        test_mask = self._df[fold_col] == test_fold
         train_df = self._df[train_mask].copy()
         test_df = self._df[test_mask].copy()
 
         if len(train_df) == 0 or len(test_df) == 0:
             return None
 
-        preds_df = test_df[["season"]].copy()
+        preds_df = test_df[[fold_col]].copy()
         if "result" in test_df.columns:
             preds_df["result"] = test_df["result"].values
 
@@ -999,7 +1033,7 @@ class PipelineRunner:
         deps = infer_dependencies(resolved_models, pmap)
         waves = topological_waves(deps)
 
-        context = ProviderContext()
+        context = ProviderContext(fold_column=fold_col)
         model_fingerprints: dict[str, str] = {}
 
         # Train and predict in wave order (providers before consumers)
@@ -1026,7 +1060,7 @@ class PipelineRunner:
                     and not model_def.provides
                 ):
                     cached = self._pred_cache.lookup(
-                        model_name, test_season, fp,
+                        model_name, test_fold, fp,
                     )
                     if cached is not None and "prediction" in cached.columns:
                         self._cache_stats["hits"] += 1
@@ -1050,6 +1084,7 @@ class PipelineRunner:
                         model_def=model_def,
                         train_df=model_train_df,
                         registry=self._registry,
+                        fold_column=fold_col,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -1096,7 +1131,7 @@ class PipelineRunner:
                     ):
                         cache_df = pd.DataFrame({"prediction": probs})
                         self._pred_cache.store(
-                            model_name, test_season, fp, cache_df,
+                            model_name, test_fold, fp, cache_df,
                         )
                         self._cache_stats["misses"] += 1
 
@@ -1106,8 +1141,8 @@ class PipelineRunner:
 
                 except Exception:
                     logger.exception(
-                        "Failed to train/predict %s for season %d",
-                        model_name, test_season,
+                        "Failed to train/predict %s for fold %d",
+                        model_name, test_fold,
                     )
                     self._failed_models.add(model_name)
                     continue
@@ -1125,46 +1160,46 @@ class PipelineRunner:
 
     def _apply_stacked_ensemble(
         self,
-        season_data: dict[int, pd.DataFrame],
+        fold_data: dict[int, pd.DataFrame],
         ensemble_config: dict,
         active_model_names: list[str],
     ) -> dict[str, float] | None:
-        """Apply stacked meta-learner via LOSO to all holdout seasons.
+        """Apply stacked meta-learner via LOSO to all holdout folds.
 
-        For each holdout season, train the meta-learner on all OTHER
-        holdout seasons' predictions, then predict the holdout.
+        For each holdout fold, train the meta-learner on all OTHER
+        holdout folds' predictions, then predict the holdout.
 
         Returns the meta-learner coefficients from the last fold,
         or None if no meta-learner was trained.
         """
-        holdout_seasons = sorted(season_data.keys())
+        holdout_folds = sorted(fold_data.keys())
         last_meta = None
 
-        for holdout in holdout_seasons:
-            # Train meta-learner on all seasons except this one
-            train_seasons = [s for s in holdout_seasons if s != holdout]
+        for holdout in holdout_folds:
+            # Train meta-learner on all folds except this one
+            train_folds = [s for s in holdout_folds if s != holdout]
 
-            if not train_seasons:
-                # Only one season — fall back to simple average
+            if not train_folds:
+                # Only one fold — fall back to simple average
                 prob_cols = [
-                    c for c in season_data[holdout].columns
+                    c for c in fold_data[holdout].columns
                     if c.startswith("prob_")
                 ]
                 if prob_cols:
-                    season_data[holdout] = season_data[holdout].copy()
-                    season_data[holdout]["prob_ensemble"] = (
-                        season_data[holdout][prob_cols].mean(axis=1)
+                    fold_data[holdout] = fold_data[holdout].copy()
+                    fold_data[holdout]["prob_ensemble"] = (
+                        fold_data[holdout][prob_cols].mean(axis=1)
                     )
                 continue
 
-            meta, cal, pre_cals = self._train_meta_for_season(
-                season_data, ensemble_config, active_model_names,
-                holdout, train_seasons,
+            meta, cal, pre_cals = self._train_meta_for_fold(
+                fold_data, ensemble_config, active_model_names,
+                holdout, train_folds,
             )
             last_meta = meta
 
-            season_data[holdout] = apply_ensemble_postprocessing(
-                season_data[holdout],
+            fold_data[holdout] = apply_ensemble_postprocessing(
+                fold_data[holdout],
                 meta,
                 cal,
                 ensemble_config,
@@ -1179,23 +1214,25 @@ class PipelineRunner:
                 return None
         return None
 
-    def _train_meta_for_season(
+    def _train_meta_for_fold(
         self,
-        season_data: dict[int, pd.DataFrame],
+        fold_data: dict[int, pd.DataFrame],
         ensemble_config: dict,
         active_model_names: list[str],
         holdout: int,
-        train_seasons: list[int],
+        train_folds: list[int],
     ) -> tuple:
-        """Train meta-learner on train_seasons' predictions.
+        """Train meta-learner on train_folds' predictions.
 
         Uses train_meta_learner_loso with nested CV on the training
-        seasons' predictions.
+        folds' predictions.
 
         Returns (meta_learner, calibrator, pre_calibrators).
         """
-        # Collect training data from non-holdout seasons
-        train_dfs = [season_data[s] for s in train_seasons]
+        fold_col = self.config.backtest.fold_column
+
+        # Collect training data from non-holdout folds
+        train_dfs = [fold_data[s] for s in train_folds]
         train_combined = pd.concat(train_dfs, ignore_index=True)
 
         # Determine which model columns are actually present
@@ -1215,7 +1252,7 @@ class PipelineRunner:
 
         y_true = train_combined["result"].values.astype(float)
         prior_diffs = train_combined["diff_prior"].values.astype(float)
-        season_labels = train_combined["season"].values
+        fold_labels = train_combined[fold_col].values
 
         # Extra features
         extra_features = None
@@ -1230,7 +1267,7 @@ class PipelineRunner:
             y_true=y_true,
             model_preds=model_preds,
             prior_diffs=prior_diffs,
-            season_labels=season_labels,
+            fold_labels=fold_labels,
             model_names=available_models,
             ensemble_config=ensemble_config,
             extra_features=extra_features if extra_features else None,
@@ -1244,21 +1281,21 @@ class PipelineRunner:
 
     def _compute_backtest_metrics(
         self,
-        season_data: dict[int, pd.DataFrame],
+        fold_data: dict[int, pd.DataFrame],
         active_model_names: list[str],
     ) -> dict[str, Any]:
-        """Compute pooled and per-fold metrics from season_data.
+        """Compute pooled and per-fold metrics from fold_data.
 
         Uses BacktestRunner from easyml-models.
         """
         bt_config = self.config.backtest
 
         per_fold_data: dict[int, dict] = {}
-        for season_id, df in sorted(season_data.items()):
+        for fold_id, df in sorted(fold_data.items()):
             if "prob_ensemble" not in df.columns:
                 continue
 
-            per_fold_data[season_id] = {
+            per_fold_data[fold_id] = {
                 "preds": {"ensemble": df["prob_ensemble"].values},
                 "y": df["result"].values.astype(float),
             }

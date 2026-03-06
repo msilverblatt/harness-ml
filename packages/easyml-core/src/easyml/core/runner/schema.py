@@ -10,7 +10,11 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Discriminator, Tag, field_validator
+import logging
+
+from pydantic import BaseModel, Discriminator, Tag, field_validator, model_validator
+
+_schema_logger = logging.getLogger(__name__)
 
 
 # -----------------------------------------------------------------------
@@ -95,8 +99,15 @@ class SourceDecl(BaseModel):
 class FeaturesConfig(BaseModel):
     """Pipeline-level feature computation settings."""
 
-    first_season: int = 2003
+    first_period: int = 2003
     momentum_window: int = 10
+
+    @model_validator(mode="before")
+    @classmethod
+    def _compat_first_season(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "first_season" in data and "first_period" not in data:
+            data["first_period"] = data.pop("first_season")
+        return data
 
 
 # -----------------------------------------------------------------------
@@ -416,6 +427,9 @@ class DataConfig(BaseModel):
     exclude_columns: list[str] = []             # columns to never use as features
     team_features_path: str | None = None       # path to team-level features parquet
 
+    # Column name normalization
+    column_renames: dict[str, str] = {}  # {old_name: new_name}
+
     # Data pipeline
     sources: dict[str, SourceConfig] = {}
     default_cleaning: ColumnCleaningRule = ColumnCleaningRule()
@@ -484,16 +498,31 @@ class ModelDef(BaseModel):
     mode: Literal["classifier", "regressor"] = "classifier"
     n_seeds: int = 1
     prediction_type: str | None = None
-    train_seasons: str = "all"
+    train_folds: str = "all"
     pre_calibration: str | None = None
     cdf_scale: float | None = None
     training_filter: dict[str, Any] | None = None
+
+    # Per-model NaN handling
+    zero_fill_features: list[str] = []  # fill these with 0 before dropna
 
     # Provider fields — model A's output becomes features for model B
     provides: list[str] = []
     provides_level: Literal["matchup", "team"] = "matchup"
     include_in_ensemble: bool = True
-    provider_isolation: Literal["none", "per_season"] = "none"
+    provider_isolation: Literal["none", "per_fold"] = "none"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _compat_season_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # train_seasons → train_folds
+            if "train_seasons" in data and "train_folds" not in data:
+                data["train_folds"] = data.pop("train_seasons")
+            # provider_isolation: "per_season" → "per_fold"
+            if data.get("provider_isolation") == "per_season":
+                data["provider_isolation"] = "per_fold"
+        return data
 
     @field_validator("type")
     @classmethod
@@ -537,29 +566,47 @@ class EnsembleDef(BaseModel):
     clip_floor: float = 0.0
     availability_adjustment: float = 0.1
     exclude_models: list[str] = []
+    prior_feature: str | None = None  # data column to use as prior (mapped to diff_prior)
 
 
 # -----------------------------------------------------------------------
 # Backtest config
 # -----------------------------------------------------------------------
 
-_CV_STRATEGIES = {"leave_one_season_out", "expanding_window", "sliding_window", "purged_kfold"}
+_CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold"}
+
+# Backward-compat aliases for CV strategy names
+_CV_STRATEGY_ALIASES = {
+    "leave_one_season_out": "leave_one_out",
+}
 
 
 class BacktestConfig(BaseModel):
     """Backtest configuration."""
 
     cv_strategy: str
-    seasons: list[int] = []
+    fold_column: str = "fold"       # column used for CV fold splitting
+    fold_values: list[int] = []     # which values to use as test folds
     metrics: list[str] = ["brier", "accuracy", "ece", "log_loss"]
     min_train_folds: int = 1
     window_size: int | None = None
     n_folds: int | None = None
     purge_gap: int = 1
 
+    @model_validator(mode="before")
+    @classmethod
+    def _compat_backtest_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # seasons → fold_values
+            if "seasons" in data and "fold_values" not in data:
+                data["fold_values"] = data.pop("seasons")
+        return data
+
     @field_validator("cv_strategy")
     @classmethod
     def _validate_cv_strategy(cls, v: str) -> str:
+        # Apply backward-compat aliases
+        v = _CV_STRATEGY_ALIASES.get(v, v)
         if v not in _CV_STRATEGIES:
             raise ValueError(
                 f"Invalid cv_strategy {v!r}. "

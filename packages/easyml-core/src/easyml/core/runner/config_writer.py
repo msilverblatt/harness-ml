@@ -316,7 +316,7 @@ def configure_backtest(
     project_dir: Path,
     *,
     cv_strategy: str | None = None,
-    seasons: list[int] | None = None,
+    fold_values: list[int] | None = None,
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
 ) -> str:
@@ -332,8 +332,8 @@ def configure_backtest(
 
     if cv_strategy is not None:
         bt["cv_strategy"] = cv_strategy
-    if seasons is not None:
-        bt["seasons"] = seasons
+    if fold_values is not None:
+        bt["fold_values"] = fold_values
     if metrics is not None:
         bt["metrics"] = metrics
     if min_train_folds is not None:
@@ -344,7 +344,7 @@ def configure_backtest(
     return (
         f"**Updated backtest config**\n"
         f"- CV strategy: {bt.get('cv_strategy', 'N/A')}\n"
-        f"- Seasons: {bt.get('seasons', [])}\n"
+        f"- Fold values: {bt.get('fold_values', [])}\n"
         f"- Metrics: {bt.get('metrics', [])}"
     )
 
@@ -1161,7 +1161,7 @@ def show_config(project_dir: Path) -> str:
     # Backtest
     lines.append(f"\n### Backtest\n")
     lines.append(f"- Strategy: {config.backtest.cv_strategy}")
-    lines.append(f"- Seasons: {config.backtest.seasons}")
+    lines.append(f"- Fold values: {config.backtest.fold_values}")
     lines.append(f"- Metrics: {config.backtest.metrics}")
 
     return "\n".join(lines)
@@ -1393,12 +1393,12 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
         for name, scale in sorted(cdf_scales.items()):
             lines.append(f"| {name} | {scale:.3f} |")
 
-    # Per-season breakdown
+    # Per-fold breakdown
     per_fold = result.get("per_fold", {})
     if per_fold:
-        lines.append(f"\n### Per-Season Breakdown ({len(per_fold)} folds)\n")
-        lines.append("| Season | Brier | Accuracy |")
-        lines.append("|--------|-------|----------|")
+        lines.append(f"\n### Per-Fold Breakdown ({len(per_fold)} folds)\n")
+        lines.append("| Fold | Brier | Accuracy |")
+        lines.append("|------|-------|----------|")
         for fold_id, fold_metrics in sorted(per_fold.items()):
             brier = fold_metrics.get("brier", fold_metrics.get("brier_score", "N/A"))
             acc = fold_metrics.get("accuracy", "N/A")
@@ -1474,15 +1474,15 @@ def run_backtest(
 
 def run_predict(
     project_dir: Path,
-    season: int,
+    fold_value: int,
     *,
     run_id: str | None = None,
     variant: str | None = None,
 ) -> str:
-    """Generate predictions for a target season.
+    """Generate predictions for a target fold.
 
-    Trains on all historical data before the target season,
-    then predicts every row in the target season.
+    Trains on all historical data before the target fold,
+    then predicts every row in the target fold.
 
     Returns markdown-formatted prediction summary.
     """
@@ -1498,13 +1498,13 @@ def run_predict(
             variant=variant,
         )
         runner.load()
-        preds_df = runner.predict(season, run_id=run_id)
+        preds_df = runner.predict(fold_value, run_id=run_id)
 
         if preds_df is None or len(preds_df) == 0:
-            return f"**No predictions**: No data found for season {season}."
+            return f"**No predictions**: No data found for fold {fold_value}."
 
         prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
-        lines = [f"## Predictions for Season {season}\n"]
+        lines = [f"## Predictions for Fold {fold_value}\n"]
         lines.append(f"- **Rows predicted**: {len(preds_df)}")
         lines.append(f"- **Models**: {len(prob_cols)}")
 
@@ -1636,18 +1636,18 @@ def run_experiment(
 
         lines.append(f"\n**Verdict**: {overall_verdict} (primary metric: {primary_metric}, delta: {primary_delta:+.4f})")
 
-        # Per-season deltas
+        # Per-fold deltas
         exp_per_fold = exp_result.get("per_fold", {})
         base_per_fold = baseline_result.get("per_fold", {})
         if exp_per_fold and base_per_fold:
-            common_seasons = sorted(
+            common_folds = sorted(
                 set(exp_per_fold.keys()) & set(base_per_fold.keys())
             )
-            if common_seasons:
-                lines.append("\n### Per-Season Deltas\n")
-                lines.append("| Season | Brier (base) | Brier (exp) | Delta | Acc (base) | Acc (exp) | Delta |")
-                lines.append("|--------|-------------|-------------|-------|------------|-----------|-------|")
-                for s in common_seasons:
+            if common_folds:
+                lines.append("\n### Per-Fold Deltas\n")
+                lines.append("| Fold | Brier (base) | Brier (exp) | Delta | Acc (base) | Acc (exp) | Delta |")
+                lines.append("|------|-------------|-------------|-------|------------|-----------|-------|")
+                for s in common_folds:
                     eb = exp_per_fold[s].get("brier", exp_per_fold[s].get("brier_score"))
                     bb = base_per_fold[s].get("brier", base_per_fold[s].get("brier_score"))
                     ea = exp_per_fold[s].get("accuracy")
@@ -1878,11 +1878,11 @@ def show_diagnostics(
     if preds_path.exists():
         preds_df = pd.read_parquet(preds_path)
     elif preds_dir.exists():
-        # Predictions may be split per-season (e.g. 2024_probabilities.parquet)
-        season_files = sorted(preds_dir.glob("*_probabilities.parquet"))
-        if season_files:
+        # Predictions may be split per-fold (e.g. 2024_probabilities.parquet)
+        fold_files = sorted(preds_dir.glob("*_probabilities.parquet"))
+        if fold_files:
             preds_df = pd.concat(
-                [pd.read_parquet(f) for f in season_files],
+                [pd.read_parquet(f) for f in fold_files],
                 ignore_index=True,
             )
         else:

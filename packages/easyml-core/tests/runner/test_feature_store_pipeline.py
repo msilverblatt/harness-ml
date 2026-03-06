@@ -124,8 +124,9 @@ class TestFeatureStorePipelineWiring:
                 },
             },
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": [2022, 2023, 2024],
+                "cv_strategy": "leave_one_out",
+                "fold_column": "season",
+                "fold_values": [2022, 2023, 2024],
                 "metrics": ["brier"],
             },
         })
@@ -189,8 +190,9 @@ class TestFeatureStorePipelineWiring:
                 },
             },
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": [2023, 2024],
+                "cv_strategy": "leave_one_out",
+                "fold_column": "season",
+                "fold_values": [2023, 2024],
                 "metrics": ["brier"],
             },
         })
@@ -234,8 +236,9 @@ class TestFeatureStorePipelineWiring:
                 "features_dir": str(tmp_path / "data" / "features"),
             },
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": [2023, 2024],
+                "cv_strategy": "leave_one_out",
+                "fold_column": "season",
+                "fold_values": [2023, 2024],
                 "metrics": ["brier"],
             },
         })

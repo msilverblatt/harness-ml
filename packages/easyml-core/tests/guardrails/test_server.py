@@ -162,6 +162,7 @@ def test_add_inspection_tools_none():
 
 
 def test_to_fastmcp():
+    pytest.importorskip("fastmcp")
     server = PipelineServer(name="test-mcp")
     server.register_tool("ping", lambda: "pong", description="Health check")
     mcp = server.to_fastmcp()

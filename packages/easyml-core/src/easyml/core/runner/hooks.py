@@ -109,10 +109,10 @@ def get_column_renames() -> dict[str, str]:
     """Get column rename mappings, including plugin-registered ones.
 
     Returns a dict of {old_name: new_name} for normalizing column names.
-    Core provides generic renames (e.g. Season -> season), plugins add
-    domain-specific ones (e.g. TeamAWon -> result).
+    Core provides no default renames; plugins add domain-specific ones
+    (e.g. TeamAWon -> result, Season -> season).
     """
-    renames = {"Season": "season"}  # Default core rename
+    renames: dict[str, str] = {}  # Plugins provide all renames
     extra = HookRegistry.call_all(COLUMN_RENAMES)
     for result in extra:
         if isinstance(result, dict):

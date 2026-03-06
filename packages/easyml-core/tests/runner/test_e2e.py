@@ -26,9 +26,11 @@ from easyml.core.runner.validator import validate_project
 def scaffolded_project(tmp_path):
     """Scaffold a project into tmp_path and write mock parquet data.
 
-    Creates 200 rows across 3 seasons (2022, 2023, 2024) with
+    Creates 200 rows across 3 fold values (2022, 2023, 2024) with
     diff_prior feature and result column.  Updates pipeline.yaml
-    to point at the absolute data path and set seasons.
+    to point at the absolute data path and set fold values.
+    Only 2023 and 2024 are used as holdout folds; 2022 is
+    training-only (no prior data exists for temporal filtering).
     """
     project_dir = tmp_path / "test_project"
     scaffold_project(project_dir, project_name="test_project")
@@ -54,7 +56,7 @@ def scaffolded_project(tmp_path):
     })
     df.to_parquet(features_dir / "features.parquet", index=False)
 
-    # Update pipeline.yaml to use absolute path and set seasons
+    # Update pipeline.yaml to use absolute path and set fold values
     pipeline_path = project_dir / "config" / "pipeline.yaml"
     pipeline_data = {
         "data": {
@@ -64,8 +66,9 @@ def scaffolded_project(tmp_path):
             "gender": "M",
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2022, 2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2023, 2024],
+            "fold_column": "season",
             "metrics": ["brier", "accuracy", "ece", "log_loss"],
             "min_train_folds": 1,
         },
@@ -152,7 +155,7 @@ class TestE2EInspect:
             ["--config-dir", str(config_dir), "inspect", "config", "--section", "backtest"],
         )
         assert result.exit_code == 0
-        assert "leave_one_season_out" in result.output
+        assert "leave_one_out" in result.output
 
 
 class TestE2EFullPipeline:

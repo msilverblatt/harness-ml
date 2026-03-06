@@ -45,7 +45,7 @@ def _minimal_ensemble() -> dict:
 
 
 def _minimal_backtest() -> dict:
-    return {"cv_strategy": "leave_one_season_out", "seasons": [2023, 2024]}
+    return {"cv_strategy": "leave_one_out", "fold_values": [2023, 2024]}
 
 
 def _minimal_project() -> dict:
@@ -70,7 +70,7 @@ class TestMinimalConfig:
         assert "xgb_core" in cfg.models
         assert cfg.models["xgb_core"].type == "xgboost"
         assert cfg.ensemble.method == "stacked"
-        assert cfg.backtest.cv_strategy == "leave_one_season_out"
+        assert cfg.backtest.cv_strategy == "leave_one_out"
 
     def test_defaults_applied(self):
         cfg = ProjectConfig(**_minimal_project())
@@ -208,7 +208,7 @@ class TestSerializationRoundtrip:
         assert cfg2.data.raw_dir == cfg.data.raw_dir
         assert cfg2.models["xgb_core"].type == cfg.models["xgb_core"].type
         assert cfg2.ensemble.method == cfg.ensemble.method
-        assert cfg2.backtest.seasons == cfg.backtest.seasons
+        assert cfg2.backtest.fold_values == cfg.backtest.fold_values
 
 
 class TestGuardrailConfig:
@@ -321,13 +321,22 @@ class TestModelDefExtensions:
         )
         assert m.prediction_type == "margin"
 
-    def test_train_seasons_last_n(self):
+    def test_train_folds_last_n(self):
         m = ModelDef(
             type="xgboost",
             features=["diff_prior"],
-            train_seasons="last_5",
+            train_folds="last_5",
         )
-        assert m.train_seasons == "last_5"
+        assert m.train_folds == "last_5"
+
+    def test_backward_compat_train_seasons(self):
+        """Old 'train_seasons' key still works and maps to train_folds."""
+        m = ModelDef(
+            type="xgboost",
+            features=["diff_prior"],
+            train_seasons="last_3",
+        )
+        assert m.train_folds == "last_3"
 
     def test_cdf_scale(self):
         m = ModelDef(
@@ -370,7 +379,7 @@ class TestModelDefExtensions:
         m = ModelDef(type="xgboost", features=["feat_a"])
         assert m.feature_sets == []
         assert m.prediction_type is None
-        assert m.train_seasons == "all"
+        assert m.train_folds == "all"
         assert m.pre_calibration is None
         assert m.cdf_scale is None
 
@@ -431,13 +440,18 @@ class TestFeaturesConfig:
 
     def test_defaults(self):
         fc = FeaturesConfig()
-        assert fc.first_season == 2003
+        assert fc.first_period == 2003
         assert fc.momentum_window == 10
 
     def test_custom_values(self):
-        fc = FeaturesConfig(first_season=2010, momentum_window=5)
-        assert fc.first_season == 2010
+        fc = FeaturesConfig(first_period=2010, momentum_window=5)
+        assert fc.first_period == 2010
         assert fc.momentum_window == 5
+
+    def test_backward_compat_first_season(self):
+        """Old 'first_season' key still works and maps to first_period."""
+        fc = FeaturesConfig(first_season=2008)
+        assert fc.first_period == 2008
 
 
 class TestDataConfigExtensions:
@@ -491,10 +505,10 @@ class TestProjectConfigFeatureConfig:
 
     def test_with_feature_config(self):
         proj = _minimal_project()
-        proj["feature_config"] = {"first_season": 2003, "momentum_window": 10}
+        proj["feature_config"] = {"first_period": 2003, "momentum_window": 10}
         cfg = ProjectConfig(**proj)
         assert cfg.feature_config is not None
-        assert cfg.feature_config.first_season == 2003
+        assert cfg.feature_config.first_period == 2003
         assert cfg.feature_config.momentum_window == 10
 
     def test_without_feature_config(self):
@@ -608,7 +622,7 @@ class TestBacktestConfigExtensions:
     def test_backtest_config_sliding_window(self):
         bt = BacktestConfig(
             cv_strategy="sliding_window",
-            seasons=[2020, 2021, 2022, 2023, 2024],
+            fold_values=[2020, 2021, 2022, 2023, 2024],
             window_size=5,
         )
         assert bt.cv_strategy == "sliding_window"
@@ -619,7 +633,7 @@ class TestBacktestConfigExtensions:
     def test_backtest_config_purged_kfold(self):
         bt = BacktestConfig(
             cv_strategy="purged_kfold",
-            seasons=[2015, 2016, 2017, 2018, 2019],
+            fold_values=[2015, 2016, 2017, 2018, 2019],
             n_folds=5,
             purge_gap=2,
         )
@@ -631,12 +645,28 @@ class TestBacktestConfigExtensions:
     def test_existing_configs_still_valid(self):
         """Existing BacktestConfig without new fields still validates."""
         bt = BacktestConfig(
-            cv_strategy="leave_one_season_out",
-            seasons=[2023, 2024],
+            cv_strategy="leave_one_out",
+            fold_values=[2023, 2024],
         )
         assert bt.window_size is None
         assert bt.n_folds is None
         assert bt.purge_gap == 1
+
+    def test_backward_compat_seasons(self):
+        """Old 'seasons' key still works and maps to fold_values."""
+        bt = BacktestConfig(
+            cv_strategy="leave_one_out",
+            seasons=[2022, 2023],
+        )
+        assert bt.fold_values == [2022, 2023]
+
+    def test_backward_compat_leave_one_season_out(self):
+        """Old 'leave_one_season_out' cv_strategy still works and maps to leave_one_out."""
+        bt = BacktestConfig(
+            cv_strategy="leave_one_season_out",
+            fold_values=[2023, 2024],
+        )
+        assert bt.cv_strategy == "leave_one_out"
 
 
 class TestColumnCleaningRule:

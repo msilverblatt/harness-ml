@@ -251,12 +251,12 @@ class TestMCPWorkflow:
         assert "xgb_v1" in models_md
 
     def test_configure_backtest(self, tmp_path):
-        """Step 6: Configure backtest seasons and metrics."""
+        """Step 6: Configure backtest fold values and metrics."""
         project_dir, _ = _scaffold_with_data(tmp_path)
 
         result = config_writer.configure_backtest(
             project_dir,
-            seasons=[2022, 2023, 2024],
+            fold_values=[2022, 2023, 2024],
             metrics=["brier", "accuracy", "log_loss"],
         )
 
@@ -348,13 +348,13 @@ class TestMCPWorkflow:
             data=data,
             models=base_models,
             ensemble=EnsembleDef(method="stacked"),
-            backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+            backtest=BacktestConfig(cv_strategy="leave_one_out"),
         )
         new = ProjectConfig(
             data=data,
             models=new_models,
             ensemble=EnsembleDef(method="stacked"),
-            backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+            backtest=BacktestConfig(cv_strategy="leave_one_out"),
         )
 
         plan = plan_execution(current, new)
@@ -434,7 +434,7 @@ class TestMCPWorkflow:
         # 7. Configure backtest
         config_writer.configure_backtest(
             project_dir,
-            seasons=[2022, 2023, 2024],
+            fold_values=[2022, 2023, 2024],
             metrics=["brier", "accuracy"],
         )
 
@@ -750,16 +750,16 @@ class TestPredictAction:
             features=["diff_adj_em", "diff_barthag", "diff_prior"],
         )
         config_writer.configure_backtest(
-            project_dir, seasons=[2022, 2023, 2024],
+            project_dir, fold_values=[2022, 2023, 2024],
         )
 
-        result = config_writer.run_predict(project_dir, season=2024)
+        result = config_writer.run_predict(project_dir, fold_value=2024)
 
         assert "Prediction" in result or "predict" in result.lower()
         assert any(word in result.lower() for word in ["matchup", "prediction", "row"])
 
-    def test_predict_no_data_for_season(self, tmp_path):
-        """predict should handle missing season gracefully."""
+    def test_predict_no_data_for_fold(self, tmp_path):
+        """predict should handle missing fold value gracefully."""
         project_dir, _ = _scaffold_with_data(tmp_path)
 
         config_writer.add_model(
@@ -768,7 +768,7 @@ class TestPredictAction:
             features=["diff_adj_em", "diff_barthag"],
         )
 
-        result = config_writer.run_predict(project_dir, season=2099)
+        result = config_writer.run_predict(project_dir, fold_value=2099)
 
         assert "Error" in result or "No" in result or "0" in result or "failed" in result.lower()
 

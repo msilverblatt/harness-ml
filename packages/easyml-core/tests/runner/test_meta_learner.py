@@ -14,10 +14,10 @@ from easyml.core.runner.meta_learner import StackedEnsemble, train_meta_learner_
 # Helpers
 # -----------------------------------------------------------------------
 
-def _synth_data(n: int = 100, n_models: int = 3, n_seasons: int = 3, seed: int = 42):
+def _synth_data(n: int = 100, n_models: int = 3, n_folds: int = 3, seed: int = 42):
     """Generate synthetic data for meta-learner tests.
 
-    Returns dict with y_true, model_preds, prior_diffs, season_labels, model_names.
+    Returns dict with y_true, model_preds, prior_diffs, fold_labels, model_names.
     """
     rng = np.random.RandomState(seed)
 
@@ -34,14 +34,14 @@ def _synth_data(n: int = 100, n_models: int = 3, n_seasons: int = 3, seed: int =
 
     prior_diffs = rng.choice([-8, -4, -2, -1, 1, 2, 4, 8], size=n).astype(float)
 
-    # Assign seasons cyclically
-    seasons = np.array([2020 + (i % n_seasons) for i in range(n)])
+    # Assign fold labels cyclically
+    fold_labels = np.array([2020 + (i % n_folds) for i in range(n)])
 
     return {
         "y_true": y_true,
         "model_preds": model_preds,
         "prior_diffs": prior_diffs,
-        "season_labels": seasons,
+        "fold_labels": fold_labels,
         "model_names": model_names,
     }
 
@@ -164,7 +164,7 @@ class TestStackedEnsemble:
 
 class TestTrainMetaLearnerLoso:
     def test_basic_loso(self):
-        data = _synth_data(150, 3, n_seasons=3)
+        data = _synth_data(150, 3, n_folds=3)
         ensemble_config = {
             "meta_learner": {"C": 1.0},
             "calibration": "none",
@@ -175,7 +175,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
         )
@@ -191,7 +191,7 @@ class TestTrainMetaLearnerLoso:
         assert np.all(probs <= 1)
 
     def test_with_spline_post_calibration(self):
-        data = _synth_data(150, 3, n_seasons=3)
+        data = _synth_data(150, 3, n_folds=3)
         ensemble_config = {
             "meta_learner": {"C": 1.0},
             "calibration": "spline",
@@ -204,7 +204,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
         )
@@ -213,7 +213,7 @@ class TestTrainMetaLearnerLoso:
         assert post_cal.is_fitted
 
     def test_with_pre_calibration(self):
-        data = _synth_data(150, 3, n_seasons=3)
+        data = _synth_data(150, 3, n_folds=3)
         ensemble_config = {
             "meta_learner": {"C": 1.0},
             "calibration": "none",
@@ -226,7 +226,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
         )
@@ -244,7 +244,7 @@ class TestTrainMetaLearnerLoso:
         The test ensures that results differ from what would happen if
         pre-calibration were applied globally (leaked).
         """
-        data = _synth_data(150, 3, n_seasons=3)
+        data = _synth_data(150, 3, n_folds=3)
 
         # With per-fold pre-calibration
         config_with = {
@@ -258,7 +258,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=config_with,
         )
@@ -273,7 +273,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=config_without,
         )
@@ -285,7 +285,7 @@ class TestTrainMetaLearnerLoso:
         assert diff > 0, "Pre-calibration should change coefficients"
 
     def test_with_extra_features(self):
-        data = _synth_data(150, 2, n_seasons=3)
+        data = _synth_data(150, 2, n_folds=3)
         rng = np.random.RandomState(99)
         extra = {"elo_diff": rng.randn(150)}
 
@@ -299,7 +299,7 @@ class TestTrainMetaLearnerLoso:
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config=ensemble_config,
             extra_features=extra,
@@ -309,7 +309,7 @@ class TestTrainMetaLearnerLoso:
         assert "elo_diff" in coeffs
 
     def test_custom_C(self):
-        data = _synth_data(150, 2, n_seasons=3)
+        data = _synth_data(150, 2, n_folds=3)
         for C in [0.1, 2.5, 10.0]:
             ensemble_config = {
                 "meta_learner": {"C": C},
@@ -320,7 +320,7 @@ class TestTrainMetaLearnerLoso:
                 y_true=data["y_true"],
                 model_preds=data["model_preds"],
                 prior_diffs=data["prior_diffs"],
-                season_labels=data["season_labels"],
+                fold_labels=data["fold_labels"],
                 model_names=data["model_names"],
                 ensemble_config=ensemble_config,
             )
@@ -329,12 +329,12 @@ class TestTrainMetaLearnerLoso:
 
     def test_default_config_values(self):
         """Defaults should work when ensemble_config has minimal keys."""
-        data = _synth_data(150, 2, n_seasons=3)
+        data = _synth_data(150, 2, n_folds=3)
         meta, post_cal, pre_cals = train_meta_learner_loso(
             y_true=data["y_true"],
             model_preds=data["model_preds"],
             prior_diffs=data["prior_diffs"],
-            season_labels=data["season_labels"],
+            fold_labels=data["fold_labels"],
             model_names=data["model_names"],
             ensemble_config={},
         )

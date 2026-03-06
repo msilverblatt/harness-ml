@@ -27,8 +27,8 @@ def _minimal_pipeline() -> dict:
             "features_dir": "data/features",
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2023, 2024],
         },
     }
 
@@ -248,12 +248,12 @@ class TestMultiSectionPipeline:
                 "task": "classification",
             },
             "features": {
-                "first_season": 2003,
+                "first_period": 2003,
                 "momentum_window": 10,
             },
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025],
+                "cv_strategy": "leave_one_out",
+                "fold_values": [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025],
             },
             # Unknown keys like "bracket" should be silently ignored
             "bracket": {
@@ -278,12 +278,12 @@ class TestMultiSectionPipeline:
 
         # features section mapped to feature_config
         assert cfg.feature_config is not None
-        assert cfg.feature_config.first_season == 2003
+        assert cfg.feature_config.first_period == 2003
         assert cfg.feature_config.momentum_window == 10
 
         # backtest section parsed
-        assert cfg.backtest.cv_strategy == "leave_one_season_out"
-        assert 2025 in cfg.backtest.seasons
+        assert cfg.backtest.cv_strategy == "leave_one_out"
+        assert 2025 in cfg.backtest.fold_values
 
     def test_pipeline_without_features_section(self, tmp_path):
         """pipeline.yaml without a features key should still work."""

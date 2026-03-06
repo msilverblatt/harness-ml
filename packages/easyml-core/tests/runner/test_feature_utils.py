@@ -89,8 +89,8 @@ class TestInjectMissingFile:
         assert (result["extra_col"] == 0.0).all()
 
 
-class TestInjectSeasonPlaceholder:
-    def test_inject_with_season_placeholder(self, tmp_path: Path) -> None:
+class TestInjectFoldPlaceholder:
+    def test_inject_with_fold_placeholder(self, tmp_path: Path) -> None:
         source = pd.DataFrame({"team_id": [1], "stat": [42.0]})
         parquet_path = tmp_path / "data_2024.parquet"
         source.to_parquet(parquet_path)
@@ -104,7 +104,7 @@ class TestInjectSeasonPlaceholder:
             columns=["stat"],
             fill_na=0.0,
         )
-        result = inject_features(df, inj, season=2024)
+        result = inject_features(df, inj, fold_value=2024)
         assert result.loc[0, "stat"] == 42.0
 
 
@@ -112,7 +112,7 @@ class TestInjectFromCallable:
     def test_inject_from_callable(self) -> None:
         # Create a temporary module with a callable
         mod = types.ModuleType("_test_inject_mod")
-        mod.get_data = lambda season=None: pd.DataFrame(  # type: ignore[attr-defined]
+        mod.get_data = lambda fold_value=None: pd.DataFrame(  # type: ignore[attr-defined]
             {"key": [10, 20], "val": [1.5, 2.5]}
         )
         import sys
@@ -128,7 +128,7 @@ class TestInjectFromCallable:
                 callable_module="_test_inject_mod",
                 callable_function="get_data",
             )
-            result = inject_features(df, inj, season=2025)
+            result = inject_features(df, inj, fold_value=2025)
             assert result.loc[result["key"] == 10, "val"].iloc[0] == 1.5
             assert result.loc[result["key"] == 30, "val"].iloc[0] == -1.0
         finally:
@@ -246,7 +246,7 @@ class TestAllTypesRegistered:
                 "m2": ModelDef(type="catboost", features=["b"]),
             },
             ensemble=EnsembleDef(method="stacked"),
-            backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+            backtest=BacktestConfig(cv_strategy="leave_one_out", fold_column="season"),
         )
         registry = MockRegistry({"xgboost", "catboost"})
         warnings = validate_registry_coverage(config, registry)
@@ -268,7 +268,7 @@ class TestMissingTypeWarns:
                 "m1": ModelDef(type="xgboost", features=["a"]),
             },
             ensemble=EnsembleDef(method="stacked"),
-            backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+            backtest=BacktestConfig(cv_strategy="leave_one_out", fold_column="season"),
         )
         registry = MockRegistry({"catboost"})  # xgboost NOT registered
         warnings = validate_registry_coverage(config, registry)
@@ -292,7 +292,7 @@ class TestXgboostRegressionResolves:
                 "spread": ModelDef(type="xgboost_regression", features=["a"]),
             },
             ensemble=EnsembleDef(method="stacked"),
-            backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+            backtest=BacktestConfig(cv_strategy="leave_one_out", fold_column="season"),
         )
         # Only "xgboost" in registry — xgboost_regression should map to it
         registry = MockRegistry({"xgboost"})

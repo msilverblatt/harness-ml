@@ -36,7 +36,7 @@ from easyml.core.runner.diagnostics import (
     compute_ece,
     compute_model_agreement,
     compute_pooled_metrics,
-    evaluate_season_predictions,
+    evaluate_fold_predictions,
 )
 from easyml.core.runner.experiment import (
     ChangeSet,
@@ -235,7 +235,7 @@ __all__ = [
     "detect_experiment_changes",
     "drop_duplicates",
     "detect_redundant_features",
-    "evaluate_season_predictions",
+    "evaluate_fold_predictions",
     "expand_sweep",
     "export_backtest_artifacts",
     "fill_nulls",

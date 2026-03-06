@@ -223,7 +223,7 @@ def validate_project(
             merged[key] = pipeline_raw[key]
 
     # The "features" key in pipeline.yaml maps to "feature_config" in
-    # ProjectConfig (pipeline-level feature settings like first_season,
+    # ProjectConfig (pipeline-level feature settings like first_period,
     # momentum_window).  This is distinct from the features.yaml file
     # which contains FeatureDecl registrations.
     if _PIPELINE_FEATURES_KEY in pipeline_raw:

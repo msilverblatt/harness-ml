@@ -10,7 +10,7 @@ from easyml.core.runner.diagnostics import (
     compute_calibration_curve,
     compute_ece,
     compute_pooled_metrics,
-    evaluate_season_predictions,
+    evaluate_fold_predictions,
 )
 
 
@@ -151,11 +151,11 @@ class TestCalibrationCurve:
 
 
 # -----------------------------------------------------------------------
-# Tests: evaluate_season_predictions
+# Tests: evaluate_fold_predictions
 # -----------------------------------------------------------------------
 
-class TestEvaluateSeasonPredictions:
-    """Test per-season evaluation."""
+class TestEvaluateFoldPredictions:
+    """Test per-fold evaluation."""
 
     def test_returns_expected_structure(self):
         """Output has expected keys."""
@@ -164,17 +164,17 @@ class TestEvaluateSeasonPredictions:
             "prob_model_a": [0.7, 0.3, 0.8, 0.2, 0.6] * 10,
             "prob_model_b": [0.6, 0.4, 0.7, 0.3, 0.5] * 10,
         })
-        results = evaluate_season_predictions(preds, {}, season=2024)
+        results = evaluate_fold_predictions(preds, {}, fold_id=2024)
         assert len(results) == 2
 
         for r in results:
             assert "model" in r
-            assert "season" in r
+            assert "fold" in r
             assert "accuracy" in r
             assert "brier_score" in r
             assert "ece" in r
             assert "log_loss" in r
-            assert r["season"] == 2024
+            assert r["fold"] == 2024
 
     def test_model_names_extracted(self):
         """Model names are extracted from prob_ column names."""
@@ -183,7 +183,7 @@ class TestEvaluateSeasonPredictions:
             "prob_xgb_core": [0.7, 0.3, 0.8, 0.2],
             "prob_logreg": [0.6, 0.4, 0.7, 0.3],
         })
-        results = evaluate_season_predictions(preds, {}, season=2024)
+        results = evaluate_fold_predictions(preds, {}, fold_id=2024)
         model_names = {r["model"] for r in results}
         assert model_names == {"xgb_core", "logreg"}
 
@@ -193,7 +193,7 @@ class TestEvaluateSeasonPredictions:
             "prob_model_a": [0.7, 0.3, 0.8, 0.2],
         })
         actuals = {"m1": 1, "m2": 0, "m3": 1, "m4": 0}
-        results = evaluate_season_predictions(preds, actuals, season=2024)
+        results = evaluate_fold_predictions(preds, actuals, fold_id=2024)
         assert len(results) == 1
 
     def test_raises_without_ground_truth(self):
@@ -202,7 +202,7 @@ class TestEvaluateSeasonPredictions:
             "prob_model_a": [0.7, 0.3],
         })
         with pytest.raises(ValueError, match="No ground truth"):
-            evaluate_season_predictions(preds, {}, season=2024)
+            evaluate_fold_predictions(preds, {}, fold_id=2024)
 
 
 # -----------------------------------------------------------------------
@@ -210,13 +210,13 @@ class TestEvaluateSeasonPredictions:
 # -----------------------------------------------------------------------
 
 class TestPooledMetrics:
-    """Test pooled metrics across multiple seasons."""
+    """Test pooled metrics across multiple folds."""
 
     def test_basic_pooling(self):
-        """Pooled metrics combine data from multiple seasons."""
+        """Pooled metrics combine data from multiple folds."""
         rng = np.random.default_rng(42)
 
-        season_dfs = []
+        fold_dfs = []
         for season in [2023, 2024]:
             n = 50
             df = pd.DataFrame({
@@ -224,9 +224,9 @@ class TestPooledMetrics:
                 "prob_model_a": rng.uniform(0.2, 0.8, size=n),
                 "prob_model_b": rng.uniform(0.3, 0.7, size=n),
             })
-            season_dfs.append(df)
+            fold_dfs.append(df)
 
-        metrics = compute_pooled_metrics(season_dfs)
+        metrics = compute_pooled_metrics(fold_dfs)
         assert "model_a" in metrics
         assert "model_b" in metrics
 
@@ -236,14 +236,14 @@ class TestPooledMetrics:
             assert "ece" in m
             assert "log_loss" in m
             assert "n_samples" in m
-            assert m["n_samples"] == 100  # 50 per season
+            assert m["n_samples"] == 100  # 50 per fold
 
     def test_empty_list(self):
         """Empty list returns empty dict."""
         assert compute_pooled_metrics([]) == {}
 
     def test_pooled_vs_averaged(self):
-        """Pooled metrics can differ from averaged per-season metrics."""
+        """Pooled metrics can differ from averaged per-fold metrics."""
         # This is just a sanity check that pooling works differently
         df1 = pd.DataFrame({
             "result": [1.0, 1.0, 1.0],
@@ -265,8 +265,8 @@ class TestPooledMetrics:
         with pytest.raises(ValueError, match="result"):
             compute_pooled_metrics([df])
 
-    def test_single_season(self):
-        """Works with a single season."""
+    def test_single_fold(self):
+        """Works with a single fold."""
         df = pd.DataFrame({
             "result": [1.0, 0.0, 1.0, 0.0],
             "prob_model": [0.7, 0.3, 0.8, 0.2],

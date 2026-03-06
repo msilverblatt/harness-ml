@@ -114,15 +114,15 @@ class TestDetectExperimentChanges:
 
     def test_feature_config_changed(self):
         """Feature config change detected."""
-        prod = {"models": {}, "feature_config": {"first_season": 2003}}
-        overlay = {"feature_config": {"first_season": 2005}}
+        prod = {"models": {}, "feature_config": {"first_period": 2003}}
+        overlay = {"feature_config": {"first_period": 2005}}
         change_set = detect_experiment_changes(prod, overlay)
         assert change_set.feature_config_changed
 
     def test_feature_config_same_not_flagged(self):
         """Same feature config not flagged as changed."""
-        prod = {"models": {}, "feature_config": {"first_season": 2003}}
-        overlay = {"feature_config": {"first_season": 2003}}
+        prod = {"models": {}, "feature_config": {"first_period": 2003}}
+        overlay = {"feature_config": {"first_period": 2003}}
         change_set = detect_experiment_changes(prod, overlay)
         assert not change_set.feature_config_changed
 
@@ -138,12 +138,12 @@ class TestDetectExperimentChanges:
         prod = {
             "models": {"m1": {"type": "xgboost", "params": {"depth": 3}}},
             "ensemble": {"method": "stacked"},
-            "feature_config": {"first_season": 2003},
+            "feature_config": {"first_period": 2003},
         }
         overlay = {
             "models": {"m1": {"type": "xgboost", "params": {"depth": 5}}, "m2": {"type": "catboost"}},
             "ensemble": {"method": "average"},
-            "feature_config": {"first_season": 2005},
+            "feature_config": {"first_period": 2005},
         }
         change_set = detect_experiment_changes(prod, overlay)
         assert "m1" in change_set.changed_models
@@ -622,8 +622,9 @@ class TestRunSweep:
                 "features_dir": str(features_dir),
             },
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": [2022, 2023, 2024],
+                "cv_strategy": "leave_one_out",
+                "fold_values": [2022, 2023, 2024],
+                "fold_column": "season",
                 "metrics": ["brier", "accuracy"],
                 "min_train_folds": 1,
             },

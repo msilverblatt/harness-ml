@@ -39,17 +39,29 @@ class XGBoostModel(BaseModel):
         self._build_model()
 
     def _build_model(self) -> None:
+        # Strip early_stopping_rounds from estimator constructor — it requires
+        # eval_set in fit() which we may not have.  When an eval_set IS
+        # provided (via fit kwargs), pass early_stopping_rounds there instead.
+        self._early_stopping = self.params.get("early_stopping_rounds")
+        clean_params = {
+            k: v for k, v in self.params.items()
+            if k != "early_stopping_rounds"
+        }
         if self._mode == "classifier":
             from xgboost import XGBClassifier
 
-            self._model = XGBClassifier(**self.params)
+            self._model = XGBClassifier(**clean_params)
         else:
             from xgboost import XGBRegressor
 
-            self._model = XGBRegressor(**self.params)
+            self._model = XGBRegressor(**clean_params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._model.fit(X, y)
+    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
+        if "eval_set" in kwargs and self._early_stopping:
+            # Caller provided eval_set — re-enable early stopping via constructor param
+            self._model.set_params(early_stopping_rounds=self._early_stopping)
+            kwargs.setdefault("verbose", False)
+        self._model.fit(X, y, **kwargs)
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

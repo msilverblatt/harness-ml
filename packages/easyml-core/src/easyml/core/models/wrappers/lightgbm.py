@@ -21,10 +21,18 @@ class LightGBMModel(BaseModel):
         super().__init__(params)
         from lightgbm import LGBMClassifier
 
-        self._model = LGBMClassifier(**self.params)
+        # Strip early_stopping_rounds from constructor — requires eval_set
+        self._early_stopping = self.params.get("early_stopping_rounds")
+        clean_params = {
+            k: v for k, v in self.params.items()
+            if k != "early_stopping_rounds"
+        }
+        self._model = LGBMClassifier(**clean_params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._model.fit(X, y)
+    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
+        if "eval_set" in kwargs and self._early_stopping:
+            self._model.set_params(early_stopping_rounds=self._early_stopping)
+        self._model.fit(X, y, **kwargs)
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

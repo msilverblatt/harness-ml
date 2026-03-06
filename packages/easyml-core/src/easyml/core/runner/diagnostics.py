@@ -1,6 +1,6 @@
 """Diagnostics and metrics computation for model evaluation.
 
-Provides Brier score, ECE, calibration curve, and pooled/per-season
+Provides Brier score, ECE, calibration curve, and pooled/per-fold
 metrics computation for backtest evaluation.
 """
 from __future__ import annotations
@@ -137,12 +137,12 @@ def compute_calibration_curve(
     )
 
 
-def evaluate_season_predictions(
+def evaluate_fold_predictions(
     preds: pd.DataFrame,
     actuals: dict[str, int],
-    season: int,
+    fold_id: int,
 ) -> list[dict]:
-    """Compute per-model metrics for a single season.
+    """Compute per-model metrics for a single fold.
 
     Parameters
     ----------
@@ -153,13 +153,13 @@ def evaluate_season_predictions(
     actuals : dict[str, int]
         Mapping of matchup identifier -> binary outcome. Used as
         fallback if 'result' column is not in preds.
-    season : int
-        Season identifier for the output.
+    fold_id : int
+        Fold identifier for the output.
 
     Returns
     -------
     list of dict
-        Each dict has: model, season, accuracy, brier_score, ece, log_loss.
+        Each dict has: model, fold, accuracy, brier_score, ece, log_loss.
     """
     # Determine ground truth
     if "result" in preds.columns:
@@ -193,7 +193,7 @@ def evaluate_season_predictions(
 
         results.append({
             "model": model_name,
-            "season": season,
+            "fold": fold_id,
             "accuracy": accuracy,
             "brier_score": brier,
             "ece": ece,
@@ -204,16 +204,16 @@ def evaluate_season_predictions(
 
 
 def compute_pooled_metrics(
-    season_predictions: list[pd.DataFrame],
+    fold_predictions: list[pd.DataFrame],
 ) -> dict[str, dict]:
-    """Compute pooled metrics across all seasons.
+    """Compute pooled metrics across all folds.
 
     Pooled = computed on concatenated predictions (more stable than
-    averaging per-season metrics).
+    averaging per-fold metrics).
 
     Parameters
     ----------
-    season_predictions : list of pd.DataFrame
+    fold_predictions : list of pd.DataFrame
         Each DataFrame has prob_{model_name} columns and a 'result' column.
 
     Returns
@@ -221,10 +221,10 @@ def compute_pooled_metrics(
     dict mapping model_name -> metric dict
         Each metric dict has: accuracy, brier_score, ece, log_loss, n_samples.
     """
-    if not season_predictions:
+    if not fold_predictions:
         return {}
 
-    combined = pd.concat(season_predictions, ignore_index=True)
+    combined = pd.concat(fold_predictions, ignore_index=True)
 
     if "result" not in combined.columns:
         raise ValueError("'result' column required in prediction DataFrames")

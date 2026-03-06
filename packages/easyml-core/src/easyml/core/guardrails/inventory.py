@@ -358,8 +358,8 @@ class TemporalOrderingGuardrail(Guardrail):
     """Validates temporal ordering to prevent data leakage.
 
     Context keys:
-        training_seasons (list[int]): Seasons used for training.
-        test_season (int): Season being predicted/evaluated.
+        training_folds (list[int]): Fold values used for training.
+        test_fold (int): Fold value being predicted/evaluated.
     """
 
     def __init__(self) -> None:
@@ -370,15 +370,15 @@ class TemporalOrderingGuardrail(Guardrail):
         )
 
     def _check(self, context: dict) -> None:
-        training_seasons = context.get("training_seasons", [])
-        test_season = context.get("test_season")
-        if test_season is None or not training_seasons:
+        training_folds = context.get("training_folds", context.get("training_seasons", []))
+        test_fold = context.get("test_fold", context.get("test_season"))
+        if test_fold is None or not training_folds:
             return
 
-        future = [s for s in training_seasons if s >= test_season]
+        future = [s for s in training_folds if s >= test_fold]
         if future:
             self._fail(
-                f"Temporal leakage: training seasons {future} overlap with "
-                f"or follow test season {test_season}.",
+                f"Temporal leakage: training folds {future} overlap with "
+                f"or follow test fold {test_fold}.",
                 source="TemporalOrderingGuardrail",
             )

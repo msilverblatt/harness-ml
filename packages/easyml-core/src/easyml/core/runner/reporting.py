@@ -10,29 +10,35 @@ import pandas as pd
 
 from easyml.core.runner.diagnostics import (
     compute_model_agreement,
-    evaluate_season_predictions,
+    evaluate_fold_predictions,
 )
 from easyml.core.runner.hooks import get_entity_column_candidates
 
 logger = logging.getLogger(__name__)
 
 
-def build_pick_log(preds_df: pd.DataFrame, season: int) -> pd.DataFrame:
+def build_pick_log(
+    preds_df: pd.DataFrame,
+    fold_id: int,
+    fold_column: str = "fold",
+) -> pd.DataFrame:
     """Build per-game pick log from predictions DataFrame.
 
     Parameters
     ----------
     preds_df : pd.DataFrame
         Predictions with prob_ensemble, result, and optionally team/seed columns.
-    season : int
-        Season identifier.
+    fold_id : int
+        Fold identifier.
+    fold_column : str
+        Name of the fold column for the output DataFrame.
 
     Returns
     -------
     pd.DataFrame
-        Columns: game_id, season, prob_a, prob_b, predicted_winner,
+        Columns: game_id, {fold_column}, prob_a, prob_b, predicted_winner,
         actual_winner, correct, confidence, model_agreement_pct.
-        Plus team_a, team_b, seed_a, seed_b, round if available.
+        Plus entity_a, entity_b, prior_a, prior_b, round if available.
     """
     prob_a = preds_df["prob_ensemble"].values
     prob_b = 1.0 - prob_a
@@ -45,7 +51,7 @@ def build_pick_log(preds_df: pd.DataFrame, season: int) -> pd.DataFrame:
 
     log = pd.DataFrame({
         "game_id": np.arange(len(preds_df)),
-        "season": season,
+        fold_column: fold_id,
         "prob_a": prob_a,
         "prob_b": prob_b,
         "predicted_winner": predicted_winner,
@@ -74,24 +80,27 @@ def build_pick_log(preds_df: pd.DataFrame, season: int) -> pd.DataFrame:
 
 
 def build_diagnostics_report(
-    season_data: dict[int, pd.DataFrame],
+    fold_data: dict[int, pd.DataFrame],
+    fold_column: str = "fold",
 ) -> pd.DataFrame:
-    """Build per-season metrics table.
+    """Build per-fold metrics table.
 
     Parameters
     ----------
-    season_data : dict[int, pd.DataFrame]
-        Mapping of season -> predictions DataFrame with prob_ensemble and result.
+    fold_data : dict[int, pd.DataFrame]
+        Mapping of fold_id -> predictions DataFrame with prob_ensemble and result.
+    fold_column : str
+        Name of the fold column for the output DataFrame.
 
     Returns
     -------
     pd.DataFrame
-        Columns: season, brier_score, accuracy, ece, log_loss, n_games.
+        Columns: {fold_column}, brier_score, accuracy, ece, log_loss, n_games.
     """
     rows = []
-    for season in sorted(season_data.keys()):
-        df = season_data[season]
-        results = evaluate_season_predictions(df, {}, season=season)
+    for fold_id in sorted(fold_data.keys()):
+        df = fold_data[fold_id]
+        results = evaluate_fold_predictions(df, {}, fold_id=fold_id)
 
         # Find the ensemble entry
         ensemble_metrics = None
@@ -104,7 +113,7 @@ def build_diagnostics_report(
             continue
 
         rows.append({
-            "season": season,
+            fold_column: fold_id,
             "brier_score": ensemble_metrics["brier_score"],
             "accuracy": ensemble_metrics["accuracy"],
             "ece": ensemble_metrics["ece"],
@@ -120,12 +129,13 @@ def generate_markdown_report(
     diagnostics_df: pd.DataFrame | None = None,
     pick_log: pd.DataFrame | None = None,
     meta_coefficients: dict | None = None,
+    fold_column: str = "fold",
 ) -> str:
     """Generate human-readable markdown backtest report.
 
     Sections:
     - Top-Line Metrics table
-    - Per-Season Breakdown (if diagnostics_df provided)
+    - Per-Fold Breakdown (if diagnostics_df provided)
     - Meta-Learner Coefficients (if provided)
     - Pick Analysis Summary (if pick_log provided)
 
@@ -134,11 +144,13 @@ def generate_markdown_report(
     pooled_metrics : dict
         Pooled metrics dict (model_name -> metric dict).
     diagnostics_df : pd.DataFrame | None
-        Per-season diagnostics from build_diagnostics_report.
+        Per-fold diagnostics from build_diagnostics_report.
     pick_log : pd.DataFrame | None
         Pick log from build_pick_log.
     meta_coefficients : dict | None
         Meta-learner coefficients (model_name -> coefficient).
+    fold_column : str
+        Name of the fold column in diagnostics_df.
 
     Returns
     -------
@@ -171,18 +183,19 @@ def generate_markdown_report(
         sections.append("No ensemble metrics available.")
     sections.append("")
 
-    # Per-Season Breakdown
+    # Per-Fold Breakdown
     if diagnostics_df is not None and len(diagnostics_df) > 0:
-        sections.append("## Per-Season Breakdown\n")
+        sections.append("## Per-Fold Breakdown\n")
         sections.append(
-            "| Season | Brier | Accuracy | ECE | Log Loss | Games |"
+            "| Fold | Brier | Accuracy | ECE | Log Loss | Games |"
         )
         sections.append(
-            "|--------|-------|----------|-----|----------|-------|"
+            "|------|-------|----------|-----|----------|-------|"
         )
         for _, row in diagnostics_df.iterrows():
+            fold_val = row.get(fold_column, row.get("fold", "?"))
             sections.append(
-                f"| {int(row['season'])} "
+                f"| {int(fold_val)} "
                 f"| {row['brier_score']:.4f} "
                 f"| {row['accuracy']:.4f} "
                 f"| {row['ece']:.4f} "
@@ -239,7 +252,7 @@ def generate_markdown_report(
 
 def export_backtest_artifacts(
     run_dir: Path,
-    season_data: dict[int, pd.DataFrame],
+    fold_data: dict[int, pd.DataFrame],
     pooled_metrics: dict,
     diagnostics_df: pd.DataFrame,
     pick_log: pd.DataFrame,
@@ -248,7 +261,7 @@ def export_backtest_artifacts(
     """Save all backtest artifacts to run directory.
 
     Creates:
-    - run_dir/predictions/{season}_probabilities.parquet
+    - run_dir/predictions/{fold_id}_probabilities.parquet
     - run_dir/diagnostics/diagnostics.parquet
     - run_dir/diagnostics/pooled_metrics.json
     - run_dir/diagnostics/pick_log.parquet
@@ -258,12 +271,12 @@ def export_backtest_artifacts(
     ----------
     run_dir : Path
         Root run directory (must exist or will be created).
-    season_data : dict[int, pd.DataFrame]
-        Per-season predictions DataFrames.
+    fold_data : dict[int, pd.DataFrame]
+        Per-fold predictions DataFrames.
     pooled_metrics : dict
         Pooled metrics dict.
     diagnostics_df : pd.DataFrame
-        Per-season diagnostics table.
+        Per-fold diagnostics table.
     pick_log : pd.DataFrame
         Pick log DataFrame.
     report_md : str
@@ -275,9 +288,9 @@ def export_backtest_artifacts(
     predictions_dir.mkdir(parents=True, exist_ok=True)
     diagnostics_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save per-season predictions
-    for season, df in sorted(season_data.items()):
-        path = predictions_dir / f"{season}_probabilities.parquet"
+    # Save per-fold predictions
+    for fold_id, df in sorted(fold_data.items()):
+        path = predictions_dir / f"{fold_id}_probabilities.parquet"
         df.to_parquet(path, index=False)
         logger.info("Saved predictions: %s", path)
 

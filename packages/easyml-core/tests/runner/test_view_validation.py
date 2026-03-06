@@ -26,7 +26,7 @@ def _make_config(**data_overrides) -> ProjectConfig:
         data=data,
         models={},
         ensemble=EnsembleDef(method="stacked"),
-        backtest=BacktestConfig(cv_strategy="leave_one_season_out"),
+        backtest=BacktestConfig(cv_strategy="leave_one_out"),
     )
 
 

@@ -29,9 +29,9 @@ def _make_matchup_parquet(
     mm_style: bool = False,
     extra_features: list[str] | None = None,
 ) -> None:
-    """Create a mock features parquet with diff_x feature and season column."""
+    """Create a mock features parquet with diff_x feature and fold column."""
     rng = np.random.default_rng(42)
-    seasons = rng.choice(list(range(2022, 2022 + n_seasons)), size=n_rows)
+    fold_vals = rng.choice(list(range(2022, 2022 + n_seasons)), size=n_rows)
     result = rng.integers(0, 2, size=n_rows)
 
     data = {
@@ -39,12 +39,12 @@ def _make_matchup_parquet(
     }
 
     if mm_style:
-        data["Season"] = seasons
+        data["Season"] = fold_vals
         data["TeamAWon"] = result
         if include_margin:
             data["TeamAMargin"] = rng.standard_normal(n_rows) * 10
     else:
-        data["season"] = seasons
+        data["season"] = fold_vals
         data["result"] = result
         if include_margin:
             data["margin"] = rng.standard_normal(n_rows) * 10
@@ -66,13 +66,13 @@ def _setup_project(
     tmp_path: Path,
     models: dict | None = None,
     ensemble: dict | None = None,
-    n_rows: int = 200,
-    n_seasons: int = 3,
+    n_rows: int = 300,
+    n_seasons: int = 5,
     include_margin: bool = False,
     include_seed: bool = False,
     mm_style: bool = False,
     extra_features: list[str] | None = None,
-    seasons: list[int] | None = None,
+    fold_values: list[int] | None = None,
 ) -> Path:
     """Create a minimal project config and data for PipelineRunner tests.
 
@@ -94,20 +94,28 @@ def _setup_project(
         extra_features=extra_features,
     )
 
-    if seasons is None:
-        seasons = list(range(2022, 2022 + n_seasons))
+    if fold_values is None:
+        fold_values = list(range(2022, 2022 + n_seasons))
+
+    data_config: dict = {
+        "raw_dir": str(tmp_path / "data" / "raw"),
+        "processed_dir": str(tmp_path / "data" / "processed"),
+        "features_dir": str(features_dir),
+    }
+    if mm_style:
+        data_config["column_renames"] = {
+            "TeamAWon": "result",
+            "Season": "season",
+        }
 
     _write_yaml(
         config_dir / "pipeline.yaml",
         {
-            "data": {
-                "raw_dir": str(tmp_path / "data" / "raw"),
-                "processed_dir": str(tmp_path / "data" / "processed"),
-                "features_dir": str(features_dir),
-            },
+            "data": data_config,
             "backtest": {
-                "cv_strategy": "leave_one_season_out",
-                "seasons": seasons,
+                "cv_strategy": "leave_one_out",
+                "fold_column": "season",
+                "fold_values": fold_values,
                 "metrics": ["brier", "accuracy"],
                 "min_train_folds": 1,
             },
@@ -264,7 +272,7 @@ class TestStackedEnsembleBacktest:
     """Backtest with stacked ensemble (meta-learner)."""
 
     def test_stacked_three_models(self, tmp_path):
-        """Stacked backtest with 3 models across 3 seasons produces ensemble."""
+        """Stacked backtest with 3 models across 3 folds produces ensemble."""
         models = {
             "logreg_a": {
                 "type": "logistic_regression",
@@ -311,8 +319,8 @@ class TestStackedEnsembleBacktest:
         assert "accuracy" in result["metrics"]
         assert result["metrics"]["brier"] >= 0
         assert result["metrics"]["brier"] <= 1.0
-        # LOSO skips first season (no prior training data), so 2 folds
-        assert len(result["per_fold"]) == 2
+        # LOSO with 3 folds: each fold gets held out, trained on other 2
+        assert len(result["per_fold"]) == 3
 
 
 class TestExcludeModels:
@@ -416,7 +424,7 @@ class TestColumnAutoDetect:
     """Auto-detect mm-style column names."""
 
     def test_mm_style_columns(self, tmp_path):
-        """mm-style columns (TeamAWon, Season) are auto-normalized."""
+        """mm-style columns (TeamAWon, Season) are auto-detected."""
         models = {
             "logreg_a": {
                 "type": "logistic_regression",
@@ -439,24 +447,24 @@ class TestColumnAutoDetect:
         assert "brier" in result["metrics"]
 
 
-class TestTrainSeasonsFiltering:
-    """train_seasons filtering works in backtest."""
+class TestTrainFoldsFiltering:
+    """train_folds filtering works in backtest."""
 
-    def test_train_seasons_last_n(self, tmp_path):
-        """Models with train_seasons='last_2' use fewer seasons."""
+    def test_train_folds_last_n(self, tmp_path):
+        """Models with train_folds='last_2' use fewer folds."""
         models = {
             "logreg_recent": {
                 "type": "logistic_regression",
                 "features": ["diff_x"],
                 "params": {"max_iter": 200},
                 "active": True,
-                "train_seasons": "last_2",
+                "train_folds": "last_2",
             },
         }
         config_dir = _setup_project(
             tmp_path, models=models,
             n_rows=300, n_seasons=4,
-            seasons=[2022, 2023, 2024, 2025],
+            fold_values=[2022, 2023, 2024, 2025],
         )
         runner = PipelineRunner(
             project_dir=str(tmp_path),
@@ -722,8 +730,7 @@ class TestPredictionCacheIntegration:
         """First backtest with cache → all misses, no hits."""
         from easyml.core.runner.prediction_cache import PredictionCache
 
-        # 4 seasons → LOSO with min_train=1 gives 3 holdout folds
-        # (first season has no prior data to train on)
+        # 4 folds → LOSO with min_train=1 gives 4 holdout folds (symmetric)
         config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
         cache = PredictionCache(tmp_path / "cache")
 
@@ -738,8 +745,8 @@ class TestPredictionCacheIntegration:
         assert result["status"] == "success"
         stats = runner.cache_stats
         assert stats["hits"] == 0
-        # 1 model x 3 holdout seasons = 3 misses
-        assert stats["misses"] == 3
+        # 1 model x 4 holdout folds = 4 misses
+        assert stats["misses"] == 4
 
     def test_second_run_all_hits(self, tmp_path):
         """Second backtest with same cache → all hits, no misses."""
@@ -768,7 +775,7 @@ class TestPredictionCacheIntegration:
 
         assert result2["status"] == "success"
         stats2 = runner2.cache_stats
-        assert stats2["hits"] == 3  # 1 model x 3 holdout seasons
+        assert stats2["hits"] == 4  # 1 model x 4 holdout folds
         assert stats2["misses"] == 0
 
     def test_cache_produces_same_metrics(self, tmp_path):
@@ -807,7 +814,7 @@ class TestPredictionCacheIntegration:
         from easyml.core.runner.prediction_cache import PredictionCache
 
         cache = PredictionCache(tmp_path / "cache")
-        n_folds = 3  # 4 seasons, LOSO, first skipped → 3 folds
+        n_folds = 4  # 4 fold values, LOSO symmetric → 4 folds
 
         # First config
         models_v1 = {
@@ -858,7 +865,7 @@ class TestPredictionCacheIntegration:
         from easyml.core.runner.prediction_cache import PredictionCache
 
         cache = PredictionCache(tmp_path / "cache")
-        n_folds = 3  # 4 seasons, LOSO, first skipped → 3 folds
+        n_folds = 4  # 4 fold values, LOSO symmetric → 4 folds
 
         models_v1 = {
             "logreg_a": {
@@ -885,8 +892,8 @@ class TestPredictionCacheIntegration:
         )
         runner1.load()
         runner1.backtest()
-        # 2 models x 3 folds = 6 misses
-        assert runner1.cache_stats["misses"] == 2 * n_folds
+        # 2 models x 4 folds = 8 misses
+        assert runner1.cache_stats["misses"] == 2 * n_folds  # 2 models x 4 folds
 
         # Change only model B's C value
         models_v2 = {
@@ -946,7 +953,7 @@ class TestPredictionCacheIntegration:
                 "active": True,
             },
         }
-        # 4 seasons → 3 LOSO folds (first season skipped, no prior data)
+        # 4 fold values → 4 LOSO folds (symmetric)
         config_dir = _setup_project(
             tmp_path, models=models, n_rows=400, n_seasons=4,
             include_seed=True,
@@ -960,8 +967,8 @@ class TestPredictionCacheIntegration:
         runner.load()
         runner.backtest()
 
-        # Only consumer gets cached (3 misses), provider skips cache
-        assert runner.cache_stats["misses"] == 3
+        # Only consumer gets cached (4 misses), provider skips cache
+        assert runner.cache_stats["misses"] == 4
         assert runner.cache_stats["hits"] == 0
 
 
@@ -988,7 +995,7 @@ class TestBacktestReporting:
         assert "Top-Line Metrics" in result["report"]
 
     def test_backtest_includes_diagnostics(self, tmp_path):
-        """Backtest result has a 'diagnostics' key with per-season data."""
+        """Backtest result has a 'diagnostics' key with per-fold data."""
         config_dir = _setup_project(tmp_path)
         runner = PipelineRunner(
             project_dir=str(tmp_path),
@@ -1000,7 +1007,7 @@ class TestBacktestReporting:
         assert "diagnostics" in result
         assert isinstance(result["diagnostics"], list)
         assert len(result["diagnostics"]) > 0
-        assert "season" in result["diagnostics"][0]
+        assert "fold" in result["diagnostics"][0]
 
     def test_backtest_exports_artifacts_to_run_dir(self, tmp_path):
         """When run_dir is set, artifacts are exported."""
@@ -1032,8 +1039,8 @@ class TestBacktestReporting:
         assert "run_dir" not in result
         assert "report" in result  # report is always generated
 
-    def test_report_has_per_season_breakdown(self, tmp_path):
-        """Report includes per-season breakdown section."""
+    def test_report_has_per_fold_breakdown(self, tmp_path):
+        """Report includes per-fold breakdown section."""
         config_dir = _setup_project(tmp_path)
         runner = PipelineRunner(
             project_dir=str(tmp_path),
@@ -1042,7 +1049,7 @@ class TestBacktestReporting:
         runner.load()
         result = runner.backtest()
 
-        assert "Per-Season Breakdown" in result["report"]
+        assert "Per-Fold Breakdown" in result["report"]
 
     def test_report_has_pick_analysis(self, tmp_path):
         """Report includes pick analysis section."""

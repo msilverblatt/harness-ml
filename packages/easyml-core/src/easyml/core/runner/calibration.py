@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import PchipInterpolator
 from scipy.special import expit, logit
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
@@ -18,23 +18,25 @@ logger = logging.getLogger(__name__)
 
 
 class SplineCalibrator:
-    """Spline-based probability calibration.
+    """PCHIP-based probability calibration with isotonic pre-processing.
 
     Bins predictions into equal-frequency bins, computes mean predicted
-    vs mean actual per bin, and fits a cubic spline through the mapping.
+    vs mean actual per bin, applies isotonic regression to enforce
+    monotonicity, then fits a PCHIP interpolator through the mapping.
     """
 
     def __init__(self, prob_max: float = 0.985, n_bins: int = 20) -> None:
         self.prob_max = prob_max
         self.n_bins = n_bins
-        self._spline: UnivariateSpline | None = None
+        self._interpolator: PchipInterpolator | None = None
 
     def fit(self, y_true: np.ndarray, y_prob: np.ndarray) -> None:
         """Fit spline calibrator on observed labels and predicted probabilities.
 
         Requires at least 20 samples. Bins predictions into n_bins
         equal-frequency bins, computes (mean_pred, mean_actual) per bin,
-        and fits a cubic UnivariateSpline.
+        applies isotonic regression to enforce monotonicity, then fits
+        a PCHIP interpolator for smooth monotone mapping.
         """
         y_true = np.asarray(y_true, dtype=float)
         y_prob = np.asarray(y_prob, dtype=float)
@@ -63,21 +65,24 @@ class SplineCalibrator:
         mean_preds = np.array(mean_preds)
         mean_actuals = np.array(mean_actuals)
 
-        # Fit cubic spline; s controls smoothness — use len/4 for moderate smoothing
-        s = max(len(mean_preds) / 4.0, 1.0)
-        self._spline = UnivariateSpline(mean_preds, mean_actuals, k=3, s=s)
+        # Isotonic regression to enforce monotonicity before PCHIP
+        iso = IsotonicRegression(y_min=0.001, y_max=self.prob_max, out_of_bounds="clip")
+        mean_actuals_mono = iso.fit_transform(mean_preds, mean_actuals)
+
+        # PCHIP guarantees monotone interpolation between nodes
+        self._interpolator = PchipInterpolator(mean_preds, mean_actuals_mono)
 
     def transform(self, y_prob: np.ndarray) -> np.ndarray:
-        """Apply spline calibration, clipping output to (0.001, prob_max)."""
-        if self._spline is None:
+        """Apply PCHIP calibration, clipping output to (0.001, prob_max)."""
+        if self._interpolator is None:
             raise RuntimeError("SplineCalibrator has not been fitted yet.")
         y_prob = np.asarray(y_prob, dtype=float)
-        calibrated = self._spline(y_prob)
+        calibrated = self._interpolator(y_prob)
         return np.clip(calibrated, 0.001, self.prob_max)
 
     @property
     def is_fitted(self) -> bool:
-        return self._spline is not None
+        return self._interpolator is not None
 
 
 class IsotonicCalibrator:

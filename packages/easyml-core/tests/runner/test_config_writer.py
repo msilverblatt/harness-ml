@@ -42,8 +42,8 @@ def _setup_project(tmp_path: Path) -> Path:
             "features_dir": str(feat_dir),
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2022, 2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2022, 2023, 2024],
             "metrics": ["brier", "accuracy"],
             "min_train_folds": 1,
         },
@@ -202,9 +202,9 @@ class TestConfigureEnsemble:
 class TestConfigureBacktest:
     """Test configure_backtest."""
 
-    def test_update_seasons(self, tmp_path):
+    def test_update_fold_values(self, tmp_path):
         project = _setup_project(tmp_path)
-        result = configure_backtest(project, seasons=[2022, 2023, 2024, 2025])
+        result = configure_backtest(project, fold_values=[2022, 2023, 2024, 2025])
         assert "Updated" in result
         assert "2025" in result
 
@@ -392,8 +392,8 @@ def _setup_declarative_project(tmp_path: Path) -> Path:
             },
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2022, 2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2022, 2023, 2024],
             "metrics": ["brier"],
             "min_train_folds": 1,
         },

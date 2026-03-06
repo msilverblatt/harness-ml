@@ -28,8 +28,8 @@ def _minimal_pipeline() -> dict:
             "features_dir": "data/features",
         },
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [2023, 2024],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [2023, 2024],
         },
     }
 

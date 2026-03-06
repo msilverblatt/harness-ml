@@ -99,7 +99,7 @@ class TestBuildPickLog:
             "prob_model_b": [0.75, 0.25, 0.65],
             "result": [1, 0, 1],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         assert len(log) == 3
         assert "correct" in log.columns
         assert "confidence" in log.columns
@@ -117,7 +117,7 @@ class TestBuildPickLog:
             "seed_b": [16, 13],
             "Round": [1, 1],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         assert "entity_a" in log.columns
         assert "entity_b" in log.columns
         assert "prior_a" in log.columns
@@ -131,7 +131,7 @@ class TestBuildPickLog:
             "prob_ensemble": [0.8, 0.3, 0.5],
             "result": [1, 0, 1],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         expected = [0.3, 0.2, 0.0]
         np.testing.assert_array_almost_equal(
             log["confidence"].values, expected
@@ -143,7 +143,7 @@ class TestBuildPickLog:
             "prob_ensemble": [0.8, 0.3, 0.5],
             "result": [1, 0, 0],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         assert log["predicted_winner"].tolist() == ["A", "B", "B"]
 
     def test_pick_log_actual_winner(self):
@@ -152,16 +152,16 @@ class TestBuildPickLog:
             "prob_ensemble": [0.7, 0.3],
             "result": [1, 0],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         assert log["actual_winner"].tolist() == ["A", "B"]
 
-    def test_pick_log_season(self):
-        """Season column is set correctly."""
+    def test_pick_log_fold_column(self):
+        """Fold column is set correctly."""
         preds = pd.DataFrame({
             "prob_ensemble": [0.7],
             "result": [1],
         })
-        log = build_pick_log(preds, season=2025)
+        log = build_pick_log(preds, fold_id=2025, fold_column="season")
         assert log["season"].iloc[0] == 2025
 
     def test_pick_log_without_optional_columns(self):
@@ -170,7 +170,7 @@ class TestBuildPickLog:
             "prob_ensemble": [0.7, 0.3],
             "result": [1, 0],
         })
-        log = build_pick_log(preds, season=2023)
+        log = build_pick_log(preds, fold_id=2023, fold_column="season")
         assert "entity_a" not in log.columns
         assert "prior_a" not in log.columns
         assert "round" not in log.columns
@@ -185,8 +185,8 @@ class TestBuildDiagnosticsReport:
     """Test diagnostics report construction."""
 
     def test_basic_report(self):
-        """Builds per-season metrics table."""
-        season_data = {
+        """Builds per-fold metrics table."""
+        fold_data = {
             2023: pd.DataFrame({
                 "result": [1, 0, 1, 0, 1] * 10,
                 "prob_ensemble": [0.7, 0.3, 0.8, 0.2, 0.6] * 10,
@@ -196,7 +196,7 @@ class TestBuildDiagnosticsReport:
                 "prob_ensemble": [0.65, 0.35, 0.75, 0.25, 0.55] * 10,
             }),
         }
-        report = build_diagnostics_report(season_data)
+        report = build_diagnostics_report(fold_data, fold_column="season")
         assert len(report) == 2
         assert "season" in report.columns
         assert "brier_score" in report.columns
@@ -206,15 +206,15 @@ class TestBuildDiagnosticsReport:
         assert "n_games" in report.columns
         assert list(report["season"]) == [2023, 2024]
 
-    def test_single_season(self):
-        """Works with a single season."""
-        season_data = {
+    def test_single_fold(self):
+        """Works with a single fold."""
+        fold_data = {
             2024: pd.DataFrame({
                 "result": [1, 0, 1, 0],
                 "prob_ensemble": [0.7, 0.3, 0.8, 0.2],
             }),
         }
-        report = build_diagnostics_report(season_data)
+        report = build_diagnostics_report(fold_data, fold_column="season")
         assert len(report) == 1
         assert report["n_games"].iloc[0] == 4
 
@@ -249,8 +249,8 @@ class TestGenerateMarkdownReport:
         assert "0.1751" in report
         assert "0.7564" in report
 
-    def test_includes_per_season(self):
-        """Report includes season breakdown when provided."""
+    def test_includes_per_fold(self):
+        """Report includes fold breakdown when provided."""
         pooled = {
             "ensemble": {
                 "brier_score": 0.18,
@@ -268,8 +268,8 @@ class TestGenerateMarkdownReport:
             "log_loss": [0.52, 0.54],
             "n_games": [50, 50],
         })
-        report = generate_markdown_report(pooled, diagnostics_df=diag_df)
-        assert "Per-Season Breakdown" in report
+        report = generate_markdown_report(pooled, diagnostics_df=diag_df, fold_column="season")
+        assert "Per-Fold Breakdown" in report
         assert "2023" in report
         assert "2024" in report
 
@@ -336,7 +336,7 @@ class TestGenerateMarkdownReport:
             },
         }
         report = generate_markdown_report(pooled)
-        assert "Per-Season Breakdown" not in report
+        assert "Per-Fold Breakdown" not in report
         assert "Meta-Learner Coefficients" not in report
         assert "Pick Analysis" not in report
 
@@ -351,7 +351,7 @@ class TestExportBacktestArtifacts:
 
     def test_exports_all_files(self, tmp_path):
         """Creates all expected files in run_dir."""
-        season_data = {
+        fold_data = {
             2023: pd.DataFrame({
                 "result": [1, 0, 1],
                 "prob_ensemble": [0.7, 0.3, 0.8],
@@ -383,7 +383,7 @@ class TestExportBacktestArtifacts:
         run_dir = tmp_path / "test_run"
         export_backtest_artifacts(
             run_dir=run_dir,
-            season_data=season_data,
+            fold_data=fold_data,
             pooled_metrics=pooled_metrics,
             diagnostics_df=diagnostics_df,
             pick_log=pick_log,
@@ -424,7 +424,7 @@ class TestExportBacktestArtifacts:
     def test_creates_directories(self, tmp_path):
         """Creates prediction and diagnostics subdirectories."""
         run_dir = tmp_path / "new_run"
-        season_data = {
+        fold_data = {
             2023: pd.DataFrame({
                 "result": [1],
                 "prob_ensemble": [0.7],
@@ -432,7 +432,7 @@ class TestExportBacktestArtifacts:
         }
         export_backtest_artifacts(
             run_dir=run_dir,
-            season_data=season_data,
+            fold_data=fold_data,
             pooled_metrics={},
             diagnostics_df=pd.DataFrame(),
             pick_log=pd.DataFrame(
@@ -454,7 +454,7 @@ class TestExportBacktestArtifacts:
         }
         export_backtest_artifacts(
             run_dir=run_dir,
-            season_data={},
+            fold_data={},
             pooled_metrics=pooled_metrics,
             diagnostics_df=pd.DataFrame(),
             pick_log=pd.DataFrame(

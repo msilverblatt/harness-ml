@@ -41,8 +41,8 @@ def _pipeline_yaml(
     return {
         "data": data_config,
         "backtest": {
-            "cv_strategy": "leave_one_season_out",
-            "seasons": [],
+            "cv_strategy": "leave_one_out",
+            "fold_values": [],
             "metrics": ["brier", "accuracy", "ece", "log_loss"],
             "min_train_folds": 1,
         },
@@ -141,7 +141,7 @@ def _server_yaml(project_name: str) -> dict:
                 },
                 "backtest": {
                     "command": "uv run python -m easyml.runner backtest",
-                    "description": "Run backtesting across configured seasons",
+                    "description": "Run backtesting across configured folds",
                     "timeout": 600,
                 },
                 "pipeline": {

@@ -338,29 +338,29 @@ class TestTemporalOrderingGuardrail:
     def test_valid_ordering(self):
         g = TemporalOrderingGuardrail()
         g.check(context={
-            "training_seasons": [2015, 2016, 2017],
-            "test_season": 2018,
+            "training_folds": [2015, 2016, 2017],
+            "test_fold": 2018,
         })
 
     def test_leakage(self):
         g = TemporalOrderingGuardrail()
         with pytest.raises(GuardrailError, match="Temporal leakage"):
             g.check(context={
-                "training_seasons": [2015, 2016, 2018],
-                "test_season": 2017,
+                "training_folds": [2015, 2016, 2018],
+                "test_fold": 2017,
             })
 
     def test_same_season_leakage(self):
         g = TemporalOrderingGuardrail()
         with pytest.raises(GuardrailError, match="Temporal leakage"):
             g.check(context={
-                "training_seasons": [2015, 2016, 2017],
-                "test_season": 2017,
+                "training_folds": [2015, 2016, 2017],
+                "test_fold": 2017,
             })
 
-    def test_no_test_season(self):
+    def test_no_test_fold(self):
         g = TemporalOrderingGuardrail()
-        g.check(context={"training_seasons": [2015, 2016]})
+        g.check(context={"training_folds": [2015, 2016]})
 
     def test_not_overridable(self):
         g = TemporalOrderingGuardrail()
@@ -368,8 +368,8 @@ class TestTemporalOrderingGuardrail:
         with pytest.raises(GuardrailError):
             g.check(
                 context={
-                    "training_seasons": [2018],
-                    "test_season": 2017,
+                    "training_folds": [2018],
+                    "test_fold": 2017,
                 },
                 human_override=True,
             )

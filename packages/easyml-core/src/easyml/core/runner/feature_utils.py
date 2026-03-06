@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def inject_features(
     df: pd.DataFrame,
     injection_def: InjectionDef,
-    season: int | None = None,
+    fold_value: int | None = None,
 ) -> pd.DataFrame:
     """Merge external features into a DataFrame.
 
@@ -34,8 +34,9 @@ def inject_features(
         Existing DataFrame.
     injection_def : InjectionDef
         Injection definition.
-    season : int | None
-        Current season for ``{season}`` placeholder in *path_pattern*.
+    fold_value : int | None
+        Current fold value for ``{fold_value}`` placeholder in *path_pattern*.
+        Also supports deprecated ``{season}`` placeholder for backward compat.
 
     Returns
     -------
@@ -49,7 +50,11 @@ def inject_features(
 
     if source_type in ("parquet", "csv"):
         path_pattern = injection_def.path_pattern or ""
-        resolved_path = path_pattern.format(season=season) if season is not None else path_pattern
+        if fold_value is not None:
+            # Support both {fold_value} and deprecated {season} placeholders
+            resolved_path = path_pattern.format(fold_value=fold_value, season=fold_value)
+        else:
+            resolved_path = path_pattern
         path = Path(resolved_path)
 
         if not path.exists():
@@ -72,7 +77,7 @@ def inject_features(
     elif source_type == "callable":
         mod = importlib.import_module(injection_def.callable_module)  # type: ignore[arg-type]
         func = getattr(mod, injection_def.callable_function)  # type: ignore[arg-type]
-        source_df = func(season=season)
+        source_df = func(fold_value=fold_value)
 
     else:
         raise ValueError(f"Unknown source_type: {source_type!r}")

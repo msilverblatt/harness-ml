@@ -1,7 +1,7 @@
 """Cross-validation strategy bridge for PipelineRunner.
 
 Maps BacktestConfig cv_strategy strings to fold generation logic
-and returns (train_seasons, test_season) tuples for use by
+and returns (train_folds, test_fold) tuples for use by
 PipelineRunner.backtest().
 """
 from __future__ import annotations
@@ -16,95 +16,129 @@ def generate_cv_folds(
     df: pd.DataFrame,
     bt_config: BacktestConfig,
 ) -> list[tuple[list[int], int]]:
-    """Generate (train_seasons, test_season) tuples from CV strategy.
+    """Generate (train_folds, test_fold) tuples from CV strategy.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Full dataset with 'season' column.
+        Full dataset with the fold column (specified by bt_config.fold_column).
     bt_config : BacktestConfig
         Backtest configuration.
 
     Returns
     -------
-    list of (train_seasons, test_season) tuples
+    list of (train_fold_values, test_fold_value) tuples
     """
     strategy = bt_config.cv_strategy
+    fold_col = bt_config.fold_column
 
-    # Determine available seasons
-    if bt_config.seasons:
-        all_seasons = sorted(bt_config.seasons)
+    if fold_col not in df.columns:
+        raise ValueError(
+            f"Fold column {fold_col!r} not found in data. "
+            f"Set backtest.fold_column to an existing column."
+        )
+
+    # All fold values available in df (used as training pool)
+    all_df_folds = sorted(df[fold_col].unique().tolist())
+
+    # Test folds: specified in config or all df folds
+    if bt_config.fold_values:
+        test_folds = sorted(bt_config.fold_values)
     else:
-        all_seasons = sorted(df["season"].unique().tolist())
+        test_folds = all_df_folds
 
-    if strategy == "leave_one_season_out":
-        return _loso_folds(all_seasons, bt_config.min_train_folds)
+    if strategy == "leave_one_out":
+        return _loso_folds(test_folds, bt_config.min_train_folds, all_df_folds)
     elif strategy == "expanding_window":
-        return _expanding_window_folds(all_seasons, bt_config.min_train_folds)
+        return _expanding_window_folds(test_folds, bt_config.min_train_folds, all_df_folds)
     elif strategy == "sliding_window":
-        return _sliding_window_folds(all_seasons, bt_config.window_size)
+        return _sliding_window_folds(test_folds, bt_config.window_size, all_df_folds)
     elif strategy == "purged_kfold":
-        return _purged_kfold_folds(all_seasons, bt_config.n_folds, bt_config.purge_gap)
+        return _purged_kfold_folds(test_folds, bt_config.n_folds, bt_config.purge_gap)
     else:
         raise ValueError(f"Unknown cv_strategy: {strategy!r}")
 
 
 def _loso_folds(
-    seasons: list[int],
+    folds: list[int],
     min_train_folds: int,
+    training_pool: list[int] | None = None,
 ) -> list[tuple[list[int], int]]:
-    """Leave-one-season-out: test each season using all prior seasons."""
-    folds = []
-    for test_season in seasons:
-        train_seasons = [s for s in seasons if s < test_season]
-        if len(train_seasons) < min_train_folds:
+    """Leave-one-out: test each fold using all other folds for training.
+
+    Parameters
+    ----------
+    folds : list[int]
+        Fold values to use as test folds.
+    min_train_folds : int
+        Minimum number of training folds required.
+    training_pool : list[int] | None
+        All available fold values for training (can include values
+        outside the test fold list). Defaults to ``folds`` if not set.
+    """
+    pool = sorted(training_pool or folds)
+    result = []
+    for test_fold in folds:
+        train_folds = [f for f in pool if f != test_fold]
+        if len(train_folds) < min_train_folds:
             continue
-        folds.append((train_seasons, test_season))
-    return folds
+        result.append((train_folds, test_fold))
+    return result
 
 
 def _expanding_window_folds(
-    seasons: list[int],
+    folds: list[int],
     min_train_folds: int,
+    training_pool: list[int] | None = None,
 ) -> list[tuple[list[int], int]]:
-    """Expanding window: each season tested using all prior seasons.
+    """Expanding window: each fold tested using all prior folds only.
 
-    Identical to LOSO -- min_train_folds controls the minimum number
-    of training seasons required.
+    Unlike LOSO, this is temporal — only folds with values less than
+    the test fold are used for training. min_train_folds controls the
+    minimum number of training folds required.
     """
-    return _loso_folds(seasons, min_train_folds)
+    pool = sorted(training_pool or folds)
+    result = []
+    for test_fold in folds:
+        train_folds = [f for f in pool if f < test_fold]
+        if len(train_folds) < min_train_folds:
+            continue
+        result.append((train_folds, test_fold))
+    return result
 
 
 def _sliding_window_folds(
-    seasons: list[int],
+    folds: list[int],
     window_size: int | None,
+    training_pool: list[int] | None = None,
 ) -> list[tuple[list[int], int]]:
-    """Sliding window: train on last window_size prior seasons."""
+    """Sliding window: train on last window_size prior folds."""
     if window_size is None:
         raise ValueError(
             "sliding_window strategy requires window_size to be set "
             "in BacktestConfig"
         )
-    folds = []
-    for test_season in seasons:
-        prior = [s for s in seasons if s < test_season]
+    pool = sorted(training_pool or folds)
+    result = []
+    for test_fold in folds:
+        prior = [f for f in pool if f < test_fold]
         if not prior:
             continue
-        train_seasons = prior[-window_size:]
-        folds.append((train_seasons, test_season))
-    return folds
+        train_folds = prior[-window_size:]
+        result.append((train_folds, test_fold))
+    return result
 
 
 def _purged_kfold_folds(
-    seasons: list[int],
+    folds: list[int],
     n_folds: int | None,
     purge_gap: int,
 ) -> list[tuple[list[int], int]]:
-    """Purged k-fold: split seasons into groups, purge nearby seasons.
+    """Purged k-fold: split fold values into groups, purge nearby values.
 
-    For each fold group, test on those seasons and train on all others
-    except those within purge_gap of any test season.  Emits one
-    (train_seasons, test_season) tuple per test season in each group.
+    For each fold group, test on those values and train on all others
+    except those within purge_gap of any test value. Emits one
+    (train_folds, test_fold) tuple per test value in each group.
     """
     if n_folds is None:
         raise ValueError(
@@ -112,26 +146,26 @@ def _purged_kfold_folds(
             "in BacktestConfig"
         )
 
-    season_arr = np.array(seasons)
-    groups = np.array_split(season_arr, n_folds)
+    fold_arr = np.array(folds)
+    groups = np.array_split(fold_arr, n_folds)
 
-    folds = []
+    result = []
     for group in groups:
         test_set = set(group.tolist())
 
-        # Build embargo set: seasons within purge_gap of any test season
+        # Build embargo set: values within purge_gap of any test value
         embargo_set: set[int] = set()
-        for ts in test_set:
+        for tv in test_set:
             for offset in range(1, purge_gap + 1):
-                embargo_set.add(ts - offset)
-                embargo_set.add(ts + offset)
+                embargo_set.add(tv - offset)
+                embargo_set.add(tv + offset)
         embargo_set -= test_set
 
-        # Training = all seasons not in test and not embargoed
-        all_set = set(seasons)
-        train_seasons = sorted(all_set - test_set - embargo_set)
+        # Training = all folds not in test and not embargoed
+        all_set = set(folds)
+        train_folds = sorted(all_set - test_set - embargo_set)
 
-        for test_season in sorted(test_set):
-            folds.append((train_seasons, test_season))
+        for test_fold in sorted(test_set):
+            result.append((train_folds, test_fold))
 
-    return folds
+    return result

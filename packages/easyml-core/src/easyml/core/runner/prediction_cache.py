@@ -1,12 +1,12 @@
 """Content-addressable prediction cache.
 
-Stores per-model, per-season predictions keyed by fingerprint.
+Stores per-model, per-fold predictions keyed by fingerprint.
 
 Layout::
 
     cache_dir/
         {model_name}/
-            {season}/
+            {fold_value}/
                 {fingerprint}.parquet
 """
 from __future__ import annotations
@@ -32,11 +32,11 @@ class PredictionCache:
     def lookup(
         self,
         model_name: str,
-        season: int,
+        fold_value: int,
         fingerprint: str,
     ) -> pd.DataFrame | None:
         """Return cached predictions or ``None`` on miss / corruption."""
-        path = self._path(model_name, season, fingerprint)
+        path = self._path(model_name, fold_value, fingerprint)
         if not path.exists():
             return None
         try:
@@ -50,18 +50,18 @@ class PredictionCache:
     def store(
         self,
         model_name: str,
-        season: int,
+        fold_value: int,
         fingerprint: str,
         predictions: pd.DataFrame,
     ) -> Path:
         """Store predictions in the cache.  Overwrites if fingerprint exists."""
-        path = self._path(model_name, season, fingerprint)
+        path = self._path(model_name, fold_value, fingerprint)
         path.parent.mkdir(parents=True, exist_ok=True)
         predictions.to_parquet(path, index=False)
         return path
 
     def prune(self, keep_last_n: int = 5) -> int:
-        """Remove old cache entries per (model, season), keeping newest *N*.
+        """Remove old cache entries per (model, fold_value), keeping newest *N*.
 
         Returns the number of entries removed.
         """
@@ -72,11 +72,11 @@ class PredictionCache:
         for model_dir in sorted(self.cache_dir.iterdir()):
             if not model_dir.is_dir():
                 continue
-            for season_dir in sorted(model_dir.iterdir()):
-                if not season_dir.is_dir():
+            for fold_dir in sorted(model_dir.iterdir()):
+                if not fold_dir.is_dir():
                     continue
                 entries = sorted(
-                    season_dir.glob("*.parquet"),
+                    fold_dir.glob("*.parquet"),
                     key=lambda p: p.stat().st_mtime,
                 )
                 to_remove = entries[: max(0, len(entries) - keep_last_n)]
@@ -93,7 +93,7 @@ class PredictionCache:
     # Internals
     # ------------------------------------------------------------------
 
-    def _path(self, model_name: str, season: int, fingerprint: str) -> Path:
+    def _path(self, model_name: str, fold_value: int, fingerprint: str) -> Path:
         return (
-            self.cache_dir / model_name / str(season) / f"{fingerprint}.parquet"
+            self.cache_dir / model_name / str(fold_value) / f"{fingerprint}.parquet"
         )
