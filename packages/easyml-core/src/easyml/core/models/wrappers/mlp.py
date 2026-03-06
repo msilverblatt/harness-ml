@@ -9,7 +9,13 @@ import numpy as np
 from easyml.core.models.base import BaseModel
 
 
-def _build_mlp(input_dim: int, hidden_dims: list[int], dropout: float, mode: str):
+def _build_mlp(
+    input_dim: int,
+    hidden_dims: list[int],
+    dropout: float,
+    mode: str,
+    batch_norm: bool = False,
+):
     """Build a simple MLP as nn.Sequential."""
     import torch.nn as nn
 
@@ -17,6 +23,8 @@ def _build_mlp(input_dim: int, hidden_dims: list[int], dropout: float, mode: str
     prev = input_dim
     for h in hidden_dims:
         layers.append(nn.Linear(prev, h))
+        if batch_norm:
+            layers.append(nn.BatchNorm1d(h))
         layers.append(nn.ReLU())
         if dropout > 0:
             layers.append(nn.Dropout(dropout))
@@ -41,6 +49,18 @@ class MLPModel(BaseModel):
     cdf_scale : float | None
         For regressor mode: scale for normal CDF margin-to-probability
         conversion.  Required when calling ``predict_proba`` on a regressor.
+    normalize : bool
+        If True, z-score standardize features during fit and apply the same
+        transformation during prediction.
+    batch_norm : bool
+        If True, insert BatchNorm1d layers after each Linear layer.
+    weight_decay : float
+        L2 regularization weight for the Adam optimizer.
+    early_stopping_rounds : int | None
+        If set (and eval_set is passed to fit), stop training after this many
+        epochs without improvement on the validation set.
+    seed_stride : int
+        Stride between random seeds.  Seed i uses ``i * seed_stride``.
     """
 
     def __init__(
@@ -50,6 +70,11 @@ class MLPModel(BaseModel):
         mode: str = "classifier",
         n_seeds: int = 1,
         cdf_scale: float | None = None,
+        normalize: bool = False,
+        batch_norm: bool = False,
+        weight_decay: float = 0.0,
+        early_stopping_rounds: int | None = None,
+        seed_stride: int = 1,
     ):
         super().__init__(params)
         if mode not in ("classifier", "regressor"):
@@ -57,9 +82,27 @@ class MLPModel(BaseModel):
         self._mode = mode
         self._n_seeds = n_seeds
         self._cdf_scale = cdf_scale
+        self._normalize = normalize
+        self._batch_norm = batch_norm
+        self._weight_decay = weight_decay
+        self._early_stopping_rounds = early_stopping_rounds
+        self._seed_stride = seed_stride
         self._models: list = []  # populated by fit()
+        self._feature_means: np.ndarray | None = None
+        self._feature_stds: np.ndarray | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _normalize_features(self, X: np.ndarray, fit: bool = False) -> np.ndarray:
+        """Z-score standardize features. If fit=True, compute and store stats."""
+        if not self._normalize:
+            return X
+        if fit:
+            self._feature_means = X.mean(axis=0)
+            self._feature_stds = X.std(axis=0)
+            # Avoid division by zero for constant features
+            self._feature_stds[self._feature_stds == 0] = 1.0
+        return (X - self._feature_means) / self._feature_stds
+
+    def fit(self, X: np.ndarray, y: np.ndarray, *, eval_set=None) -> None:
         import torch
         import torch.nn as nn
 
@@ -69,6 +112,8 @@ class MLPModel(BaseModel):
         epochs = self.params.get("epochs", 10)
         batch_size = self.params.get("batch_size", 32)
 
+        X = self._normalize_features(X, fit=True)
+
         X_t = torch.tensor(X, dtype=torch.float32)
         if self._mode == "classifier":
             y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
@@ -77,15 +122,33 @@ class MLPModel(BaseModel):
             y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
             criterion = nn.MSELoss()
 
+        # Prepare validation data if provided
+        X_val_t = None
+        y_val_t = None
+        if eval_set is not None:
+            X_val, y_val = eval_set
+            X_val = self._normalize_features(X_val)
+            X_val_t = torch.tensor(X_val, dtype=torch.float32)
+            y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1)
+
         self._models = []
-        for seed in range(self._n_seeds):
+        for i in range(self._n_seeds):
+            seed = i * self._seed_stride
             torch.manual_seed(seed)
-            model = _build_mlp(X.shape[1], hidden_dims, dropout, self._mode)
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+            model = _build_mlp(
+                X.shape[1], hidden_dims, dropout, self._mode,
+                batch_norm=self._batch_norm,
+            )
+            optimizer = torch.optim.Adam(
+                model.parameters(), lr=lr, weight_decay=self._weight_decay,
+            )
+
+            best_val_loss = float("inf")
+            patience_counter = 0
 
             model.train()
             n = len(X_t)
-            for _ in range(epochs):
+            for _epoch in range(epochs):
                 perm = torch.randperm(n)
                 for start in range(0, n, batch_size):
                     idx = perm[start : start + batch_size]
@@ -94,6 +157,24 @@ class MLPModel(BaseModel):
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+
+                # Early stopping check
+                if (
+                    self._early_stopping_rounds is not None
+                    and X_val_t is not None
+                ):
+                    model.eval()
+                    with torch.no_grad():
+                        val_out = model(X_val_t)
+                        val_loss = criterion(val_out, y_val_t).item()
+                    if val_loss < best_val_loss:
+                        best_val_loss = val_loss
+                        patience_counter = 0
+                    else:
+                        patience_counter += 1
+                    if patience_counter >= self._early_stopping_rounds:
+                        break
+                    model.train()
 
             model.eval()
             self._models.append(model)
@@ -105,6 +186,7 @@ class MLPModel(BaseModel):
         """Average raw outputs across seeds."""
         import torch
 
+        X = self._normalize_features(X)
         X_t = torch.tensor(X, dtype=torch.float32)
         preds = []
         with torch.no_grad():
@@ -147,7 +229,15 @@ class MLPModel(BaseModel):
             "cdf_scale": self._cdf_scale,
             "params": self.params,
             "input_dim": self._input_dim,
+            "normalize": self._normalize,
+            "batch_norm": self._batch_norm,
+            "weight_decay": self._weight_decay,
+            "early_stopping_rounds": self._early_stopping_rounds,
+            "seed_stride": self._seed_stride,
         }
+        if self._normalize and self._feature_means is not None:
+            meta["feature_means"] = self._feature_means.tolist()
+            meta["feature_stds"] = self._feature_stds.tolist()
         (path / "meta.json").write_text(json.dumps(meta))
         for i, model in enumerate(self._models):
             torch.save(model.state_dict(), path / f"model_{i}.pt")
@@ -164,14 +254,29 @@ class MLPModel(BaseModel):
         instance._n_seeds = meta["n_seeds"]
         instance._cdf_scale = meta["cdf_scale"]
         instance._input_dim = meta["input_dim"]
+        instance._normalize = meta.get("normalize", False)
+        instance._batch_norm = meta.get("batch_norm", False)
+        instance._weight_decay = meta.get("weight_decay", 0.0)
+        instance._early_stopping_rounds = meta.get("early_stopping_rounds")
+        instance._seed_stride = meta.get("seed_stride", 1)
         instance._fitted = True
+
+        if instance._normalize and "feature_means" in meta:
+            instance._feature_means = np.array(meta["feature_means"], dtype=np.float64)
+            instance._feature_stds = np.array(meta["feature_stds"], dtype=np.float64)
+        else:
+            instance._feature_means = None
+            instance._feature_stds = None
 
         hidden_dims = instance.params.get("hidden_dims", [128, 64])
         dropout = instance.params.get("dropout", 0.0)
 
         instance._models = []
         for i in range(instance._n_seeds):
-            model = _build_mlp(instance._input_dim, hidden_dims, dropout, instance._mode)
+            model = _build_mlp(
+                instance._input_dim, hidden_dims, dropout, instance._mode,
+                batch_norm=instance._batch_norm,
+            )
             model.load_state_dict(torch.load(path / f"model_{i}.pt", weights_only=True))
             model.eval()
             instance._models.append(model)
