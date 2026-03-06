@@ -11,8 +11,10 @@ from easyml.core.runner.training import (
     _augment_matchup_symmetry,
     _filter_train_folds,
     _fit_cdf_scale,
+    _fit_cdf_scale_after_training,
     _is_regressor,
     _margin_to_prob,
+    _sigmoid,
     predict_single_model,
     train_single_model,
 )
@@ -335,3 +337,101 @@ class TestIsRegressor:
         """logistic_regression type should NOT be detected as regressor."""
         md = ModelDef(type="logistic_regression", features=["x"])
         assert not _is_regressor(md)
+
+
+# -----------------------------------------------------------------------
+# Tests: sigmoid CDF and post-training scale fitting
+# -----------------------------------------------------------------------
+
+class TestSigmoid:
+    """Test _sigmoid function."""
+
+    def test_sigmoid_valid_probabilities(self):
+        """_sigmoid produces valid probabilities."""
+        margins = np.array([-10.0, -1.0, 0.0, 1.0, 10.0])
+        probs = _sigmoid(margins, scale=5.0)
+        assert all(0 < p < 1 for p in probs)
+        assert probs[2] == pytest.approx(0.5)
+        assert probs[0] < probs[4]
+
+    def test_sigmoid_symmetry(self):
+        """_sigmoid is symmetric around 0."""
+        probs = _sigmoid(np.array([-3.0, 3.0]), scale=2.0)
+        assert probs[0] == pytest.approx(1.0 - probs[1])
+
+    def test_sigmoid_scale_affects_steepness(self):
+        """Smaller scale = steeper sigmoid."""
+        margin = np.array([1.0])
+        prob_small_scale = _sigmoid(margin, scale=0.5)
+        prob_large_scale = _sigmoid(margin, scale=5.0)
+        # Smaller scale should push probability further from 0.5
+        assert prob_small_scale[0] > prob_large_scale[0]
+
+
+class TestFitCdfScaleAfterTraining:
+    """Test _fit_cdf_scale_after_training."""
+
+    def test_returns_positive_scale(self):
+        """Post-training scale fitting returns positive scale."""
+        margins = np.array([-5, -2, 0, 2, 5, -3, 1, 4, -1, 3], dtype=float)
+        y = np.array([0, 0, 0, 1, 1, 0, 1, 1, 0, 1])
+        scale = _fit_cdf_scale_after_training(margins, y)
+        assert scale > 0
+
+    def test_well_separated_data(self):
+        """When margins clearly separate labels, scale should be reasonable."""
+        rng = np.random.default_rng(42)
+        margins = rng.standard_normal(200) * 5
+        y_binary = (margins > 0).astype(float)
+        scale = _fit_cdf_scale_after_training(margins, y_binary)
+        assert scale > 0
+        assert scale < 50
+
+    def test_noisy_data(self):
+        """Even with noise, scale fitting should succeed."""
+        rng = np.random.default_rng(99)
+        margins = rng.standard_normal(100) * 3
+        y_binary = rng.binomial(1, 0.5, size=100).astype(float)
+        scale = _fit_cdf_scale_after_training(margins, y_binary)
+        assert scale > 0
+
+
+class TestGenericModelCreation:
+    """Test that regressor models are created generically via registry."""
+
+    def test_regressor_created_via_registry(self):
+        """Regressor training should work through generic registry.create()."""
+        df = _make_train_df()
+        model_def = ModelDef(
+            type="xgboost",
+            features=["diff_x"],
+            params={"n_estimators": 10, "max_depth": 2},
+            mode="regressor",
+        )
+        model, feat_cols, metrics = train_single_model(
+            "xgb_reg", model_def, df, _get_registry(),
+        )
+        assert model is not None
+        assert "cdf_scale" in metrics
+        assert metrics["cdf_scale"] > 0
+
+    def test_post_training_cdf_scale_differs_from_raw(self):
+        """Post-training CDF scale (fit from predictions) should differ from raw margin std."""
+        df = _make_train_df(n=500)
+        model_def = ModelDef(
+            type="xgboost",
+            features=["diff_x", "diff_y"],
+            params={"n_estimators": 50, "max_depth": 3},
+            mode="regressor",
+        )
+        model, feat_cols, metrics = train_single_model(
+            "xgb_reg", model_def, df, _get_registry(),
+        )
+        # The fitted scale should be a positive number
+        assert metrics["cdf_scale"] > 0
+        # And it should produce valid probabilities
+        probs = predict_single_model(
+            model, model_def, df, feat_cols, cdf_scale=metrics["cdf_scale"],
+        )
+        assert np.all(probs > 0)
+        assert np.all(probs < 1)

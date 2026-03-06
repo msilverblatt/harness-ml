@@ -12,8 +12,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
-from scipy.stats import norm
-
 from easyml.core.models.registry import ModelRegistry
 from easyml.core.runner.schema import ModelDef
 
@@ -129,25 +127,13 @@ def train_single_model(
     if augment_symmetry:
         X, y = _augment_matchup_symmetry(X, y, feature_cols)
 
-    # Fit CDF scale for regressors
+    # Use preset CDF scale if provided
     cdf_scale = model_def.cdf_scale
-    if is_regressor and cdf_scale is None:
-        # Need binary labels for CDF fitting
-        if augment_symmetry:
-            # Use the original (non-augmented) data for fitting
-            orig_X = df[feature_cols].values.astype(np.float64)
-            orig_y_binary = df["result"].values.astype(np.float64)
-            cdf_scale = _fit_cdf_scale_from_data(orig_X, orig_y_binary, y[:len(df)])
-        else:
-            y_binary = df["result"].values.astype(np.float64)
-            cdf_scale = _fit_cdf_scale_from_data(X, y_binary, y)
 
     # Determine the model type to use with registry
     model_type = _resolve_model_type(model_def)
 
     metrics: dict[str, Any] = {}
-    if cdf_scale is not None:
-        metrics["cdf_scale"] = cdf_scale
 
     # Multi-seed training
     n_seeds = model_def.n_seeds
@@ -156,15 +142,43 @@ def train_single_model(
         for seed_idx in range(n_seeds):
             params = dict(model_def.params)
             params["random_state"] = seed_idx
-            model = _create_model(registry, model_type, params, model_def)
+            model = _create_model(registry, model_type, params, model_def, cdf_scale)
             model.fit(X, y, **fit_kwargs)
             models.append(model)
         metrics["n_seeds"] = n_seeds
+        # Fit CDF scale post-training from first model's predictions
+        if is_regressor and cdf_scale is None:
+            train_margins = models[0].predict_margin(X)
+            y_binary = (
+                df["result"].values.astype(np.float64)
+                if not augment_symmetry
+                else np.concatenate([
+                    df["result"].values.astype(np.float64),
+                    1.0 - df["result"].values.astype(np.float64),
+                ])
+            )
+            cdf_scale = _fit_cdf_scale_after_training(train_margins, y_binary)
+        if cdf_scale is not None:
+            metrics["cdf_scale"] = cdf_scale
         return models, feature_cols, metrics
     else:
         params = dict(model_def.params)
-        model = _create_model(registry, model_type, params, model_def)
+        model = _create_model(registry, model_type, params, model_def, cdf_scale)
         model.fit(X, y, **fit_kwargs)
+        # Fit CDF scale post-training from model's predictions
+        if is_regressor and cdf_scale is None:
+            train_margins = model.predict_margin(X)
+            y_binary = (
+                df["result"].values.astype(np.float64)
+                if not augment_symmetry
+                else np.concatenate([
+                    df["result"].values.astype(np.float64),
+                    1.0 - df["result"].values.astype(np.float64),
+                ])
+            )
+            cdf_scale = _fit_cdf_scale_after_training(train_margins, y_binary)
+        if cdf_scale is not None:
+            metrics["cdf_scale"] = cdf_scale
         return model, feature_cols, metrics
 
 
@@ -205,6 +219,7 @@ def predict_single_model(
     nan_mask = np.isnan(X_test)
     if nan_mask.any():
         col_medians = np.nanmedian(X_test, axis=0)
+        col_medians = np.where(np.isnan(col_medians), 0.0, col_medians)
         for col_idx in range(X_test.shape[1]):
             row_mask = nan_mask[:, col_idx]
             X_test[row_mask, col_idx] = col_medians[col_idx]
@@ -236,23 +251,47 @@ def predict_single_model(
             return model.predict_proba(X_test)
 
 
+def _sigmoid(x: np.ndarray, scale: float) -> np.ndarray:
+    """Logistic sigmoid CDF: maps values to (0, 1) probabilities."""
+    z = np.asarray(x / scale, dtype=np.float64)
+    # Numerically stable sigmoid: use exp(-z) for z>=0, exp(z) for z<0
+    out = np.where(z >= 0, 1.0 / (1.0 + np.exp(-z)), np.exp(z) / (1.0 + np.exp(z)))
+    return np.clip(out, 1e-7, 1 - 1e-7)
+
+
 def _margin_to_prob(margins: np.ndarray, cdf_scale: float) -> np.ndarray:
-    """Convert predicted margins to win probabilities via normal CDF."""
-    return norm.cdf(margins / cdf_scale)
+    """Convert predicted margins to probabilities via logistic sigmoid."""
+    return _sigmoid(margins, cdf_scale)
 
 
 def _fit_cdf_scale(margins: np.ndarray, y_binary: np.ndarray) -> float:
     """Fit CDF scale from margin predictions and binary outcomes.
 
-    Find scale where CDF-converted margin predictions best match
+    Find scale where sigmoid-converted margin predictions best match
     binary outcomes (minimize Brier score).
     """
-    def brier_at_scale(scale: float) -> float:
-        probs = norm.cdf(margins / scale)
+    def brier_at_scale(log_scale: float) -> float:
+        scale = np.exp(log_scale)
+        probs = _sigmoid(margins, scale)
         return float(np.mean((probs - y_binary) ** 2))
 
-    result = minimize_scalar(brier_at_scale, bounds=(0.1, 50.0), method="bounded")
-    return float(result.x)
+    margin_std = max(float(np.std(margins)), 0.1)
+    lo = np.log(margin_std * 0.01)
+    hi = np.log(margin_std * 100.0)
+    result = minimize_scalar(brier_at_scale, bounds=(lo, hi), method="bounded")
+    return float(np.exp(result.x))
+
+
+def _fit_cdf_scale_after_training(
+    margins: np.ndarray,
+    y_binary: np.ndarray,
+) -> float:
+    """Fit CDF scale from model's predicted margins and binary labels.
+
+    Called after training to find the sigmoid scale that minimizes
+    Brier score on the training set predictions.
+    """
+    return _fit_cdf_scale(margins, y_binary)
 
 
 def _fit_cdf_scale_from_data(
@@ -263,6 +302,7 @@ def _fit_cdf_scale_from_data(
     """Fit CDF scale from training margins and binary labels.
 
     Uses the raw training margins directly (no model needed).
+    Kept for backward compatibility.
     """
     return _fit_cdf_scale(y_margin, y_binary)
 
@@ -357,21 +397,20 @@ def _create_model(
     model_type: str,
     params: dict,
     model_def: ModelDef,
+    cdf_scale: float | None = None,
 ) -> Any:
-    """Create a model instance from the registry, handling mode/cdf_scale kwargs.
+    """Create a model instance from the registry, forwarding kwargs generically.
 
-    XGBoost models accept mode and cdf_scale as constructor kwargs.
-    Other models just get params.
+    The registry.create() method inspects each model's constructor and
+    forwards only the kwargs it accepts (mode, cdf_scale, n_seeds, etc.).
     """
     is_regressor = _is_regressor(model_def)
-
-    if model_type == "xgboost" and is_regressor:
-        # XGBoostModel takes mode and cdf_scale as keyword arguments
-        from easyml.core.models.wrappers.xgboost import XGBoostModel
-        return XGBoostModel(
-            params=params,
-            mode="regressor",
-            cdf_scale=model_def.cdf_scale,
-        )
-    else:
-        return registry.create(model_type, params=params)
+    mode = "regressor" if is_regressor else model_def.mode
+    n_seeds = model_def.n_seeds
+    return registry.create(
+        model_type,
+        params=params,
+        mode=mode,
+        cdf_scale=cdf_scale,
+        n_seeds=n_seeds,
+    )
