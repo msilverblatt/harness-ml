@@ -23,6 +23,7 @@ from easyml.core.runner.config_writer import (
     show_config,
     show_models,
     show_presets,
+    update_model,
     write_overlay,
 )
 
@@ -124,6 +125,52 @@ class TestAddModel:
         result = add_model(project, "new_model")
         assert "Error" in result
 
+    def test_add_model_with_cdf_scale(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = add_model(project, "xgb_cdf", model_type="xgboost",
+                          features=["diff_x"], cdf_scale=15.0)
+        assert "Added model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["xgb_cdf"]["cdf_scale"] == 15.0
+
+    def test_add_model_with_zero_fill(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = add_model(project, "xgb_zf", model_type="xgboost",
+                          features=["diff_x"], zero_fill_features=["feat_a"])
+        assert "Added model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["xgb_zf"]["zero_fill_features"] == ["feat_a"]
+
+    def test_add_model_without_optional_params_omits_them(self, tmp_path):
+        project = _setup_project(tmp_path)
+        add_model(project, "xgb_plain", model_type="xgboost", features=["diff_x"])
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert "cdf_scale" not in data["models"]["xgb_plain"]
+        assert "zero_fill_features" not in data["models"]["xgb_plain"]
+
+
+class TestUpdateModel:
+    """Test update_model."""
+
+    def test_update_model_cdf_scale(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = update_model(project, "logreg", cdf_scale=12.0)
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["cdf_scale"] == 12.0
+
+    def test_update_model_zero_fill(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = update_model(project, "logreg", zero_fill_features=["feat_a", "feat_b"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["zero_fill_features"] == ["feat_a", "feat_b"]
+
 
 class TestRemoveModel:
     """Test remove_model."""
@@ -197,6 +244,32 @@ class TestConfigureEnsemble:
         project = _setup_project(tmp_path)
         result = configure_ensemble(project, temperature=0.5)
         assert "Updated" in result
+
+    def test_configure_ensemble_prior_feature(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = configure_ensemble(project, prior_feature="seed_diff")
+        assert "Updated" in result
+
+        data = _load_yaml(project / "config" / "ensemble.yaml")
+        assert data["ensemble"]["prior_feature"] == "seed_diff"
+
+    def test_configure_ensemble_spline_params(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = configure_ensemble(project, spline_prob_max=0.95, spline_n_bins=15)
+        assert "Updated" in result
+
+        data = _load_yaml(project / "config" / "ensemble.yaml")
+        assert data["ensemble"]["spline_prob_max"] == 0.95
+        assert data["ensemble"]["spline_n_bins"] == 15
+
+    def test_configure_ensemble_without_optional_params_omits_them(self, tmp_path):
+        project = _setup_project(tmp_path)
+        configure_ensemble(project, method="stacked")
+
+        data = _load_yaml(project / "config" / "ensemble.yaml")
+        assert "prior_feature" not in data["ensemble"]
+        assert "spline_prob_max" not in data["ensemble"]
+        assert "spline_n_bins" not in data["ensemble"]
 
 
 class TestConfigureBacktest:

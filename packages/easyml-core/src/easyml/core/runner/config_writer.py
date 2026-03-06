@@ -64,6 +64,8 @@ def add_model(
     include_in_ensemble: bool = True,
     mode: str | None = None,
     prediction_type: str | None = None,
+    cdf_scale: float | None = None,
+    zero_fill_features: list[str] | None = None,
 ) -> str:
     """Add a model to models.yaml.
 
@@ -102,6 +104,10 @@ def add_model(
         model_def["features"] = features
     model_def["active"] = active
     model_def["include_in_ensemble"] = include_in_ensemble
+    if cdf_scale is not None:
+        model_def["cdf_scale"] = cdf_scale
+    if zero_fill_features is not None:
+        model_def["zero_fill_features"] = zero_fill_features
 
     data["models"][name] = model_def
     _save_yaml(models_path, data)
@@ -158,6 +164,8 @@ def update_model(
     include_in_ensemble: bool | None = None,
     mode: str | None = None,
     prediction_type: str | None = None,
+    cdf_scale: float | None = None,
+    zero_fill_features: list[str] | None = None,
 ) -> str:
     """Update an existing model in models.yaml.
 
@@ -188,6 +196,10 @@ def update_model(
         model_def["mode"] = mode
     if prediction_type is not None:
         model_def["prediction_type"] = prediction_type
+    if cdf_scale is not None:
+        model_def["cdf_scale"] = cdf_scale
+    if zero_fill_features is not None:
+        model_def["zero_fill_features"] = zero_fill_features
 
     _save_yaml(models_path, data)
 
@@ -260,6 +272,9 @@ def configure_ensemble(
     exclude_models: list[str] | None = None,
     calibration: str | None = None,
     pre_calibration: dict | None = None,
+    prior_feature: str | None = None,
+    spline_prob_max: float | None = None,
+    spline_n_bins: int | None = None,
     **kwargs,
 ) -> str:
     """Update ensemble.yaml configuration.
@@ -292,6 +307,12 @@ def configure_ensemble(
         ens["calibration"] = calibration
     if pre_calibration is not None:
         ens["pre_calibration"] = pre_calibration
+    if prior_feature is not None:
+        ens["prior_feature"] = prior_feature
+    if spline_prob_max is not None:
+        ens["spline_prob_max"] = spline_prob_max
+    if spline_n_bins is not None:
+        ens["spline_n_bins"] = spline_n_bins
 
     for key, val in kwargs.items():
         ens[key] = val
