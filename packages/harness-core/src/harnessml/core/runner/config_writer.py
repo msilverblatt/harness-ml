@@ -67,6 +67,7 @@ def add_model(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    class_weight: str | dict | None = None,
 ) -> str:
     """Add a model to models.yaml.
 
@@ -109,6 +110,8 @@ def add_model(
         model_def["cdf_scale"] = cdf_scale
     if zero_fill_features is not None:
         model_def["zero_fill_features"] = zero_fill_features
+    if class_weight is not None:
+        model_def["class_weight"] = class_weight
 
     data["models"][name] = model_def
     _save_yaml(models_path, data)
@@ -167,6 +170,7 @@ def update_model(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    class_weight: str | dict | None = None,
     replace_params: bool = False,
 ) -> str:
     """Update an existing model in models.yaml.
@@ -206,6 +210,8 @@ def update_model(
         model_def["cdf_scale"] = cdf_scale
     if zero_fill_features is not None:
         model_def["zero_fill_features"] = zero_fill_features
+    if class_weight is not None:
+        model_def["class_weight"] = class_weight
 
     _save_yaml(models_path, data)
 

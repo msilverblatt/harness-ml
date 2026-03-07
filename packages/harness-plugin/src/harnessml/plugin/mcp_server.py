@@ -65,6 +65,7 @@ async def models(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    class_weight: str | dict | None = None,
     items: str | list | None = None,
     purge: bool = False,
     replace_params: bool = False,
@@ -78,10 +79,12 @@ async def models(
         mode (e.g. "classifier", "regressor"), prediction_type (e.g. "margin"),
         cdf_scale (float, scales regressor output to a probability via CDF),
         zero_fill_features (list of feature columns to fill with 0 before
-        NaN row removal during training).
+        NaN row removal during training),
+        class_weight ("balanced" or JSON dict mapping class labels to weights,
+        e.g. {"0": 1.0, "1": 2.5}).
       - "update": Update an existing model in place. Requires name.
         Optional: features, params (JSON string), active, include_in_ensemble,
-        mode, prediction_type, cdf_scale, zero_fill_features. Merges params
+        mode, prediction_type, cdf_scale, zero_fill_features, class_weight. Merges params
         with existing by default. Pass replace_params=true to fully replace
         the params dict instead of merging.
         Pass active=true or include_in_ensemble=true to explicitly re-enable.
@@ -114,6 +117,7 @@ async def models(
         prediction_type=prediction_type,
         cdf_scale=cdf_scale,
         zero_fill_features=zero_fill_features,
+        class_weight=class_weight,
         items=items,
         purge=purge,
         replace_params=replace_params,

@@ -7,7 +7,7 @@ from harnessml.plugin.handlers._validation import (
 )
 
 
-def _handle_add(*, name, model_type, preset, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, project_dir, **_kwargs):
+def _handle_add(*, name, model_type, preset, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, class_weight=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(name, "name")
@@ -28,10 +28,12 @@ def _handle_add(*, name, model_type, preset, features, params, active, include_i
         kw["cdf_scale"] = cdf_scale
     if zero_fill_features is not None:
         kw["zero_fill_features"] = zero_fill_features
+    if class_weight is not None:
+        kw["class_weight"] = class_weight
     return cw.add_model(resolve_project_dir(project_dir), name, **kw)
 
 
-def _handle_update(*, name, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, replace_params=False, project_dir, **_kwargs):
+def _handle_update(*, name, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, class_weight=None, replace_params=False, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(name, "name")
@@ -51,6 +53,8 @@ def _handle_update(*, name, features, params, active, include_in_ensemble, mode,
         kw["cdf_scale"] = cdf_scale
     if zero_fill_features is not None:
         kw["zero_fill_features"] = zero_fill_features
+    if class_weight is not None:
+        kw["class_weight"] = class_weight
     return cw.update_model(resolve_project_dir(project_dir), name, **kw)
 
 
@@ -205,6 +209,7 @@ def _with_defaults(item: dict, for_update: bool = False) -> dict:
         "prediction_type": None,
         "cdf_scale": None,
         "zero_fill_features": None,
+        "class_weight": None,
         "replace_params": None,
     }
     result = {k: item.get(k, v) for k, v in defaults.items()}
