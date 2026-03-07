@@ -39,3 +39,4 @@ projects/
 **/data/features/cache/
 **/outputs/
 **/experiments/
+!**/src/views/Experiments/
