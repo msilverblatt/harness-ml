@@ -112,3 +112,87 @@
         transform: translateY(0);
     }
 }
+
+.runningEvent {
+    border-left: 3px solid var(--color-accent);
+    background: rgba(88, 166, 255, 0.06);
+    padding: var(--space-3) var(--space-4);
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.15), inset 0 0 0 1px rgba(88, 166, 255, 0.1);
+    border-radius: var(--radius-sm);
+    margin: var(--space-1) 0;
+    position: relative;
+}
+
+.runningBadge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    background: var(--color-accent);
+    color: var(--color-bg-primary);
+    animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.progressBar {
+    height: 2px;
+    background: var(--color-bg-tertiary);
+    border-radius: 1px;
+    margin-top: var(--space-2);
+    overflow: hidden;
+}
+
+.progressFill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 1px;
+    transition: width 0.3s ease;
+}
+
+.progressMessage {
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    margin-top: var(--space-1);
+}
+
+.statusError {
+    border-left: 3px solid #f85149;
+}
+
+.elapsedLive {
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.filterCount {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    align-self: center;
+}
+
+.clearButton {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.clearButton:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}

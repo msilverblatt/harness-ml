@@ -19,6 +19,11 @@ function renderInline(text: string): string {
     result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
     // Inline code
     result = result.replace(/`(.+?)`/g, '<code>$1</code>');
+    // Links
+    result = result.replace(
+        /\[([^\]]+)\]\(([^)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
     return result;
 }
 
@@ -52,6 +57,19 @@ function parseContent(content: string): string {
     while (i < lines.length) {
         const line = lines[i];
 
+        // Fenced code blocks
+        if (line.trimStart().startsWith('```')) {
+            i++;
+            const codeLines: string[] = [];
+            while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
+                codeLines.push(escapeHtml(lines[i]));
+                i++;
+            }
+            if (i < lines.length) i++; // skip closing ```
+            output.push(`<pre><code>${codeLines.join('\n')}</code></pre>`);
+            continue;
+        }
+
         // Table detection: line starts with | and next line is separator
         if (line.startsWith('|') && i + 1 < lines.length && lines[i + 1].match(/^\|[\s-:|]+\|$/)) {
             const tableLines: string[] = [];
@@ -63,12 +81,58 @@ function parseContent(content: string): string {
             continue;
         }
 
+        // Horizontal rule
+        if (line.match(/^-{3,}$/) || line.match(/^\*{3,}$/) || line.match(/^_{3,}$/)) {
+            output.push('<hr/>');
+            i++;
+            continue;
+        }
+
         // Headers
         const headerMatch = line.match(/^(#{1,3})\s+(.+)$/);
         if (headerMatch) {
             const level = headerMatch[1].length;
             output.push(`<h${level}>${renderInline(headerMatch[2])}</h${level}>`);
             i++;
+            continue;
+        }
+
+        // Blockquotes
+        if (line.startsWith('> ')) {
+            const quoteLines: string[] = [];
+            while (i < lines.length && lines[i].startsWith('> ')) {
+                quoteLines.push(renderInline(lines[i].slice(2)));
+                i++;
+            }
+            output.push(`<blockquote>${quoteLines.join('<br/>')}</blockquote>`);
+            continue;
+        }
+
+        // Unordered list
+        const ulMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
+        if (ulMatch) {
+            const listItems: string[] = [];
+            while (i < lines.length) {
+                const itemMatch = lines[i].match(/^(\s*)[-*]\s+(.+)$/);
+                if (!itemMatch) break;
+                listItems.push(`<li>${renderInline(itemMatch[2])}</li>`);
+                i++;
+            }
+            output.push(`<ul>${listItems.join('')}</ul>`);
+            continue;
+        }
+
+        // Ordered list
+        const olMatch = line.match(/^(\s*)\d+\.\s+(.+)$/);
+        if (olMatch) {
+            const listItems: string[] = [];
+            while (i < lines.length) {
+                const itemMatch = lines[i].match(/^(\s*)\d+\.\s+(.+)$/);
+                if (!itemMatch) break;
+                listItems.push(`<li>${renderInline(itemMatch[2])}</li>`);
+                i++;
+            }
+            output.push(`<ol>${listItems.join('')}</ol>`);
             continue;
         }
 

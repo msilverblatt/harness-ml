@@ -67,3 +67,53 @@
 .markdown td {
     color: var(--color-text-primary);
 }
+
+.markdown pre {
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin: var(--space-2) 0;
+    overflow-x: auto;
+}
+
+.markdown pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-primary);
+}
+
+.markdown ul,
+.markdown ol {
+    padding-left: var(--space-5);
+    margin: var(--space-2) 0;
+}
+
+.markdown li {
+    margin-bottom: var(--space-1);
+    color: var(--color-text-primary);
+}
+
+.markdown hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: var(--space-3) 0;
+}
+
+.markdown a {
+    color: var(--color-accent);
+    text-decoration: none;
+}
+
+.markdown a:hover {
+    text-decoration: underline;
+}
+
+.markdown blockquote {
+    border-left: 3px solid var(--color-border);
+    padding-left: var(--space-3);
+    margin: var(--space-2) 0;
+    color: var(--color-text-secondary);
+}
