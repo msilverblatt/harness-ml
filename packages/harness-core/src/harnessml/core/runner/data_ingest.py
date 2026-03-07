@@ -315,7 +315,7 @@ def ingest_dataset(
         name = data_file.stem
 
     # Resolve features path
-    from harnessml.core.runner.data_utils import get_features_path, load_data_config
+    from harnessml.core.runner.data_utils import load_data_config
 
     if features_dir is not None:
         feat_dir = Path(features_dir)
@@ -569,13 +569,13 @@ def validate_dataset(
         existing = pd.read_parquet(parquet_path)
         common_cols = sorted(set(df.columns) & set(existing.columns))
         new_cols = sorted(set(df.columns) - set(existing.columns))
-        lines.append(f"\n### Overlap with Existing Features\n")
+        lines.append("\n### Overlap with Existing Features\n")
         lines.append(f"- **Common columns** (potential join keys): {', '.join(common_cols) if common_cols else 'none'}")
         lines.append(f"- **New columns**: {', '.join(new_cols[:15]) if new_cols else 'none'}")
         if len(new_cols) > 15:
             lines.append(f"  ... +{len(new_cols) - 15} more")
     else:
-        lines.append(f"\n*No existing features file — this would be a bootstrap ingestion.*")
+        lines.append("\n*No existing features file — this would be a bootstrap ingestion.*")
 
     return "\n".join(lines)
 

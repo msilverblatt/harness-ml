@@ -1,7 +1,6 @@
 """Tests for do-not-retry registry."""
 
 import pytest
-
 from harnessml.core.runner.experiment_manager import ExperimentManager
 
 

@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import json
 
+import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamB support
 import numpy as np
 import pandas as pd
 import pytest
-
-import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamB support
-
 from harnessml.core.runner.diagnostics import compute_model_agreement
 from harnessml.core.runner.reporting import (
     build_diagnostics_report,
@@ -16,7 +14,6 @@ from harnessml.core.runner.reporting import (
     export_backtest_artifacts,
     generate_markdown_report,
 )
-
 
 # -----------------------------------------------------------------------
 # Tests: compute_model_agreement

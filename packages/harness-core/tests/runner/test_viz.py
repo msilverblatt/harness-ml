@@ -1,10 +1,11 @@
 """Tests for optional matplotlib visualization module."""
 from __future__ import annotations
 
-import numpy as np
-import pytest
 import tempfile
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Skip all tests if matplotlib is not installed
 plt_mod = pytest.importorskip("matplotlib")
@@ -17,7 +18,6 @@ from harnessml.core.runner.viz import (
     render_roc_curve,
     render_shap_summary,
 )
-
 
 # -----------------------------------------------------------------------
 # Fixtures

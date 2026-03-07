@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.schema import (
     BinStep,
     DatetimeStep,
@@ -16,7 +15,6 @@ from harnessml.core.runner.schema import (
     TrendStep,
 )
 from harnessml.core.runner.view_executor import execute_step
-
 
 # ---------------------------------------------------------------------------
 # Lag step

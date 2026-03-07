@@ -1,10 +1,9 @@
 """Tests for StackedEnsemble."""
 import numpy as np
 import pytest
-
-from harnessml.core.models.ensemble import StackedEnsemble
-from harnessml.core.models.cv import LeaveOneSeasonOut
 from harnessml.core.models.calibration import SplineCalibrator
+from harnessml.core.models.cv import LeaveOneSeasonOut
+from harnessml.core.models.ensemble import StackedEnsemble
 
 
 def test_stacked_ensemble_basic():

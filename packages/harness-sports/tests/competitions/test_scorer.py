@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
@@ -13,7 +11,6 @@ from harnessml.sports.competitions.schemas import (
 )
 from harnessml.sports.competitions.scorer import CompetitionScorer
 from harnessml.sports.competitions.structure import build_structure
-
 
 # ---------------------------------------------------------------------------
 # Helpers

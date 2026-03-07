@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
-
 from harnessml.sports.competitions.confidence import (
     compute_feature_outliers,
     compute_model_disagreement,
@@ -17,7 +15,6 @@ from harnessml.sports.competitions.schemas import (
 )
 from harnessml.sports.competitions.simulator import CompetitionSimulator
 from harnessml.sports.competitions.structure import build_structure
-
 
 # ---------------------------------------------------------------------------
 # Helpers

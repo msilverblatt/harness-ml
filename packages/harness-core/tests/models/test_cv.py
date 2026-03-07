@@ -1,14 +1,11 @@
 """Tests for temporal cross-validation strategies."""
 import numpy as np
-import pytest
-
-from harnessml.core.schemas.contracts import Fold
 from harnessml.core.models.cv import (
-    LeaveOneSeasonOut,
     ExpandingWindow,
-    SlidingWindow,
-    PurgedKFold,
+    LeaveOneSeasonOut,
     NestedCV,
+    PurgedKFold,
+    SlidingWindow,
 )
 
 

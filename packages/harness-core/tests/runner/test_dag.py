@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from harnessml.core.runner.dag import (
     build_provider_map,
     detect_cycle,
@@ -10,7 +9,6 @@ from harnessml.core.runner.dag import (
     topological_waves,
 )
 from harnessml.core.runner.schema import ModelDef
-
 
 # -----------------------------------------------------------------------
 # Helpers

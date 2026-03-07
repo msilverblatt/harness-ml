@@ -1,13 +1,11 @@
 """Tests for guardrail base classes — overridable and non-overridable."""
 
 import pytest
-
 from harnessml.core.guardrails.base import Guardrail, GuardrailError
 from harnessml.core.guardrails.inventory import (
     FeatureLeakageGuardrail,
     NamingConventionGuardrail,
 )
-
 
 # ---------------------------------------------------------------------------
 # Basic check

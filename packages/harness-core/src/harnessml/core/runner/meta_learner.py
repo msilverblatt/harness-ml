@@ -10,9 +10,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-
 from harnessml.core.runner.calibration import build_calibrator
+from sklearn.linear_model import LogisticRegression
 
 
 class StackedEnsemble:

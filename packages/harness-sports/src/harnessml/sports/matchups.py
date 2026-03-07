@@ -11,7 +11,6 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.runner.matchups import compute_interactions
 
 logger = logging.getLogger(__name__)

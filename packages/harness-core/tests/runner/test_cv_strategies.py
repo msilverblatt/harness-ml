@@ -7,10 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-
 from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.schema import BacktestConfig
-
 
 # -----------------------------------------------------------------------
 # Unit tests for generate_cv_folds

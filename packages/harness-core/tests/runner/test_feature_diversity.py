@@ -1,7 +1,6 @@
 """Tests for feature diversity analysis module."""
 
 import pytest
-
 from harnessml.core.runner.feature_diversity import (
     compute_diversity_score,
     compute_overlap_matrix,

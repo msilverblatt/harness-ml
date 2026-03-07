@@ -1,8 +1,6 @@
 """Tests for view DAG validation in the validator."""
 from __future__ import annotations
 
-import pytest
-
 from harnessml.core.runner.schema import (
     BacktestConfig,
     DataConfig,

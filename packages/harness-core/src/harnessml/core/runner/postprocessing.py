@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.runner.calibration import temperature_scale
 from harnessml.core.runner.meta_learner import StackedEnsemble
 

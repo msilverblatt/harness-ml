@@ -1,8 +1,7 @@
 """Tests for BacktestRunner."""
 import numpy as np
 import pytest
-
-from harnessml.core.models.backtest import BacktestRunner, BacktestResult
+from harnessml.core.models.backtest import BacktestResult, BacktestRunner
 
 
 def test_backtest_runner():

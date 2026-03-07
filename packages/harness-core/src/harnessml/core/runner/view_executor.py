@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import numpy as np
 import pandas as pd

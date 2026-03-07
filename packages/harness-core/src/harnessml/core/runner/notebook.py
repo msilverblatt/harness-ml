@@ -7,7 +7,6 @@ from typing import Optional
 import nbformat
 import yaml
 
-
 _VALID_DESTINATIONS = ("colab", "kaggle", "local")
 
 

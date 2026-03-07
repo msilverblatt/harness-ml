@@ -11,9 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
-
 from harnessml.core.runner.hooks import get_id_patterns, get_label_candidates, get_margin_candidates
 from harnessml.core.runner.schema import DataConfig
 
@@ -102,7 +100,7 @@ class DataProfile:
         lines.append(f"Feature columns: {n_diff} diff_ + {n_other} other = {n_diff + n_other} total")
 
         if self.high_null_columns:
-            lines.append(f"\nHigh-null columns (>50%):")
+            lines.append("\nHigh-null columns (>50%):")
             # Group by null percentage ranges
             for col in sorted(self.high_null_columns, key=lambda c: -c.null_pct):
                 lines.append(f"  {col.name}: {col.null_pct:.1f}% null")

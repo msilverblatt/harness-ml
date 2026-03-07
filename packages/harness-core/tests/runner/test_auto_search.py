@@ -4,15 +4,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.auto_search import (
     SearchResult,
-    auto_search,
-    format_auto_search_report,
     _safe_corr,
     _search_interactions,
     _search_lags,
     _search_rolling,
+    auto_search,
+    format_auto_search_report,
 )
 
 

@@ -3,7 +3,6 @@
 import time
 
 import pytest
-
 from harnessml.core.guardrails.base import GuardrailError
 from harnessml.core.guardrails.inventory import (
     ConfigProtectionGuardrail,
@@ -19,7 +18,6 @@ from harnessml.core.guardrails.inventory import (
     SingleVariableGuardrail,
     TemporalOrderingGuardrail,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. SanityCheckGuardrail
@@ -504,8 +502,8 @@ class TestAutoLeakageDetection:
         assert "clean_feature" not in flagged
 
     def test_correlation_detection(self):
-        import pandas as pd
         import numpy as np
+        import pandas as pd
         from harnessml.core.guardrails.inventory import detect_leaky_columns
         rng = np.random.default_rng(42)
         target = rng.integers(0, 2, size=1000)

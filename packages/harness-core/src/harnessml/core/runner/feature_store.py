@@ -24,7 +24,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.runner.feature_cache import FeatureCache
 from harnessml.core.runner.feature_engine import (
     FeatureResult,

@@ -3,12 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import yaml
 from click.testing import CliRunner
-
 from harnessml.core.runner.cli import main
-
 
 # -----------------------------------------------------------------------
 # Helpers

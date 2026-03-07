@@ -1,9 +1,9 @@
 """Test multiclass pipeline support."""
+
 import numpy as np
 import pandas as pd
 import pytest
 import yaml
-from pathlib import Path
 
 
 @pytest.fixture

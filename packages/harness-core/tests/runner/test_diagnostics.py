@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.diagnostics import (
     compute_brier_score,
     compute_calibration_curve,
@@ -12,7 +11,6 @@ from harnessml.core.runner.diagnostics import (
     compute_pooled_metrics,
     evaluate_fold_predictions,
 )
-
 
 # -----------------------------------------------------------------------
 # Tests: compute_brier_score

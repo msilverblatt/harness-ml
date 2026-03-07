@@ -1,62 +1,53 @@
 """Tests for MetricRegistry and all registered metrics across task types."""
 import numpy as np
-import pytest
-
 from harnessml.core.schemas.metrics import (
     MetricRegistry,
+    accuracy_multi,
+    auc_pr,
+    binary_confusion_matrix,
     # Binary
     brier_score,
-    log_loss,
-    accuracy,
-    ece,
-    auc_roc,
-    f1,
-    precision,
-    recall,
-    mcc,
-    auc_pr,
-    specificity,
-    binary_confusion_matrix,
     cohen_kappa,
-    # Multiclass
-    accuracy_multi,
+    cohen_kappa_multi,
+    # Survival
+    concordance_index,
+    confusion_matrix_multi,
+    coverage_at_level,
+    # Probabilistic
+    crps,
+    cumulative_incidence_auc,
+    explained_variance,
     f1_macro,
     f1_micro,
     f1_weighted,
-    precision_macro,
-    recall_macro,
-    confusion_matrix_multi,
-    per_class_report,
     log_loss_multi,
-    mcc_multi,
-    cohen_kappa_multi,
-    # Regression
-    rmse,
     mae,
-    r_squared,
     mape,
-    median_ae,
-    explained_variance,
+    mcc,
+    mcc_multi,
+    mean_average_precision,
     mean_bias,
-    quantile_loss,
+    median_ae,
+    mrr,
     # Ranking
     ndcg_at_k,
-    mean_average_precision,
-    mrr,
-    precision_at_k,
-    recall_at_k,
-    spearman_rank_corr,
-    # Survival
-    concordance_index,
-    time_dependent_brier,
-    cumulative_incidence_auc,
-    # Probabilistic
-    crps,
+    per_class_report,
     pit_histogram_data,
+    precision,
+    precision_at_k,
+    precision_macro,
+    quantile_loss,
+    r_squared,
+    recall,
+    recall_at_k,
+    recall_macro,
+    # Regression
+    rmse,
     sharpness,
-    coverage_at_level,
+    spearman_rank_corr,
+    specificity,
+    time_dependent_brier,
 )
-
 
 # ---------------------------------------------------------------------------
 # MetricRegistry class tests

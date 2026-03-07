@@ -1,6 +1,6 @@
 """Tests for XGBoost model wrapper (classifier + regressor modes)."""
-import pytest
 import numpy as np
+import pytest
 
 try:
     import xgboost
