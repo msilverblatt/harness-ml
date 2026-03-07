@@ -29,6 +29,7 @@ def train_single_model(
     augment_symmetry: bool = False,
     target_column: str = "result",
     data_config: DataConfig | None = None,
+    task_type: str = "binary",
 ) -> tuple[Any, list[str], dict[str, Any]]:
     """Train a single model from its ModelDef.
 
@@ -138,7 +139,7 @@ def train_single_model(
             df = df[~val_mask]
             X_val = val_df[feature_cols].values.astype(np.float64)
             y_val = (
-                val_df["margin"].values.astype(np.float64)
+                val_df[_regressor_target_col(df, target_column)].values.astype(np.float64)
                 if is_regressor
                 else val_df[target_column].values.astype(np.float64)
             )
@@ -147,11 +148,8 @@ def train_single_model(
     # Extract X, y
     X = df[feature_cols].values.astype(np.float64)
     if is_regressor:
-        if "margin" not in df.columns:
-            raise ValueError(
-                f"Model {model_name} is a regressor but 'margin' column not found"
-            )
-        y = df["margin"].values.astype(np.float64)
+        reg_col = _regressor_target_col(df, target_column)
+        y = df[reg_col].values.astype(np.float64)
     else:
         y = df[target_column].values.astype(np.float64)
 
@@ -196,7 +194,9 @@ def train_single_model(
             models.append(model)
         metrics["n_seeds"] = n_seeds
         # Fit CDF scale post-training from first model's predictions
-        if is_regressor and cdf_scale is None:
+        # Skip for pure regression tasks — CDF conversion is only for
+        # sports-style regressor→probability pipelines
+        if is_regressor and cdf_scale is None and task_type != "regression":
             train_margins = models[0].predict_margin(X)
             y_binary = (
                 df[target_column].values.astype(np.float64)
@@ -215,7 +215,8 @@ def train_single_model(
         model = _create_model(registry, model_type, params, model_def, cdf_scale)
         model.fit(X, y, sample_weight=sample_weight, **fit_kwargs)
         # Fit CDF scale post-training from model's predictions
-        if is_regressor and cdf_scale is None:
+        # Skip for pure regression tasks
+        if is_regressor and cdf_scale is None and task_type != "regression":
             train_margins = model.predict_margin(X)
             y_binary = (
                 df[target_column].values.astype(np.float64)
@@ -238,11 +239,14 @@ def predict_single_model(
     feature_columns: list[str],
     cdf_scale: float | None = None,
     feature_medians: dict[str, float] | None = None,
+    task_type: str = "binary",
 ) -> np.ndarray:
     """Generate predictions from a fitted model.
 
     Handles: regressor -> CDF probability conversion, NaN handling.
     For multi-seed: model is a list, predictions are averaged.
+    For pure regression tasks (task_type="regression"), returns raw
+    predictions without CDF conversion.
 
     Parameters
     ----------
@@ -256,15 +260,17 @@ def predict_single_model(
         Feature column names to extract from test_df.
     cdf_scale : float | None
         CDF scale for regressor conversion. Required for regressors
-        without a pre-set cdf_scale.
+        without a pre-set cdf_scale (not used for pure regression).
     feature_medians : dict[str, float] | None
         Pre-computed feature medians from training data for NaN imputation.
         If None, falls back to computing medians from test data.
+    task_type : str
+        Task type — "regression" skips CDF conversion.
 
     Returns
     -------
     np.ndarray
-        Probability array.
+        Probability array (binary/multiclass) or raw predictions (regression).
     """
     X_test = test_df[feature_columns].values.astype(np.float64)
 
@@ -287,6 +293,7 @@ def predict_single_model(
                 X_test[row_mask, col_idx] = col_medians[col_idx]
 
     is_regressor = _is_regressor(model_def)
+    pure_regression = task_type == "regression"
 
     if isinstance(model, list):
         # Multi-seed: average predictions
@@ -294,16 +301,21 @@ def predict_single_model(
         for m in model:
             if is_regressor:
                 margins = m.predict_margin(X_test)
-                scale = cdf_scale if cdf_scale is not None else model_def.cdf_scale
-                if scale is None:
-                    raise ValueError("cdf_scale required for regressor predictions")
-                preds = _margin_to_prob(margins, scale)
+                if pure_regression:
+                    preds = margins
+                else:
+                    scale = cdf_scale if cdf_scale is not None else model_def.cdf_scale
+                    if scale is None:
+                        raise ValueError("cdf_scale required for regressor predictions")
+                    preds = _margin_to_prob(margins, scale)
             else:
                 preds = m.predict_proba(X_test)
             all_preds.append(preds)
         return np.mean(all_preds, axis=0)
     else:
         if is_regressor:
+            if pure_regression:
+                return model.predict_margin(X_test)
             scale = cdf_scale if cdf_scale is not None else model_def.cdf_scale
             if scale is None:
                 raise ValueError("cdf_scale required for regressor predictions")
@@ -462,6 +474,22 @@ def _filter_train_folds(
         max_fold = result[fold_column].max()
         return result[result[fold_column] > max_fold - n]
     return result
+
+
+def _regressor_target_col(df: pd.DataFrame, target_column: str) -> str:
+    """Return the column to use as regression target.
+
+    Uses 'margin' if present (backward compat for sports), otherwise
+    falls back to the configured target_column.
+    """
+    if "margin" in df.columns:
+        return "margin"
+    if target_column in df.columns:
+        return target_column
+    raise ValueError(
+        f"Regressor requires either 'margin' or target column "
+        f"'{target_column}' in the data"
+    )
 
 
 def _is_regressor(model_def: ModelDef) -> bool:

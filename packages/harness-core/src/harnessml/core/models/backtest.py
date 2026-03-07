@@ -18,24 +18,28 @@ from harnessml.core.schemas.metrics import MetricRegistry
 # Aliases that map to canonical MetricRegistry names
 _METRIC_ALIASES: dict[str, str] = {
     "auc": "auc_roc",
+    "r2": "r_squared",
+    "brier_score": "brier",
 }
 
 
-def _get_metric_fn(name: str):
+def _get_metric_fn(name: str, task_type: str = "binary"):
     """Look up a metric function from MetricRegistry, resolving aliases."""
     canonical = _METRIC_ALIASES.get(name, name)
-    fn = MetricRegistry.get("binary", canonical)
+    fn = MetricRegistry.get(task_type, canonical)
+    if fn is None and task_type != "binary":
+        fn = MetricRegistry.get("binary", canonical)  # fallback
     if fn is None:
-        available = list(MetricRegistry.list_metrics("binary").get("binary", []))
+        available = list(MetricRegistry.list_metrics(task_type).get(task_type, []))
         raise ValueError(
-            f"Unknown metric {name!r}. Available binary metrics: {available}"
+            f"Unknown metric {name!r}. Available {task_type} metrics: {available}"
         )
     return fn
 
 
-def _METRIC_REGISTRY_lookup(name: str, y_true, y_pred) -> float:
+def _METRIC_REGISTRY_lookup(name: str, y_true, y_pred, task_type: str = "binary") -> float:
     """Compute a named metric via MetricRegistry."""
-    fn = _get_metric_fn(name)
+    fn = _get_metric_fn(name, task_type=task_type)
     val = fn(y_true, y_pred)
     return float(val)
 
@@ -81,12 +85,13 @@ class BacktestRunner:
         (alias ``"auc"``), ``"f1"``, ``"precision"``, ``"recall"``.
     """
 
-    def __init__(self, metrics: list[str] | None = None) -> None:
+    def __init__(self, metrics: list[str] | None = None, task_type: str = "binary") -> None:
         self.metrics = metrics or ["brier", "accuracy"]
+        self.task_type = task_type
 
         # Validate metric names up front
         for m in self.metrics:
-            _get_metric_fn(m)  # raises ValueError if unknown
+            _get_metric_fn(m, task_type=self.task_type)  # raises ValueError if unknown
 
     def run(
         self,
@@ -127,7 +132,7 @@ class BacktestRunner:
             # Per-fold metrics
             fold_metrics = {}
             for m in self.metrics:
-                fold_metrics[m] = _METRIC_REGISTRY_lookup(m, y_true, y_pred)
+                fold_metrics[m] = _METRIC_REGISTRY_lookup(m, y_true, y_pred, task_type=self.task_type)
             per_fold_metrics[fold_id] = fold_metrics
 
         # Pooled metrics
@@ -135,7 +140,7 @@ class BacktestRunner:
         pooled_preds = np.concatenate(all_preds)
         pooled_metrics = {}
         for m in self.metrics:
-            pooled_metrics[m] = _METRIC_REGISTRY_lookup(m, pooled_y, pooled_preds)
+            pooled_metrics[m] = _METRIC_REGISTRY_lookup(m, pooled_y, pooled_preds, task_type=self.task_type)
 
         return BacktestResult(
             pooled_metrics=pooled_metrics,

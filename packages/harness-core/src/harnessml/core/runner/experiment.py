@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from harnessml.core.config.merge import resolve_feature_mutations
+
 logger = logging.getLogger(__name__)
 
 
@@ -551,6 +553,7 @@ def _apply_overlay_to_config(overlay: dict, config_dir: Path) -> list[str]:
                 existing_models[model_name] = model_config
                 changes.append(f"Added model: {model_name}")
         existing["models"] = existing_models
+        resolve_feature_mutations(existing)
         models_path.write_text(
             yaml.dump(existing, default_flow_style=False, sort_keys=False)
         )

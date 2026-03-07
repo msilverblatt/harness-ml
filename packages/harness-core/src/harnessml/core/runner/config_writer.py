@@ -690,7 +690,7 @@ def add_dataset(
     join_on: list[str] | None = None,
     prefix: str | None = None,
     features_dir: str | None = None,
-    auto_clean: bool = True,
+    auto_clean: bool = False,
 ) -> str:
     """Add a new dataset by merging into the features parquet.
 

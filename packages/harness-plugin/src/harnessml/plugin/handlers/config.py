@@ -66,13 +66,33 @@ def _handle_show(*, detail, section, project_dir, **_kwargs):
 
 
 def _extract_section(full_output: str, section: str) -> str:
-    """Extract a specific YAML section from config output."""
+    """Extract a specific section from config output.
+
+    The show_config output uses markdown headers like ``### Backtest``.
+    We first try matching those headers (title-cased), then fall back to
+    YAML-based extraction for backwards compatibility.
+    """
+    import re
     import yaml
 
-    # The output may be markdown-wrapped YAML; try to extract the YAML block
+    # --- Primary path: match markdown ### headers ---
+    title = section.replace("_", " ").title()
+    # Match e.g. "### Backtest" or "### Models (5)" — header may have trailing info
+    header_pattern = re.compile(r"^###\s+" + re.escape(title) + r"(?:\s.*)?$", re.MULTILINE)
+    match = header_pattern.search(full_output)
+    if match:
+        start = match.start()
+        # Find the next ### header (or end of string)
+        next_header = re.search(r"^###\s+", full_output[match.end():], re.MULTILINE)
+        if next_header:
+            end = match.end() + next_header.start()
+        else:
+            end = len(full_output)
+        return full_output[start:end].rstrip()
+
+    # --- Fallback: YAML-based extraction ---
     yaml_content = _extract_yaml_block(full_output)
     if not yaml_content:
-        # Fallback: try parsing the whole thing as YAML
         yaml_content = full_output
 
     try:
@@ -85,7 +105,6 @@ def _extract_section(full_output: str, section: str) -> str:
         section_data = {section: cfg[section]}
         return f"## Config: `{section}`\n\n```yaml\n{yaml.dump(section_data, default_flow_style=False, sort_keys=False)}```"
     except yaml.YAMLError:
-        # Fallback to text-based extraction
         return _extract_section_text(full_output, section)
 
 
