@@ -1,0 +1,48 @@
+models:
+  xgb_main:
+    type: xgboost
+    mode: classifier
+    params:
+      max_depth: 4
+      learning_rate: 0.01
+      n_estimators: 1000
+      subsample: 0.8
+      colsample_bytree: 0.8
+    features:
+    - age
+    - fare
+    - sibsp
+    - parch
+    - sex_male
+    active: true
+    include_in_ensemble: true
+  lgb_main:
+    type: lightgbm
+    mode: classifier
+    params:
+      max_depth: 5
+      learning_rate: 0.01
+      n_estimators: 1000
+      verbose: -1
+    features:
+    - age
+    - fare
+    - sibsp
+    - parch
+    - sex_male
+    active: true
+    include_in_ensemble: true
+  lr_baseline:
+    type: logistic_regression
+    mode: classifier
+    params:
+      C: 1.0
+      max_iter: 1000
+    features:
+    - age
+    - fare
+    - sibsp
+    - parch
+    - sex_male
+    active: true
+    include_in_ensemble: true

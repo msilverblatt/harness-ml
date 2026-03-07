@@ -1,0 +1,81 @@
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+  features_file: features.parquet
+  outputs_dir: outputs
+  task: classification
+  target_column: Survived
+  views: {}
+  features_view: null
+  feature_defs:
+    age:
+      name: age
+      type: instance
+      source: null
+      column: null
+      formula: Age
+      condition: null
+      pairwise_mode: diff
+      description: ''
+      nan_strategy: median
+      category: general
+      enabled: true
+    fare:
+      name: fare
+      type: instance
+      source: null
+      column: null
+      formula: Fare
+      condition: null
+      pairwise_mode: diff
+      description: ''
+      nan_strategy: median
+      category: general
+      enabled: true
+    sibsp:
+      name: sibsp
+      type: instance
+      source: null
+      column: null
+      formula: SibSp
+      condition: null
+      pairwise_mode: diff
+      description: ''
+      nan_strategy: median
+      category: general
+      enabled: true
+    parch:
+      name: parch
+      type: instance
+      source: null
+      column: null
+      formula: Parch
+      condition: null
+      pairwise_mode: diff
+      description: ''
+      nan_strategy: median
+      category: general
+      enabled: true
+    sex_male:
+      name: sex_male
+      type: instance
+      source: null
+      column: null
+      formula: sex_male
+      condition: null
+      pairwise_mode: diff
+      description: ''
+      nan_strategy: median
+      category: general
+      enabled: true
+backtest:
+  cv_strategy: leave_one_out
+  fold_values: []
+  metrics:
+  - brier
+  - accuracy
+  - ece
+  - log_loss
+  min_train_folds: 1
+  fold_column: Pclass

@@ -1,0 +1,42 @@
+{
+  "age": {
+    "cache_key": "fc209130737c30dd",
+    "path": "instance/age.parquet",
+    "feature_type": "instance",
+    "source": null,
+    "derived_from": [],
+    "derivatives": []
+  },
+  "fare": {
+    "cache_key": "affef5b28f2f791d",
+    "path": "instance/fare.parquet",
+    "feature_type": "instance",
+    "source": null,
+    "derived_from": [],
+    "derivatives": []
+  },
+  "sibsp": {
+    "cache_key": "df28ec70ea0e8f93",
+    "path": "instance/sibsp.parquet",
+    "feature_type": "instance",
+    "source": null,
+    "derived_from": [],
+    "derivatives": []
+  },
+  "parch": {
+    "cache_key": "230d44010097a7f1",
+    "path": "instance/parch.parquet",
+    "feature_type": "instance",
+    "source": null,
+    "derived_from": [],
+    "derivatives": []
+  },
+  "sex_male": {
+    "cache_key": "39e2f38a082e8c2b",
+    "path": "instance/sex_male.parquet",
+    "feature_type": "instance",
+    "source": null,
+    "derived_from": [],
+    "derivatives": []
+  }
+}
