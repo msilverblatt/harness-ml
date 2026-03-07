@@ -86,6 +86,28 @@ class TestCorrelations:
         result = compute_feature_correlations(df)
         assert len(result) == 0
 
+    def test_feature_correlations_multiclass(self):
+        """compute_feature_correlations should handle 3+ class targets."""
+        np.random.seed(42)
+        # Create features that are clearly correlated with multiclass target
+        target = np.array([0] * 100 + [1] * 100 + [2] * 100)
+        f1 = target + np.random.randn(300) * 0.1  # strongly correlated
+        f2 = np.random.randn(300)  # uncorrelated
+
+        df = pd.DataFrame({
+            "f1": f1,
+            "f2": f2,
+            "target": target,
+        })
+        result = compute_feature_correlations(df, target_col="target")
+        assert len(result) > 0
+        assert "feature" in result.columns
+        assert "correlation" in result.columns
+        # f1 should have higher correlation than f2
+        f1_corr = result.loc[result["feature"] == "f1", "correlation"].values[0]
+        f2_corr = result.loc[result["feature"] == "f2", "correlation"].values[0]
+        assert f1_corr > f2_corr
+
 
 # -----------------------------------------------------------------------
 # compute_feature_importance
