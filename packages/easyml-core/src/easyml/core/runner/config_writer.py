@@ -1832,11 +1832,23 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
     # Meta-learner coefficients
     meta_coeff = result.get("meta_coefficients")
     if meta_coeff:
-        lines.append("\n### Meta-Learner Weights\n")
-        lines.append("| Model | Weight |")
-        lines.append("|-------|--------|")
-        for name, weight in sorted(meta_coeff.items(), key=lambda x: -abs(x[1])):
-            lines.append(f"| {name} | {weight:+.4f} |")
+        # Check if multiclass (values are dicts) or binary (values are floats)
+        first_val = next(iter(meta_coeff.values()), None)
+        if isinstance(first_val, dict):
+            # Multiclass: per-class coefficient tables
+            lines.append("\n### Meta-Learner Weights (Multiclass)\n")
+            for class_label, class_coeffs in sorted(meta_coeff.items()):
+                lines.append(f"\n**Class {class_label}:**\n")
+                lines.append("| Feature | Weight |")
+                lines.append("|---------|--------|")
+                for feat, w in sorted(class_coeffs.items(), key=lambda x: -abs(x[1])):
+                    lines.append(f"| {feat} | {w:+.4f} |")
+        else:
+            lines.append("\n### Meta-Learner Weights\n")
+            lines.append("| Model | Weight |")
+            lines.append("|-------|--------|")
+            for name, weight in sorted(meta_coeff.items(), key=lambda x: -abs(x[1])):
+                lines.append(f"| {name} | {weight:+.4f} |")
 
     # Regression model CDF scales
     cdf_scales = result.get("model_cdf_scales", {})
@@ -1851,14 +1863,20 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
     per_fold = result.get("per_fold", {})
     if per_fold:
         lines.append(f"\n### Per-Fold Breakdown ({len(per_fold)} folds)\n")
-        lines.append("| Fold | Brier | Accuracy |")
-        lines.append("|------|-------|----------|")
-        for fold_id, fold_metrics in sorted(per_fold.items()):
-            brier = fold_metrics.get("brier", fold_metrics.get("brier_score", "N/A"))
-            acc = fold_metrics.get("accuracy", "N/A")
-            brier_str = f"{brier:.4f}" if isinstance(brier, (int, float)) else str(brier)
-            acc_str = f"{acc:.4f}" if isinstance(acc, (int, float)) else str(acc)
-            lines.append(f"| {fold_id} | {brier_str} | {acc_str} |")
+        # Detect metric columns dynamically from first fold
+        first_fold_metrics = next(iter(per_fold.values()), {})
+        metric_names = [k for k in first_fold_metrics if isinstance(first_fold_metrics[k], (int, float))]
+        if metric_names:
+            header = "| Fold | " + " | ".join(m.replace("_", " ").title() for m in metric_names) + " |"
+            sep = "|------" + "|-------" * len(metric_names) + "|"
+            lines.append(header)
+            lines.append(sep)
+            for fold_id, fold_metrics in sorted(per_fold.items()):
+                cells = [str(fold_id)]
+                for m in metric_names:
+                    val = fold_metrics.get(m, "N/A")
+                    cells.append(f"{val:.4f}" if isinstance(val, (int, float)) else str(val))
+                lines.append("| " + " | ".join(cells) + " |")
 
     return "\n".join(lines)
 
