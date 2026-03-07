@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useApi } from '../../hooks/useApi';
 import { ExperimentTable } from './ExperimentTable';
 import { MetricChart } from './MetricChart';
@@ -8,21 +8,31 @@ import styles from './Experiments.module.css';
 
 export function Experiments() {
     const { data: experiments, loading, error } = useApi<Experiment[]>('/api/experiments');
-    const [selectedId, setSelectedId] = useState<string | null>(null);
     const [compareIds, setCompareIds] = useState<string[]>([]);
+    const [chartMetric, setChartMetric] = useState<string | null>(null);
 
-    function handleSelect(id: string) {
-        setSelectedId(prev => prev === id ? null : id);
-    }
+    const availableMetrics = useMemo(() => {
+        if (!experiments) return [];
+        const keys = new Set<string>();
+        for (const exp of experiments) {
+            if (exp.metrics) Object.keys(exp.metrics).forEach(k => keys.add(k));
+        }
+        return Array.from(keys).sort();
+    }, [experiments]);
+
+    const activeMetric = useMemo(() => {
+        if (chartMetric && availableMetrics.includes(chartMetric)) return chartMetric;
+        if (!experiments) return null;
+        for (const exp of experiments) {
+            if (exp.primary_metric) return exp.primary_metric;
+        }
+        return availableMetrics[0] ?? null;
+    }, [experiments, chartMetric, availableMetrics]);
 
     function handleToggleCompare(id: string) {
         setCompareIds(prev => {
             if (prev.includes(id)) {
                 return prev.filter(x => x !== id);
-            }
-            if (prev.length >= 2) {
-                // Replace the oldest selection
-                return [prev[1], id];
             }
             return [...prev, id];
         });
@@ -46,21 +56,34 @@ export function Experiments() {
 
     const exps = experiments ?? [];
 
+    if (exps.length === 0) {
+        return (
+            <div className={styles.experiments}>
+                <div className={styles.emptyState}>No experiments recorded yet. Run an experiment to see results here.</div>
+            </div>
+        );
+    }
+
     return (
         <div className={styles.experiments}>
-            <div className={styles.chartSection}>
-                <MetricChart experiments={exps} metricKey="brier" />
-            </div>
+            {activeMetric && (
+                <div className={styles.chartSection}>
+                    <MetricChart
+                        experiments={exps}
+                        metricKey={activeMetric}
+                        availableMetrics={availableMetrics}
+                        onMetricChange={setChartMetric}
+                    />
+                </div>
+            )}
             <div className={styles.tableSection}>
                 <ExperimentTable
                     experiments={exps}
-                    selectedId={selectedId}
-                    onSelect={handleSelect}
                     selectedIds={compareIds}
                     onToggleCompare={handleToggleCompare}
                 />
             </div>
-            {compareIds.length === 2 && (
+            {compareIds.length >= 2 && (
                 <ComparePanel experiments={exps} selectedIds={compareIds} />
             )}
         </div>
