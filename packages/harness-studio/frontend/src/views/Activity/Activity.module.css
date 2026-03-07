@@ -1,0 +1,114 @@
+.activity {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.statBar {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+
+.eventLog {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.filterBar {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+}
+
+.filterInput,
+.filterSelect {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+.filterInput:focus,
+.filterSelect:focus {
+    border-color: var(--color-accent);
+}
+
+.filterInput {
+    flex: 1;
+    min-width: 120px;
+}
+
+.toolBadge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    color: var(--color-bg-primary);
+}
+
+.eventSummary {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    flex: 1;
+}
+
+.timestamp {
+    color: var(--color-text-muted);
+    min-width: 60px;
+}
+
+.action {
+    color: var(--color-text-primary);
+}
+
+.duration {
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.params {
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 300px;
+}
+
+.eventList {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.newEvent {
+    animation: fadeSlideIn 200ms ease-out;
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
