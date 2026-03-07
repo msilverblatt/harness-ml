@@ -13,11 +13,11 @@
 ### Task 1: Add optional dependencies
 
 **Files:**
-- Modify: `packages/easyml-core/pyproject.toml`
+- Modify: `packages/harness-core/pyproject.toml`
 
 **Step 1: Add notebook, drive, and kaggle optional dep groups**
 
-In `packages/easyml-core/pyproject.toml`, add after the `quality` line in `[project.optional-dependencies]`:
+In `packages/harness-core/pyproject.toml`, add after the `quality` line in `[project.optional-dependencies]`:
 
 ```toml
 notebook = ["nbformat>=5.9"]
@@ -29,7 +29,7 @@ Update the `all` extra to include the new groups:
 
 ```toml
 all = [
-    "easyml-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality,notebook,drive,kaggle]",
+    "harness-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality,notebook,drive,kaggle]",
 ]
 ```
 
@@ -46,7 +46,7 @@ Expected: packages install successfully.
 **Step 4: Commit**
 
 ```bash
-git add packages/easyml-core/pyproject.toml uv.lock
+git add packages/harness-core/pyproject.toml uv.lock
 git commit -m "feat: add optional deps for notebook, drive, kaggle"
 ```
 
@@ -55,12 +55,12 @@ git commit -m "feat: add optional deps for notebook, drive, kaggle"
 ### Task 2: Create the notebook builder core
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/notebook.py`
-- Create: `packages/easyml-core/tests/runner/test_notebook.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/notebook.py`
+- Create: `packages/harness-core/tests/runner/test_notebook.py`
 
 **Step 1: Write the failing test**
 
-Create `packages/easyml-core/tests/runner/test_notebook.py`:
+Create `packages/harness-core/tests/runner/test_notebook.py`:
 
 ```python
 """Tests for notebook generation."""
@@ -74,7 +74,7 @@ import pytest
 
 @pytest.fixture
 def mini_project(tmp_path):
-    """Create a minimal easyml project structure."""
+    """Create a minimal harnessml project structure."""
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     data_dir = tmp_path / "data"
@@ -113,7 +113,7 @@ def mini_project(tmp_path):
 
 class TestNotebookGeneration:
     def test_generate_local_notebook(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         nb_path = generate_notebook(mini_project, destination="local")
 
@@ -131,7 +131,7 @@ class TestNotebookGeneration:
             assert cell.cell_type in ("code", "markdown")
 
     def test_generate_colab_notebook_has_drive_mount(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         nb_path = generate_notebook(mini_project, destination="colab")
 
@@ -142,7 +142,7 @@ class TestNotebookGeneration:
         assert "drive.mount" in all_source
 
     def test_generate_kaggle_notebook_has_kaggle_input(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         nb_path = generate_notebook(mini_project, destination="kaggle")
 
@@ -153,7 +153,7 @@ class TestNotebookGeneration:
         assert "/kaggle/input" in all_source
 
     def test_generate_notebook_custom_output_path(self, mini_project, tmp_path):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         out = tmp_path / "custom_dir" / "my_notebook.ipynb"
         nb_path = generate_notebook(mini_project, destination="local", output_path=out)
@@ -161,7 +161,7 @@ class TestNotebookGeneration:
         assert nb_path.exists()
 
     def test_generate_notebook_contains_config(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         nb_path = generate_notebook(mini_project, destination="local")
 
@@ -172,13 +172,13 @@ class TestNotebookGeneration:
         assert "test-project" in all_source
 
     def test_generate_notebook_invalid_destination(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+        from harnessml.core.runner.notebook import generate_notebook
 
         with pytest.raises(ValueError, match="destination"):
             generate_notebook(mini_project, destination="invalid")
 
-    def test_generate_notebook_installs_easyml(self, mini_project):
-        from easyml.core.runner.notebook import generate_notebook
+    def test_generate_notebook_installs_harnessml(self, mini_project):
+        from harnessml.core.runner.notebook import generate_notebook
 
         nb_path = generate_notebook(mini_project, destination="colab")
 
@@ -187,20 +187,20 @@ class TestNotebookGeneration:
 
         all_source = "\n".join(c.source for c in nb.cells)
         assert "pip install" in all_source
-        assert "easyml-core" in all_source
+        assert "harness-core" in all_source
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_notebook.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'easyml.core.runner.notebook'`
+Run: `uv run pytest packages/harness-core/tests/runner/test_notebook.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'harnessml.core.runner.notebook'`
 
 **Step 3: Write the notebook builder**
 
-Create `packages/easyml-core/src/easyml/core/runner/notebook.py`:
+Create `packages/harness-core/src/harnessml/core/runner/notebook.py`:
 
 ```python
-"""Generate Jupyter notebooks from easyml project config."""
+"""Generate Jupyter notebooks from harnessml project config."""
 from __future__ import annotations
 
 import logging
@@ -238,9 +238,9 @@ def _make_code_cell(source: str):
 def _build_install_cell(destination: Destination) -> str:
     """Build the pip install cell based on destination."""
     if destination == "local":
-        return "# easyml-core assumed to be installed locally"
+        return "# harness-core assumed to be installed locally"
     quiet = "-q " if destination == "kaggle" else ""
-    return f"!pip install {quiet}easyml-core"
+    return f"!pip install {quiet}harness-core"
 
 
 def _build_setup_cell(destination: Destination, config: dict) -> str:
@@ -251,7 +251,7 @@ def _build_setup_cell(destination: Destination, config: dict) -> str:
             "from google.colab import drive\n"
             "drive.mount('/content/drive')\n"
             "\n"
-            f"PROJECT_DIR = '/content/drive/MyDrive/easyml/{project_name}'\n"
+            f"PROJECT_DIR = '/content/drive/MyDrive/harnessml/{project_name}'\n"
             "DATA_DIR = f'{PROJECT_DIR}/data'\n"
             "OUTPUT_DIR = f'{PROJECT_DIR}/output'"
         )
@@ -303,7 +303,7 @@ def _build_data_cell(destination: Destination, config: dict) -> str:
 def _build_train_cell(config: dict) -> str:
     """Build the training cell."""
     return (
-        "from easyml.core.runner.pipeline import PipelineRunner\n"
+        "from harnessml.core.runner.pipeline import PipelineRunner\n"
         "\n"
         "# Write config to temp file for pipeline\n"
         "import tempfile, os\n"
@@ -354,7 +354,7 @@ def generate_notebook(
     Parameters
     ----------
     project_dir : Path
-        Root of the easyml project (must contain config/config.yaml).
+        Root of the harnessml project (must contain config/config.yaml).
     destination : str
         Target platform: "colab", "kaggle", or "local".
     output_path : Path, optional
@@ -374,7 +374,7 @@ def generate_notebook(
 
     project_dir = Path(project_dir)
     config = _read_config(project_dir)
-    project_name = config.get("project", {}).get("name", "easyml_project")
+    project_name = config.get("project", {}).get("name", "harnessml_project")
 
     nb = nbformat.v4.new_notebook()
     nb.metadata["kernelspec"] = {
@@ -388,7 +388,7 @@ def generate_notebook(
     # 1. Title
     cells.append(_make_markdown_cell(
         f"# {project_name}\n\n"
-        f"Auto-generated by easyml for **{destination}**."
+        f"Auto-generated by harnessml for **{destination}**."
     ))
 
     # 2. Install dependencies
@@ -429,13 +429,13 @@ def generate_notebook(
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_notebook.py -v`
+Run: `uv run pytest packages/harness-core/tests/runner/test_notebook.py -v`
 Expected: All 7 tests PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-core/src/easyml/core/runner/notebook.py packages/easyml-core/tests/runner/test_notebook.py
+git add packages/harness-core/src/harnessml/core/runner/notebook.py packages/harness-core/tests/runner/test_notebook.py
 git commit -m "feat: add notebook generator with colab/kaggle/local destinations"
 ```
 
@@ -444,13 +444,13 @@ git commit -m "feat: add notebook generator with colab/kaggle/local destinations
 ### Task 3: Create Google Drive adapter
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/drives/__init__.py`
-- Create: `packages/easyml-core/src/easyml/core/runner/drives/drive.py`
-- Create: `packages/easyml-core/tests/runner/test_drive_adapter.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/drives/__init__.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/drives/drive.py`
+- Create: `packages/harness-core/tests/runner/test_drive_adapter.py`
 
 **Step 1: Write the failing tests**
 
-Create `packages/easyml-core/tests/runner/test_drive_adapter.py`:
+Create `packages/harness-core/tests/runner/test_drive_adapter.py`:
 
 ```python
 """Tests for Google Drive adapter."""
@@ -465,7 +465,7 @@ import pytest
 class TestDriveImportGuard:
     def test_import_error_without_deps(self):
         """Verify graceful error when google deps not installed."""
-        from easyml.core.runner.drives.drive import _check_deps
+        from harnessml.core.runner.drives.drive import _check_deps
 
         # _check_deps should not raise when deps ARE installed
         # (they are in our test env). Test the function exists.
@@ -473,9 +473,9 @@ class TestDriveImportGuard:
 
 
 class TestDriveAuth:
-    @patch("easyml.core.runner.drives.drive._build_service")
+    @patch("harnessml.core.runner.drives.drive._build_service")
     def test_get_service_caches_token(self, mock_build, tmp_path):
-        from easyml.core.runner.drives.drive import get_service
+        from harnessml.core.runner.drives.drive import get_service
 
         mock_service = MagicMock()
         mock_build.return_value = mock_service
@@ -485,9 +485,9 @@ class TestDriveAuth:
 
 
 class TestDriveUpload:
-    @patch("easyml.core.runner.drives.drive.get_service")
+    @patch("harnessml.core.runner.drives.drive.get_service")
     def test_upload_file(self, mock_get_service, tmp_path):
-        from easyml.core.runner.drives.drive import upload_file
+        from harnessml.core.runner.drives.drive import upload_file
 
         # Create a test file
         test_file = tmp_path / "test.csv"
@@ -508,9 +508,9 @@ class TestDriveUpload:
         assert result["id"] == "file123"
         assert result["name"] == "test.csv"
 
-    @patch("easyml.core.runner.drives.drive.get_service")
+    @patch("harnessml.core.runner.drives.drive.get_service")
     def test_upload_file_with_folder(self, mock_get_service, tmp_path):
-        from easyml.core.runner.drives.drive import upload_file
+        from harnessml.core.runner.drives.drive import upload_file
 
         test_file = tmp_path / "test.csv"
         test_file.write_text("a,b\n1,2")
@@ -528,9 +528,9 @@ class TestDriveUpload:
 
         assert result["id"] == "file456"
 
-    @patch("easyml.core.runner.drives.drive.get_service")
+    @patch("harnessml.core.runner.drives.drive.get_service")
     def test_upload_returns_colab_url_for_ipynb(self, mock_get_service, tmp_path):
-        from easyml.core.runner.drives.drive import upload_file
+        from harnessml.core.runner.drives.drive import upload_file
 
         test_file = tmp_path / "notebook.ipynb"
         test_file.write_text("{}")
@@ -551,9 +551,9 @@ class TestDriveUpload:
 
 
 class TestDriveCreateFolder:
-    @patch("easyml.core.runner.drives.drive.get_service")
+    @patch("harnessml.core.runner.drives.drive.get_service")
     def test_create_folder(self, mock_get_service, tmp_path):
-        from easyml.core.runner.drives.drive import create_folder
+        from harnessml.core.runner.drives.drive import create_folder
 
         mock_service = MagicMock()
         mock_get_service.return_value = mock_service
@@ -570,23 +570,23 @@ class TestDriveCreateFolder:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_drive_adapter.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'easyml.core.runner.drives'`
+Run: `uv run pytest packages/harness-core/tests/runner/test_drive_adapter.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'harnessml.core.runner.drives'`
 
 **Step 3: Write the Drive adapter**
 
-Create `packages/easyml-core/src/easyml/core/runner/drives/__init__.py`:
+Create `packages/harness-core/src/harnessml/core/runner/drives/__init__.py`:
 
 ```python
 ```
 
-Create `packages/easyml-core/src/easyml/core/runner/drives/drive.py`:
+Create `packages/harness-core/src/harnessml/core/runner/drives/drive.py`:
 
 ```python
-"""Google Drive adapter for easyml.
+"""Google Drive adapter for harnessml.
 
 Requires optional deps: google-api-python-client, google-auth-oauthlib.
-Install with: pip install easyml-core[drive]
+Install with: pip install harness-core[drive]
 """
 from __future__ import annotations
 
@@ -611,7 +611,7 @@ def _check_deps():
     except ImportError:
         raise ImportError(
             "Google Drive support requires google-api-python-client and "
-            "google-auth-oauthlib. Install with: pip install easyml-core[drive]"
+            "google-auth-oauthlib. Install with: pip install harness-core[drive]"
         )
 
 
@@ -661,10 +661,10 @@ def get_service(*, credentials_dir: Path | str | None = None):
     ----------
     credentials_dir : Path, optional
         Directory containing client_secret.json and where drive_token.json
-        is cached. Defaults to ~/.easyml/
+        is cached. Defaults to ~/.harnessml/
     """
     if credentials_dir is None:
-        credentials_dir = Path.home() / ".easyml"
+        credentials_dir = Path.home() / ".harnessml"
     credentials_dir = Path(credentials_dir)
     credentials_dir.mkdir(parents=True, exist_ok=True)
     return _build_service(credentials_dir)
@@ -799,13 +799,13 @@ def list_files(
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_drive_adapter.py -v`
+Run: `uv run pytest packages/harness-core/tests/runner/test_drive_adapter.py -v`
 Expected: All 6 tests PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-core/src/easyml/core/runner/drives/ packages/easyml-core/tests/runner/test_drive_adapter.py
+git add packages/harness-core/src/harnessml/core/runner/drives/ packages/harness-core/tests/runner/test_drive_adapter.py
 git commit -m "feat: add Google Drive adapter with upload, folder, and list"
 ```
 
@@ -814,12 +814,12 @@ git commit -m "feat: add Google Drive adapter with upload, folder, and list"
 ### Task 4: Create Kaggle adapter
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/drives/kaggle.py`
-- Create: `packages/easyml-core/tests/runner/test_kaggle_adapter.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/drives/kaggle.py`
+- Create: `packages/harness-core/tests/runner/test_kaggle_adapter.py`
 
 **Step 1: Write the failing tests**
 
-Create `packages/easyml-core/tests/runner/test_kaggle_adapter.py`:
+Create `packages/harness-core/tests/runner/test_kaggle_adapter.py`:
 
 ```python
 """Tests for Kaggle adapter."""
@@ -834,14 +834,14 @@ import pytest
 
 class TestKaggleImportGuard:
     def test_check_deps(self):
-        from easyml.core.runner.drives.kaggle import _check_deps
+        from harnessml.core.runner.drives.kaggle import _check_deps
         _check_deps()
 
 
 class TestKaggleDatasetUpload:
-    @patch("easyml.core.runner.drives.kaggle._get_api")
+    @patch("harnessml.core.runner.drives.kaggle._get_api")
     def test_upload_dataset_creates_new(self, mock_get_api, tmp_path):
-        from easyml.core.runner.drives.kaggle import upload_dataset
+        from harnessml.core.runner.drives.kaggle import upload_dataset
 
         # Create test files
         data_file = tmp_path / "data.csv"
@@ -859,9 +859,9 @@ class TestKaggleDatasetUpload:
         assert result["status"] == "ok"
         assert "testuser/test-dataset" in result["slug"]
 
-    @patch("easyml.core.runner.drives.kaggle._get_api")
+    @patch("harnessml.core.runner.drives.kaggle._get_api")
     def test_upload_dataset_multiple_files(self, mock_get_api, tmp_path):
-        from easyml.core.runner.drives.kaggle import upload_dataset
+        from harnessml.core.runner.drives.kaggle import upload_dataset
 
         f1 = tmp_path / "train.csv"
         f2 = tmp_path / "test.csv"
@@ -881,9 +881,9 @@ class TestKaggleDatasetUpload:
 
 
 class TestKaggleNotebookUpload:
-    @patch("easyml.core.runner.drives.kaggle._get_api")
+    @patch("harnessml.core.runner.drives.kaggle._get_api")
     def test_upload_notebook(self, mock_get_api, tmp_path):
-        from easyml.core.runner.drives.kaggle import upload_notebook
+        from harnessml.core.runner.drives.kaggle import upload_notebook
 
         nb_file = tmp_path / "notebook.ipynb"
         nb_file.write_text(json.dumps({
@@ -908,18 +908,18 @@ class TestKaggleNotebookUpload:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_kaggle_adapter.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'easyml.core.runner.drives.kaggle'`
+Run: `uv run pytest packages/harness-core/tests/runner/test_kaggle_adapter.py -v`
+Expected: FAIL — `ModuleNotFoundError: No module named 'harnessml.core.runner.drives.kaggle'`
 
 **Step 3: Write the Kaggle adapter**
 
-Create `packages/easyml-core/src/easyml/core/runner/drives/kaggle.py`:
+Create `packages/harness-core/src/harnessml/core/runner/drives/kaggle.py`:
 
 ```python
-"""Kaggle adapter for easyml.
+"""Kaggle adapter for harnessml.
 
 Requires optional dep: kaggle.
-Install with: pip install easyml-core[kaggle]
+Install with: pip install harness-core[kaggle]
 Auth: ~/.kaggle/kaggle.json (standard Kaggle API key).
 """
 from __future__ import annotations
@@ -941,7 +941,7 @@ def _check_deps():
     except ImportError:
         raise ImportError(
             "Kaggle support requires the kaggle package. "
-            "Install with: pip install easyml-core[kaggle]"
+            "Install with: pip install harness-core[kaggle]"
         )
     except OSError:
         # kaggle raises OSError if ~/.kaggle/kaggle.json not found on import
@@ -1007,7 +1007,7 @@ def upload_dataset(
         if update:
             api.dataset_create_version(
                 str(staging_path),
-                version_notes="Updated by easyml",
+                version_notes="Updated by harnessml",
             )
         else:
             api.dataset_create_new(str(staging_path), public=False)
@@ -1078,13 +1078,13 @@ def upload_notebook(
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_kaggle_adapter.py -v`
+Run: `uv run pytest packages/harness-core/tests/runner/test_kaggle_adapter.py -v`
 Expected: All 4 tests PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-core/src/easyml/core/runner/drives/kaggle.py packages/easyml-core/tests/runner/test_kaggle_adapter.py
+git add packages/harness-core/src/harnessml/core/runner/drives/kaggle.py packages/harness-core/tests/runner/test_kaggle_adapter.py
 git commit -m "feat: add Kaggle adapter with dataset and notebook upload"
 ```
 
@@ -1093,12 +1093,12 @@ git commit -m "feat: add Kaggle adapter with dataset and notebook upload"
 ### Task 5: Add MCP handler for export_notebook
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`
 
 **Step 1: Add the handler function to pipeline.py**
 
-Add to `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py`, before the `ACTIONS` dict:
+Add to `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py`, before the `ACTIONS` dict:
 
 ```python
 def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs):
@@ -1108,7 +1108,7 @@ def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs)
     err = validate_enum(destination, {"colab", "kaggle", "local"}, "destination")
     if err:
         return err
-    from easyml.core.runner.notebook import generate_notebook
+    from harnessml.core.runner.notebook import generate_notebook
 
     pdir = resolve_project_dir(project_dir)
     out = None
@@ -1124,7 +1124,7 @@ Add `"export_notebook": _handle_export_notebook` to the `ACTIONS` dict.
 
 **Step 2: Add destination and output_path params to the pipeline tool in mcp_server.py**
 
-In `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`, update the `pipeline` tool signature to add:
+In `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`, update the `pipeline` tool signature to add:
 
 ```python
     destination: str | None = None,
@@ -1142,13 +1142,13 @@ Pass `destination=destination, output_path=output_path` to the handler dispatch 
 
 **Step 3: Verify existing tests still pass**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_notebook.py -v`
+Run: `uv run pytest packages/harness-core/tests/runner/test_notebook.py -v`
 Expected: All PASS.
 
 **Step 4: Commit**
 
 ```bash
-git add packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py packages/easyml-plugin/src/easyml/plugin/mcp_server.py
+git add packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py packages/harness-plugin/src/harnessml/plugin/mcp_server.py
 git commit -m "feat: add pipeline export_notebook MCP action"
 ```
 
@@ -1157,22 +1157,22 @@ git commit -m "feat: add pipeline export_notebook MCP action"
 ### Task 6: Add MCP handlers for upload_drive and upload_kaggle
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/data.py`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/data.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`
 
 **Step 1: Add upload_drive handler to data.py**
 
-Add to `packages/easyml-plugin/src/easyml/plugin/handlers/data.py`, before the `ACTIONS` dict:
+Add to `packages/harness-plugin/src/harnessml/plugin/handlers/data.py`, before the `ACTIONS` dict:
 
 ```python
 def _handle_upload_drive(*, files, folder_id, folder_name, name, project_dir, **_kwargs):
     if not files:
         return "**Error**: `files` (list of file paths) is required for upload_drive."
     parsed = parse_json_param(files) if isinstance(files, str) else files
-    from easyml.core.runner.drives.drive import upload_file, create_folder
+    from harnessml.core.runner.drives.drive import upload_file, create_folder
 
     pdir = resolve_project_dir(project_dir)
-    credentials_dir = pdir / ".easyml"
+    credentials_dir = pdir / ".harnessml"
 
     # Create folder if folder_name given and no folder_id
     target_folder_id = folder_id
@@ -1200,7 +1200,7 @@ def _handle_upload_drive(*, files, folder_id, folder_name, name, project_dir, **
 
 **Step 2: Add upload_kaggle handler to data.py**
 
-Add to `packages/easyml-plugin/src/easyml/plugin/handlers/data.py`, before the `ACTIONS` dict:
+Add to `packages/harness-plugin/src/harnessml/plugin/handlers/data.py`, before the `ACTIONS` dict:
 
 ```python
 def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_kwargs):
@@ -1209,7 +1209,7 @@ def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_k
     if not files:
         return "**Error**: `files` (list of file paths) is required for upload_kaggle."
     parsed = parse_json_param(files) if isinstance(files, str) else files
-    from easyml.core.runner.drives.kaggle import upload_dataset
+    from harnessml.core.runner.drives.kaggle import upload_dataset
 
     pdir = resolve_project_dir(project_dir)
     resolved_files = []
@@ -1263,7 +1263,7 @@ Pass `files=files, folder_id=folder_id, folder_name=folder_name, dataset_slug=da
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-plugin/src/easyml/plugin/handlers/data.py packages/easyml-plugin/src/easyml/plugin/mcp_server.py
+git add packages/harness-plugin/src/harnessml/plugin/handlers/data.py packages/harness-plugin/src/harnessml/plugin/mcp_server.py
 git commit -m "feat: add upload_drive and upload_kaggle MCP actions"
 ```
 
@@ -1273,12 +1273,12 @@ git commit -m "feat: add upload_drive and upload_kaggle MCP actions"
 
 **Step 1: Run all tests**
 
-Run: `uv run pytest packages/easyml-core/tests/runner/test_notebook.py packages/easyml-core/tests/runner/test_drive_adapter.py packages/easyml-core/tests/runner/test_kaggle_adapter.py -v`
+Run: `uv run pytest packages/harness-core/tests/runner/test_notebook.py packages/harness-core/tests/runner/test_drive_adapter.py packages/harness-core/tests/runner/test_kaggle_adapter.py -v`
 Expected: All tests PASS.
 
 **Step 2: Run the broader test suite to check for regressions**
 
-Run: `uv run pytest packages/easyml-core/tests/ -x -q`
+Run: `uv run pytest packages/harness-core/tests/ -x -q`
 Expected: All existing tests still pass.
 
 **Step 3: Final commit if any fixups needed**

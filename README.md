@@ -1,8 +1,8 @@
-# EasyML
+# HarnessML
 
 **AI-driven machine learning without the context overhead.**
 
-EasyML solves the problem of AI agents spending precious context tokens manipulating code, data pipelines, and YAML files instead of doing data science. It's an **automated ML orchestration framework** designed specifically for iterative AI-driven experimentation—with hard guardrails to enforce hygiene, automatic logging to prevent lost work, and declarative interfaces that let agents focus entirely on modeling decisions.
+HarnessML solves the problem of AI agents spending precious context tokens manipulating code, data pipelines, and YAML files instead of doing data science. It's an **automated ML orchestration framework** designed specifically for iterative AI-driven experimentation—with hard guardrails to enforce hygiene, automatic logging to prevent lost work, and declarative interfaces that let agents focus entirely on modeling decisions.
 
 ## The Problem
 
@@ -18,7 +18,7 @@ This leaves less context for the actual data science: exploring feature spaces, 
 
 ## The Solution
 
-EasyML removes this overhead through:
+HarnessML removes this overhead through:
 
 1. **Declarative Feature System** — Define features as Python functions with type annotations (`entity`, `pairwise`, `instance`, `regime`). The system handles caching, deduplication, and entity/period alignment automatically. No more DataFrame wrangling in feature code.
 
@@ -36,7 +36,7 @@ EasyML removes this overhead through:
 
 ```
 +-------------------+
-|    easyml-core    |   All engine code
+|    harness-core    |   All engine code
 |  schemas, config, |
 |  guardrails,      |
 |  models, runner,  |
@@ -53,14 +53,14 @@ EasyML removes this overhead through:
 ```
 
 Three packages in a uv workspace monorepo:
-- **easyml-core** — All core engine code (schemas, config, guardrails, models, runner, feature engineering, metrics, data sources)
-- **easyml-plugin** — MCP server (thin async dispatcher with hot-reloadable handlers)
-- **easyml-sports** — Optional domain plugin for matchup prediction (registers via hook system)
+- **harness-core** — All core engine code (schemas, config, guardrails, models, runner, feature engineering, metrics, data sources)
+- **harness-plugin** — MCP server (thin async dispatcher with hot-reloadable handlers)
+- **harness-sports** — Optional domain plugin for matchup prediction (registers via hook system)
 
 ## Quick Start
 
 ```bash
-git clone <repo-url> && cd easyml
+git clone <repo-url> && cd harnessml
 uv sync          # install all packages + dev deps
 
 uv run pytest    # run full test suite (~1800+ tests)
@@ -69,9 +69,9 @@ uv run pytest    # run full test suite (~1800+ tests)
 ### Basic Usage
 
 ```python
-from easyml.core.config import resolve_config
-from easyml.core.models import ModelRegistry, TrainOrchestrator
-from easyml.core.schemas.metrics import MetricRegistry
+from harnessml.core.config import resolve_config
+from harnessml.core.models import ModelRegistry, TrainOrchestrator
+from harnessml.core.schemas.metrics import MetricRegistry
 
 # 1. Load config
 config = resolve_config("config/", file_map={"models": "models.yaml"})
@@ -90,15 +90,15 @@ print(f"Brier: {metrics.get('binary', 'brier')(y_true, y_prob):.4f}")
 
 ```bash
 # Initialize and validate project
-easyml validate --config-dir config/
+harnessml validate --config-dir config/
 
 # Run backtest
-easyml run backtest
+harnessml run backtest
 
 # Create and run experiments
-easyml experiment create exp-001-test-hyperparams
-easyml experiment run exp-001
-easyml experiment promote exp-001
+harnessml experiment create exp-001-test-hyperparams
+harnessml experiment run exp-001
+harnessml experiment promote exp-001
 ```
 
 ### MCP Tool Interface
@@ -165,19 +165,19 @@ filter, select, derive, group_by, join, union, unpivot, sort, head, rolling, cas
 
 ```bash
 uv sync                                          # install workspace
-uv run pytest packages/easyml-core/tests/ -q     # core tests (~1800+)
-uv run pytest packages/easyml-sports/tests/ -q   # sports plugin tests
+uv run pytest packages/harness-core/tests/ -q     # core tests (~1800+)
+uv run pytest packages/harness-sports/tests/ -q   # sports plugin tests
 uv run pytest -v                                 # verbose all tests
 ```
 
 Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv) workspaces.
 
-## Using EasyML as an Agent
+## Using HarnessML as an Agent
 
-When an AI agent is connected to EasyML via MCP, it never needs to:
+When an AI agent is connected to HarnessML via MCP, it never needs to:
 
 1. **Write data pipeline code** — Use `data` to ingest sources, define views, validate outputs
-2. **Engineer features manually** — Use `features` to register declarative features; EasyML handles caching and routing
+2. **Engineer features manually** — Use `features` to register declarative features; HarnessML handles caching and routing
 3. **Track experiments** — All runs are fingerprinted and logged; history is searchable
 4. **Re-run identical experiments** — DNR (Do Not Repeat) prevents accidental duplication
 5. **Mutate production config** — Use experiment overlays to test hypotheses in isolation
@@ -192,7 +192,7 @@ The agent focuses entirely on:
 
 ## Design Philosophy
 
-**EasyML is built for agents, not humans.**
+**HarnessML is built for agents, not humans.**
 
 - **Declarative over imperative** — YAML config and registry-based registration reduce code boilerplate
 - **Defaults over decision fatigue** — Sensible presets for models, CV, metrics, guardrails

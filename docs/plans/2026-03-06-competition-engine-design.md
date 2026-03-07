@@ -2,7 +2,7 @@
 
 ## Overview
 
-Generic competition simulation engine in `easyml-sports` supporting arbitrary
+Generic competition simulation engine in `harness-sports` supporting arbitrary
 competitive formats: single-elimination brackets, double-elimination, round-robin
 leagues, Swiss-system tournaments, and group-stage-to-knockout hybrids.
 
@@ -22,7 +22,7 @@ generation, and MCP tool integration.
 ## Package Layout
 
 ```
-packages/easyml-sports/src/easyml/sports/
+packages/harness-sports/src/harnessml/sports/
 ├── __init__.py                 # existing (hook registration)
 ├── hooks.py                    # existing + COMPETITION_NARRATIVE hook
 ├── matchups.py                 # existing
@@ -43,7 +43,7 @@ packages/easyml-sports/src/easyml/sports/
 MCP handler:
 
 ```
-packages/easyml-plugin/src/easyml/plugin/handlers/competitions.py
+packages/harness-plugin/src/harnessml/plugin/handlers/competitions.py
 ```
 
 ## Config Schema
@@ -350,7 +350,7 @@ Single handler `handlers/competitions.py` with action dispatch:
 
 ## Testing
 
-- Unit tests per module in `packages/easyml-sports/tests/competitions/`
+- Unit tests per module in `packages/harness-sports/tests/competitions/`
 - Each format gets dedicated test cases
 - Simulator tested with known probabilities and deterministic seeds
 - Optimizer tested for diversity and strategy mix properties

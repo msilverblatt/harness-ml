@@ -1,8 +1,8 @@
-# EasyML Claude Code Plugin Design
+# HarnessML Claude Code Plugin Design
 
 ## What
 
-A Claude Code plugin (`packages/easyml-plugin/`) that exposes easyml-runner's
+A Claude Code plugin (`packages/harness-plugin/`) that exposes harnessml-runner's
 config_writer functions as MCP tools. Enables AI-driven ML experimentation
 where the user describes what they want and Claude handles all pipeline
 mechanics automatically.
@@ -10,23 +10,23 @@ mechanics automatically.
 ## Architecture
 
 ```
-packages/easyml-plugin/
+packages/harness-plugin/
 ├── .claude-plugin/
 │   └── plugin.json              # Plugin manifest
 ├── .mcp.json                    # MCP server definition (stdio)
-├── src/easyml/plugin/
+├── src/harnessml/plugin/
 │   ├── __init__.py
 │   └── mcp_server.py            # FastMCP server wrapping config_writer
 ├── skills/
 │   └── ml-workflow/
 │       └── SKILL.md             # ML experimentation workflow skill
-└── pyproject.toml               # uv workspace package, depends on easyml-runner
+└── pyproject.toml               # uv workspace package, depends on harnessml-runner
 ```
 
 ## MCP Server
 
 `mcp_server.py` uses FastMCP to register ~20 tools that map 1:1 to
-`easyml.runner.config_writer` functions. Each tool:
+`harnessml.runner.config_writer` functions. Each tool:
 
 - Accepts `project_dir` (defaults to cwd if not specified)
 - Calls the corresponding config_writer function
@@ -74,14 +74,14 @@ Teaches Claude the ML experimentation pattern:
 
 ## Dependencies
 
-- `easyml-runner` (workspace dependency, provides config_writer)
+- `harnessml-runner` (workspace dependency, provides config_writer)
 - `mcp` (already in workspace venv, provides FastMCP)
 
 ## Plugin Installation
 
 After building, install via:
 ```bash
-claude plugin install /path/to/packages/easyml-plugin
+claude plugin install /path/to/packages/harness-plugin
 ```
 
 Or add to `.claude/settings.json` plugins list.

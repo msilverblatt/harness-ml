@@ -8,7 +8,7 @@ The current feature system has two disconnected paths:
    The AI must know exact column names, manually create pairwise diffs, and reason about
    the computation pipeline.
 
-2. **Programmatic (dev-facing)**: Decorator-based registry with caching in `easyml-features`.
+2. **Programmatic (dev-facing)**: Decorator-based registry with caching in `harnessml-features`.
    Requires writing Python functions, not usable from MCP tools.
 
 Neither path supports what we need: the AI says "I want a model with the diff of adj_em"
@@ -19,7 +19,7 @@ Additionally:
 - No concept of feature *type* (team, pairwise, matchup, regime) — everything is a flat column
 - No automatic pairwise generation from team features
 - No regime feature support (temporal/contextual flags)
-- `PairwiseFeatureBuilder` exists in `easyml-features` but isn't wired to MCP or the runner
+- `PairwiseFeatureBuilder` exists in `harnessml-features` but isn't wired to MCP or the runner
 - `feature_sets` on `ModelDef` exists but isn't implemented
 
 ## Approach
@@ -422,7 +422,7 @@ Becomes a **computation backend** for the feature store. `FeatureStore.compute()
 formula evaluation to `_resolve_formula()` for formula-based features. No breaking changes
 to the function — it gains a caller.
 
-### easyml-features Package
+### harnessml-features Package
 
 `FeatureRegistry`, `FeatureBuilder`, `PairwiseFeatureBuilder` become **optional backends**.
 Projects that use programmatic features (Python functions registered via decorators) continue

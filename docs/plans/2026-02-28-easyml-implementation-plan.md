@@ -1,10 +1,10 @@
-# EasyML Framework Implementation Plan
+# HarnessML Framework Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Extract a reusable AI-driven ML framework from the March Madness pipeline into 7 composable packages that let an AI agent operate ML pipelines safely through config alone.
 
-**Architecture:** Monorepo with 7 Python packages sharing a contracts library (`easyml-schemas`). Each package is independently installable. Uses uv workspaces for development. Packages depend on each other only through `easyml-schemas`. The MCP guardrails layer (`easyml-guardrails`) sits on top and auto-generates inspection tools from the other packages.
+**Architecture:** Monorepo with 7 Python packages sharing a contracts library (`harnessml-schemas`). Each package is independently installable. Uses uv workspaces for development. Packages depend on each other only through `harnessml-schemas`. The MCP guardrails layer (`harnessml-guardrails`) sits on top and auto-generates inspection tools from the other packages.
 
 **Tech Stack:** Python 3.11+, uv (package manager + workspaces), Pydantic v2, OmegaConf, FastMCP, pytest, numpy, scikit-learn. Optional: xgboost, catboost, lightgbm, torch.
 
@@ -17,54 +17,54 @@
 ### Task 0.1: Create monorepo with uv workspaces
 
 **Files:**
-- Create: `~/easyml/pyproject.toml` (workspace root)
-- Create: `~/easyml/packages/easyml-schemas/pyproject.toml`
-- Create: `~/easyml/packages/easyml-config/pyproject.toml`
-- Create: `~/easyml/packages/easyml-features/pyproject.toml`
-- Create: `~/easyml/packages/easyml-models/pyproject.toml`
-- Create: `~/easyml/packages/easyml-data/pyproject.toml`
-- Create: `~/easyml/packages/easyml-experiments/pyproject.toml`
-- Create: `~/easyml/packages/easyml-guardrails/pyproject.toml`
+- Create: `~/harnessml/pyproject.toml` (workspace root)
+- Create: `~/harnessml/packages/harnessml-schemas/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-config/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-features/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-models/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-data/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-experiments/pyproject.toml`
+- Create: `~/harnessml/packages/harnessml-guardrails/pyproject.toml`
 
 **Step 1: Create the directory structure**
 
 ```
-easyml/
+harnessml/
 ├── pyproject.toml                 # workspace root
 ├── packages/
-│   ├── easyml-schemas/
+│   ├── harnessml-schemas/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/schemas/
+│   │   ├── src/harnessml/schemas/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   ├── easyml-config/
+│   ├── harnessml-config/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/config/
+│   │   ├── src/harnessml/config/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   ├── easyml-features/
+│   ├── harnessml-features/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/features/
+│   │   ├── src/harnessml/features/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   ├── easyml-models/
+│   ├── harnessml-models/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/models/
+│   │   ├── src/harnessml/models/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   ├── easyml-data/
+│   ├── harnessml-data/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/data/
+│   │   ├── src/harnessml/data/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   ├── easyml-experiments/
+│   ├── harnessml-experiments/
 │   │   ├── pyproject.toml
-│   │   ├── src/easyml/experiments/
+│   │   ├── src/harnessml/experiments/
 │   │   │   └── __init__.py
 │   │   └── tests/
-│   └── easyml-guardrails/
+│   └── harnessml-guardrails/
 │       ├── pyproject.toml
-│       ├── src/easyml/guardrails/
+│       ├── src/harnessml/guardrails/
 │       │   └── __init__.py
 │       └── tests/
 └── tests/                         # integration tests
@@ -75,7 +75,7 @@ easyml/
 
 ```toml
 [project]
-name = "easyml"
+name = "harnessml"
 version = "0.1.0"
 description = "AI-driven ML framework with guardrails"
 requires-python = ">=3.11"
@@ -95,13 +95,13 @@ dev = [
 
 **Step 3: Write each package's pyproject.toml**
 
-Each package follows this pattern (example for easyml-schemas):
+Each package follows this pattern (example for harnessml-schemas):
 
 ```toml
 [project]
-name = "easyml-schemas"
+name = "harnessml-schemas"
 version = "0.1.0"
-description = "Shared contracts and metrics for EasyML"
+description = "Shared contracts and metrics for HarnessML"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -114,22 +114,22 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/easyml"]
+packages = ["src/harnessml"]
 ```
 
 Dependencies per package:
-- `easyml-schemas`: pydantic, numpy, scikit-learn
-- `easyml-config`: easyml-schemas, omegaconf, pyyaml
-- `easyml-features`: easyml-schemas
-- `easyml-models`: easyml-schemas, numpy, scipy (optional extras for xgboost, catboost, lightgbm, torch)
-- `easyml-data`: easyml-schemas
-- `easyml-experiments`: easyml-schemas, easyml-config
-- `easyml-guardrails`: easyml-schemas, easyml-experiments, fastmcp
+- `harnessml-schemas`: pydantic, numpy, scikit-learn
+- `harnessml-config`: harnessml-schemas, omegaconf, pyyaml
+- `harnessml-features`: harnessml-schemas
+- `harnessml-models`: harnessml-schemas, numpy, scipy (optional extras for xgboost, catboost, lightgbm, torch)
+- `harnessml-data`: harnessml-schemas
+- `harnessml-experiments`: harnessml-schemas, harnessml-config
+- `harnessml-guardrails`: harnessml-schemas, harnessml-experiments, fastmcp
 
 **Step 4: Initialize git and install**
 
 ```bash
-cd ~/easyml
+cd ~/harnessml
 git init
 uv sync
 uv run pytest  # should collect 0 tests, pass
@@ -139,27 +139,27 @@ uv run pytest  # should collect 0 tests, pass
 
 ```bash
 git add -A
-git commit -m "chore: initialize easyml monorepo with 7 package stubs"
+git commit -m "chore: initialize harnessml monorepo with 7 package stubs"
 ```
 
 ---
 
-## Phase 1: `easyml-schemas` — Shared Contracts + Metrics
+## Phase 1: `harnessml-schemas` — Shared Contracts + Metrics
 
 **Reference:** `~/mm/src/mm/utils/config.py` (schema shapes), `~/mm/tools/mm_tools/guardrails.py` (GuardrailViolation), `~/mm/src/mm/models/calibration.py` (calibration table logic)
 
 ### Task 1.1: Core data schemas
 
 **Files:**
-- Create: `packages/easyml-schemas/src/easyml/schemas/core.py`
-- Test: `packages/easyml-schemas/tests/test_core.py`
+- Create: `packages/harnessml-schemas/src/harnessml/schemas/core.py`
+- Test: `packages/harnessml-schemas/tests/test_core.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-schemas/tests/test_core.py
+# packages/harnessml-schemas/tests/test_core.py
 import pytest
-from easyml.schemas.core import (
+from harnessml.schemas.core import (
     FeatureMeta, TemporalFilter, ModelConfig, EnsembleConfig,
     StageConfig, ArtifactDecl, PipelineConfig, RunManifest,
     ExperimentResult, GuardrailViolation, Fold,
@@ -271,7 +271,7 @@ def test_fold():
 **Step 2: Run tests to verify they fail**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-schemas/tests/test_core.py -v
+cd ~/harnessml && uv run pytest packages/harnessml-schemas/tests/test_core.py -v
 ```
 
 Expected: FAIL (import errors)
@@ -285,20 +285,20 @@ Reference `~/mm/tools/mm_tools/guardrails.py` lines 10-20 for `GuardrailViolatio
 **Step 4: Run tests, verify pass**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-schemas/tests/test_core.py -v
+cd ~/harnessml && uv run pytest packages/harnessml-schemas/tests/test_core.py -v
 ```
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-schemas/ && git commit -m "feat(schemas): add core data schemas"
+git add packages/harnessml-schemas/ && git commit -m "feat(schemas): add core data schemas"
 ```
 
 ### Task 1.2: Source metadata schema
 
 **Files:**
-- Modify: `packages/easyml-schemas/src/easyml/schemas/core.py`
-- Test: `packages/easyml-schemas/tests/test_core.py`
+- Modify: `packages/harnessml-schemas/src/harnessml/schemas/core.py`
+- Test: `packages/harnessml-schemas/tests/test_core.py`
 
 Add `SourceMeta` schema with `temporal_safety` and `leakage_notes` fields.
 
@@ -319,15 +319,15 @@ def test_source_meta():
 ### Task 1.3: Built-in metrics — probability metrics
 
 **Files:**
-- Create: `packages/easyml-schemas/src/easyml/schemas/metrics.py`
-- Test: `packages/easyml-schemas/tests/test_metrics.py`
+- Create: `packages/harnessml-schemas/src/harnessml/schemas/metrics.py`
+- Test: `packages/harnessml-schemas/tests/test_metrics.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-schemas/tests/test_metrics.py
+# packages/harnessml-schemas/tests/test_metrics.py
 import numpy as np
-from easyml.schemas.metrics import brier_score, log_loss, ece, calibration_table, accuracy
+from harnessml.schemas.metrics import brier_score, log_loss, ece, calibration_table, accuracy
 
 def test_brier_score_perfect():
     y_true = np.array([1, 0, 1, 0])
@@ -390,14 +390,14 @@ def test_calibration_table_structure():
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-schemas/ && git commit -m "feat(schemas): add probability and classification metrics"
+git add packages/harnessml-schemas/ && git commit -m "feat(schemas): add probability and classification metrics"
 ```
 
 ### Task 1.4: Built-in metrics — regression + ensemble diagnostics
 
 **Files:**
-- Modify: `packages/easyml-schemas/src/easyml/schemas/metrics.py`
-- Test: `packages/easyml-schemas/tests/test_metrics.py`
+- Modify: `packages/harnessml-schemas/src/harnessml/schemas/metrics.py`
+- Test: `packages/harnessml-schemas/tests/test_metrics.py`
 
 Add: `rmse`, `mae`, `r_squared`, `auc_roc`, `f1_score`, `model_correlations`, `model_audit`.
 
@@ -428,33 +428,33 @@ def test_model_audit():
 ### Task 1.5: Package exports and __init__.py
 
 **Files:**
-- Modify: `packages/easyml-schemas/src/easyml/schemas/__init__.py`
+- Modify: `packages/harnessml-schemas/src/harnessml/schemas/__init__.py`
 
 Re-export all schemas and metrics from the top-level package. Verify with:
 
 ```python
-from easyml.schemas import FeatureMeta, ModelConfig, brier_score, ece
+from harnessml.schemas import FeatureMeta, ModelConfig, brier_score, ece
 ```
 
 **Commit:** `feat(schemas): finalize package exports`
 
 ---
 
-## Phase 2: `easyml-config` — Split Config Resolution
+## Phase 2: `harnessml-config` — Split Config Resolution
 
 **Reference:** `~/mm/src/mm/utils/config.py` (resolve_config, _deep_merge)
 
 ### Task 2.1: Deep merge with OmegaConf
 
 **Files:**
-- Create: `packages/easyml-config/src/easyml/config/merge.py`
-- Test: `packages/easyml-config/tests/test_merge.py`
+- Create: `packages/harnessml-config/src/harnessml/config/merge.py`
+- Test: `packages/harnessml-config/tests/test_merge.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-config/tests/test_merge.py
-from easyml.config.merge import deep_merge
+# packages/harnessml-config/tests/test_merge.py
+from harnessml.config.merge import deep_merge
 
 def test_deep_merge_simple():
     base = {"a": 1, "b": 2}
@@ -485,8 +485,8 @@ Reference `~/mm/src/mm/utils/config.py` `_deep_merge()` for semantics, but use O
 ### Task 2.2: File loading with variant resolution
 
 **Files:**
-- Create: `packages/easyml-config/src/easyml/config/loader.py`
-- Test: `packages/easyml-config/tests/test_loader.py`
+- Create: `packages/harnessml-config/src/harnessml/config/loader.py`
+- Test: `packages/harnessml-config/tests/test_loader.py`
 
 Tests should use `tmp_path` fixture to create temporary YAML files.
 
@@ -510,8 +510,8 @@ def test_variant_fallback(tmp_path):
 ### Task 2.3: resolve_config — the main entry point
 
 **Files:**
-- Create: `packages/easyml-config/src/easyml/config/resolver.py`
-- Test: `packages/easyml-config/tests/test_resolver.py`
+- Create: `packages/harnessml-config/src/harnessml/config/resolver.py`
+- Test: `packages/harnessml-config/tests/test_resolver.py`
 
 ```python
 def test_resolve_config_full(tmp_path):
@@ -561,15 +561,15 @@ Reference `~/mm/src/mm/utils/config.py` `resolve_config()` for the merge logic.
 
 ---
 
-## Phase 3: `easyml-features` — Registry, Discovery, Resolution, Building
+## Phase 3: `harnessml-features` — Registry, Discovery, Resolution, Building
 
 **Reference:** `~/mm/src/mm/features/registry.py`, `~/mm/src/mm/features/builder.py`, `~/mm/src/mm/features/manifest.py`, `~/mm/src/mm/models/feature_selection.py`
 
 ### Task 3.1: Feature registry — decorator registration
 
 **Files:**
-- Create: `packages/easyml-features/src/easyml/features/registry.py`
-- Test: `packages/easyml-features/tests/test_registry.py`
+- Create: `packages/harnessml-features/src/harnessml/features/registry.py`
+- Test: `packages/harnessml-features/tests/test_registry.py`
 
 ```python
 def test_register_feature():
@@ -635,8 +635,8 @@ Reference `~/mm/src/mm/features/registry.py` for the `_FeatureDefinition` datacl
 ### Task 3.2: Auto-discovery via pkgutil
 
 **Files:**
-- Modify: `packages/easyml-features/src/easyml/features/registry.py`
-- Test: `packages/easyml-features/tests/test_registry.py`
+- Modify: `packages/harnessml-features/src/harnessml/features/registry.py`
+- Test: `packages/harnessml-features/tests/test_registry.py`
 
 ```python
 def test_discover_modules(tmp_path):
@@ -652,8 +652,8 @@ Reference `~/mm/src/mm/features/builder.py` `discover_feature_modules()` for the
 ### Task 3.3: Feature resolver
 
 **Files:**
-- Create: `packages/easyml-features/src/easyml/features/resolver.py`
-- Test: `packages/easyml-features/tests/test_resolver.py`
+- Create: `packages/harnessml-features/src/harnessml/features/resolver.py`
+- Test: `packages/harnessml-features/tests/test_resolver.py`
 
 ```python
 def test_resolve_explicit_columns():
@@ -681,9 +681,9 @@ Reference `~/mm/src/mm/models/feature_selection.py` `get_feature_columns()`.
 ### Task 3.4: Feature builder with incremental caching
 
 **Files:**
-- Create: `packages/easyml-features/src/easyml/features/builder.py`
-- Create: `packages/easyml-features/src/easyml/features/manifest.py`
-- Test: `packages/easyml-features/tests/test_builder.py`
+- Create: `packages/harnessml-features/src/harnessml/features/builder.py`
+- Create: `packages/harnessml-features/src/harnessml/features/manifest.py`
+- Test: `packages/harnessml-features/tests/test_builder.py`
 
 ```python
 def test_build_computes_and_caches(tmp_path):
@@ -714,8 +714,8 @@ Reference `~/mm/src/mm/features/builder.py` and `~/mm/src/mm/features/manifest.p
 ### Task 3.5: Pairwise feature builder
 
 **Files:**
-- Create: `packages/easyml-features/src/easyml/features/pairwise.py`
-- Test: `packages/easyml-features/tests/test_pairwise.py`
+- Create: `packages/harnessml-features/src/harnessml/features/pairwise.py`
+- Test: `packages/harnessml-features/tests/test_pairwise.py`
 
 ```python
 def test_pairwise_diff():
@@ -745,7 +745,7 @@ Reference `~/mm/src/mm/features/matchup.py`.
 
 ---
 
-## Phase 4: `easyml-models` — The Big Package
+## Phase 4: `harnessml-models` — The Big Package
 
 **Reference:** `~/mm/src/mm/models/` (all files), `~/mm/src/mm/models/meta_learner.py`, `~/mm/src/mm/models/calibration.py`, `~/mm/src/mm/utils/run_manager.py`
 
@@ -754,9 +754,9 @@ This is the largest package (~2500 LOC). Break into sub-tasks by component.
 ### Task 4.1: BaseModel protocol + ModelRegistry
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/base.py`
-- Create: `packages/easyml-models/src/easyml/models/registry.py`
-- Test: `packages/easyml-models/tests/test_registry.py`
+- Create: `packages/harnessml-models/src/harnessml/models/base.py`
+- Create: `packages/harnessml-models/src/harnessml/models/registry.py`
+- Test: `packages/harnessml-models/tests/test_registry.py`
 
 ```python
 def test_register_and_create():
@@ -789,9 +789,9 @@ Reference `~/mm/src/mm/models/model_registry.py`.
 Start with the two that have no heavy dependencies (pure sklearn).
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/wrappers/logistic.py`
-- Create: `packages/easyml-models/src/easyml/models/wrappers/elastic_net.py`
-- Test: `packages/easyml-models/tests/test_wrappers_sklearn.py`
+- Create: `packages/harnessml-models/src/harnessml/models/wrappers/logistic.py`
+- Create: `packages/harnessml-models/src/harnessml/models/wrappers/elastic_net.py`
+- Test: `packages/harnessml-models/tests/test_wrappers_sklearn.py`
 
 ```python
 def test_logistic_regression_fit_predict():
@@ -821,8 +821,8 @@ Reference `~/mm/src/mm/models/logreg_model.py`.
 ### Task 4.3: Built-in model wrappers — XGBoost (optional extra)
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/wrappers/xgboost.py`
-- Test: `packages/easyml-models/tests/test_wrappers_xgb.py`
+- Create: `packages/harnessml-models/src/harnessml/models/wrappers/xgboost.py`
+- Test: `packages/harnessml-models/tests/test_wrappers_xgb.py`
 
 Tests should be marked `@pytest.mark.skipif(not HAS_XGBOOST, ...)`.
 
@@ -851,8 +851,8 @@ Reference `~/mm/src/mm/models/mlp_model.py`, `tabnet_model.py`.
 ### Task 4.6: Temporal cross-validation strategies
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/cv.py`
-- Test: `packages/easyml-models/tests/test_cv.py`
+- Create: `packages/harnessml-models/src/harnessml/models/cv.py`
+- Test: `packages/harnessml-models/tests/test_cv.py`
 
 ```python
 def test_loso_basic():
@@ -921,8 +921,8 @@ Reference `~/mm/src/mm/models/meta_learner.py` for the LOSO loop pattern. The `P
 ### Task 4.7: Fingerprint caching
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/fingerprint.py`
-- Test: `packages/easyml-models/tests/test_fingerprint.py`
+- Create: `packages/harnessml-models/src/harnessml/models/fingerprint.py`
+- Test: `packages/harnessml-models/tests/test_fingerprint.py`
 
 ```python
 def test_fingerprint_match(tmp_path):
@@ -944,8 +944,8 @@ Reference `~/mm/src/mm/models/fingerprint.py` (~35 LOC).
 ### Task 4.8: Calibrators — Spline, Platt, Isotonic
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/calibration.py`
-- Test: `packages/easyml-models/tests/test_calibration.py`
+- Create: `packages/harnessml-models/src/harnessml/models/calibration.py`
+- Test: `packages/harnessml-models/tests/test_calibration.py`
 
 ```python
 def test_spline_calibrator_improves_ece():
@@ -978,8 +978,8 @@ Reference `~/mm/src/mm/models/calibration.py` for the `SplineCalibrator` PCHIP i
 ### Task 4.9: StackedEnsemble — meta-learner with per-fold pre-calibration
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/ensemble.py`
-- Test: `packages/easyml-models/tests/test_ensemble.py`
+- Create: `packages/harnessml-models/src/harnessml/models/ensemble.py`
+- Test: `packages/harnessml-models/tests/test_ensemble.py`
 
 ```python
 def test_stacked_ensemble_basic():
@@ -1026,8 +1026,8 @@ Reference `~/mm/src/mm/models/meta_learner.py` and `~/mm/src/mm/models/stacking.
 ### Task 4.10: EnsemblePostprocessor chain
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/postprocessing.py`
-- Test: `packages/easyml-models/tests/test_postprocessing.py`
+- Create: `packages/harnessml-models/src/harnessml/models/postprocessing.py`
+- Test: `packages/harnessml-models/tests/test_postprocessing.py`
 
 ```python
 def test_postprocessor_chain():
@@ -1047,8 +1047,8 @@ Reference `~/mm/src/mm/ensemble/postprocessing.py`.
 ### Task 4.11: TrainOrchestrator
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/orchestrator.py`
-- Test: `packages/easyml-models/tests/test_orchestrator.py`
+- Create: `packages/harnessml-models/src/harnessml/models/orchestrator.py`
+- Test: `packages/harnessml-models/tests/test_orchestrator.py`
 
 ```python
 def test_orchestrator_trains_all_models(tmp_path):
@@ -1085,8 +1085,8 @@ Reference `~/mm/src/mm/models/train.py` `train_all_models()`.
 ### Task 4.12: BacktestRunner
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/backtest.py`
-- Test: `packages/easyml-models/tests/test_backtest.py`
+- Create: `packages/harnessml-models/src/harnessml/models/backtest.py`
+- Test: `packages/harnessml-models/tests/test_backtest.py`
 
 ```python
 def test_backtest_runner_basic():
@@ -1107,8 +1107,8 @@ Reference `~/mm/src/mm/backtest/runner.py`.
 ### Task 4.13: RunManager — versioned output management
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/run_manager.py`
-- Test: `packages/easyml-models/tests/test_run_manager.py`
+- Create: `packages/harnessml-models/src/harnessml/models/run_manager.py`
+- Test: `packages/harnessml-models/tests/test_run_manager.py`
 
 ```python
 def test_run_manager_lifecycle(tmp_path):
@@ -1131,8 +1131,8 @@ Reference `~/mm/src/mm/utils/run_manager.py` (~100 LOC).
 ### Task 4.14: TrackingCallback protocol
 
 **Files:**
-- Create: `packages/easyml-models/src/easyml/models/tracking.py`
-- Test: `packages/easyml-models/tests/test_tracking.py`
+- Create: `packages/harnessml-models/src/harnessml/models/tracking.py`
+- Test: `packages/harnessml-models/tests/test_tracking.py`
 
 ```python
 def test_tracking_callback_called():
@@ -1150,15 +1150,15 @@ def test_tracking_callback_called():
 
 ---
 
-## Phase 5: `easyml-data` — Source Registry, Stage Guards, DVC Integration
+## Phase 5: `harnessml-data` — Source Registry, Stage Guards, DVC Integration
 
 **Reference:** `~/mm/src/mm/data/source_registry.py`, `~/mm/src/mm/utils/stage_guards.py`
 
 ### Task 5.1: Data source registry with leakage metadata
 
 **Files:**
-- Create: `packages/easyml-data/src/easyml/data/sources.py`
-- Test: `packages/easyml-data/tests/test_sources.py`
+- Create: `packages/harnessml-data/src/harnessml/data/sources.py`
+- Test: `packages/harnessml-data/tests/test_sources.py`
 
 ```python
 def test_register_source():
@@ -1203,9 +1203,9 @@ Reference `~/mm/src/mm/data/source_registry.py`.
 ### Task 5.2: Typed artifact declarations + DVC config generator
 
 **Files:**
-- Create: `packages/easyml-data/src/easyml/data/artifacts.py`
-- Create: `packages/easyml-data/src/easyml/data/dvc_generator.py`
-- Test: `packages/easyml-data/tests/test_artifacts.py`
+- Create: `packages/harnessml-data/src/harnessml/data/artifacts.py`
+- Create: `packages/harnessml-data/src/harnessml/data/dvc_generator.py`
+- Test: `packages/harnessml-data/tests/test_artifacts.py`
 
 ```python
 def test_generate_dvc_yaml():
@@ -1232,8 +1232,8 @@ def test_generate_dvc_yaml():
 ### Task 5.3: Stage guards with staleness detection
 
 **Files:**
-- Create: `packages/easyml-data/src/easyml/data/guards.py`
-- Test: `packages/easyml-data/tests/test_guards.py`
+- Create: `packages/harnessml-data/src/harnessml/data/guards.py`
+- Test: `packages/harnessml-data/tests/test_guards.py`
 
 ```python
 def test_guard_passes(tmp_path):
@@ -1277,8 +1277,8 @@ Reference `~/mm/src/mm/utils/stage_guards.py`.
 ### Task 5.4: Refresh orchestrator
 
 **Files:**
-- Create: `packages/easyml-data/src/easyml/data/refresh.py`
-- Test: `packages/easyml-data/tests/test_refresh.py`
+- Create: `packages/harnessml-data/src/harnessml/data/refresh.py`
+- Test: `packages/harnessml-data/tests/test_refresh.py`
 
 **Commit:** `feat(data): add failure-tolerant refresh orchestrator`
 
@@ -1288,15 +1288,15 @@ Reference `~/mm/src/mm/utils/stage_guards.py`.
 
 ---
 
-## Phase 6: `easyml-experiments` — Experiment Protocol Enforcement
+## Phase 6: `harnessml-experiments` — Experiment Protocol Enforcement
 
 **Reference:** `~/mm/src/mm/experiment/runner.py`, `~/mm/src/mm/experiment/overlay.py`, `~/mm/pipelines/experiment.py`, `~/mm/tools/mm_tools/guardrails.py`
 
 ### Task 6.1: Experiment creation + naming validation
 
 **Files:**
-- Create: `packages/easyml-experiments/src/easyml/experiments/manager.py`
-- Test: `packages/easyml-experiments/tests/test_manager.py`
+- Create: `packages/harnessml-experiments/src/harnessml/experiments/manager.py`
+- Test: `packages/harnessml-experiments/tests/test_manager.py`
 
 ```python
 def test_create_experiment(tmp_path):
@@ -1320,8 +1320,8 @@ def test_create_experiment_bad_name(tmp_path):
 ### Task 6.2: Change detection + single-variable enforcement
 
 **Files:**
-- Modify: `packages/easyml-experiments/src/easyml/experiments/manager.py`
-- Test: `packages/easyml-experiments/tests/test_manager.py`
+- Modify: `packages/harnessml-experiments/src/harnessml/experiments/manager.py`
+- Test: `packages/harnessml-experiments/tests/test_manager.py`
 
 ```python
 def test_detect_changes_single():
@@ -1346,8 +1346,8 @@ Reference `~/mm/src/mm/experiment/overlay.py` `detect_changes()`.
 ### Task 6.3: Do-not-retry registry
 
 **Files:**
-- Modify: `packages/easyml-experiments/src/easyml/experiments/manager.py`
-- Test: `packages/easyml-experiments/tests/test_do_not_retry.py`
+- Modify: `packages/harnessml-experiments/src/harnessml/experiments/manager.py`
+- Test: `packages/harnessml-experiments/tests/test_do_not_retry.py`
 
 ```python
 def test_do_not_retry_blocks(tmp_path):
@@ -1370,9 +1370,9 @@ Reference `~/mm/tools/mm_tools/guardrails.py` `check_do_not_retry()`.
 ### Task 6.4: Experiment logging + mandatory logging enforcement
 
 **Files:**
-- Modify: `packages/easyml-experiments/src/easyml/experiments/manager.py`
-- Create: `packages/easyml-experiments/src/easyml/experiments/logger.py`
-- Test: `packages/easyml-experiments/tests/test_logging.py`
+- Modify: `packages/harnessml-experiments/src/harnessml/experiments/manager.py`
+- Create: `packages/harnessml-experiments/src/harnessml/experiments/logger.py`
+- Test: `packages/harnessml-experiments/tests/test_logging.py`
 
 ```python
 def test_log_experiment(tmp_path):
@@ -1394,8 +1394,8 @@ def test_mandatory_logging_blocks_next(tmp_path):
 ### Task 6.5: Atomic promote with rollback
 
 **Files:**
-- Modify: `packages/easyml-experiments/src/easyml/experiments/manager.py`
-- Test: `packages/easyml-experiments/tests/test_promote.py`
+- Modify: `packages/harnessml-experiments/src/harnessml/experiments/manager.py`
+- Test: `packages/harnessml-experiments/tests/test_promote.py`
 
 ```python
 def test_promote_requires_logged_verdict(tmp_path):
@@ -1420,15 +1420,15 @@ Reference `~/mm/pipelines/experiment.py` `cmd_promote()`.
 
 ---
 
-## Phase 7: `easyml-guardrails` — MCP Server Generation + AI Safety
+## Phase 7: `harnessml-guardrails` — MCP Server Generation + AI Safety
 
 **Reference:** `~/mm/tools/mcp_server.py`, `~/mm/tools/mm_tools/helpers.py`, `~/mm/tools/mm_tools/guardrails.py`, `~/mm/tools/mm_tools/inspection.py`
 
 ### Task 7.1: Guardrail base classes
 
 **Files:**
-- Create: `packages/easyml-guardrails/src/easyml/guardrails/base.py`
-- Test: `packages/easyml-guardrails/tests/test_guardrails.py`
+- Create: `packages/harnessml-guardrails/src/harnessml/guardrails/base.py`
+- Test: `packages/harnessml-guardrails/tests/test_guardrails.py`
 
 ```python
 def test_guardrail_check():
@@ -1452,8 +1452,8 @@ def test_non_overridable_guardrail():
 ### Task 7.2: Full guardrail inventory
 
 **Files:**
-- Create: `packages/easyml-guardrails/src/easyml/guardrails/inventory.py`
-- Test: `packages/easyml-guardrails/tests/test_inventory.py`
+- Create: `packages/harnessml-guardrails/src/harnessml/guardrails/inventory.py`
+- Test: `packages/harnessml-guardrails/tests/test_inventory.py`
 
 Implement all 11 guardrails:
 
@@ -1476,8 +1476,8 @@ Implement all 11 guardrails:
 ### Task 7.3: Pipeline command execution
 
 **Files:**
-- Create: `packages/easyml-guardrails/src/easyml/guardrails/execution.py`
-- Test: `packages/easyml-guardrails/tests/test_execution.py`
+- Create: `packages/harnessml-guardrails/src/harnessml/guardrails/execution.py`
+- Test: `packages/harnessml-guardrails/tests/test_execution.py`
 
 ```python
 def test_run_pipeline_command():
@@ -1497,8 +1497,8 @@ Reference `~/mm/tools/mm_tools/helpers.py` `run_pipeline_command()`.
 ### Task 7.4: PipelineServer base class + auto-generated inspection tools
 
 **Files:**
-- Create: `packages/easyml-guardrails/src/easyml/guardrails/server.py`
-- Test: `packages/easyml-guardrails/tests/test_server.py`
+- Create: `packages/harnessml-guardrails/src/harnessml/guardrails/server.py`
+- Test: `packages/harnessml-guardrails/tests/test_server.py`
 
 ```python
 @pytest.mark.asyncio
@@ -1529,8 +1529,8 @@ Reference `~/mm/tools/mcp_server.py` and `~/mm/tools/mm_tools/inspection.py`.
 ### Task 7.5: Structured audit log
 
 **Files:**
-- Create: `packages/easyml-guardrails/src/easyml/guardrails/audit.py`
-- Test: `packages/easyml-guardrails/tests/test_audit.py`
+- Create: `packages/harnessml-guardrails/src/harnessml/guardrails/audit.py`
+- Test: `packages/harnessml-guardrails/tests/test_audit.py`
 
 ```python
 def test_audit_log_records_invocation(tmp_path):
@@ -1594,7 +1594,7 @@ One README per package with installation, quick start, and API reference.
 
 **Commit:** `docs: add root README with architecture and quick start`
 
-### Task 9.3: CLAUDE.md for the easyml repo
+### Task 9.3: CLAUDE.md for the harnessml repo
 
 Write a CLAUDE.md that tells the AI agent how to use the framework for a new project.
 
@@ -1607,13 +1607,13 @@ Write a CLAUDE.md that tells the AI agent how to use the framework for a new pro
 | Phase | Package | Tasks | Est. LOC |
 |-------|---------|-------|----------|
 | 0 | Repo setup | 1 task | ~100 (config) |
-| 1 | easyml-schemas | 5 tasks | ~500 |
-| 2 | easyml-config | 4 tasks | ~300 |
-| 3 | easyml-features | 6 tasks | ~700 |
-| 4 | easyml-models | 15 tasks | ~2500 |
-| 5 | easyml-data | 5 tasks | ~400 |
-| 6 | easyml-experiments | 6 tasks | ~600 |
-| 7 | easyml-guardrails | 6 tasks | ~800 |
+| 1 | harnessml-schemas | 5 tasks | ~500 |
+| 2 | harnessml-config | 4 tasks | ~300 |
+| 3 | harnessml-features | 6 tasks | ~700 |
+| 4 | harnessml-models | 15 tasks | ~2500 |
+| 5 | harnessml-data | 5 tasks | ~400 |
+| 6 | harnessml-experiments | 6 tasks | ~600 |
+| 7 | harnessml-guardrails | 6 tasks | ~800 |
 | 8 | Integration tests | 2 tasks | ~200 |
 | 9 | Documentation | 3 tasks | ~300 |
 | **Total** | **7 packages** | **53 tasks** | **~5800 + tests** |

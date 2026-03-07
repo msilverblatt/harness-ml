@@ -17,8 +17,8 @@
 ### Task 1: RandomForest param filtering
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/models/wrappers/random_forest.py`
-- Test: `packages/easyml-core/tests/models/test_random_forest.py`
+- Modify: `packages/harness-core/src/harnessml/core/models/wrappers/random_forest.py`
+- Test: `packages/harness-core/tests/models/test_random_forest.py`
 
 **Step 1: Write failing test**
 
@@ -54,8 +54,8 @@ Add `_INVALID_RF_PARAMS` frozenset at module level with known boosting-only para
 ### Task 2: CatBoost eval_set + early stopping
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/models/wrappers/catboost.py`
-- Test: `packages/easyml-core/tests/models/test_catboost.py`
+- Modify: `packages/harness-core/src/harnessml/core/models/wrappers/catboost.py`
+- Test: `packages/harness-core/tests/models/test_catboost.py`
 
 **Step 1: Write failing test**
 
@@ -96,8 +96,8 @@ Update `fit()` to accept `eval_set=None` kwarg. When eval_set provided, use CatB
 ### Task 3: MLP enhancements (normalize, batch_norm, early_stopping, weight_decay)
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/models/wrappers/mlp.py`
-- Test: `packages/easyml-core/tests/models/test_mlp.py`
+- Modify: `packages/harness-core/src/harnessml/core/models/wrappers/mlp.py`
+- Test: `packages/harness-core/tests/models/test_mlp.py`
 
 **Step 1: Write failing tests**
 
@@ -176,8 +176,8 @@ All params are optional with defaults that preserve current behavior (normalize=
 ### Task 4: TabNet enhancements (normalize, val_fraction, scheduler, eval_set)
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/models/wrappers/tabnet.py`
-- Test: `packages/easyml-core/tests/models/test_tabnet.py`
+- Modify: `packages/harness-core/src/harnessml/core/models/wrappers/tabnet.py`
+- Test: `packages/harness-core/tests/models/test_tabnet.py`
 
 **Step 1: Write failing tests**
 
@@ -252,8 +252,8 @@ All optional, defaults preserve current behavior.
 ### Task 5: ModelRegistry kwargs forwarding
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/models/registry.py`
-- Test: `packages/easyml-core/tests/models/test_registry.py`
+- Modify: `packages/harness-core/src/harnessml/core/models/registry.py`
+- Test: `packages/harness-core/tests/models/test_registry.py`
 
 **Step 1: Write failing test**
 
@@ -291,15 +291,15 @@ Update `create()` to accept `**kwargs`. Use `inspect.signature()` to get the con
 ### Task 6: Training — sigmoid CDF, post-training scale, generic _create_model
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/training.py`
-- Test: `packages/easyml-core/tests/runner/test_training.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/training.py`
+- Test: `packages/harness-core/tests/runner/test_training.py`
 
 **Step 1: Write failing tests**
 
 ```python
 def test_sigmoid_cdf_conversion():
     """_sigmoid produces valid probabilities."""
-    from easyml.core.runner.training import _sigmoid
+    from harnessml.core.runner.training import _sigmoid
     import numpy as np
     margins = np.array([-10, -1, 0, 1, 10])
     probs = _sigmoid(margins, scale=5.0)
@@ -309,7 +309,7 @@ def test_sigmoid_cdf_conversion():
 
 def test_fit_cdf_scale_after_training():
     """Post-training CDF scale fitting optimizes on predicted margins."""
-    from easyml.core.runner.training import _fit_cdf_scale_after_training
+    from harnessml.core.runner.training import _fit_cdf_scale_after_training
     import numpy as np
     margins = np.array([-5, -2, 0, 2, 5, -3, 1, 4, -1, 3])
     y = np.array([0, 0, 0, 1, 1, 0, 1, 1, 0, 1])
@@ -345,8 +345,8 @@ Port from main's training.py:
 ### Task 7: Config writer — cdf_scale, zero_fill_features, prior_feature, spline params
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/config_writer.py`
-- Test: `packages/easyml-core/tests/runner/test_config_writer.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/config_writer.py`
+- Test: `packages/harness-core/tests/runner/test_config_writer.py`
 
 **Step 1: Write failing tests**
 
@@ -404,10 +404,10 @@ def test_configure_ensemble_spline_params(tmp_pipeline):
 ### Task 8: MCP server + handler updates
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/models.py`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/config.py`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/features.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/models.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/config.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/features.py`
 
 **Step 1: Update MCP server tool signatures**
 
@@ -434,7 +434,7 @@ Update all docstrings to document new params.
 - `handlers/config.py`: pass `prior_feature`, `spline_prob_max`, `spline_n_bins` to `configure_ensemble()`.
 - `handlers/features.py`: add `_handle_diversity()` action that calls `feature_diversity.format_diversity_report()`.
 
-**Step 3:** Verify no import errors: `uv run python -c "from easyml.plugin.mcp_server import mcp"`
+**Step 3:** Verify no import errors: `uv run python -c "from harnessml.plugin.mcp_server import mcp"`
 
 **Step 4:** Commit: `feat: update MCP server and handlers with new config options`
 
@@ -445,8 +445,8 @@ Update all docstrings to document new params.
 ### Task 9: Feature diversity module
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/feature_diversity.py`
-- Create: `packages/easyml-core/tests/runner/test_feature_diversity.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/feature_diversity.py`
+- Create: `packages/harness-core/tests/runner/test_feature_diversity.py`
 
 **Step 1: Write failing tests**
 
@@ -469,7 +469,7 @@ models = {
 
 **Step 3: Implement**
 
-Port `feature_diversity.py` from main, updating import paths to `easyml.core.runner`:
+Port `feature_diversity.py` from main, updating import paths to `harnessml.core.runner`:
 - `compute_overlap_matrix(models)` — Jaccard similarity matrix
 - `compute_diversity_score(models)` — scalar 0-1 score
 - `find_redundant_features(models, threshold=0.8)` — pairs above threshold
@@ -485,8 +485,8 @@ Port `feature_diversity.py` from main, updating import paths to `easyml.core.run
 ### Task 10: Feature diversity guardrail
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/guardrails/inventory.py`
-- Test: `packages/easyml-core/tests/guardrails/test_inventory.py`
+- Modify: `packages/harness-core/src/harnessml/core/guardrails/inventory.py`
+- Test: `packages/harness-core/tests/guardrails/test_inventory.py`
 
 **Step 1: Write failing test**
 
@@ -538,7 +538,7 @@ Add `FeatureDiversityGuardrail` to inventory.py:
 ### Task 11: OMP_NUM_THREADS fix
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py` (top of file)
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py` (top of file)
 
 **Step 1: Implement**
 
@@ -552,7 +552,7 @@ if platform.system() == "Darwin":
 
 This prevents OpenMP deadlocks between LightGBM and PyTorch on macOS. Uses `setdefault` so users can override.
 
-**Step 2:** Verify tests still pass: `uv run pytest packages/easyml-core/tests/ -q`
+**Step 2:** Verify tests still pass: `uv run pytest packages/harness-core/tests/ -q`
 
 **Step 3:** Commit: `fix: prevent OpenMP deadlock on macOS`
 
@@ -562,13 +562,13 @@ This prevents OpenMP deadlocks between LightGBM and PyTorch on macOS. Uses `setd
 
 **Step 1:** Run full test suite
 ```bash
-uv run pytest packages/easyml-core/tests/ -q
+uv run pytest packages/harness-core/tests/ -q
 ```
 Expected: all pass, 0 failures
 
 **Step 2:** Run women's MM backtest
 ```python
-from easyml.core.runner.pipeline import PipelineRunner
+from harnessml.core.runner.pipeline import PipelineRunner
 runner = PipelineRunner(project_dir='.', config_dir='config')
 runner.load()
 result = runner.backtest()

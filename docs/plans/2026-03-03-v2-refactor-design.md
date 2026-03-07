@@ -1,8 +1,8 @@
-# EasyML v2 Refactor Design
+# HarnessML v2 Refactor Design
 
 ## Problem Statement
 
-EasyML was intended as a general-purpose agentic MLOps framework, but the first
+HarnessML was intended as a general-purpose agentic MLOps framework, but the first
 implementation leaked domain-specific assumptions (NCAA sports/matchup prediction)
 throughout the core. ~1,738 lines across 10 files are sports-specific, and 3 of
 8 packages are dead weight. The MCP server lacks batch operations, progress
@@ -26,8 +26,8 @@ plugin. No backward compatibility maintained during refactor.
 
 ```
 packages/
-  easyml-core/          ← schemas + config + guardrails + models + runner
-    src/easyml/core/
+  harness-core/          ← schemas + config + guardrails + models + runner
+    src/harnessml/core/
       schemas/
         contracts.py    ← ModelConfig, GuardrailViolation, ExperimentResult
         metrics.py      ← MetricRegistry + all task-type metrics
@@ -70,8 +70,8 @@ packages/
         transforms.py   ← formula function registry
         encoders.py     ← target_loo, target_temporal, frequency, ordinal
 
-  easyml-plugin/        ← MCP server (thin dispatcher)
-    src/easyml/plugin/
+  harness-plugin/        ← MCP server (thin dispatcher)
+    src/harnessml/plugin/
       mcp_server.py     ← tool signatures + validation only
       handlers/         ← all business logic, hot-reloadable
         models.py
@@ -83,8 +83,8 @@ packages/
         _validation.py  ← enum validation, fuzzy match, cross-param hints
       progress.py       ← Context-based progress reporting helpers
 
-  easyml-sports/        ← domain plugin (optional install)
-    src/easyml/sports/
+  harness-sports/        ← domain plugin (optional install)
+    src/harnessml/sports/
       matchups.py       ← generate_pairwise_matchups, predict_all_matchups
       pairwise.py       ← auto-pairwise generation (diff/ratio)
       augmentation.py   ← matchup symmetry augmentation
@@ -93,16 +93,16 @@ packages/
 ```
 
 ### Deleted packages
-- `easyml-features` (462 LOC) — dead code, superseded by feature_store.py
-- `easyml-config` (126 LOC) — absorbed into easyml-core/config
-- `easyml-data` (434 LOC) — superseded by feature_store + new sources module
+- `harnessml-features` (462 LOC) — dead code, superseded by feature_store.py
+- `harnessml-config` (126 LOC) — absorbed into harness-core/config
+- `harnessml-data` (434 LOC) — superseded by feature_store + new sources module
 
 ### Design decisions
-- `easyml-core` is the only required install
-- `easyml-sports` registers via hooks — core defines extension points,
+- `harness-core` is the only required install
+- `harness-sports` registers via hooks — core defines extension points,
   sports plugin registers implementations
-- `easyml-plugin` depends on core, optionally discovers installed plugins
-  (easyml-sports, future domain plugins)
+- `harness-plugin` depends on core, optionally discovers installed plugins
+  (harness-sports, future domain plugins)
 
 ---
 
@@ -112,10 +112,10 @@ packages/
 
 ```python
 # mcp_server.py — changes only when tool signatures change
-_DEV_MODE = os.environ.get("EASYML_DEV", "0") == "1"
+_DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
 
 def _load_handler(module_name: str):
-    mod = importlib.import_module(f"easyml.plugin.handlers.{module_name}")
+    mod = importlib.import_module(f"harnessml.plugin.handlers.{module_name}")
     if _DEV_MODE:
         importlib.reload(mod)
     return mod
@@ -253,7 +253,7 @@ Kept/renamed:
 
 ### Feature store
 
-- `_generate_pairwise()` → moves to easyml-sports/pairwise.py
+- `_generate_pairwise()` → moves to harness-sports/pairwise.py
 - Core `_expand_grouped_feature()` calls registered hooks, falls back to
   default left join on group_columns
 - All feature computation stays in the view/feature system, never in training
@@ -437,7 +437,7 @@ manage_data(action="validate_source", source="...")
 ## 7. Implementation Phases
 
 ### Phase 1: Package Consolidation (no behavior changes)
-- Merge 5 packages into easyml-core
+- Merge 5 packages into harness-core
 - Delete 3 dead packages
 - Fix imports, update pyproject.toml
 - All existing tests pass
@@ -450,7 +450,7 @@ manage_data(action="validate_source", source="...")
 - Response modes (detail, section)
 
 ### Phase 3: Domain Extraction (depends on Phase 1)
-- Create easyml-sports with hooks
+- Create harness-sports with hooks
 - Define 5 extension points in core
 - Move ~1,738 lines of sports code
 - Generalize schemas

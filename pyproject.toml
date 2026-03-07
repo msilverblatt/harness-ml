@@ -1,37 +1,37 @@
 [project]
-name = "easyml"
+name = "harnessml"
 version = "0.1.0"
 description = "AI-driven ML framework with guardrails"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
 members = [
-    "packages/easyml-core",
-    "packages/easyml-plugin",
-    "packages/easyml-sports",
+    "packages/harness-core",
+    "packages/harness-plugin",
+    "packages/harness-sports",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/easyml-core/tests", "tests"]
+testpaths = ["packages/harness-core/tests", "tests"]
 addopts = "--import-mode=importlib"
 
 [project.optional-dependencies]
 all = [
-    "easyml-core[all]",
-    "easyml-plugin",
-    "easyml-sports",
+    "harness-core[all]",
+    "harness-plugin",
+    "harness-sports",
 ]
 
 [tool.uv.sources]
-easyml-core = { workspace = true }
-easyml-plugin = { workspace = true }
-easyml-sports = { workspace = true }
+harness-core = { workspace = true }
+harness-plugin = { workspace = true }
+harness-sports = { workspace = true }
 
 [dependency-groups]
 dev = [
-    "easyml-core[all]",
-    "easyml-plugin",
-    "easyml-sports",
+    "harness-core[all]",
+    "harness-plugin",
+    "harness-sports",
     "catboost>=1.2.10",
     "click>=8.0",
     "lightgbm>=4.6.0",

@@ -1,4 +1,4 @@
-"""End-to-end integration tests exercising all 7 easyml packages together.
+"""End-to-end integration tests exercising all 7 harnessml packages together.
 
 Tests the full pipeline: config -> features -> models -> ensemble -> metrics ->
 experiments -> guardrails, using lightweight mock data and sklearn-only models.
@@ -12,8 +12,8 @@ import pandas as pd
 import pytest
 import yaml
 
-# -- Package 1: easyml-schemas --
-from easyml.schemas import (
+# -- Package 1: harness-schemas --
+from harnessml.schemas import (
     ArtifactDecl,
     EnsembleConfig,
     ExperimentResult,
@@ -30,32 +30,32 @@ from easyml.schemas import (
     model_correlations,
 )
 
-# -- Package 2: easyml-config --
-from easyml.config import deep_merge, load_config_file, resolve_config
+# -- Package 2: harness-config --
+from harnessml.config import deep_merge, load_config_file, resolve_config
 
-# -- Package 3: easyml-features --
-from easyml.features import FeatureBuilder, FeatureRegistry, PairwiseFeatureBuilder
+# -- Package 3: harness-features --
+from harnessml.features import FeatureBuilder, FeatureRegistry, PairwiseFeatureBuilder
 
-# -- Package 4: easyml-models --
-from easyml.models import (
+# -- Package 4: harness-models --
+from harnessml.models import (
     LeaveOneSeasonOut,
     ModelRegistry,
     StackedEnsemble,
     TrainOrchestrator,
 )
 
-# -- Package 5: easyml-data --
-from easyml.data import (
+# -- Package 5: harness-data --
+from harnessml.data import (
     SourceRegistry,
     StageGuard,
     generate_dvc_yaml,
 )
 
-# -- Package 6: easyml-experiments --
-from easyml.experiments import ExperimentManager, ExperimentError
+# -- Package 6: harness-experiments --
+from harnessml.experiments import ExperimentManager, ExperimentError
 
-# -- Package 7: easyml-guardrails --
-from easyml.guardrails import (
+# -- Package 7: harness-guardrails --
+from harnessml.guardrails import (
     AuditLogger,
     Guardrail,
     GuardrailError,
@@ -116,7 +116,7 @@ class TestEndToEndPipeline:
 
     def test_full_pipeline(self, tmp_path):
         # ---------------------------------------------------------------
-        # Step 1: Config (easyml-config)
+        # Step 1: Config (harness-config)
         # ---------------------------------------------------------------
         config_dir = tmp_path / "config"
         config_dir.mkdir()
@@ -175,7 +175,7 @@ class TestEndToEndPipeline:
         assert config["ensemble"]["temperature"] == 1.0
 
         # ---------------------------------------------------------------
-        # Step 2: Features (easyml-features)
+        # Step 2: Features (harness-features)
         # ---------------------------------------------------------------
         registry = FeatureRegistry()
 
@@ -245,7 +245,7 @@ class TestEndToEndPipeline:
         assert "diff_scoring_margin" in matchup_features.columns
 
         # ---------------------------------------------------------------
-        # Step 3: Model training (easyml-models)
+        # Step 3: Model training (harness-models)
         # ---------------------------------------------------------------
         model_registry = ModelRegistry.with_defaults()
         assert "logistic_regression" in model_registry
@@ -279,7 +279,7 @@ class TestEndToEndPipeline:
         assert "elasticnet_basic" in trained_models
 
         # ---------------------------------------------------------------
-        # Step 4: Predictions + Ensemble (easyml-models)
+        # Step 4: Predictions + Ensemble (harness-models)
         # ---------------------------------------------------------------
         # The orchestrator subsets features during training using the model's
         # feature list mapped against feature_columns.  We replicate that
@@ -318,7 +318,7 @@ class TestEndToEndPipeline:
         assert len(coefs) == 2
 
         # ---------------------------------------------------------------
-        # Step 5: Metrics (easyml-schemas)
+        # Step 5: Metrics (harness-schemas)
         # ---------------------------------------------------------------
         brier = brier_score(y, ensemble_preds)
         acc = accuracy(y, ensemble_preds)
@@ -349,7 +349,7 @@ class TestEndToEndPipeline:
         assert "accuracy" in audit["logreg_seed"]
 
         # ---------------------------------------------------------------
-        # Step 6: Experiments (easyml-experiments)
+        # Step 6: Experiments (harness-experiments)
         # ---------------------------------------------------------------
         exp_dir = tmp_path / "experiments"
         log_path = tmp_path / "EXPERIMENT_LOG.md"
@@ -386,7 +386,7 @@ class TestEndToEndPipeline:
         assert "exp-001-test-integration" in log_path.read_text()
 
         # ---------------------------------------------------------------
-        # Step 7: Guardrails (easyml-guardrails)
+        # Step 7: Guardrails (harness-guardrails)
         # ---------------------------------------------------------------
 
         # Naming convention guardrail

@@ -13,16 +13,16 @@
 ## Task 1: Schemas — Config and Result Types
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/schemas.py`
-- Create: `packages/easyml-sports/tests/competitions/__init__.py`
-- Create: `packages/easyml-sports/tests/competitions/test_schemas.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/schemas.py`
+- Create: `packages/harness-sports/tests/competitions/__init__.py`
+- Create: `packages/harness-sports/tests/competitions/test_schemas.py`
 
 ### Step 1.1: Write tests
 
-Create `packages/easyml-sports/tests/competitions/__init__.py` (empty).
+Create `packages/harness-sports/tests/competitions/__init__.py` (empty).
 
-Create `packages/easyml-sports/tests/competitions/test_schemas.py`:
+Create `packages/harness-sports/tests/competitions/test_schemas.py`:
 
 ```python
 """Tests for competition schemas."""
@@ -31,7 +31,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     AdjustmentConfig,
     CompetitionConfig,
     CompetitionFormat,
@@ -382,12 +382,12 @@ class TestAdjustmentConfig:
 ### Step 1.2: Verify tests fail
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_schemas.py -v 2>&1 | head -30
+uv run pytest packages/harness-sports/tests/competitions/test_schemas.py -v 2>&1 | head -30
 ```
 
 ### Step 1.3: Implement schemas
 
-Create `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`:
+Create `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`:
 
 ```python
 """Competition engine — generic competition simulation and optimization.
@@ -396,7 +396,7 @@ Supports single/double elimination, round-robin, Swiss, and group-to-knockout
 formats via config-driven schemas, vectorized Monte Carlo simulation,
 pool-aware optimization, and configurable scoring.
 """
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     AdjustmentConfig,
     CompetitionConfig,
     CompetitionFormat,
@@ -427,7 +427,7 @@ __all__ = [
 ]
 ```
 
-Create `packages/easyml-sports/src/easyml/sports/competitions/schemas.py`:
+Create `packages/harness-sports/src/harnessml/sports/competitions/schemas.py`:
 
 ```python
 """Pydantic v2 schemas for the competition engine.
@@ -654,16 +654,16 @@ class AdjustmentConfig(BaseModel):
 ### Step 1.4: Verify tests pass
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_schemas.py -v
+uv run pytest packages/harness-sports/tests/competitions/test_schemas.py -v
 ```
 
 ### Step 1.5: Commit
 
 ```bash
-git add packages/easyml-sports/src/easyml/sports/competitions/__init__.py \
-      packages/easyml-sports/src/easyml/sports/competitions/schemas.py \
-      packages/easyml-sports/tests/competitions/__init__.py \
-      packages/easyml-sports/tests/competitions/test_schemas.py
+git add packages/harness-sports/src/harnessml/sports/competitions/__init__.py \
+      packages/harness-sports/src/harnessml/sports/competitions/schemas.py \
+      packages/harness-sports/tests/competitions/__init__.py \
+      packages/harness-sports/tests/competitions/test_schemas.py
 git commit -m "feat(competitions): add Pydantic v2 schemas for competition engine"
 ```
 
@@ -672,13 +672,13 @@ git commit -m "feat(competitions): add Pydantic v2 schemas for competition engin
 ## Task 2: Structure — Build Competition Structures from Config
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/structure.py`
-- Create: `packages/easyml-sports/tests/competitions/test_structure.py`
-- Modify: `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/structure.py`
+- Create: `packages/harness-sports/tests/competitions/test_structure.py`
+- Modify: `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`
 
 ### Step 2.1: Write tests
 
-Create `packages/easyml-sports/tests/competitions/test_structure.py`:
+Create `packages/harness-sports/tests/competitions/test_structure.py`:
 
 ```python
 """Tests for competition structure building."""
@@ -688,7 +688,7 @@ import math
 
 import pytest
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
     CompetitionStructure,
@@ -696,7 +696,7 @@ from easyml.sports.competitions.schemas import (
     KnockoutConfig,
     ScoringConfig,
 )
-from easyml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.structure import build_structure
 
 
 # -----------------------------------------------------------------------
@@ -1078,12 +1078,12 @@ class TestEdgeCases:
 ### Step 2.2: Verify tests fail
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_structure.py -v 2>&1 | head -30
+uv run pytest packages/harness-sports/tests/competitions/test_structure.py -v 2>&1 | head -30
 ```
 
 ### Step 2.3: Implement structure builder
 
-Create `packages/easyml-sports/src/easyml/sports/competitions/structure.py`:
+Create `packages/harness-sports/src/harnessml/sports/competitions/structure.py`:
 
 ```python
 """Build competition structures from config.
@@ -1098,7 +1098,7 @@ from __future__ import annotations
 import math
 from itertools import combinations
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
     CompetitionStructure,
@@ -1496,7 +1496,7 @@ def _build_double_elimination(
 
 ### Step 2.4: Update `__init__.py`
 
-Add to `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`:
+Add to `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`:
 
 ```python
 """Competition engine — generic competition simulation and optimization.
@@ -1505,7 +1505,7 @@ Supports single/double elimination, round-robin, Swiss, and group-to-knockout
 formats via config-driven schemas, vectorized Monte Carlo simulation,
 pool-aware optimization, and configurable scoring.
 """
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     AdjustmentConfig,
     CompetitionConfig,
     CompetitionFormat,
@@ -1519,7 +1519,7 @@ from easyml.sports.competitions.schemas import (
     SeedingMode,
     StandingsEntry,
 )
-from easyml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.structure import build_structure
 
 __all__ = [
     "AdjustmentConfig",
@@ -1541,15 +1541,15 @@ __all__ = [
 ### Step 2.5: Verify tests pass
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_structure.py -v
+uv run pytest packages/harness-sports/tests/competitions/test_structure.py -v
 ```
 
 ### Step 2.6: Commit
 
 ```bash
-git add packages/easyml-sports/src/easyml/sports/competitions/structure.py \
-      packages/easyml-sports/src/easyml/sports/competitions/__init__.py \
-      packages/easyml-sports/tests/competitions/test_structure.py
+git add packages/harness-sports/src/harnessml/sports/competitions/structure.py \
+      packages/harness-sports/src/harnessml/sports/competitions/__init__.py \
+      packages/harness-sports/tests/competitions/test_structure.py
 git commit -m "feat(competitions): add structure builder for all competition formats"
 ```
 
@@ -1558,13 +1558,13 @@ git commit -m "feat(competitions): add structure builder for all competition for
 ## Task 3: Simulator — Monte Carlo Competition Engine
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/simulator.py`
-- Create: `packages/easyml-sports/tests/competitions/test_simulator.py`
-- Modify: `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/simulator.py`
+- Create: `packages/harness-sports/tests/competitions/test_simulator.py`
+- Modify: `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`
 
 ### Step 3.1: Write tests
 
-Create `packages/easyml-sports/tests/competitions/test_simulator.py`:
+Create `packages/harness-sports/tests/competitions/test_simulator.py`:
 
 ```python
 """Tests for competition simulator."""
@@ -1574,14 +1574,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionStructure,
     MatchupContext,
     ScoringConfig,
 )
-from easyml.sports.competitions.simulator import CompetitionSimulator
-from easyml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.simulator import CompetitionSimulator
+from harnessml.sports.competitions.structure import build_structure
 
 
 # -----------------------------------------------------------------------
@@ -1966,12 +1966,12 @@ class TestLargerTournament:
 ### Step 3.2: Verify tests fail
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_simulator.py -v 2>&1 | head -30
+uv run pytest packages/harness-sports/tests/competitions/test_simulator.py -v 2>&1 | head -30
 ```
 
 ### Step 3.3: Implement simulator
 
-Create `packages/easyml-sports/src/easyml/sports/competitions/simulator.py`:
+Create `packages/harness-sports/src/harnessml/sports/competitions/simulator.py`:
 
 ```python
 """Monte Carlo competition simulation engine.
@@ -1985,7 +1985,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
     CompetitionStructure,
@@ -2353,10 +2353,10 @@ class CompetitionSimulator:
 
 ### Step 3.4: Update `__init__.py`
 
-Add to `packages/easyml-sports/src/easyml/sports/competitions/__init__.py` imports:
+Add to `packages/harness-sports/src/harnessml/sports/competitions/__init__.py` imports:
 
 ```python
-from easyml.sports.competitions.simulator import CompetitionSimulator
+from harnessml.sports.competitions.simulator import CompetitionSimulator
 ```
 
 And add `"CompetitionSimulator"` to `__all__`.
@@ -2364,15 +2364,15 @@ And add `"CompetitionSimulator"` to `__all__`.
 ### Step 3.5: Verify tests pass
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_simulator.py -v
+uv run pytest packages/harness-sports/tests/competitions/test_simulator.py -v
 ```
 
 ### Step 3.6: Commit
 
 ```bash
-git add packages/easyml-sports/src/easyml/sports/competitions/simulator.py \
-      packages/easyml-sports/src/easyml/sports/competitions/__init__.py \
-      packages/easyml-sports/tests/competitions/test_simulator.py
+git add packages/harness-sports/src/harnessml/sports/competitions/simulator.py \
+      packages/harness-sports/src/harnessml/sports/competitions/__init__.py \
+      packages/harness-sports/tests/competitions/test_simulator.py
 git commit -m "feat(competitions): add vectorized Monte Carlo competition simulator"
 ```
 
@@ -2381,13 +2381,13 @@ git commit -m "feat(competitions): add vectorized Monte Carlo competition simula
 ## Task 4: Scorer — Configurable Competition Scoring
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/scorer.py`
-- Create: `packages/easyml-sports/tests/competitions/test_scorer.py`
-- Modify: `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/scorer.py`
+- Create: `packages/harness-sports/tests/competitions/test_scorer.py`
+- Modify: `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`
 
 ### Step 4.1: Write tests
 
-Create `packages/easyml-sports/tests/competitions/test_scorer.py`:
+Create `packages/harness-sports/tests/competitions/test_scorer.py`:
 
 ```python
 """Tests for competition scorer."""
@@ -2395,15 +2395,15 @@ from __future__ import annotations
 
 import pytest
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionStructure,
     ScoreResult,
     ScoringConfig,
     StandingsEntry,
 )
-from easyml.sports.competitions.scorer import CompetitionScorer
-from easyml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.scorer import CompetitionScorer
+from harnessml.sports.competitions.structure import build_structure
 
 
 # -----------------------------------------------------------------------
@@ -2749,12 +2749,12 @@ class TestMaxPossiblePoints:
 ### Step 4.2: Verify tests fail
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_scorer.py -v 2>&1 | head -30
+uv run pytest packages/harness-sports/tests/competitions/test_scorer.py -v 2>&1 | head -30
 ```
 
 ### Step 4.3: Implement scorer
 
-Create `packages/easyml-sports/src/easyml/sports/competitions/scorer.py`:
+Create `packages/harness-sports/src/harnessml/sports/competitions/scorer.py`:
 
 ```python
 """Configurable competition scoring engine.
@@ -2767,7 +2767,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionStructure,
     ScoreResult,
     ScoringConfig,
@@ -2927,10 +2927,10 @@ class CompetitionScorer:
 
 ### Step 4.4: Update `__init__.py`
 
-Add to `packages/easyml-sports/src/easyml/sports/competitions/__init__.py` imports:
+Add to `packages/harness-sports/src/harnessml/sports/competitions/__init__.py` imports:
 
 ```python
-from easyml.sports.competitions.scorer import CompetitionScorer
+from harnessml.sports.competitions.scorer import CompetitionScorer
 ```
 
 And add `"CompetitionScorer"` to `__all__`.
@@ -2938,24 +2938,24 @@ And add `"CompetitionScorer"` to `__all__`.
 ### Step 4.5: Verify tests pass
 
 ```bash
-uv run pytest packages/easyml-sports/tests/competitions/test_scorer.py -v
+uv run pytest packages/harness-sports/tests/competitions/test_scorer.py -v
 ```
 
 ### Step 4.6: Commit
 
 ```bash
-git add packages/easyml-sports/src/easyml/sports/competitions/scorer.py \
-      packages/easyml-sports/src/easyml/sports/competitions/__init__.py \
-      packages/easyml-sports/tests/competitions/test_scorer.py
+git add packages/harness-sports/src/harnessml/sports/competitions/scorer.py \
+      packages/harness-sports/src/harnessml/sports/competitions/__init__.py \
+      packages/harness-sports/tests/competitions/test_scorer.py
 git commit -m "feat(competitions): add configurable competition scorer"
 ```
 # Competition Engine Implementation Plan — Part 2 (Tasks 5-8)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Implement adjustments, optimizer, explainer, and confidence modules for the generic competition engine in `easyml-sports`.
+**Goal:** Implement adjustments, optimizer, explainer, and confidence modules for the generic competition engine in `harness-sports`.
 
-**Architecture:** All modules use generic entity IDs (strings), import schemas from `easyml.sports.competitions.schemas`, and contain zero domain-specific (basketball, etc.) code. Hook-based narrative generation allows domain plugins to inject custom prose.
+**Architecture:** All modules use generic entity IDs (strings), import schemas from `harnessml.sports.competitions.schemas`, and contain zero domain-specific (basketball, etc.) code. Hook-based narrative generation allows domain plugins to inject custom prose.
 
 **Tech Stack:** Python 3.11+, numpy, pandas, pydantic, pytest
 
@@ -2966,20 +2966,20 @@ git commit -m "feat(competitions): add configurable competition scorer"
 ## Task 5: adjustments.py
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/adjustments.py`
-- Create: `packages/easyml-sports/tests/competitions/test_adjustments.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/adjustments.py`
+- Create: `packages/harness-sports/tests/competitions/test_adjustments.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-sports/tests/competitions/test_adjustments.py
+# packages/harness-sports/tests/competitions/test_adjustments.py
 """Tests for post-model probability adjustments."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.adjustments import apply_adjustments
-from easyml.sports.competitions.schemas import AdjustmentConfig
+from harnessml.sports.competitions.adjustments import apply_adjustments
+from harnessml.sports.competitions.schemas import AdjustmentConfig
 
 
 @pytest.fixture
@@ -3211,7 +3211,7 @@ class TestAdjustmentOrdering:
 **Step 3: Implement**
 
 ```python
-# packages/easyml-sports/src/easyml/sports/competitions/adjustments.py
+# packages/harness-sports/src/harnessml/sports/competitions/adjustments.py
 """Post-model probability adjustments (external sources, injuries, manual overrides).
 
 Applied AFTER the ML ensemble produces probabilities, BEFORE simulation.
@@ -3221,7 +3221,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from easyml.sports.competitions.schemas import AdjustmentConfig
+from harnessml.sports.competitions.schemas import AdjustmentConfig
 
 
 def apply_adjustments(
@@ -3338,13 +3338,13 @@ def apply_adjustments(
 ## Task 6: optimizer.py
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/optimizer.py`
-- Create: `packages/easyml-sports/tests/competitions/test_optimizer.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/optimizer.py`
+- Create: `packages/harness-sports/tests/competitions/test_optimizer.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-sports/tests/competitions/test_optimizer.py
+# packages/harness-sports/tests/competitions/test_optimizer.py
 """Tests for pool-aware competition optimizer."""
 import math
 
@@ -3352,7 +3352,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.optimizer import (
+from harnessml.sports.competitions.optimizer import (
     CompetitionOptimizer,
     chalk,
     near_chalk,
@@ -3362,7 +3362,7 @@ from easyml.sports.competitions.optimizer import (
     champion_anchor,
     StrategyFn,
 )
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionResult,
     CompetitionStructure,
@@ -3412,7 +3412,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Chalk strategy always picks the higher-probability entity."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3434,7 +3434,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Random sim returns a complete bracket with valid entity IDs."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3455,7 +3455,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Near chalk sometimes flips close matchups (underdog > 40%)."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3479,7 +3479,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Contrarian with upset_boost compresses probs toward 0.5."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3502,7 +3502,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Late contrarian is chalk-like in early rounds, upset-prone in late."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3518,7 +3518,7 @@ class TestStrategyFunctions:
         self, simple_structure, simple_probabilities
     ):
         """Champion anchor always has the anchored entity winning the final."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3533,7 +3533,7 @@ class TestStrategyFunctions:
 
     def test_custom_strategy_fn(self, simple_structure, simple_probabilities):
         """Custom strategy function conforming to StrategyFn protocol."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3560,7 +3560,7 @@ class TestStrategyFunctions:
 class TestStrategyMix:
     def test_small_pool_favors_chalk(self, simple_structure, simple_probabilities):
         """Small pools should weight near_chalk heavily."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3578,7 +3578,7 @@ class TestStrategyMix:
         self, simple_structure, simple_probabilities
     ):
         """Large pools should weight contrarian and champion_anchor heavily."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3597,7 +3597,7 @@ class TestCompetitionOptimizer:
         self, simple_structure, simple_probabilities
     ):
         """generate_brackets returns the requested number of brackets."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3619,7 +3619,7 @@ class TestCompetitionOptimizer:
         self, simple_structure, simple_probabilities
     ):
         """Same seed produces same brackets."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3641,7 +3641,7 @@ class TestCompetitionOptimizer:
         self, simple_structure, simple_probabilities
     ):
         """All picks reference valid entity IDs."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3664,7 +3664,7 @@ class TestCompetitionOptimizer:
         self, simple_structure, simple_probabilities
     ):
         """Each bracket should have non-negative expected_points."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3681,7 +3681,7 @@ class TestCompetitionOptimizer:
 
     def test_diversity_selection(self, simple_structure, simple_probabilities):
         """Selected brackets should not be identical."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3708,7 +3708,7 @@ class TestBracketOverlap:
         self, simple_structure, simple_probabilities
     ):
         """Identical brackets have overlap of 1.0."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3725,7 +3725,7 @@ class TestBracketOverlap:
         self, simple_structure, simple_probabilities
     ):
         """Completely different picks have overlap of 0.0."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3743,7 +3743,7 @@ class TestBracketOverlap:
         self, simple_structure, simple_probabilities
     ):
         """Late-round agreement contributes more to overlap score."""
-        from easyml.sports.competitions.simulator import CompetitionSimulator
+        from harnessml.sports.competitions.simulator import CompetitionSimulator
 
         _, structure = simple_structure
         sim = CompetitionSimulator(
@@ -3766,7 +3766,7 @@ class TestBracketOverlap:
 **Step 3: Implement**
 
 ```python
-# packages/easyml-sports/src/easyml/sports/competitions/optimizer.py
+# packages/harness-sports/src/harnessml/sports/competitions/optimizer.py
 """Pool-size-aware competition optimizer.
 
 Generates diverse bracket candidates via strategy-based generation with a
@@ -3780,7 +3780,7 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     MatchupContext,
 )
@@ -3790,7 +3790,7 @@ from easyml.sports.competitions.schemas import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from easyml.sports.competitions.simulator import CompetitionSimulator
+    from harnessml.sports.competitions.simulator import CompetitionSimulator
 
 
 # ---------------------------------------------------------------------------
@@ -4459,24 +4459,24 @@ class CompetitionOptimizer:
 ## Task 7: explainer.py
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/explainer.py`
-- Create: `packages/easyml-sports/tests/competitions/test_explainer.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/explainer.py`
+- Create: `packages/harness-sports/tests/competitions/test_explainer.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-sports/tests/competitions/test_explainer.py
+# packages/harness-sports/tests/competitions/test_explainer.py
 """Tests for competition explainer (generic feature differentials + narratives)."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.explainer import CompetitionExplainer
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.explainer import CompetitionExplainer
+from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     MatchupContext,
 )
-from easyml.core.runner.hooks import HookRegistry
+from harnessml.core.runner.hooks import HookRegistry
 
 
 @pytest.fixture
@@ -4767,7 +4767,7 @@ class TestGenerateEntityProfiles:
 **Step 3: Implement**
 
 ```python
-# packages/easyml-sports/src/easyml/sports/competitions/explainer.py
+# packages/harness-sports/src/harnessml/sports/competitions/explainer.py
 """Competition explanation engine.
 
 Generates per-pick stories, entity profiles, and feature differentials
@@ -4783,7 +4783,7 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     MatchupContext,
 )
@@ -5083,24 +5083,24 @@ class CompetitionExplainer:
 ## Task 8: confidence.py
 
 **Files:**
-- Create: `packages/easyml-sports/src/easyml/sports/competitions/confidence.py`
-- Create: `packages/easyml-sports/tests/competitions/test_confidence.py`
+- Create: `packages/harness-sports/src/harnessml/sports/competitions/confidence.py`
+- Create: `packages/harness-sports/tests/competitions/test_confidence.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-sports/tests/competitions/test_confidence.py
+# packages/harness-sports/tests/competitions/test_confidence.py
 """Tests for competition confidence diagnostics."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.confidence import (
+from harnessml.sports.competitions.confidence import (
     compute_feature_outliers,
     compute_model_disagreement,
     generate_confidence_report,
 )
-from easyml.sports.competitions.schemas import MatchupContext
+from harnessml.sports.competitions.schemas import MatchupContext
 
 
 @pytest.fixture
@@ -5449,7 +5449,7 @@ class TestGenerateConfidenceReport:
 **Step 3: Implement**
 
 ```python
-# packages/easyml-sports/src/easyml/sports/competitions/confidence.py
+# packages/harness-sports/src/harnessml/sports/competitions/confidence.py
 """Confidence diagnostics for competition predictions.
 
 Pre-competition analysis: feature outliers and model disagreement.
@@ -5460,7 +5460,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from easyml.sports.competitions.schemas import MatchupContext
+from harnessml.sports.competitions.schemas import MatchupContext
 
 
 def compute_feature_outliers(
@@ -5657,8 +5657,8 @@ def generate_confidence_report(
 
 ## Task 9: export.py -- Multi-format output
 
-**File:** `packages/easyml-sports/src/easyml/sports/competitions/export.py`
-**Test:** `packages/easyml-sports/tests/competitions/test_export.py`
+**File:** `packages/harness-sports/src/harnessml/sports/competitions/export.py`
+**Test:** `packages/harness-sports/tests/competitions/test_export.py`
 
 Generic multi-format export. No sports-specific terminology -- uses "entity",
 "round", "slot" throughout. Ported from `mm/bracket/export.py` but fully generic.
@@ -5676,7 +5676,7 @@ from pathlib import Path
 
 import pytest
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
     CompetitionResult,
@@ -5685,7 +5685,7 @@ from easyml.sports.competitions.schemas import (
     ScoringConfig,
     StandingsEntry,
 )
-from easyml.sports.competitions.export import (
+from harnessml.sports.competitions.export import (
     export_bracket_markdown,
     export_standings_markdown,
     export_json,
@@ -6096,7 +6096,7 @@ from typing import Any
 
 import pandas as pd
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     CompetitionStructure,
     MatchupContext,
@@ -6546,8 +6546,8 @@ def _standings_entry_to_dict(entry: StandingsEntry) -> dict[str, Any]:
 
 ## Task 10: competitions/__init__.py -- Public API re-exports
 
-**File:** `packages/easyml-sports/src/easyml/sports/competitions/__init__.py`
-**Test:** `packages/easyml-sports/tests/competitions/test_init.py`
+**File:** `packages/harness-sports/src/harnessml/sports/competitions/__init__.py`
+**Test:** `packages/harness-sports/tests/competitions/test_init.py`
 
 ### 10.1 Test (TDD -- write first)
 
@@ -6560,7 +6560,7 @@ class TestPublicAPI:
     """Verify all key symbols are importable from the package root."""
 
     def test_schemas_importable(self):
-        from easyml.sports.competitions import (
+        from harnessml.sports.competitions import (
             CompetitionConfig,
             CompetitionFormat,
             CompetitionResult,
@@ -6575,35 +6575,35 @@ class TestPublicAPI:
         assert CompetitionFormat is not None
 
     def test_structure_importable(self):
-        from easyml.sports.competitions import build_structure
+        from harnessml.sports.competitions import build_structure
         assert callable(build_structure)
 
     def test_simulator_importable(self):
-        from easyml.sports.competitions import CompetitionSimulator
+        from harnessml.sports.competitions import CompetitionSimulator
         assert CompetitionSimulator is not None
 
     def test_optimizer_importable(self):
-        from easyml.sports.competitions import CompetitionOptimizer
+        from harnessml.sports.competitions import CompetitionOptimizer
         assert CompetitionOptimizer is not None
 
     def test_scorer_importable(self):
-        from easyml.sports.competitions import CompetitionScorer
+        from harnessml.sports.competitions import CompetitionScorer
         assert CompetitionScorer is not None
 
     def test_adjustments_importable(self):
-        from easyml.sports.competitions import apply_adjustments
+        from harnessml.sports.competitions import apply_adjustments
         assert callable(apply_adjustments)
 
     def test_explainer_importable(self):
-        from easyml.sports.competitions import CompetitionExplainer
+        from harnessml.sports.competitions import CompetitionExplainer
         assert CompetitionExplainer is not None
 
     def test_confidence_importable(self):
-        from easyml.sports.competitions import CompetitionConfidence
+        from harnessml.sports.competitions import CompetitionConfidence
         assert CompetitionConfidence is not None
 
     def test_export_importable(self):
-        from easyml.sports.competitions import (
+        from harnessml.sports.competitions import (
             export_bracket_markdown,
             export_standings_markdown,
             export_json,
@@ -6614,7 +6614,7 @@ class TestPublicAPI:
         assert callable(export_json)
 
     def test_all_attribute(self):
-        import easyml.sports.competitions as comp
+        import harnessml.sports.competitions as comp
         assert hasattr(comp, "__all__")
         # All items in __all__ should be importable
         for name in comp.__all__:
@@ -6628,13 +6628,13 @@ class TestPublicAPI:
 
 Re-exports all key classes and functions from submodules for convenient access:
 
-    from easyml.sports.competitions import (
+    from harnessml.sports.competitions import (
         CompetitionConfig, CompetitionSimulator, build_structure, ...
     )
 """
 from __future__ import annotations
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     AdjustmentConfig,
     CompetitionConfig,
     CompetitionFormat,
@@ -6645,14 +6645,14 @@ from easyml.sports.competitions.schemas import (
     ScoringConfig,
     StandingsEntry,
 )
-from easyml.sports.competitions.structure import build_structure
-from easyml.sports.competitions.simulator import CompetitionSimulator
-from easyml.sports.competitions.optimizer import CompetitionOptimizer
-from easyml.sports.competitions.scorer import CompetitionScorer
-from easyml.sports.competitions.adjustments import apply_adjustments
-from easyml.sports.competitions.explainer import CompetitionExplainer
-from easyml.sports.competitions.confidence import CompetitionConfidence
-from easyml.sports.competitions.export import (
+from harnessml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.simulator import CompetitionSimulator
+from harnessml.sports.competitions.optimizer import CompetitionOptimizer
+from harnessml.sports.competitions.scorer import CompetitionScorer
+from harnessml.sports.competitions.adjustments import apply_adjustments
+from harnessml.sports.competitions.explainer import CompetitionExplainer
+from harnessml.sports.competitions.confidence import CompetitionConfidence
+from harnessml.sports.competitions.export import (
     export_analysis_report,
     export_bracket_markdown,
     export_csv,
@@ -6694,10 +6694,10 @@ __all__ = [
 ## Task 11: Hook registration -- COMPETITION_NARRATIVE
 
 **Files:**
-- `packages/easyml-core/src/easyml/core/runner/hooks.py` (add constant)
-- `packages/easyml-sports/src/easyml/sports/hooks.py` (register default hook)
+- `packages/harness-core/src/harnessml/core/runner/hooks.py` (add constant)
+- `packages/harness-sports/src/harnessml/sports/hooks.py` (register default hook)
 
-**Test:** `packages/easyml-sports/tests/test_competition_hooks.py`
+**Test:** `packages/harness-sports/tests/test_competition_hooks.py`
 
 ### 11.1 Test (TDD -- write first)
 
@@ -6707,7 +6707,7 @@ from __future__ import annotations
 
 import pytest
 
-from easyml.core.runner.hooks import HookRegistry, COMPETITION_NARRATIVE
+from harnessml.core.runner.hooks import HookRegistry, COMPETITION_NARRATIVE
 
 
 class TestCompetitionNarrativeHook:
@@ -6752,14 +6752,14 @@ class TestCompetitionNarrativeHook:
 
     def test_sports_register_adds_default_hook(self):
         """sports.hooks.register() should register a default narrative hook."""
-        from easyml.sports.hooks import register
+        from harnessml.sports.hooks import register
         register()
         hooks = HookRegistry.get(COMPETITION_NARRATIVE)
         assert len(hooks) >= 1
 
     def test_default_hook_returns_none(self):
         """The default (empty) narrative hook should return None."""
-        from easyml.sports.hooks import register
+        from harnessml.sports.hooks import register
         register()
         result = HookRegistry.call_first(COMPETITION_NARRATIVE, {}, [])
         # Default hook returns None -- domain plugins override with real narratives
@@ -6767,7 +6767,7 @@ class TestCompetitionNarrativeHook:
 
     def test_custom_hook_overrides_default(self):
         """A custom hook registered after default should be callable."""
-        from easyml.sports.hooks import register
+        from harnessml.sports.hooks import register
         register()
 
         def basketball_narrative(matchup_ctx, differentials):
@@ -6784,7 +6784,7 @@ class TestCompetitionNarrativeHook:
 
 ### 11.2 Implementation -- hooks.py (core)
 
-Add `COMPETITION_NARRATIVE` constant to `packages/easyml-core/src/easyml/core/runner/hooks.py`.
+Add `COMPETITION_NARRATIVE` constant to `packages/harness-core/src/harnessml/core/runner/hooks.py`.
 
 Add after line 51 (after `COLUMN_RENAMES`):
 
@@ -6808,14 +6808,14 @@ COMPETITION_NARRATIVE = "competition_narrative"
 
 ### 11.3 Implementation -- hooks.py (sports)
 
-Update `packages/easyml-sports/src/easyml/sports/hooks.py` to import and register the
+Update `packages/harness-sports/src/harnessml/sports/hooks.py` to import and register the
 default competition narrative hook.
 
 ```python
-"""Register sports-specific hooks into easyml core."""
+"""Register sports-specific hooks into harnessml core."""
 from __future__ import annotations
 
-from easyml.core.runner.hooks import (
+from harnessml.core.runner.hooks import (
     COLUMN_CANDIDATES,
     COLUMN_RENAMES,
     COMPETITION_NARRATIVE,
@@ -6826,7 +6826,7 @@ from easyml.core.runner.hooks import (
 def register() -> None:
     """Register all sports hooks.
 
-    Called automatically when easyml.sports is imported.
+    Called automatically when harnessml.sports is imported.
     Registers sports-domain column name candidates so that core
     pipeline, reporting, and profiling components can detect
     sports-specific column names (TeamA, TeamB, TeamAWon, etc.).
@@ -6878,10 +6878,10 @@ def _default_competition_narrative(
 ## Task 12: MCP handler -- competitions
 
 **Files:**
-- `packages/easyml-plugin/src/easyml/plugin/handlers/competitions.py` (new handler)
-- `packages/easyml-plugin/src/easyml/plugin/mcp_server.py` (add tool)
+- `packages/harness-plugin/src/harnessml/plugin/handlers/competitions.py` (new handler)
+- `packages/harness-plugin/src/harnessml/plugin/mcp_server.py` (add tool)
 
-**Test:** `packages/easyml-plugin/tests/handlers/test_competitions_handler.py`
+**Test:** `packages/harness-plugin/tests/handlers/test_competitions_handler.py`
 
 ### 12.1 Test (TDD -- write first)
 
@@ -6892,7 +6892,7 @@ from __future__ import annotations
 import json
 import pytest
 
-from easyml.plugin.handlers.competitions import dispatch, ACTIONS
+from harnessml.plugin.handlers.competitions import dispatch, ACTIONS
 
 
 class TestActionsRegistry:
@@ -6986,8 +6986,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from easyml.plugin.handlers._common import parse_json_param
-from easyml.plugin.handlers._validation import (
+from harnessml.plugin.handlers._common import parse_json_param
+from harnessml.plugin.handlers._validation import (
     validate_enum,
     validate_required,
     collect_hints,
@@ -7021,14 +7021,14 @@ def _handle_create(*, config=None, **_kwargs) -> str:
     if not isinstance(parsed, dict):
         return "**Error**: `config` must be a JSON object."
 
-    from easyml.sports.competitions.schemas import CompetitionConfig, CompetitionFormat
+    from harnessml.sports.competitions.schemas import CompetitionConfig, CompetitionFormat
 
     try:
         comp_config = CompetitionConfig(**parsed)
     except Exception as e:
         return f"**Error**: Invalid competition config: {e}"
 
-    from easyml.sports.competitions.structure import build_structure
+    from harnessml.sports.competitions.structure import build_structure
 
     try:
         structure = build_structure(comp_config)
@@ -7054,7 +7054,7 @@ def _handle_create(*, config=None, **_kwargs) -> str:
 
 
 def _handle_list_formats(**_kwargs) -> str:
-    from easyml.sports.competitions.schemas import CompetitionFormat
+    from harnessml.sports.competitions.schemas import CompetitionFormat
 
     lines = ["**Available competition formats:**", ""]
     descriptions = {
@@ -7095,7 +7095,7 @@ def _handle_simulate(*, competition_id=None, probabilities=None, n_sims=None, se
         return "**Error**: `probabilities` must be JSON or a path to a CSV file."
 
     comp = _competitions[competition_id]
-    from easyml.sports.competitions.simulator import CompetitionSimulator
+    from harnessml.sports.competitions.simulator import CompetitionSimulator
 
     try:
         simulator = CompetitionSimulator(
@@ -7183,7 +7183,7 @@ def _handle_generate_brackets(
     if comp["simulator"] is None:
         return "**Error**: Run `simulate` first."
 
-    from easyml.sports.competitions.optimizer import CompetitionOptimizer
+    from harnessml.sports.competitions.optimizer import CompetitionOptimizer
 
     try:
         optimizer = CompetitionOptimizer(simulator=comp["simulator"])
@@ -7236,7 +7236,7 @@ def _handle_score_bracket(
     if idx >= len(comp["results"]):
         return f"**Error**: bracket_index {idx} out of range (have {len(comp['results'])} brackets)."
 
-    from easyml.sports.competitions.scorer import CompetitionScorer
+    from harnessml.sports.competitions.scorer import CompetitionScorer
 
     scorer = CompetitionScorer(scoring=comp["config"].scoring)
     result = comp["results"][idx]
@@ -7282,8 +7282,8 @@ def _handle_adjust(
     if comp["simulator"] is None:
         return "**Error**: Run `simulate` first."
 
-    from easyml.sports.competitions.schemas import AdjustmentConfig
-    from easyml.sports.competitions.adjustments import apply_adjustments
+    from harnessml.sports.competitions.schemas import AdjustmentConfig
+    from harnessml.sports.competitions.adjustments import apply_adjustments
 
     try:
         adj_config = AdjustmentConfig(**parsed)
@@ -7321,7 +7321,7 @@ def _handle_explain(*, competition_id=None, bracket_index=None, **_kwargs) -> st
     if explainer_data is None:
         return "**Error**: No explainer configured. Provide entity features via `create` config."
 
-    from easyml.sports.competitions.explainer import CompetitionExplainer
+    from harnessml.sports.competitions.explainer import CompetitionExplainer
 
     try:
         explainer = CompetitionExplainer(**explainer_data)
@@ -7353,7 +7353,7 @@ def _handle_profiles(*, competition_id=None, top_n=None, **_kwargs) -> str:
     n = int(top_n) if top_n is not None else 20
     round_probs = comp.get("round_probs")
 
-    from easyml.sports.competitions.explainer import CompetitionExplainer
+    from harnessml.sports.competitions.explainer import CompetitionExplainer
 
     try:
         explainer = CompetitionExplainer(**explainer_data)
@@ -7385,7 +7385,7 @@ def _handle_confidence(*, competition_id=None, **_kwargs) -> str:
     if comp["simulator"] is None:
         return "**Error**: Run `simulate` first."
 
-    from easyml.sports.competitions.confidence import CompetitionConfidence
+    from harnessml.sports.competitions.confidence import CompetitionConfidence
 
     try:
         confidence = CompetitionConfidence(simulator=comp["simulator"])
@@ -7443,7 +7443,7 @@ def _handle_export(
     out_dir = Path(output_dir) if output_dir else Path.cwd() / "output"
     lbl = label or competition_id
 
-    from easyml.sports.competitions import export as exp
+    from harnessml.sports.competitions import export as exp
 
     try:
         if fmt == "bracket_markdown":
@@ -7457,7 +7457,7 @@ def _handle_export(
             if comp["simulator"] is None:
                 return "**Error**: Run `simulate` first."
             standings = comp["simulator"].standings_distribution()
-            from easyml.sports.competitions.schemas import StandingsEntry
+            from harnessml.sports.competitions.schemas import StandingsEntry
             entries = [StandingsEntry(**s) for s in standings]
             path = exp.export_standings_markdown(entries, out_dir, label=lbl)
         elif fmt == "json":
@@ -7537,7 +7537,7 @@ def dispatch(action: str, **kwargs) -> str:
 
 ### 12.3 Implementation -- mcp_server.py addition
 
-Add the following tool definition to `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`
+Add the following tool definition to `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`
 (after the last existing tool block):
 
 ```python
@@ -7624,7 +7624,7 @@ async def manage_competitions(
 
 ## Task 13: Integration test -- Full pipeline
 
-**File:** `packages/easyml-sports/tests/competitions/test_integration.py`
+**File:** `packages/harness-sports/tests/competitions/test_integration.py`
 
 End-to-end test covering: create config, build structure, create simulator with
 synthetic probabilities, generate brackets, score, and export. Tests both
@@ -7649,7 +7649,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.sports.competitions.schemas import (
+from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
     CompetitionResult,
@@ -7657,11 +7657,11 @@ from easyml.sports.competitions.schemas import (
     ScoringConfig,
     StandingsEntry,
 )
-from easyml.sports.competitions.structure import build_structure
-from easyml.sports.competitions.simulator import CompetitionSimulator
-from easyml.sports.competitions.optimizer import CompetitionOptimizer
-from easyml.sports.competitions.scorer import CompetitionScorer
-from easyml.sports.competitions.export import (
+from harnessml.sports.competitions.structure import build_structure
+from harnessml.sports.competitions.simulator import CompetitionSimulator
+from harnessml.sports.competitions.optimizer import CompetitionOptimizer
+from harnessml.sports.competitions.scorer import CompetitionScorer
+from harnessml.sports.competitions.export import (
     export_bracket_markdown,
     export_json,
     export_csv,
@@ -8016,7 +8016,7 @@ class TestCrossFormatConsistency:
         result = CompetitionResult(
             picks={"R1G1": "Alpha"},
             matchups={
-                "R1G1": __import__("easyml.sports.competitions.schemas", fromlist=["MatchupContext"]).MatchupContext(
+                "R1G1": __import__("harnessml.sports.competitions.schemas", fromlist=["MatchupContext"]).MatchupContext(
                     slot="R1G1", round_num=1, entity_a="Alpha", entity_b="Bravo",
                     prob_a=0.7, pick="Alpha", strategy="chalk",
                 ),

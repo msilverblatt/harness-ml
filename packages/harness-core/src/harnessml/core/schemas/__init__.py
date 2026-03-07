@@ -1,0 +1,61 @@
+"""Shared contracts and metrics for HarnessML."""
+
+from harnessml.core.schemas.contracts import (
+    ArtifactDecl,
+    EnsembleConfig,
+    ExperimentResult,
+    FeatureMeta,
+    Fold,
+    GuardrailViolation,
+    ModelConfig,
+    PipelineConfig,
+    RunManifest,
+    SourceMeta,
+    StageConfig,
+    TemporalFilter,
+)
+from harnessml.core.schemas.metrics import (
+    MetricRegistry,
+    accuracy,
+    auc_roc,
+    brier_score,
+    calibration_table,
+    ece,
+    f1,
+    log_loss,
+    mae,
+    model_audit,
+    model_correlations,
+    r_squared,
+    rmse,
+)
+
+__all__ = [
+    # Core schemas
+    "ArtifactDecl",
+    "EnsembleConfig",
+    "ExperimentResult",
+    "FeatureMeta",
+    "Fold",
+    "GuardrailViolation",
+    "ModelConfig",
+    "PipelineConfig",
+    "RunManifest",
+    "SourceMeta",
+    "StageConfig",
+    "TemporalFilter",
+    # Metrics
+    "MetricRegistry",
+    "accuracy",
+    "auc_roc",
+    "brier_score",
+    "calibration_table",
+    "ece",
+    "f1",
+    "log_loss",
+    "mae",
+    "model_audit",
+    "model_correlations",
+    "r_squared",
+    "rmse",
+]

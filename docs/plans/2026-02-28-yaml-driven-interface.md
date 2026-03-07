@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a single `easyml-runner` package that is the only consumer of the 7 library packages. Users interact exclusively with validated YAML + CLI commands + MCP tools. The existing packages are untouched.
+**Goal:** Build a single `harnessml-runner` package that is the only consumer of the 7 library packages. Users interact exclusively with validated YAML + CLI commands + MCP tools. The existing packages are untouched.
 
-**Architecture:** `easyml-runner` is a thin orchestration layer. It owns: (1) `ProjectConfig` — a Pydantic model that validates the entire YAML config tree, (2) auto-loaders that dynamically import feature/source modules declared in YAML, (3) a `PipelineRunner` that wires library APIs together from config, (4) a Click CLI (`easyml` command), (5) an MCP server generator that creates tools from a YAML server definition, and (6) a project scaffold generator. The 7 library packages remain pure libraries with stable APIs — `easyml-runner` is the only thing that imports them.
+**Architecture:** `harnessml-runner` is a thin orchestration layer. It owns: (1) `ProjectConfig` — a Pydantic model that validates the entire YAML config tree, (2) auto-loaders that dynamically import feature/source modules declared in YAML, (3) a `PipelineRunner` that wires library APIs together from config, (4) a Click CLI (`harnessml` command), (5) an MCP server generator that creates tools from a YAML server definition, and (6) a project scaffold generator. The 7 library packages remain pure libraries with stable APIs — `harnessml-runner` is the only thing that imports them.
 
-**Tech Stack:** Python 3.11+, Click (CLI), Pydantic v2 (validation), FastMCP (server generation), existing easyml-* packages as runtime engine.
+**Tech Stack:** Python 3.11+, Click (CLI), Pydantic v2 (validation), FastMCP (server generation), existing harnessml-* packages as runtime engine.
 
 ---
 
@@ -17,95 +17,95 @@
                               |
                               v
                     ┌─────────────────┐
-                    │  easyml-runner   │  <-- the ONLY consumer
+                    │  harnessml-runner   │  <-- the ONLY consumer
                     │  (orchestration) │
                     └─────┬───────────┘
                           │ imports
           ┌───────────────┼───────────────┐
           v               v               v
    ┌─────────────┐ ┌───────────┐ ┌──────────────┐
-   │ easyml-     │ │ easyml-   │ │ easyml-      │
+   │ harnessml-     │ │ harnessml-   │ │ harnessml-      │
    │ models      │ │ features  │ │ guardrails   │
    └─────────────┘ └───────────┘ └──────────────┘
           │               │               │
           └───────┬───────┘───────────────┘
                   v
           ┌─────────────┐
-          │ easyml-     │
+          │ harnessml-     │
           │ schemas     │  <-- shared contracts
           └─────────────┘
 ```
 
-The 7 library packages are **never modified** by this plan. They stay as stable, independently testable libraries. All new code goes in `easyml-runner`.
+The 7 library packages are **never modified** by this plan. They stay as stable, independently testable libraries. All new code goes in `harnessml-runner`.
 
 ---
 
-## Phase 10: Project Config Schema (in easyml-runner)
+## Phase 10: Project Config Schema (in harnessml-runner)
 
 ### Task 10.1: ProjectConfig Pydantic model + validation
 
 **Files:**
-- Create: `packages/easyml-runner/pyproject.toml`
-- Create: `packages/easyml-runner/src/easyml/runner/__init__.py`
-- Create: `packages/easyml-runner/src/easyml/runner/schema.py`
-- Create: `packages/easyml-runner/src/easyml/runner/validator.py`
-- Create: `packages/easyml-runner/tests/__init__.py`
-- Create: `packages/easyml-runner/tests/test_schema.py`
-- Create: `packages/easyml-runner/tests/test_validator.py`
+- Create: `packages/harnessml-runner/pyproject.toml`
+- Create: `packages/harnessml-runner/src/harnessml/runner/__init__.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/schema.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/validator.py`
+- Create: `packages/harnessml-runner/tests/__init__.py`
+- Create: `packages/harnessml-runner/tests/test_schema.py`
+- Create: `packages/harnessml-runner/tests/test_validator.py`
 
-The runner owns ALL the project-level Pydantic models. These are NOT in easyml-schemas — they're orchestration-layer concerns.
+The runner owns ALL the project-level Pydantic models. These are NOT in harnessml-schemas — they're orchestration-layer concerns.
 
 **Step 1: Create package**
 
-`packages/easyml-runner/pyproject.toml`:
+`packages/harnessml-runner/pyproject.toml`:
 ```toml
 [project]
-name = "easyml-runner"
+name = "harnessml-runner"
 version = "0.1.0"
-description = "YAML-driven orchestration layer for easyml"
+description = "YAML-driven orchestration layer for harnessml"
 requires-python = ">=3.11"
 dependencies = [
-    "easyml-schemas",
-    "easyml-config",
-    "easyml-features",
-    "easyml-models",
-    "easyml-data",
-    "easyml-experiments",
-    "easyml-guardrails",
+    "harnessml-schemas",
+    "harnessml-config",
+    "harnessml-features",
+    "harnessml-models",
+    "harnessml-data",
+    "harnessml-experiments",
+    "harnessml-guardrails",
     "click>=8.0",
     "pyyaml>=6.0",
 ]
 
 [project.scripts]
-easyml = "easyml.runner.cli:main"
+harnessml = "harnessml.runner.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/easyml"]
+packages = ["src/harnessml"]
 
 [tool.uv.sources]
-easyml-schemas = { workspace = true }
-easyml-config = { workspace = true }
-easyml-features = { workspace = true }
-easyml-models = { workspace = true }
-easyml-data = { workspace = true }
-easyml-experiments = { workspace = true }
-easyml-guardrails = { workspace = true }
+harnessml-schemas = { workspace = true }
+harnessml-config = { workspace = true }
+harnessml-features = { workspace = true }
+harnessml-models = { workspace = true }
+harnessml-data = { workspace = true }
+harnessml-experiments = { workspace = true }
+harnessml-guardrails = { workspace = true }
 ```
 
 Add `"click>=8.0"` to root `pyproject.toml` dev dependencies.
 
-No `__init__.py` at `src/easyml/` level (namespace package).
+No `__init__.py` at `src/harnessml/` level (namespace package).
 
 **Step 2: Write failing tests for schema.py**
 
 ```python
-# packages/easyml-runner/tests/test_schema.py
+# packages/harnessml-runner/tests/test_schema.py
 import pytest
-from easyml.runner.schema import (
+from harnessml.runner.schema import (
     ProjectConfig, DataConfig, BacktestConfig, ModelDef,
     EnsembleDef, FeatureDecl, SourceDecl, ExperimentDef,
     GuardrailDef, ServerToolDef, ServerDef,
@@ -228,7 +228,7 @@ class TestProjectConfig:
             name="my-pipeline",
             tools={
                 "train": ServerToolDef(
-                    command="easyml run train",
+                    command="harnessml run train",
                     args=["gender", "run_id"],
                     guardrails=["sanity_check"],
                     description="Train all models",
@@ -258,7 +258,7 @@ class TestProjectConfig:
             guardrails=GuardrailDef(feature_leakage_denylist=["leaky"]),
             server=ServerDef(
                 name="test",
-                tools={"train": ServerToolDef(command="easyml run train", description="Train")},
+                tools={"train": ServerToolDef(command="harnessml run train", description="Train")},
                 inspection=["show_config"],
             ),
         )
@@ -268,7 +268,7 @@ class TestProjectConfig:
 
 **Step 3: Run tests to verify they fail**
 
-Run: `cd ~/easyml && uv sync && uv run pytest packages/easyml-runner/tests/test_schema.py -v`
+Run: `cd ~/harnessml && uv sync && uv run pytest packages/harnessml-runner/tests/test_schema.py -v`
 Expected: FAIL (module doesn't exist yet)
 
 **Step 4: Implement schema.py**
@@ -276,7 +276,7 @@ Expected: FAIL (module doesn't exist yet)
 ```python
 """Project-level Pydantic models for YAML validation.
 
-These schemas live in the runner (orchestration layer), NOT in easyml-schemas.
+These schemas live in the runner (orchestration layer), NOT in harnessml-schemas.
 They define the validated shape of the YAML config tree that drives the pipeline.
 """
 
@@ -407,7 +407,7 @@ class ServerDef(BaseModel):
 
 class ProjectConfig(BaseModel):
     """
-    The ONE validated schema for an entire easyml project.
+    The ONE validated schema for an entire harnessml project.
     Every YAML file maps to a section of this model.
     """
     data: DataConfig
@@ -424,10 +424,10 @@ class ProjectConfig(BaseModel):
 **Step 5: Write failing tests for validator.py**
 
 ```python
-# packages/easyml-runner/tests/test_validator.py
+# packages/harnessml-runner/tests/test_validator.py
 import pytest
 from pathlib import Path
-from easyml.runner.validator import validate_project, ValidationResult
+from harnessml.runner.validator import validate_project, ValidationResult
 
 
 class TestValidator:
@@ -562,8 +562,8 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from easyml.config.merge import deep_merge
-from easyml.runner.schema import ProjectConfig
+from harnessml.config.merge import deep_merge
+from harnessml.runner.schema import ProjectConfig
 
 
 @dataclass
@@ -657,13 +657,13 @@ def validate_project(
 
 **Step 7: Run tests**
 
-Run: `cd ~/easyml && uv sync && uv run pytest packages/easyml-runner/tests/test_schema.py packages/easyml-runner/tests/test_validator.py -v`
+Run: `cd ~/harnessml && uv sync && uv run pytest packages/harnessml-runner/tests/test_schema.py packages/harnessml-runner/tests/test_validator.py -v`
 Expected: All PASS
 
 **Step 8: Commit**
 
 ```bash
-cd ~/easyml && git add packages/easyml-runner/ pyproject.toml
+cd ~/harnessml && git add packages/harnessml-runner/ pyproject.toml
 git commit -m "feat(runner): add ProjectConfig schema and YAML validator"
 ```
 
@@ -676,20 +676,20 @@ These live in the runner, not in the feature/data packages.
 ### Task 11.1: Feature and source auto-loaders
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/loaders.py`
-- Test: `packages/easyml-runner/tests/test_loaders.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/loaders.py`
+- Test: `packages/harnessml-runner/tests/test_loaders.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-runner/tests/test_loaders.py
+# packages/harnessml-runner/tests/test_loaders.py
 import pytest
 import sys
 import types
-from easyml.runner.loaders import load_features, load_sources
-from easyml.runner.schema import FeatureDecl, SourceDecl
-from easyml.features.registry import FeatureRegistry
-from easyml.data.sources import SourceRegistry
+from harnessml.runner.loaders import load_features, load_sources
+from harnessml.runner.schema import FeatureDecl, SourceDecl
+from harnessml.features.registry import FeatureRegistry
+from harnessml.data.sources import SourceRegistry
 
 
 def _make_module(module_name: str, func_name: str, func=None):
@@ -774,7 +774,7 @@ class TestSourceLoader:
 
 **Step 2: Run tests to verify fail**
 
-Run: `cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_loaders.py -v`
+Run: `cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_loaders.py -v`
 
 **Step 3: Implement loaders.py**
 
@@ -786,9 +786,9 @@ import importlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from easyml.features.registry import FeatureRegistry
-    from easyml.data.sources import SourceRegistry
-    from easyml.runner.schema import FeatureDecl, SourceDecl
+    from harnessml.features.registry import FeatureRegistry
+    from harnessml.data.sources import SourceRegistry
+    from harnessml.runner.schema import FeatureDecl, SourceDecl
 
 
 def _import_function(module_path: str, func_name: str, context: str):
@@ -843,8 +843,8 @@ def load_sources(
 **Step 4: Run tests, commit**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_loaders.py -v
-git add packages/easyml-runner/
+cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_loaders.py -v
+git add packages/harnessml-runner/
 git commit -m "feat(runner): add YAML-driven feature and source auto-loaders"
 ```
 
@@ -855,17 +855,17 @@ git commit -m "feat(runner): add YAML-driven feature and source auto-loaders"
 ### Task 12.1: Click CLI skeleton + validate command
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/cli.py`
-- Test: `packages/easyml-runner/tests/test_cli.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/cli.py`
+- Test: `packages/harnessml-runner/tests/test_cli.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-runner/tests/test_cli.py
+# packages/harnessml-runner/tests/test_cli.py
 import pytest
 from pathlib import Path
 from click.testing import CliRunner
-from easyml.runner.cli import main
+from harnessml.runner.cli import main
 
 
 @pytest.fixture
@@ -884,7 +884,7 @@ def valid_config(tmp_path):
 def test_help():
     result = CliRunner().invoke(main, ["--help"])
     assert result.exit_code == 0
-    assert "easyml" in result.output
+    assert "harnessml" in result.output
 
 
 def test_validate_success(valid_config):
@@ -914,7 +914,7 @@ def test_inspect_models(valid_config):
 **Step 2: Implement cli.py**
 
 ```python
-"""easyml CLI — the YAML-driven interface to the ML framework."""
+"""harnessml CLI — the YAML-driven interface to the ML framework."""
 
 import json
 import click
@@ -926,7 +926,7 @@ from pathlib import Path
 @click.option("--gender", "-g", default=None, help="Gender variant (e.g., 'w' for women's)")
 @click.pass_context
 def main(ctx, config_dir, gender):
-    """easyml -- AI-driven ML framework with guardrails."""
+    """harnessml -- AI-driven ML framework with guardrails."""
     ctx.ensure_object(dict)
     ctx.obj["config_dir"] = Path(config_dir)
     ctx.obj["variant"] = gender
@@ -936,7 +936,7 @@ def main(ctx, config_dir, gender):
 @click.pass_context
 def validate(ctx):
     """Validate all YAML config files."""
-    from easyml.runner.validator import validate_project
+    from harnessml.runner.validator import validate_project
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     click.echo(result.format())
     if not result.valid:
@@ -956,7 +956,7 @@ def run():
 @click.pass_context
 def run_train(ctx, run_id):
     """Train all models from config."""
-    from easyml.runner.pipeline import PipelineRunner
+    from harnessml.runner.pipeline import PipelineRunner
     runner = PipelineRunner(project_dir=Path.cwd(), config_dir=ctx.obj["config_dir"], variant=ctx.obj["variant"])
     result = runner.train(run_id=run_id)
     click.echo(json.dumps(result, indent=2, default=str))
@@ -966,7 +966,7 @@ def run_train(ctx, run_id):
 @click.pass_context
 def run_backtest(ctx):
     """Run backtest evaluation."""
-    from easyml.runner.pipeline import PipelineRunner
+    from harnessml.runner.pipeline import PipelineRunner
     runner = PipelineRunner(project_dir=Path.cwd(), config_dir=ctx.obj["config_dir"], variant=ctx.obj["variant"])
     result = runner.backtest()
     click.echo(json.dumps(result, indent=2, default=str))
@@ -976,7 +976,7 @@ def run_backtest(ctx):
 @click.pass_context
 def run_pipeline(ctx):
     """Run full pipeline: train + backtest."""
-    from easyml.runner.pipeline import PipelineRunner
+    from harnessml.runner.pipeline import PipelineRunner
     runner = PipelineRunner(project_dir=Path.cwd(), config_dir=ctx.obj["config_dir"], variant=ctx.obj["variant"])
     result = runner.run_full()
     click.echo(json.dumps(result, indent=2, default=str))
@@ -995,8 +995,8 @@ def experiment():
 @click.pass_context
 def exp_create(ctx, experiment_id):
     """Create a new experiment."""
-    from easyml.runner.validator import validate_project
-    from easyml.experiments import ExperimentManager
+    from harnessml.runner.validator import validate_project
+    from harnessml.experiments import ExperimentManager
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1022,8 +1022,8 @@ def exp_create(ctx, experiment_id):
 @click.pass_context
 def exp_log(ctx, experiment_id, hypothesis, changes, verdict, notes):
     """Log experiment results."""
-    from easyml.runner.validator import validate_project
-    from easyml.experiments import ExperimentManager
+    from harnessml.runner.validator import validate_project
+    from harnessml.experiments import ExperimentManager
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     ec = result.config.experiments
@@ -1036,7 +1036,7 @@ def exp_log(ctx, experiment_id, hypothesis, changes, verdict, notes):
 @click.pass_context
 def exp_list(ctx):
     """List all experiments."""
-    from easyml.runner.validator import validate_project
+    from harnessml.runner.validator import validate_project
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1065,7 +1065,7 @@ def inspect():
 @click.pass_context
 def inspect_config(ctx, section):
     """Show resolved configuration."""
-    from easyml.runner.validator import validate_project
+    from harnessml.runner.validator import validate_project
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1082,7 +1082,7 @@ def inspect_config(ctx, section):
 @click.pass_context
 def inspect_models(ctx):
     """List all configured models."""
-    from easyml.runner.validator import validate_project
+    from harnessml.runner.validator import validate_project
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1098,7 +1098,7 @@ def inspect_models(ctx):
 @click.pass_context
 def inspect_features(ctx):
     """List declared features."""
-    from easyml.runner.validator import validate_project
+    from harnessml.runner.validator import validate_project
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1118,8 +1118,8 @@ def inspect_features(ctx):
 @click.pass_context
 def serve(ctx):
     """Start MCP server from server config."""
-    from easyml.runner.validator import validate_project
-    from easyml.runner.server_gen import generate_server
+    from harnessml.runner.validator import validate_project
+    from harnessml.runner.server_gen import generate_server
 
     result = validate_project(ctx.obj["config_dir"], variant=ctx.obj["variant"])
     if not result.valid:
@@ -1141,8 +1141,8 @@ def serve(ctx):
 @click.argument("project_dir")
 @click.option("--name", default=None, help="Project name")
 def init(project_dir, name):
-    """Initialize a new easyml project."""
-    from easyml.runner.scaffold import scaffold_project
+    """Initialize a new harnessml project."""
+    from harnessml.runner.scaffold import scaffold_project
     path = Path(project_dir)
     try:
         scaffold_project(path, project_name=name)
@@ -1151,7 +1151,7 @@ def init(project_dir, name):
         click.echo(f"  1. cd {path}")
         click.echo("  2. Edit config/models.yaml to define your models")
         click.echo("  3. Add feature modules to features/")
-        click.echo("  4. Run: easyml validate")
+        click.echo("  4. Run: harnessml validate")
     except FileExistsError as e:
         click.echo(f"Error: {e}")
         raise SystemExit(1)
@@ -1160,26 +1160,26 @@ def init(project_dir, name):
 **Step 3: Run tests, commit**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_cli.py -v
-git add packages/easyml-runner/
+cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_cli.py -v
+git add packages/harnessml-runner/
 git commit -m "feat(runner): add Click CLI with validate, run, experiment, inspect, serve, init"
 ```
 
 ### Task 12.2: PipelineRunner — wires library APIs from config
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/pipeline.py`
-- Test: `packages/easyml-runner/tests/test_pipeline.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/pipeline.py`
+- Test: `packages/harnessml-runner/tests/test_pipeline.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-runner/tests/test_pipeline.py
+# packages/harnessml-runner/tests/test_pipeline.py
 import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from easyml.runner.pipeline import PipelineRunner
+from harnessml.runner.pipeline import PipelineRunner
 
 
 @pytest.fixture
@@ -1277,7 +1277,7 @@ This is the core orchestration module. It imports from the library packages and 
 ```python
 """Pipeline orchestration from validated YAML config.
 
-This module is the sole consumer of the easyml library packages.
+This module is the sole consumer of the harnessml library packages.
 It reads ProjectConfig and wires FeatureRegistry, ModelRegistry,
 TrainOrchestrator, StackedEnsemble, BacktestRunner together.
 """
@@ -1288,13 +1288,13 @@ import pandas as pd
 from pathlib import Path
 from typing import Any
 
-from easyml.runner.validator import validate_project
-from easyml.runner.schema import ProjectConfig
-from easyml.models.registry import ModelRegistry
-from easyml.models.orchestrator import TrainOrchestrator
-from easyml.models.ensemble import StackedEnsemble
-from easyml.models.cv import LeaveOneSeasonOut, ExpandingWindow, SlidingWindow, PurgedKFold
-from easyml.models.backtest import BacktestRunner
+from harnessml.runner.validator import validate_project
+from harnessml.runner.schema import ProjectConfig
+from harnessml.models.registry import ModelRegistry
+from harnessml.models.orchestrator import TrainOrchestrator
+from harnessml.models.ensemble import StackedEnsemble
+from harnessml.models.cv import LeaveOneSeasonOut, ExpandingWindow, SlidingWindow, PurgedKFold
+from harnessml.models.backtest import BacktestRunner
 
 
 _CV_MAP = {
@@ -1330,8 +1330,8 @@ class PipelineRunner:
 
         # Load declared features if any
         if self.config.features:
-            from easyml.features.registry import FeatureRegistry
-            from easyml.runner.loaders import load_features
+            from harnessml.features.registry import FeatureRegistry
+            from harnessml.runner.loaders import load_features
             self._feature_registry = FeatureRegistry()
             load_features(self.config.features, self._feature_registry)
 
@@ -1445,8 +1445,8 @@ Note: The implementation must match the actual APIs of the existing library pack
 **Step 3: Run tests, commit**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_pipeline.py -v
-git add packages/easyml-runner/
+cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_pipeline.py -v
+git add packages/harnessml-runner/
 git commit -m "feat(runner): add PipelineRunner wiring library APIs from YAML config"
 ```
 
@@ -1457,25 +1457,25 @@ git commit -m "feat(runner): add PipelineRunner wiring library APIs from YAML co
 ### Task 13.1: Server generator
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/server_gen.py`
-- Test: `packages/easyml-runner/tests/test_server_gen.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/server_gen.py`
+- Test: `packages/harnessml-runner/tests/test_server_gen.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-runner/tests/test_server_gen.py
+# packages/harnessml-runner/tests/test_server_gen.py
 import pytest
 from pathlib import Path
-from easyml.runner.server_gen import generate_server, GeneratedServer
-from easyml.runner.schema import ServerDef, ServerToolDef
+from harnessml.runner.server_gen import generate_server, GeneratedServer
+from harnessml.runner.schema import ServerDef, ServerToolDef
 
 
 def test_creates_execution_tools():
     config = ServerDef(
         name="test",
         tools={
-            "train": ServerToolDef(command="easyml run train", args=["gender", "run_id"], description="Train models"),
-            "backtest": ServerToolDef(command="easyml run backtest", args=["gender"], description="Run backtest"),
+            "train": ServerToolDef(command="harnessml run train", args=["gender", "run_id"], description="Train models"),
+            "backtest": ServerToolDef(command="harnessml run backtest", args=["gender"], description="Run backtest"),
         },
     )
     server = generate_server(config, config_dir=Path("/tmp"))
@@ -1497,7 +1497,7 @@ def test_creates_inspection_tools():
 def test_tool_has_description():
     config = ServerDef(
         name="test",
-        tools={"train": ServerToolDef(command="easyml run train", description="Train all models")},
+        tools={"train": ServerToolDef(command="harnessml run train", description="Train all models")},
     )
     server = generate_server(config, config_dir=Path("/tmp"))
     assert server.tools["train"].description == "Train all models"
@@ -1506,7 +1506,7 @@ def test_tool_has_description():
 def test_tool_has_guardrails():
     config = ServerDef(
         name="test",
-        tools={"train": ServerToolDef(command="easyml run train", guardrails=["sanity_check", "feature_leakage"])},
+        tools={"train": ServerToolDef(command="harnessml run train", guardrails=["sanity_check", "feature_leakage"])},
     )
     server = generate_server(config, config_dir=Path("/tmp"))
     assert server.tools["train"].guardrails == ["sanity_check", "feature_leakage"]
@@ -1524,7 +1524,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from easyml.runner.schema import ServerDef, ServerToolDef
+from harnessml.runner.schema import ServerDef, ServerToolDef
 
 
 @dataclass
@@ -1576,7 +1576,7 @@ def _make_execution_tool(tool_def: ServerToolDef) -> Callable:
 def _make_inspection_tool(name: str, config_dir: Path) -> Callable | None:
     if name == "show_config":
         async def fn(section: str | None = None) -> str:
-            from easyml.runner.validator import validate_project
+            from harnessml.runner.validator import validate_project
             result = validate_project(config_dir)
             if not result.valid:
                 return result.format()
@@ -1587,7 +1587,7 @@ def _make_inspection_tool(name: str, config_dir: Path) -> Callable | None:
         return fn
     elif name == "list_models":
         async def fn() -> str:
-            from easyml.runner.validator import validate_project
+            from harnessml.runner.validator import validate_project
             result = validate_project(config_dir)
             if not result.valid:
                 return result.format()
@@ -1598,7 +1598,7 @@ def _make_inspection_tool(name: str, config_dir: Path) -> Callable | None:
         return fn
     elif name == "list_features":
         async def fn() -> str:
-            from easyml.runner.validator import validate_project
+            from harnessml.runner.validator import validate_project
             result = validate_project(config_dir)
             if not result.valid:
                 return result.format()
@@ -1611,7 +1611,7 @@ def _make_inspection_tool(name: str, config_dir: Path) -> Callable | None:
         return fn
     elif name == "list_experiments":
         async def fn() -> str:
-            from easyml.runner.validator import validate_project
+            from harnessml.runner.validator import validate_project
             result = validate_project(config_dir)
             if not result.valid:
                 return result.format()
@@ -1651,26 +1651,26 @@ def generate_server(config: ServerDef, config_dir: Path) -> GeneratedServer:
 **Step 3: Run tests, commit**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_server_gen.py -v
-git add packages/easyml-runner/
+cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_server_gen.py -v
+git add packages/harnessml-runner/
 git commit -m "feat(runner): add MCP server generator from YAML config"
 ```
 
 ### Task 13.2: Project scaffold
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/scaffold.py`
-- Test: `packages/easyml-runner/tests/test_scaffold.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/scaffold.py`
+- Test: `packages/harnessml-runner/tests/test_scaffold.py`
 
 **Step 1: Write failing tests**
 
 ```python
-# packages/easyml-runner/tests/test_scaffold.py
+# packages/harnessml-runner/tests/test_scaffold.py
 import pytest
 from pathlib import Path
 from click.testing import CliRunner
-from easyml.runner.cli import main
-from easyml.runner.validator import validate_project
+from harnessml.runner.cli import main
+from harnessml.runner.validator import validate_project
 
 
 def test_init_creates_project(tmp_path):
@@ -1756,15 +1756,15 @@ _SERVER = """\
 name: {name}
 tools:
   run_pipeline:
-    command: easyml run pipeline
+    command: harnessml run pipeline
     args: [gender]
     description: Run full train + backtest pipeline
   train_models:
-    command: easyml run train
+    command: harnessml run train
     args: [gender, run-id]
     description: Train all models
   run_backtest:
-    command: easyml run backtest
+    command: harnessml run backtest
     args: [gender]
     description: Run backtest evaluation
 inspection:
@@ -1778,15 +1778,15 @@ _CLAUDE_MD = """\
 # {name}
 
 ## Commands
-- `easyml validate` -- validate all YAML config
-- `easyml run pipeline` -- full train + backtest
-- `easyml run train` -- train models only
-- `easyml run backtest` -- backtest only
-- `easyml experiment create <id>` -- create experiment
-- `easyml experiment log <id> --hypothesis "..." --changes "..." --verdict keep`
-- `easyml inspect config` -- show resolved config
-- `easyml inspect models` -- list models
-- `easyml serve` -- start MCP server
+- `harnessml validate` -- validate all YAML config
+- `harnessml run pipeline` -- full train + backtest
+- `harnessml run train` -- train models only
+- `harnessml run backtest` -- backtest only
+- `harnessml experiment create <id>` -- create experiment
+- `harnessml experiment log <id> --hypothesis "..." --changes "..." --verdict keep`
+- `harnessml inspect config` -- show resolved config
+- `harnessml inspect models` -- list models
+- `harnessml serve` -- start MCP server
 
 ## Config
 All config is YAML in `config/`:
@@ -1823,9 +1823,9 @@ def scaffold_project(project_dir: Path, project_name: str | None = None) -> None
 **Step 3: Run tests, commit**
 
 ```bash
-cd ~/easyml && uv run pytest packages/easyml-runner/tests/test_scaffold.py -v
-git add packages/easyml-runner/
-git commit -m "feat(runner): add easyml init project scaffold"
+cd ~/harnessml && uv run pytest packages/harnessml-runner/tests/test_scaffold.py -v
+git add packages/harnessml-runner/
+git commit -m "feat(runner): add harnessml init project scaffold"
 ```
 
 ---
@@ -1835,19 +1835,19 @@ git commit -m "feat(runner): add easyml init project scaffold"
 ### Task 14.1: End-to-end YAML-driven test
 
 **Files:**
-- Create: `packages/easyml-runner/tests/test_e2e.py`
+- Create: `packages/harnessml-runner/tests/test_e2e.py`
 
 Test the full workflow: scaffold → validate → train → backtest → experiment.
 
 ```python
-# packages/easyml-runner/tests/test_e2e.py
+# packages/harnessml-runner/tests/test_e2e.py
 import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from click.testing import CliRunner
-from easyml.runner.cli import main
-from easyml.runner.pipeline import PipelineRunner
+from harnessml.runner.cli import main
+from harnessml.runner.pipeline import PipelineRunner
 
 
 @pytest.fixture
@@ -1908,17 +1908,17 @@ def test_experiment_create(live_project):
 **Step 1: Update `__init__.py`**
 
 ```python
-# packages/easyml-runner/src/easyml/runner/__init__.py
-from easyml.runner.schema import (
+# packages/harnessml-runner/src/harnessml/runner/__init__.py
+from harnessml.runner.schema import (
     ProjectConfig, DataConfig, BacktestConfig, ModelDef, EnsembleDef,
     FeatureDecl, SourceDecl, ExperimentDef, GuardrailDef,
     ServerDef, ServerToolDef,
 )
-from easyml.runner.validator import validate_project, ValidationResult
-from easyml.runner.pipeline import PipelineRunner
-from easyml.runner.loaders import load_features, load_sources
-from easyml.runner.server_gen import generate_server, GeneratedServer
-from easyml.runner.scaffold import scaffold_project
+from harnessml.runner.validator import validate_project, ValidationResult
+from harnessml.runner.pipeline import PipelineRunner
+from harnessml.runner.loaders import load_features, load_sources
+from harnessml.runner.server_gen import generate_server, GeneratedServer
+from harnessml.runner.scaffold import scaffold_project
 
 __all__ = [
     "ProjectConfig", "DataConfig", "BacktestConfig", "ModelDef", "EnsembleDef",
@@ -1935,34 +1935,34 @@ __all__ = [
 **Step 2: Run full test suite**
 
 ```bash
-cd ~/easyml && uv run pytest -v
+cd ~/harnessml && uv run pytest -v
 ```
 
 Expected: All tests pass (325 existing + ~60 new runner tests).
 
-**Step 3: Create README.md for easyml-runner**
+**Step 3: Create README.md for harnessml-runner**
 
-`packages/easyml-runner/README.md`:
+`packages/harnessml-runner/README.md`:
 ```markdown
-# easyml-runner
+# harnessml-runner
 
-YAML-driven orchestration layer for easyml. Operates the full ML pipeline through validated config + CLI commands + MCP tools.
+YAML-driven orchestration layer for harnessml. Operates the full ML pipeline through validated config + CLI commands + MCP tools.
 
 ## Install
 
-pip install easyml-runner
+pip install harnessml-runner
 
 ## Quick Start
 
 # Initialize a project
-easyml init my-project
+harnessml init my-project
 cd my-project
 
 # Edit config/models.yaml, config/pipeline.yaml
-easyml validate
-easyml run pipeline
-easyml experiment create exp-001-test
-easyml serve
+harnessml validate
+harnessml run pipeline
+harnessml experiment create exp-001-test
+harnessml serve
 
 ## Key APIs
 
@@ -1975,18 +1975,18 @@ easyml serve
 
 **Step 4: Update root README with YAML-driven section**
 
-Add to `~/easyml/README.md`:
+Add to `~/harnessml/README.md`:
 
 ```markdown
 ## YAML-Driven Interface
 
-easyml projects are operated entirely through YAML config and CLI commands:
+harnessml projects are operated entirely through YAML config and CLI commands:
 
-    easyml init my-project && cd my-project
-    easyml validate
-    easyml run pipeline
-    easyml experiment create exp-001-test
-    easyml serve
+    harnessml init my-project && cd my-project
+    harnessml validate
+    harnessml run pipeline
+    harnessml experiment create exp-001-test
+    harnessml serve
 
 No Python imports needed. Edit YAML, run commands.
 ```
@@ -1994,7 +1994,7 @@ No Python imports needed. Edit YAML, run commands.
 **Step 5: Commit**
 
 ```bash
-cd ~/easyml && git add .
+cd ~/harnessml && git add .
 git commit -m "feat(runner): finalize package exports, README, integration tests"
 ```
 
@@ -2004,8 +2004,8 @@ git commit -m "feat(runner): finalize package exports, README, integration tests
 
 | Phase | Tasks | Description |
 |-------|-------|-------------|
-| 10 | 1 | ProjectConfig schema + YAML validator (in easyml-runner) |
-| 11 | 1 | Feature + source auto-loaders (in easyml-runner) |
+| 10 | 1 | ProjectConfig schema + YAML validator (in harnessml-runner) |
+| 11 | 1 | Feature + source auto-loaders (in harnessml-runner) |
 | 12 | 2 | CLI (validate, run, experiment, inspect) + PipelineRunner |
 | 13 | 2 | MCP server generator + project scaffold |
 | 14 | 2 | E2E test + exports + docs |
@@ -2021,4 +2021,4 @@ Task 10.1 (schema + validator) → Task 11.1 (loaders) → Task 12.1 (CLI skelet
                                                               Task 13.2 (scaffold) → Task 14.1 (E2E test) → Task 14.2 (exports + docs)
 ```
 
-All tasks are sequential within easyml-runner. The existing 7 packages are never touched.
+All tasks are sequential within harnessml-runner. The existing 7 packages are never touched.

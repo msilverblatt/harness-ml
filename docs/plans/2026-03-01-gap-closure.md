@@ -1,18 +1,18 @@
-# Gap Closure: easyml-runner → Full Pipeline Recreation
+# Gap Closure: harnessml-runner → Full Pipeline Recreation
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** After this plan is implemented, a user should be able to recreate the mm pipeline's model training, ensemble stacking, backtesting, prediction, and diagnostics by pointing easyml-runner at data files and YAML config. Every capability in `~/mm` that goes through `config/`, `pipelines/`, `src/mm/models/`, `src/mm/ensemble/`, and `src/mm/backtest/` must have a corresponding easyml-runner path. Domain-specific components (bracket optimization, tournament simulation) are out of scope — those are project-level extensions, not general ML framework concerns.
+**Goal:** After this plan is implemented, a user should be able to recreate the mm pipeline's model training, ensemble stacking, backtesting, prediction, and diagnostics by pointing harnessml-runner at data files and YAML config. Every capability in `~/mm` that goes through `config/`, `pipelines/`, `src/mm/models/`, `src/mm/ensemble/`, and `src/mm/backtest/` must have a corresponding harnessml-runner path. Domain-specific components (bracket optimization, tournament simulation) are out of scope — those are project-level extensions, not general ML framework concerns.
 
-**Scope:** Only `easyml-runner` is modified. The 7 library packages remain untouched. Where library packages lack needed APIs, easyml-runner implements the logic itself (it's the orchestration layer).
+**Scope:** Only `harnessml-runner` is modified. The 7 library packages remain untouched. Where library packages lack needed APIs, harnessml-runner implements the logic itself (it's the orchestration layer).
 
-**Working directory:** `/Users/msilverblatt/easyml/packages/easyml-runner/`
+**Working directory:** `/Users/msilverblatt/harnessml/packages/harnessml-runner/`
 
 ---
 
-## What the mm pipeline does that easyml-runner cannot
+## What the mm pipeline does that harnessml-runner cannot
 
-The mm pipeline has a 9-step ensemble post-processing chain, a two-pass backtester with LOSO meta-learner training, per-fold nested pre-calibration, regressor-to-probability CDF conversion, multi-seed neural net averaging, training season filtering, fingerprint-based model caching, a production predict stage, run management, and rich diagnostics. easyml-runner currently does none of this — it trains models and averages their predictions.
+The mm pipeline has a 9-step ensemble post-processing chain, a two-pass backtester with LOSO meta-learner training, per-fold nested pre-calibration, regressor-to-probability CDF conversion, multi-seed neural net averaging, training season filtering, fingerprint-based model caching, a production predict stage, run management, and rich diagnostics. harnessml-runner currently does none of this — it trains models and averages their predictions.
 
 ---
 
@@ -20,9 +20,9 @@ The mm pipeline has a 9-step ensemble post-processing chain, a two-pass backtest
 
 ### Task 15.1: Extend ModelDef, EnsembleDef, and ProjectConfig schemas
 
-**File:** `src/easyml/runner/schema.py`
+**File:** `src/harnessml/runner/schema.py`
 
-**Why:** The mm config has fields that easyml-runner's Pydantic models don't know about, so they'd be rejected or silently dropped.
+**Why:** The mm config has fields that harnessml-runner's Pydantic models don't know about, so they'd be rejected or silently dropped.
 
 **Changes to ModelDef:**
 
@@ -117,7 +117,7 @@ class DataConfig(BaseModel):
 
 ### Task 15.2: Update validator.py for new config sections
 
-**File:** `src/easyml/runner/validator.py`
+**File:** `src/harnessml/runner/validator.py`
 
 **Changes:**
 1. Load `features` section from pipeline.yaml (nested under `features:` key) → maps to `feature_config` in ProjectConfig
@@ -135,7 +135,7 @@ This is the critical phase. The mm pipeline's core value is in its ensemble post
 
 ### Task 16.1: Implement calibration utilities
 
-**File:** Create `src/easyml/runner/calibration.py`
+**File:** Create `src/harnessml/runner/calibration.py`
 
 Implement the calibration infrastructure that mm has in `src/mm/models/calibration.py`:
 
@@ -179,7 +179,7 @@ Implementation details (from mm):
 
 ### Task 16.2: Implement stacked meta-learner
 
-**File:** Create `src/easyml/runner/meta_learner.py`
+**File:** Create `src/harnessml/runner/meta_learner.py`
 
 This is the core of the mm ensemble. Implements:
 
@@ -266,7 +266,7 @@ Key implementation details from mm's `src/mm/models/meta_learner.py`:
 
 ### Task 16.3: Implement ensemble post-processing chain
 
-**File:** Create `src/easyml/runner/postprocessing.py`
+**File:** Create `src/harnessml/runner/postprocessing.py`
 
 This is the 9-step pipeline from mm's `src/mm/ensemble/postprocessing.py`:
 
@@ -329,7 +329,7 @@ def apply_seed_compression(
 
 ### Task 17.1: Rewrite PipelineRunner for real ensemble
 
-**File:** `src/easyml/runner/pipeline.py`
+**File:** `src/harnessml/runner/pipeline.py`
 
 The current PipelineRunner does simple model training and per-fold averaging. Rewrite it to match mm's actual pipeline architecture.
 
@@ -374,7 +374,7 @@ def _margin_to_prob(margins: np.ndarray, cdf_scale: float) -> np.ndarray:
 
 6. **Feature-per-model training**: Each model trains on its own feature subset (not a shared X matrix). Build per-model X from the model's `features` list.
 
-7. **Column name conventions**: Support both `result`/`season` (easyml convention) and `TeamAWon`/`TeamAMargin`/`Season` (mm convention) via auto-detection.
+7. **Column name conventions**: Support both `result`/`season` (harnessml convention) and `TeamAWon`/`TeamAMargin`/`Season` (mm convention) via auto-detection.
 
 **Updated PipelineRunner API:**
 
@@ -437,7 +437,7 @@ def backtest(self) -> dict:
 
 ### Task 17.2: Implement model training internals
 
-**File:** `src/easyml/runner/training.py` (new)
+**File:** `src/harnessml/runner/training.py` (new)
 
 Extract the per-model training logic into a dedicated module. This handles what mm's `src/mm/models/train.py` does:
 
@@ -494,7 +494,7 @@ Also implement early stopping validation set logic:
 
 ### Task 17.3: Implement fingerprint caching
 
-**File:** Create `src/easyml/runner/fingerprint.py`
+**File:** Create `src/harnessml/runner/fingerprint.py`
 
 ```python
 def compute_fingerprint(model_config: dict, data_mtime: float | None = None) -> str:
@@ -537,7 +537,7 @@ Wire into PipelineRunner:
 
 ### Task 18.1: Implement prediction mode and matchup generation
 
-**File:** Extend `src/easyml/runner/pipeline.py` with `predict()` method
+**File:** Extend `src/harnessml/runner/pipeline.py` with `predict()` method
 
 The mm pipeline has a dedicated `predict.py` that:
 1. Loads production-trained models
@@ -546,7 +546,7 @@ The mm pipeline has a dedicated `predict.py` that:
 4. Applies ensemble post-processing
 5. Saves prediction parquets
 
-easyml-runner needs:
+harnessml-runner needs:
 
 ```python
 def predict(self, season: int, run_id: str | None = None) -> pd.DataFrame:
@@ -563,7 +563,7 @@ def predict(self, season: int, run_id: str | None = None) -> pd.DataFrame:
 
 This requires a matchup generator:
 
-**File:** Create `src/easyml/runner/matchups.py`
+**File:** Create `src/harnessml/runner/matchups.py`
 
 ```python
 def generate_pairwise_matchups(
@@ -607,7 +607,7 @@ def predict_all_matchups(
 
 ### Task 19.1: Add predict and experiment run CLI commands
 
-**File:** `src/easyml/runner/cli.py`
+**File:** `src/harnessml/runner/cli.py`
 
 **New commands:**
 
@@ -641,7 +641,7 @@ def experiment_run(ctx, experiment_id):
 
 ### Task 19.2: Implement run management
 
-**File:** Create `src/easyml/runner/run_manager.py`
+**File:** Create `src/harnessml/runner/run_manager.py`
 
 ```python
 class RunManager:
@@ -670,7 +670,7 @@ class RunManager:
 
 ### Task 19.3: Implement diagnostics
 
-**File:** Create `src/easyml/runner/diagnostics.py`
+**File:** Create `src/harnessml/runner/diagnostics.py`
 
 ```python
 def compute_pooled_metrics(
@@ -705,7 +705,7 @@ def compute_calibration_curve(y_true: np.ndarray, y_prob: np.ndarray, n_bins: in
 
 ### Task 19.4: Wire serve command with guardrails
 
-**File:** `src/easyml/runner/cli.py` (update serve command) and `src/easyml/runner/server_gen.py`
+**File:** `src/harnessml/runner/cli.py` (update serve command) and `src/harnessml/runner/server_gen.py`
 
 Turn the serve stub into a working command:
 
@@ -749,7 +749,7 @@ In `server_gen.py`, update `_make_execution_tool()`:
 
 This is the acid test. Write a test that:
 1. Takes the actual mm config files (`config/pipeline.yaml`, `config/models/production.yaml`, `config/ensemble.yaml`)
-2. Validates them through easyml-runner's `validate_project()`
+2. Validates them through harnessml-runner's `validate_project()`
 3. Asserts every model in production.yaml passes ModelDef validation
 4. Asserts ensemble config passes EnsembleDef validation
 
@@ -762,7 +762,7 @@ Create test fixture files:
 
 ```python
 def test_mm_config_validates():
-    """The mm pipeline's actual config must validate through easyml-runner."""
+    """The mm pipeline's actual config must validate through harnessml-runner."""
     config_dir = Path(__file__).parent / "fixtures"
     result = validate_project(config_dir)
     assert result.valid, f"Validation failed:\n{result.format()}"
@@ -805,7 +805,7 @@ def test_mm_backtest_pipeline_smoke():
 ### Task 20.2: Update package exports and documentation
 
 **Files:**
-- `src/easyml/runner/__init__.py` — add new exports
+- `src/harnessml/runner/__init__.py` — add new exports
 - Update any docstrings
 
 New exports to add:
@@ -817,7 +817,7 @@ New exports to add:
 - `compute_fingerprint`, `is_cached`, `save_fingerprint` from fingerprint
 - `FeaturesConfig` from schema
 
-**Tests:** Verify all new symbols are importable from `easyml.runner`.
+**Tests:** Verify all new symbols are importable from `harnessml.runner`.
 
 ---
 
@@ -881,9 +881,9 @@ exclude_models: [cat_broad, lgbm_broad, ...]
 
 And run:
 ```bash
-easyml run backtest
-easyml run predict --season 2025
-easyml experiment run exp-066-test
+harnessml run backtest
+harnessml run predict --season 2025
+harnessml experiment run exp-066-test
 ```
 
 Each of these commands exercises the full pipeline: training season filtering, per-model feature subsets, regressor CDF conversion, multi-seed averaging, fingerprint caching, stacked meta-learner with nested LOSO pre-calibration, 9-step post-processing, and diagnostics.

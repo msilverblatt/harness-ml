@@ -15,13 +15,13 @@
 ### Task 1: Add `team_features_path` to DataConfig and commit `data_utils.py`
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/schema.py:56-72`
-- Modify: `packages/easyml-runner/tests/test_schema.py:441-476`
-- Stage: `packages/easyml-runner/src/easyml/runner/data_utils.py` (untracked)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/schema.py:56-72`
+- Modify: `packages/harnessml-runner/tests/test_schema.py:441-476`
+- Stage: `packages/harnessml-runner/src/harnessml/runner/data_utils.py` (untracked)
 
 **Step 1: Write the failing test**
 
-In `packages/easyml-runner/tests/test_schema.py`, add to class `TestDataConfigExtensions`:
+In `packages/harnessml-runner/tests/test_schema.py`, add to class `TestDataConfigExtensions`:
 
 ```python
 def test_team_features_path_default(self):
@@ -35,12 +35,12 @@ def test_team_features_path_set(self):
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py::TestDataConfigExtensions::test_team_features_path_default -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py::TestDataConfigExtensions::test_team_features_path_default -v`
 Expected: FAIL — `DataConfig` has no field `team_features_path`
 
 **Step 3: Add `team_features_path` to DataConfig**
 
-In `packages/easyml-runner/src/easyml/runner/schema.py`, add to `DataConfig` after line 71 (`exclude_columns`):
+In `packages/harnessml-runner/src/harnessml/runner/schema.py`, add to `DataConfig` after line 71 (`exclude_columns`):
 
 ```python
     team_features_path: str | None = None   # path to team-level features parquet
@@ -48,13 +48,13 @@ In `packages/easyml-runner/src/easyml/runner/schema.py`, add to `DataConfig` aft
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py::TestDataConfigExtensions -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py::TestDataConfigExtensions -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/schema.py packages/easyml-runner/tests/test_schema.py packages/easyml-runner/src/easyml/runner/data_utils.py
+git add packages/harnessml-runner/src/harnessml/runner/schema.py packages/harnessml-runner/tests/test_schema.py packages/harnessml-runner/src/harnessml/runner/data_utils.py
 git commit -m "feat(schema): add team_features_path to DataConfig, commit data_utils"
 ```
 
@@ -63,12 +63,12 @@ git commit -m "feat(schema): add team_features_path to DataConfig, commit data_u
 ### Task 2: Make `PipelineGuards` use `DataConfig.features_file`
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/stage_guards.py:41-81`
-- Modify: `packages/easyml-runner/tests/test_stage_guards.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/stage_guards.py:41-81`
+- Modify: `packages/harnessml-runner/tests/test_stage_guards.py`
 
 **Step 1: Write/update the failing test**
 
-Update the test fixture helper to use `features_file` from config. Add a new test class in `packages/easyml-runner/tests/test_stage_guards.py`:
+Update the test fixture helper to use `features_file` from config. Add a new test class in `packages/harnessml-runner/tests/test_stage_guards.py`:
 
 ```python
 class TestConfigDrivenFeatureFile:
@@ -108,12 +108,12 @@ class TestConfigDrivenFeatureFile:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_stage_guards.py::TestConfigDrivenFeatureFile -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_stage_guards.py::TestConfigDrivenFeatureFile -v`
 Expected: FAIL — guards still look for `matchup_features.parquet`
 
 **Step 3: Update `PipelineGuards` to use config**
 
-In `packages/easyml-runner/src/easyml/runner/stage_guards.py`, change `_resolve_features_path` to return the full file path (not just dir), and update all guard methods:
+In `packages/harnessml-runner/src/harnessml/runner/stage_guards.py`, change `_resolve_features_path` to return the full file path (not just dir), and update all guard methods:
 
 ```python
 def _resolve_features_path(self) -> Path:
@@ -158,13 +158,13 @@ Update all existing test fixtures that create `matchup_features.parquet` to inst
 
 **Step 5: Run all stage guard tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_stage_guards.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_stage_guards.py -v`
 Expected: ALL PASS
 
 **Step 6: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/stage_guards.py packages/easyml-runner/tests/test_stage_guards.py
+git add packages/harnessml-runner/src/harnessml/runner/stage_guards.py packages/harnessml-runner/tests/test_stage_guards.py
 git commit -m "fix(stage-guards): use DataConfig.features_file instead of hardcoded filename"
 ```
 
@@ -173,7 +173,7 @@ git commit -m "fix(stage-guards): use DataConfig.features_file instead of hardco
 ### Task 3: Make `PipelineRunner._load_data()` use DataConfig
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/pipeline.py:290-327`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/pipeline.py:290-327`
 
 **Step 1: Update `_load_data()` to use `data_utils.get_features_path()`**
 
@@ -186,7 +186,7 @@ def _load_data(self) -> None:
     Also loads team features if any model has
     ``provides_level="team"``.
     """
-    from easyml.runner.data_utils import get_features_path
+    from harnessml.runner.data_utils import get_features_path
 
     parquet_path = get_features_path(self.project_dir, self.config.data)
 
@@ -224,19 +224,19 @@ def _load_data(self) -> None:
 
     # Apply interaction features if configured
     if self.config.interactions:
-        from easyml.runner.matchups import compute_interactions
+        from harnessml.runner.matchups import compute_interactions
         self._df = compute_interactions(self._df, self.config.interactions)
 ```
 
 **Step 2: Run existing pipeline tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_pipeline.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_pipeline.py -v`
 Expected: PASS (tests should still work since they create their own data)
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/pipeline.py
+git add packages/harnessml-runner/src/harnessml/runner/pipeline.py
 git commit -m "fix(pipeline): use DataConfig.features_file instead of hardcoded path"
 ```
 
@@ -245,26 +245,26 @@ git commit -m "fix(pipeline): use DataConfig.features_file instead of hardcoded 
 ### Task 4: Fix CLI hardcoded path
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/cli.py:163-164`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/cli.py:163-164`
 
 **Step 1: Update CLI to use `get_features_path()`**
 
 Replace lines 163-164 in `cli.py`:
 
 ```python
-    from easyml.runner.data_utils import get_features_path
+    from harnessml.runner.data_utils import get_features_path
     parquet_path = get_features_path(Path.cwd(), result.config.data)
 ```
 
 **Step 2: Run CLI tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_cli.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_cli.py -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/cli.py
+git add packages/harnessml-runner/src/harnessml/runner/cli.py
 git commit -m "fix(cli): use DataConfig for features path resolution"
 ```
 
@@ -273,7 +273,7 @@ git commit -m "fix(cli): use DataConfig for features path resolution"
 ### Task 5: Fix path hardcodes in `config_writer.py`
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/config_writer.py:270-302,380-391`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/config_writer.py:270-302,380-391`
 
 **Step 1: Replace hardcoded fallback paths with `get_features_path()`**
 
@@ -292,18 +292,18 @@ This uses `DataConfig()` defaults (`data/features/features.parquet`) instead of 
 Add the import at the top of each function or the module:
 
 ```python
-from easyml.runner.schema import DataConfig
+from harnessml.runner.schema import DataConfig
 ```
 
 **Step 2: Run config_writer tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_config_writer.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_config_writer.py -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/config_writer.py
+git add packages/harnessml-runner/src/harnessml/runner/config_writer.py
 git commit -m "fix(config-writer): use DataConfig defaults for fallback paths"
 ```
 
@@ -312,7 +312,7 @@ git commit -m "fix(config-writer): use DataConfig defaults for fallback paths"
 ### Task 6: Fix path hardcodes in `data_ingest.py` granular tools
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/data_ingest.py:596-710`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/data_ingest.py:596-710`
 
 **Step 1: Fix `fill_nulls`, `drop_duplicates`, `rename_columns`**
 
@@ -338,13 +338,13 @@ Apply the same pattern to `drop_duplicates` (lines 659-666) and `rename_columns`
 
 **Step 2: Run data ingest tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_ingest.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_ingest.py -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_ingest.py
+git add packages/harnessml-runner/src/harnessml/runner/data_ingest.py
 git commit -m "fix(data-ingest): use config.features_file in granular tools"
 ```
 
@@ -353,12 +353,12 @@ git commit -m "fix(data-ingest): use config.features_file in granular tools"
 ### Task 7: Fix `_detect_join_keys()` to use config-aware negative filter
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/data_ingest.py:40-76`
-- Modify: `packages/easyml-runner/tests/test_data_ingest.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/data_ingest.py:40-76`
+- Modify: `packages/harnessml-runner/tests/test_data_ingest.py`
 
 **Step 1: Write failing test**
 
-Add to `packages/easyml-runner/tests/test_data_ingest.py`:
+Add to `packages/harnessml-runner/tests/test_data_ingest.py`:
 
 ```python
 class TestDetectJoinKeysConfigAware:
@@ -366,7 +366,7 @@ class TestDetectJoinKeysConfigAware:
 
     def test_excludes_target_column(self):
         """Target column should not be used as a join key."""
-        from easyml.runner.data_ingest import _detect_join_keys
+        from harnessml.runner.data_ingest import _detect_join_keys
 
         new_df = pd.DataFrame({"season": [2020], "outcome": [1], "feat": [0.5]})
         existing_df = pd.DataFrame({"season": [2020], "outcome": [0], "diff_x": [1.0]})
@@ -383,7 +383,7 @@ class TestDetectJoinKeysConfigAware:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_ingest.py::TestDetectJoinKeysConfigAware -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_ingest.py::TestDetectJoinKeysConfigAware -v`
 Expected: FAIL — `_detect_join_keys` doesn't accept `exclude_cols`
 
 **Step 3: Add `exclude_cols` parameter to `_detect_join_keys()`**
@@ -446,13 +446,13 @@ In `ingest_dataset()` around line 395, update the call:
 
 **Step 5: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_ingest.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_ingest.py -v`
 Expected: ALL PASS
 
 **Step 6: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_ingest.py packages/easyml-runner/tests/test_data_ingest.py
+git add packages/harnessml-runner/src/harnessml/runner/data_ingest.py packages/harnessml-runner/tests/test_data_ingest.py
 git commit -m "fix(data-ingest): config-aware join key detection excludes target and excluded columns"
 ```
 
@@ -461,7 +461,7 @@ git commit -m "fix(data-ingest): config-aware join key detection excludes target
 ### Task 8: Fix correlation preview to use `config.target_column`
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/data_ingest.py:146-151`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/data_ingest.py:146-151`
 
 **Step 1: Update `_compute_correlation_preview` signature**
 
@@ -480,13 +480,13 @@ This is already called correctly in `ingest_dataset()` which resolves `target_co
 
 **Step 2: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_ingest.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_ingest.py -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_ingest.py
+git add packages/harnessml-runner/src/harnessml/runner/data_ingest.py
 git commit -m "fix(data-ingest): remove hardcoded target_col default from correlation preview"
 ```
 
@@ -495,17 +495,17 @@ git commit -m "fix(data-ingest): remove hardcoded target_col default from correl
 ### Task 9: Make profiler config-aware (generic)
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/data_profiler.py:161-246`
-- Modify: `packages/easyml-runner/tests/test_data_profiler.py`
-- Modify: `packages/easyml-runner/src/easyml/runner/config_writer.py` (pass config to profiler)
-- Modify: `packages/easyml-runner/src/easyml/runner/cli.py` (pass config to profiler)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/data_profiler.py:161-246`
+- Modify: `packages/harnessml-runner/tests/test_data_profiler.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/config_writer.py` (pass config to profiler)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/cli.py` (pass config to profiler)
 
 **Step 1: Write failing test for config-aware profiler**
 
-Add to `packages/easyml-runner/tests/test_data_profiler.py`:
+Add to `packages/harnessml-runner/tests/test_data_profiler.py`:
 
 ```python
-from easyml.runner.schema import DataConfig
+from harnessml.runner.schema import DataConfig
 
 
 class TestConfigAwareProfiler:
@@ -565,7 +565,7 @@ class TestConfigAwareProfiler:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_profiler.py::TestConfigAwareProfiler -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_profiler.py::TestConfigAwareProfiler -v`
 Expected: FAIL — `profile_dataset` doesn't accept `config` param
 
 **Step 3: Update `profile_dataset()` to accept optional DataConfig**
@@ -630,18 +630,18 @@ In `cli.py`:
 
 **Step 5: Run all profiler tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_profiler.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_profiler.py -v`
 Expected: ALL PASS
 
 **Step 6: Run full test suite to check nothing broke**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: ALL PASS
 
 **Step 7: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_profiler.py packages/easyml-runner/tests/test_data_profiler.py packages/easyml-runner/src/easyml/runner/config_writer.py packages/easyml-runner/src/easyml/runner/cli.py
+git add packages/harnessml-runner/src/harnessml/runner/data_profiler.py packages/harnessml-runner/tests/test_data_profiler.py packages/harnessml-runner/src/harnessml/runner/config_writer.py packages/harnessml-runner/src/harnessml/runner/cli.py
 git commit -m "feat(profiler): make profiler config-aware, remove domain-specific hardcodes"
 ```
 
@@ -650,7 +650,7 @@ git commit -m "feat(profiler): make profiler config-aware, remove domain-specifi
 ### Task 10: Phase 1 integration test
 
 **Files:**
-- Modify: `packages/easyml-runner/tests/test_data_ingest.py`
+- Modify: `packages/harnessml-runner/tests/test_data_ingest.py`
 
 **Step 1: Write an end-to-end test that exercises the full path**
 
@@ -684,8 +684,8 @@ class TestEndToEndConfigDrivenPath:
         df.to_parquet(features_dir / "my_dataset.parquet", index=False)
 
         # Verify profiler works
-        from easyml.runner.data_profiler import profile_dataset
-        from easyml.runner.data_utils import load_data_config, get_features_path
+        from harnessml.runner.data_profiler import profile_dataset
+        from harnessml.runner.data_utils import load_data_config, get_features_path
 
         config = load_data_config(tmp_path)
         assert config.features_file == "my_dataset.parquet"
@@ -699,7 +699,7 @@ class TestEndToEndConfigDrivenPath:
         assert profile.label_column == "outcome"
 
         # Verify guards work
-        from easyml.runner.stage_guards import PipelineGuards
+        from harnessml.runner.stage_guards import PipelineGuards
         guards = PipelineGuards(config, tmp_path)
         guards.guard_train()  # Should not raise
         guards.guard_backtest()  # Should not raise
@@ -707,13 +707,13 @@ class TestEndToEndConfigDrivenPath:
 
 **Step 2: Run the integration test**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_ingest.py::TestEndToEndConfigDrivenPath -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_ingest.py::TestEndToEndConfigDrivenPath -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/tests/test_data_ingest.py
+git add packages/harnessml-runner/tests/test_data_ingest.py
 git commit -m "test: add e2e integration test for config-driven data path"
 ```
 
@@ -724,15 +724,15 @@ git commit -m "test: add e2e integration test for config-driven data path"
 ### Task 11: Add `ColumnCleaningRule` and `SourceConfig` schemas
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/schema.py`
-- Modify: `packages/easyml-runner/tests/test_schema.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/schema.py`
+- Modify: `packages/harnessml-runner/tests/test_schema.py`
 
 **Step 1: Write failing tests**
 
-Add to `packages/easyml-runner/tests/test_schema.py`:
+Add to `packages/harnessml-runner/tests/test_schema.py`:
 
 ```python
-from easyml.runner.schema import ColumnCleaningRule, SourceConfig
+from harnessml.runner.schema import ColumnCleaningRule, SourceConfig
 
 
 class TestColumnCleaningRule:
@@ -830,12 +830,12 @@ class TestDataConfigSources:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py::TestColumnCleaningRule -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py::TestColumnCleaningRule -v`
 Expected: FAIL — classes don't exist yet
 
 **Step 3: Implement the schemas**
 
-Add to `packages/easyml-runner/src/easyml/runner/schema.py`, before `DataConfig`:
+Add to `packages/harnessml-runner/src/harnessml/runner/schema.py`, before `DataConfig`:
 
 ```python
 class ColumnCleaningRule(BaseModel):
@@ -871,13 +871,13 @@ Add to `DataConfig`:
 
 **Step 4: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py -v`
 Expected: ALL PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/schema.py packages/easyml-runner/tests/test_schema.py
+git add packages/harnessml-runner/src/harnessml/runner/schema.py packages/harnessml-runner/tests/test_schema.py
 git commit -m "feat(schema): add ColumnCleaningRule and SourceConfig schemas"
 ```
 
@@ -886,12 +886,12 @@ git commit -m "feat(schema): add ColumnCleaningRule and SourceConfig schemas"
 ### Task 12: Build `DataPipeline` orchestrator
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/data_pipeline.py`
-- Create: `packages/easyml-runner/tests/test_data_pipeline.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/data_pipeline.py`
+- Create: `packages/harnessml-runner/tests/test_data_pipeline.py`
 
 **Step 1: Write failing tests**
 
-Create `packages/easyml-runner/tests/test_data_pipeline.py`:
+Create `packages/harnessml-runner/tests/test_data_pipeline.py`:
 
 ```python
 """Tests for DataPipeline orchestrator."""
@@ -904,7 +904,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from easyml.runner.schema import ColumnCleaningRule, DataConfig, SourceConfig
+from harnessml.runner.schema import ColumnCleaningRule, DataConfig, SourceConfig
 
 
 class TestDataPipelineRefresh:
@@ -953,8 +953,8 @@ class TestDataPipelineRefresh:
 
     def test_refresh_bootstrap(self, project_with_source):
         """First refresh bootstraps the feature store."""
-        from easyml.runner.data_pipeline import DataPipeline
-        from easyml.runner.data_utils import load_data_config
+        from harnessml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -973,8 +973,8 @@ class TestDataPipelineRefresh:
 
     def test_refresh_specific_source(self, project_with_source):
         """Can refresh a specific source by name."""
-        from easyml.runner.data_pipeline import DataPipeline
-        from easyml.runner.data_utils import load_data_config
+        from harnessml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -983,8 +983,8 @@ class TestDataPipelineRefresh:
 
     def test_refresh_nonexistent_source_error(self, project_with_source):
         """Requesting a source that doesn't exist raises an error."""
-        from easyml.runner.data_pipeline import DataPipeline
-        from easyml.runner.data_utils import load_data_config
+        from harnessml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -997,7 +997,7 @@ class TestCleaningRuleCascade:
 
     def test_column_overrides_source_default(self, tmp_path):
         """Column-level rule overrides source-level default."""
-        from easyml.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.runner.data_pipeline import resolve_cleaning_rule
 
         source = SourceConfig(
             name="test",
@@ -1011,7 +1011,7 @@ class TestCleaningRuleCascade:
 
     def test_source_default_overrides_global(self, tmp_path):
         """Source default used when no column rule exists."""
-        from easyml.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.runner.data_pipeline import resolve_cleaning_rule
 
         source = SourceConfig(
             name="test",
@@ -1024,7 +1024,7 @@ class TestCleaningRuleCascade:
 
     def test_global_used_when_no_source_override(self, tmp_path):
         """Global default used when source has no override."""
-        from easyml.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.runner.data_pipeline import resolve_cleaning_rule
 
         source = SourceConfig(name="test")
         global_default = ColumnCleaningRule(null_strategy="mode")
@@ -1038,7 +1038,7 @@ class TestAddSource:
 
     def test_add_source(self, tmp_path):
         """add_source registers in config and runs initial ingest."""
-        from easyml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_pipeline import DataPipeline
 
         # Setup minimal project
         config_dir = tmp_path / "config"
@@ -1067,7 +1067,7 @@ class TestRemoveSource:
 
     def test_remove_source(self, tmp_path):
         """remove_source removes source from config."""
-        from easyml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_pipeline import DataPipeline
 
         config = DataConfig(
             sources={
@@ -1081,12 +1081,12 @@ class TestRemoveSource:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_pipeline.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_pipeline.py -v`
 Expected: FAIL — module doesn't exist
 
 **Step 3: Implement `DataPipeline`**
 
-Create `packages/easyml-runner/src/easyml/runner/data_pipeline.py`:
+Create `packages/harnessml-runner/src/harnessml/runner/data_pipeline.py`:
 
 ```python
 """Config-driven data pipeline orchestrator.
@@ -1104,8 +1104,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from easyml.runner.data_utils import get_features_path
-from easyml.runner.schema import ColumnCleaningRule, DataConfig, SourceConfig
+from harnessml.runner.data_utils import get_features_path
+from harnessml.runner.schema import ColumnCleaningRule, DataConfig, SourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -1339,13 +1339,13 @@ class DataPipeline:
 
 **Step 4: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_pipeline.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_pipeline.py -v`
 Expected: ALL PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_pipeline.py packages/easyml-runner/tests/test_data_pipeline.py
+git add packages/harnessml-runner/src/harnessml/runner/data_pipeline.py packages/harnessml-runner/tests/test_data_pipeline.py
 git commit -m "feat(data-pipeline): add config-driven DataPipeline orchestrator"
 ```
 
@@ -1354,12 +1354,12 @@ git commit -m "feat(data-pipeline): add config-driven DataPipeline orchestrator"
 ### Task 13: Add profiler plugin system
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/data_profiler.py`
-- Modify: `packages/easyml-runner/tests/test_data_profiler.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/data_profiler.py`
+- Modify: `packages/harnessml-runner/tests/test_data_profiler.py`
 
 **Step 1: Write failing test**
 
-Add to `packages/easyml-runner/tests/test_data_profiler.py`:
+Add to `packages/harnessml-runner/tests/test_data_profiler.py`:
 
 ```python
 class TestProfilerPlugins:
@@ -1392,7 +1392,7 @@ class TestProfilerPlugins:
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_profiler.py::TestProfilerPlugins -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_profiler.py::TestProfilerPlugins -v`
 Expected: FAIL
 
 **Step 3: Add plugin support to profiler**
@@ -1447,13 +1447,13 @@ Update `format_summary` to include plugin output:
 
 **Step 4: Run all profiler tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_data_profiler.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_data_profiler.py -v`
 Expected: ALL PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/data_profiler.py packages/easyml-runner/tests/test_data_profiler.py
+git add packages/harnessml-runner/src/harnessml/runner/data_profiler.py packages/harnessml-runner/tests/test_data_profiler.py
 git commit -m "feat(profiler): add plugin system for domain-specific profiling"
 ```
 
@@ -1462,8 +1462,8 @@ git commit -m "feat(profiler): add plugin system for domain-specific profiling"
 ### Task 14: Wire DataPipeline into MCP tools
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/config_writer.py`
-- Modify: `packages/easyml-runner/tests/test_config_writer.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/config_writer.py`
+- Modify: `packages/harnessml-runner/tests/test_config_writer.py`
 
 **Step 1: Update `add_dataset` to use DataPipeline when sources are configured**
 
@@ -1484,7 +1484,7 @@ def add_dataset(
     If DataConfig has sources configured, uses DataPipeline.
     Otherwise falls back to direct ingest.
     """
-    from easyml.runner.data_utils import load_data_config
+    from harnessml.runner.data_utils import load_data_config
 
     project_dir = Path(project_dir)
     try:
@@ -1494,7 +1494,7 @@ def add_dataset(
 
     # Use DataPipeline if config supports it
     if config is not None and config.sources:
-        from easyml.runner.data_pipeline import DataPipeline
+        from harnessml.runner.data_pipeline import DataPipeline
         pipeline = DataPipeline(project_dir, config)
         name = Path(data_path).stem
         source = pipeline.add_source(name, data_path, join_on=join_on)
@@ -1503,7 +1503,7 @@ def add_dataset(
         return f"## Ingested: {name}\n- Columns added: {len(cols)}\n- Source registered in pipeline config"
 
     # Fallback to direct ingest
-    from easyml.runner.data_ingest import ingest_dataset
+    from harnessml.runner.data_ingest import ingest_dataset
     result = ingest_dataset(
         project_dir=project_dir,
         data_path=data_path,
@@ -1517,13 +1517,13 @@ def add_dataset(
 
 **Step 2: Run config_writer tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_config_writer.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_config_writer.py -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/config_writer.py packages/easyml-runner/tests/test_config_writer.py
+git add packages/harnessml-runner/src/harnessml/runner/config_writer.py packages/harnessml-runner/tests/test_config_writer.py
 git commit -m "feat(config-writer): wire DataPipeline into add_dataset MCP tool"
 ```
 
@@ -1532,12 +1532,12 @@ git commit -m "feat(config-writer): wire DataPipeline into add_dataset MCP tool"
 ### Task 15: Update `mm_pipeline.yaml` fixture and run full test suite
 
 **Files:**
-- Modify: `packages/easyml-runner/tests/fixtures/mm_pipeline.yaml`
+- Modify: `packages/harnessml-runner/tests/fixtures/mm_pipeline.yaml`
 - Run: full test suite
 
 **Step 1: Add `features_file` to the fixture**
 
-In `packages/easyml-runner/tests/fixtures/mm_pipeline.yaml`, add under `data:`:
+In `packages/harnessml-runner/tests/fixtures/mm_pipeline.yaml`, add under `data:`:
 
 ```yaml
   features_file: matchup_features.parquet
@@ -1547,18 +1547,18 @@ This ensures the March Madness project continues to work with its existing filen
 
 **Step 2: Run the full runner test suite**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: ALL PASS
 
 **Step 3: Run integration tests if they exist**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_mm_integration.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_mm_integration.py -v`
 Expected: PASS
 
 **Step 4: Commit**
 
 ```bash
-git add packages/easyml-runner/tests/fixtures/mm_pipeline.yaml
+git add packages/harnessml-runner/tests/fixtures/mm_pipeline.yaml
 git commit -m "fix(fixtures): add features_file to mm_pipeline.yaml for backward compat"
 ```
 
@@ -1568,12 +1568,12 @@ git commit -m "fix(fixtures): add features_file to mm_pipeline.yaml for backward
 
 **Step 1: Run the entire project test suite**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v --tb=short`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v --tb=short`
 Expected: ALL PASS
 
 **Step 2: Check for any remaining hardcoded references**
 
-Run: `grep -r "matchup_features" packages/easyml-runner/src/`
+Run: `grep -r "matchup_features" packages/harnessml-runner/src/`
 Expected: Zero matches (all moved to config)
 
 **Step 3: Commit any stragglers**

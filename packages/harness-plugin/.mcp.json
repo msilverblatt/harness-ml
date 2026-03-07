@@ -1,0 +1,7 @@
+{
+  "harnessml": {
+    "command": "uv",
+    "args": ["run", "python", "-m", "harnessml.plugin.mcp_server"],
+    "cwd": "${CLAUDE_PLUGIN_ROOT}/../.."
+  }
+}

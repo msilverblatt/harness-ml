@@ -11,7 +11,7 @@ it from working generically end-to-end:
 2. **Missing schema fields**: `team_features_path` used in pipeline.py but absent
    from DataConfig.
 3. **Disconnected source registry**: `SourceRegistry`/`RefreshOrchestrator` in
-   easyml-data exist but aren't wired to the ingest pipeline.
+   harnessml-data exist but aren't wired to the ingest pipeline.
 4. **Domain-specific hardcodes**: Profiler, pipeline runner, and join key detection
    all have March Madness-specific column names and logic baked in.
 5. **Path hardcodes**: `config_writer.py`, `data_ingest.py`, and `stage_guards.py`

@@ -19,8 +19,8 @@
 ### Task 1: Pipeline prediction storage for multiclass
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py`
-- Test: `packages/easyml-core/tests/runner/test_pipeline_multiclass.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py`
+- Test: `packages/harness-core/tests/runner/test_pipeline_multiclass.py`
 
 **Problem:** Line ~1192 does `preds_df[f"prob_{model_name}"] = probs`. For multiclass, `probs` is shape `(n_samples, n_classes)` — can't assign a 2D array to a single DataFrame column.
 
@@ -47,8 +47,8 @@
 ### Task 2: Multiclass ensemble (average method)
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py`
-- Test: `packages/easyml-core/tests/runner/test_pipeline_multiclass.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py`
+- Test: `packages/harness-core/tests/runner/test_pipeline_multiclass.py`
 
 **Problem:** The ensemble path (lines ~878-891) does `prob_cols.mean(axis=1)` which averages across all `prob_*` columns. For multiclass, we need to average per-class probabilities across models, then produce `prob_ensemble_c0`, `prob_ensemble_c1`, etc.
 
@@ -74,9 +74,9 @@
 ### Task 3: Multiclass stacked meta-learner
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/meta_learner.py`
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py`
-- Test: `packages/easyml-core/tests/runner/test_meta_learner_multiclass.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/meta_learner.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py`
+- Test: `packages/harness-core/tests/runner/test_meta_learner_multiclass.py`
 
 **Problem:** `train_meta_learner_loso` uses binary logistic regression. For multiclass, needs multinomial.
 
@@ -104,9 +104,9 @@
 ### Task 4: Multiclass metrics routing
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py` (`_compute_backtest_metrics`)
-- Modify: `packages/easyml-core/src/easyml/core/runner/diagnostics.py`
-- Test: `packages/easyml-core/tests/runner/test_pipeline_multiclass.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py` (`_compute_backtest_metrics`)
+- Modify: `packages/harness-core/src/harnessml/core/runner/diagnostics.py`
+- Test: `packages/harness-core/tests/runner/test_pipeline_multiclass.py`
 
 **Problem:** `_compute_backtest_metrics` (line ~1336-1338) builds `per_fold_data` with `"y"` and `"preds"` assuming binary (1D arrays). `BacktestRunner` and diagnostics functions compute binary metrics (brier, ECE).
 
@@ -133,10 +133,10 @@
 ### Task 5: Multiclass diagnostics and reporting
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/diagnostics.py`
-- Modify: `packages/easyml-core/src/easyml/core/runner/reporting.py`
-- Modify: `packages/easyml-core/src/easyml/core/runner/config_writer.py` (`show_diagnostics`)
-- Test: `packages/easyml-core/tests/runner/test_pipeline_multiclass.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/diagnostics.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/reporting.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/config_writer.py` (`show_diagnostics`)
+- Test: `packages/harness-core/tests/runner/test_pipeline_multiclass.py`
 
 **Problem:** `build_pick_log` assumes binary matchup (A vs B). Calibration curves assume binary. `show_diagnostics` assumes binary prob columns.
 
@@ -160,7 +160,7 @@
 ### Task 6: End-to-end integration test
 
 **Files:**
-- Create: `packages/easyml-core/tests/runner/test_multiclass_e2e.py`
+- Create: `packages/harness-core/tests/runner/test_multiclass_e2e.py`
 
 **Design:** Full pipeline test with synthetic 3-class data:
 1. Create a DataFrame with 1000 rows, 10 numeric features, 3-class target, 5 folds

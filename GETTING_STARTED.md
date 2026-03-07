@@ -1,8 +1,8 @@
-# EasyML Getting Started Guide
+# HarnessML Getting Started Guide
 
 **For AI agents conducting iterative ML experimentation without context overhead.**
 
-This guide covers the complete EasyML workflow, from project initialization through Bayesian hyperparameter exploration, with emphasis on sound data science practices.
+This guide covers the complete HarnessML workflow, from project initialization through Bayesian hyperparameter exploration, with emphasis on sound data science practices.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ This guide covers the complete EasyML workflow, from project initialization thro
 
 ## Core Philosophy
 
-EasyML is built specifically for **iterative AI-driven ML** without context overhead. The system automates:
+HarnessML is built specifically for **iterative AI-driven ML** without context overhead. The system automates:
 
 - **File I/O & Caching** — Fingerprinting ensures deterministic results; prediction caching prevents unnecessary retraining
 - **Experiment Tracking** — Every run is logged with metrics, hypothesis, and changes; nothing gets lost
@@ -303,7 +303,7 @@ Returns:
 
 ```bash
 # Via CLI
-easyml init my-project
+harnessml init my-project
 cd my-project
 
 # Or manually
@@ -338,7 +338,7 @@ ensemble:
 ### Step 3: Verify Setup
 
 ```bash
-easyml validate --config config/pipeline.yaml
+harnessml validate --config config/pipeline.yaml
 ```
 
 ---
@@ -990,6 +990,6 @@ experiment_manager.add_do_not_retry(
 ## Further Reading
 
 - [README.md](README.md) — High-level overview
-- [CLAUDE.md](CLAUDE.md) — Developer conventions for EasyML
-- [packages/easyml-runner/README.md](packages/easyml-runner/README.md) — Runner API
-- [packages/easyml-plugin/skills/ml-workflow/SKILL.md](packages/easyml-plugin/skills/ml-workflow/SKILL.md) — MCP tool guide
+- [CLAUDE.md](CLAUDE.md) — Developer conventions for HarnessML
+- [packages/harness-runner/README.md](packages/harness-runner/README.md) — Runner API
+- [packages/harness-plugin/skills/ml-workflow/SKILL.md](packages/harness-plugin/skills/ml-workflow/SKILL.md) — MCP tool guide

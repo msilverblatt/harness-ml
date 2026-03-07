@@ -6,7 +6,7 @@
 
 **Architecture:** New `FeatureStore` class orchestrates feature lifecycle (declare → compute → cache → resolve). Features declare their semantic type; types drive computation rules. Team features auto-generate pairwise variants via the existing `PairwiseFeatureBuilder`. The store wraps the current `features.parquet` for backward compatibility while adding type-aware management on top.
 
-**Tech Stack:** Python 3.11+, Pydantic v2, pandas, pyarrow, hashlib (SHA-256), existing `PairwiseFeatureBuilder` from `easyml-features`
+**Tech Stack:** Python 3.11+, Pydantic v2, pandas, pyarrow, hashlib (SHA-256), existing `PairwiseFeatureBuilder` from `harnessml-features`
 
 **Design doc:** `docs/plans/2026-03-01-declarative-features-design.md`
 
@@ -15,8 +15,8 @@
 ### Task 1: Add Declarative Feature Schemas
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/schema.py`
-- Test: `packages/easyml-runner/tests/test_schema.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/schema.py`
+- Test: `packages/harnessml-runner/tests/test_schema.py`
 
 **Context:** The schema file currently has `FeatureDecl` (module+function based), `DataConfig`, `ModelDef` with `feature_sets: list[str]`, and various other configs. We're adding the new declarative types alongside the existing ones (not replacing).
 
@@ -29,21 +29,21 @@ class TestDeclarativeFeatureSchemas:
     """Test new declarative feature type schemas."""
 
     def test_feature_type_enum(self):
-        from easyml.runner.schema import FeatureType
+        from harnessml.runner.schema import FeatureType
         assert FeatureType.TEAM == "team"
         assert FeatureType.PAIRWISE == "pairwise"
         assert FeatureType.MATCHUP == "matchup"
         assert FeatureType.REGIME == "regime"
 
     def test_pairwise_mode_enum(self):
-        from easyml.runner.schema import PairwiseMode
+        from harnessml.runner.schema import PairwiseMode
         assert PairwiseMode.DIFF == "diff"
         assert PairwiseMode.RATIO == "ratio"
         assert PairwiseMode.BOTH == "both"
         assert PairwiseMode.NONE == "none"
 
     def test_feature_def_minimal(self):
-        from easyml.runner.schema import FeatureDef, FeatureType
+        from harnessml.runner.schema import FeatureDef, FeatureType
         fd = FeatureDef(name="adj_em", type=FeatureType.TEAM)
         assert fd.name == "adj_em"
         assert fd.type == FeatureType.TEAM
@@ -51,7 +51,7 @@ class TestDeclarativeFeatureSchemas:
         assert fd.enabled is True
 
     def test_feature_def_full(self):
-        from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+        from harnessml.runner.schema import FeatureDef, FeatureType, PairwiseMode
         fd = FeatureDef(
             name="adj_em",
             type=FeatureType.TEAM,
@@ -68,7 +68,7 @@ class TestDeclarativeFeatureSchemas:
         assert fd.category == "efficiency"
 
     def test_feature_def_regime(self):
-        from easyml.runner.schema import FeatureDef, FeatureType
+        from harnessml.runner.schema import FeatureDef, FeatureType
         fd = FeatureDef(
             name="late_season",
             type=FeatureType.REGIME,
@@ -78,7 +78,7 @@ class TestDeclarativeFeatureSchemas:
         assert fd.type == FeatureType.REGIME
 
     def test_feature_def_formula(self):
-        from easyml.runner.schema import FeatureDef, FeatureType
+        from harnessml.runner.schema import FeatureDef, FeatureType
         fd = FeatureDef(
             name="em_tempo",
             type=FeatureType.PAIRWISE,
@@ -87,7 +87,7 @@ class TestDeclarativeFeatureSchemas:
         assert fd.formula == "diff_adj_em * diff_adj_tempo"
 
     def test_feature_store_config_defaults(self):
-        from easyml.runner.schema import FeatureStoreConfig
+        from harnessml.runner.schema import FeatureStoreConfig
         fsc = FeatureStoreConfig()
         assert fsc.cache_dir == "data/features/cache"
         assert fsc.auto_pairwise is True
@@ -98,7 +98,7 @@ class TestDeclarativeFeatureSchemas:
         assert fsc.period_column == "period_id"
 
     def test_data_config_feature_store(self):
-        from easyml.runner.schema import DataConfig, FeatureDef, FeatureType
+        from harnessml.runner.schema import DataConfig, FeatureDef, FeatureType
         dc = DataConfig(
             feature_defs={
                 "adj_em": FeatureDef(name="adj_em", type=FeatureType.TEAM, source="kenpom", column="AdjEM"),
@@ -110,7 +110,7 @@ class TestDeclarativeFeatureSchemas:
 
 **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py::TestDeclarativeFeatureSchemas -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py::TestDeclarativeFeatureSchemas -v`
 Expected: FAIL — `FeatureType`, `PairwiseMode`, `FeatureDef`, `FeatureStoreConfig` not defined
 
 **Step 3: Implement schemas**
@@ -181,18 +181,18 @@ Update the `Enum` import at the top of the file — add `from enum import Enum` 
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py::TestDeclarativeFeatureSchemas -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py::TestDeclarativeFeatureSchemas -v`
 Expected: PASS
 
 **Step 5: Verify no existing tests break**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_schema.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_schema.py -v`
 Expected: All tests PASS (new fields have defaults, no existing behavior changes)
 
 **Step 6: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/schema.py packages/easyml-runner/tests/test_schema.py
+git add packages/harnessml-runner/src/harnessml/runner/schema.py packages/harnessml-runner/tests/test_schema.py
 git commit -m "feat(schema): add FeatureType, PairwiseMode, FeatureDef, FeatureStoreConfig for declarative features"
 ```
 
@@ -201,8 +201,8 @@ git commit -m "feat(schema): add FeatureType, PairwiseMode, FeatureDef, FeatureS
 ### Task 2: Create Feature Cache Module
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/feature_cache.py`
-- Create: `packages/easyml-runner/tests/test_feature_cache.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/feature_cache.py`
+- Create: `packages/harnessml-runner/tests/test_feature_cache.py`
 
 **Context:** Content-addressed cache for computed features. Each feature gets a cache key derived from its definition and source data state. The manifest tracks `{feature_name: {cache_key, path, type, derived_from, derivatives}}` for cascade invalidation. Uses separate subdirectories per feature type.
 
@@ -221,7 +221,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.runner.feature_cache import FeatureCache, CacheEntry
+from harnessml.runner.feature_cache import FeatureCache, CacheEntry
 
 
 class TestCacheEntry:
@@ -345,8 +345,8 @@ class TestFeatureCache:
 
 **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_feature_cache.py -v`
-Expected: FAIL — module `easyml.runner.feature_cache` does not exist
+Run: `uv run pytest packages/harnessml-runner/tests/test_feature_cache.py -v`
+Expected: FAIL — module `harnessml.runner.feature_cache` does not exist
 
 **Step 3: Implement FeatureCache**
 
@@ -535,13 +535,13 @@ class FeatureCache:
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_feature_cache.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_feature_cache.py -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/feature_cache.py packages/easyml-runner/tests/test_feature_cache.py
+git add packages/harnessml-runner/src/harnessml/runner/feature_cache.py packages/harnessml-runner/tests/test_feature_cache.py
 git commit -m "feat(runner): add FeatureCache with content-addressed storage and cascade invalidation"
 ```
 
@@ -550,10 +550,10 @@ git commit -m "feat(runner): add FeatureCache with content-addressed storage and
 ### Task 3: Create FeatureStore Core — Team Features with Auto-Pairwise
 
 **Files:**
-- Create: `packages/easyml-runner/src/easyml/runner/feature_store.py`
-- Create: `packages/easyml-runner/tests/test_feature_store.py`
+- Create: `packages/harnessml-runner/src/harnessml/runner/feature_store.py`
+- Create: `packages/harnessml-runner/tests/test_feature_store.py`
 
-**Context:** The FeatureStore is the central orchestrator. This task implements the core: initialization, adding team features, computing pairwise derivatives, and basic resolution. It delegates to `FeatureCache` for caching and uses `PairwiseFeatureBuilder` from `easyml-features` for diff/ratio computation.
+**Context:** The FeatureStore is the central orchestrator. This task implements the core: initialization, adding team features, computing pairwise derivatives, and basic resolution. It delegates to `FeatureCache` for caching and uses `PairwiseFeatureBuilder` from `harnessml-features` for diff/ratio computation.
 
 The store works with two levels of data:
 - **Entity-level**: Per-team per-period data loaded from sources (team features live here)
@@ -579,8 +579,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from easyml.runner.feature_store import FeatureStore
-from easyml.runner.schema import (
+from harnessml.runner.feature_store import FeatureStore
+from harnessml.runner.schema import (
     DataConfig,
     FeatureDef,
     FeatureStoreConfig,
@@ -966,8 +966,8 @@ class TestRemoveFeature:
 
 **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_feature_store.py -v`
-Expected: FAIL — module `easyml.runner.feature_store` does not exist
+Run: `uv run pytest packages/harnessml-runner/tests/test_feature_store.py -v`
+Expected: FAIL — module `harnessml.runner.feature_store` does not exist
 
 **Step 3: Implement FeatureStore**
 
@@ -991,14 +991,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from easyml.runner.feature_cache import FeatureCache
-from easyml.runner.feature_engine import (
+from harnessml.runner.feature_cache import FeatureCache
+from harnessml.runner.feature_engine import (
     FeatureResult,
     _check_redundancy,
     _compute_feature_stats,
     _resolve_formula,
 )
-from easyml.runner.schema import (
+from harnessml.runner.schema import (
     DataConfig,
     FeatureDef,
     FeatureStoreConfig,
@@ -1046,7 +1046,7 @@ class FeatureStore:
     def _load_matchup_data(self) -> pd.DataFrame:
         """Load matchup-level data from features.parquet."""
         if self._matchup_df is None:
-            from easyml.runner.data_utils import get_features_path
+            from harnessml.runner.data_utils import get_features_path
             path = get_features_path(self.project_dir, self.config)
             if path.exists():
                 self._matchup_df = pd.read_parquet(path)
@@ -1641,18 +1641,18 @@ class FeatureStore:
 
 **Step 4: Run tests to verify they pass**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_feature_store.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_feature_store.py -v`
 Expected: PASS
 
 **Step 5: Run full test suite to verify no regressions**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: All existing tests PASS
 
 **Step 6: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/feature_store.py packages/easyml-runner/tests/test_feature_store.py
+git add packages/harnessml-runner/src/harnessml/runner/feature_store.py packages/harnessml-runner/tests/test_feature_store.py
 git commit -m "feat(runner): add FeatureStore with team/pairwise/matchup/regime features and auto-derivation"
 ```
 
@@ -1661,8 +1661,8 @@ git commit -m "feat(runner): add FeatureStore with team/pairwise/matchup/regime 
 ### Task 4: Update MCP Tools to Use FeatureStore
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/config_writer.py` (lines ~467-498, ~332-361)
-- Modify: `packages/easyml-runner/tests/test_project.py` (or create new test)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/config_writer.py` (lines ~467-498, ~332-361)
+- Modify: `packages/harnessml-runner/tests/test_project.py` (or create new test)
 
 **Context:** The `add_feature()` MCP tool currently only accepts `(name, formula)` and delegates to `feature_engine.create_feature()`. We need to add `type`, `source`, `column`, `condition`, `pairwise_mode`, and `category` parameters. When `type` is specified, use the `FeatureStore`. When only `formula` is provided (no `type`), fall back to the existing formula path for backward compatibility.
 
@@ -1678,7 +1678,7 @@ class TestMCPAddFeatureDeclarative:
 
     def test_add_feature_backward_compat(self, tmp_path):
         """Formula-only call still works (no type= param)."""
-        from easyml.runner.config_writer import add_feature
+        from harnessml.runner.config_writer import add_feature
         feat_dir = tmp_path / "data" / "features"
         feat_dir.mkdir(parents=True)
         _make_features_parquet(feat_dir / "features.parquet")
@@ -1689,7 +1689,7 @@ class TestMCPAddFeatureDeclarative:
 
     def test_add_feature_with_type_team(self, tmp_path):
         """add_feature with type='team' uses FeatureStore."""
-        from easyml.runner.config_writer import add_feature
+        from harnessml.runner.config_writer import add_feature
         _setup_project_with_sources(tmp_path)
 
         result = add_feature(
@@ -1701,7 +1701,7 @@ class TestMCPAddFeatureDeclarative:
 
     def test_add_feature_with_type_regime(self, tmp_path):
         """add_feature with type='regime' creates boolean feature."""
-        from easyml.runner.config_writer import add_feature
+        from harnessml.runner.config_writer import add_feature
         _setup_project_with_sources(tmp_path)
 
         result = add_feature(
@@ -1713,7 +1713,7 @@ class TestMCPAddFeatureDeclarative:
 
 **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_project.py::TestMCPAddFeatureDeclarative -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_project.py::TestMCPAddFeatureDeclarative -v`
 Expected: FAIL — `add_feature` doesn't accept `type` parameter
 
 **Step 3: Update add_feature in config_writer.py**
@@ -1743,9 +1743,9 @@ def add_feature(
 
     if type is not None:
         # Declarative path
-        from easyml.runner.feature_store import FeatureStore
-        from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode
-        from easyml.runner.data_utils import load_data_config
+        from harnessml.runner.feature_store import FeatureStore
+        from harnessml.runner.schema import FeatureDef, FeatureType, PairwiseMode
+        from harnessml.runner.data_utils import load_data_config
 
         config = load_data_config(project_dir)
         store = FeatureStore(project_dir, config)
@@ -1806,7 +1806,7 @@ def add_feature(
         # Backward-compatible formula path
         if formula is None:
             raise ValueError("Either type= or formula= must be provided.")
-        from easyml.runner.feature_engine import create_feature
+        from harnessml.runner.feature_engine import create_feature
 
         result = create_feature(
             project_dir=project_dir,
@@ -1819,7 +1819,7 @@ def add_feature(
 
 **Step 4: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_project.py::TestMCPAddFeatureDeclarative -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_project.py::TestMCPAddFeatureDeclarative -v`
 Expected: PASS
 
 **Step 5: Update available_features to show types**
@@ -1837,8 +1837,8 @@ def available_features(
     If the project uses the declarative feature store, shows features
     grouped by type. Otherwise falls back to column listing.
     """
-    from easyml.runner.data_utils import get_features_path, load_data_config
-    from easyml.runner.schema import DataConfig
+    from harnessml.runner.data_utils import get_features_path, load_data_config
+    from harnessml.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
     try:
@@ -1850,8 +1850,8 @@ def available_features(
 
     # Check for declarative feature store
     if config.feature_defs:
-        from easyml.runner.feature_store import FeatureStore
-        from easyml.runner.schema import FeatureType
+        from harnessml.runner.feature_store import FeatureStore
+        from harnessml.runner.schema import FeatureType
 
         store = FeatureStore(project_dir, config)
         ft = FeatureType(type_filter) if type_filter else None
@@ -1895,13 +1895,13 @@ def available_features(
 
 **Step 6: Run full test suite**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: All tests PASS
 
 **Step 7: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/config_writer.py packages/easyml-runner/tests/
+git add packages/harnessml-runner/src/harnessml/runner/config_writer.py packages/harnessml-runner/tests/
 git commit -m "feat(runner): update add_feature and available_features MCP tools for declarative features"
 ```
 
@@ -1910,7 +1910,7 @@ git commit -m "feat(runner): update add_feature and available_features MCP tools
 ### Task 5: Update MCP Server Tool Definitions
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/mcp_tools.py` (or wherever MCP tool definitions are registered)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/mcp_tools.py` (or wherever MCP tool definitions are registered)
 
 **Context:** The MCP server exposes tools to the AI. The `add_feature` tool definition needs updated parameters to include `type`, `source`, `column`, `condition`, `pairwise_mode`, `category`. The `available_features` tool needs a `type_filter` parameter. Check the actual MCP tool registration file for the exact location.
 
@@ -1936,13 +1936,13 @@ Add optional `type_filter: str | None` parameter.
 
 **Step 4: Test the MCP tool definitions parse correctly**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v -k "mcp or tool"`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v -k "mcp or tool"`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/
+git add packages/harnessml-runner/src/harnessml/runner/
 git commit -m "feat(runner): update MCP tool definitions for declarative feature parameters"
 ```
 
@@ -1951,8 +1951,8 @@ git commit -m "feat(runner): update MCP tool definitions for declarative feature
 ### Task 6: Wire FeatureStore into Pipeline Runner
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/pipeline.py` (focus on `_load_data()` and `predict()`)
-- Modify: `packages/easyml-runner/tests/test_mm_integration.py`
+- Modify: `packages/harnessml-runner/src/harnessml/runner/pipeline.py` (focus on `_load_data()` and `predict()`)
+- Modify: `packages/harnessml-runner/tests/test_mm_integration.py`
 
 **Context:** The pipeline runner currently loads features from a single parquet via `get_features_path()`. When the project has `feature_defs` configured, the runner should use `FeatureStore.resolve()` to compute and assemble features for model training. This also enables `ModelDef.feature_sets` which references category names.
 
@@ -1971,7 +1971,7 @@ def test_pipeline_with_feature_store(tmp_path):
     # Set up project with entity-level source and matchup data
     _setup_project_with_declarative_features(tmp_path)
 
-    from easyml.runner.pipeline import PipelineRunner
+    from harnessml.runner.pipeline import PipelineRunner
     runner = PipelineRunner(tmp_path)
     runner.load()
 
@@ -1981,7 +1981,7 @@ def test_pipeline_with_feature_store(tmp_path):
 
 **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_mm_integration.py::test_pipeline_with_feature_store -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_mm_integration.py::test_pipeline_with_feature_store -v`
 Expected: FAIL
 
 **Step 3: Modify `_load_data()` in pipeline.py**
@@ -1991,7 +1991,7 @@ In the `_load_data()` method, after loading the parquet and before applying inje
 ```python
 # If declarative features are configured, compute them via FeatureStore
 if self.config.data.feature_defs:
-    from easyml.runner.feature_store import FeatureStore
+    from harnessml.runner.feature_store import FeatureStore
 
     store = FeatureStore(self.project_dir, self.config.data)
 
@@ -2011,13 +2011,13 @@ if self.config.data.feature_defs:
 
 **Step 4: Run tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-runner/src/easyml/runner/pipeline.py packages/easyml-runner/tests/
+git add packages/harnessml-runner/src/harnessml/runner/pipeline.py packages/harnessml-runner/tests/
 git commit -m "feat(runner): wire FeatureStore into PipelineRunner for declarative feature loading"
 ```
 
@@ -2026,7 +2026,7 @@ git commit -m "feat(runner): wire FeatureStore into PipelineRunner for declarati
 ### Task 7: Integration Test — Full Declarative Feature Workflow
 
 **Files:**
-- Create: `packages/easyml-runner/tests/test_declarative_features_integration.py`
+- Create: `packages/harnessml-runner/tests/test_declarative_features_integration.py`
 
 **Context:** End-to-end test that exercises the full workflow: configure sources, add features of all four types via the MCP tool interface, verify auto-pairwise generation, resolve feature sets, and verify caching.
 
@@ -2043,9 +2043,9 @@ import pandas as pd
 import pytest
 import yaml
 
-from easyml.runner.config_writer import add_feature, available_features
-from easyml.runner.feature_store import FeatureStore
-from easyml.runner.schema import (
+from harnessml.runner.config_writer import add_feature, available_features
+from harnessml.runner.feature_store import FeatureStore
+from harnessml.runner.schema import (
     DataConfig,
     FeatureDef,
     FeatureStoreConfig,
@@ -2319,18 +2319,18 @@ class TestFullWorkflow:
 
 **Step 2: Run integration tests**
 
-Run: `uv run pytest packages/easyml-runner/tests/test_declarative_features_integration.py -v`
+Run: `uv run pytest packages/harnessml-runner/tests/test_declarative_features_integration.py -v`
 Expected: PASS
 
 **Step 3: Run full suite**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: All PASS
 
 **Step 4: Commit**
 
 ```bash
-git add packages/easyml-runner/tests/test_declarative_features_integration.py
+git add packages/harnessml-runner/tests/test_declarative_features_integration.py
 git commit -m "test(runner): add integration tests for declarative feature system"
 ```
 
@@ -2339,12 +2339,12 @@ git commit -m "test(runner): add integration tests for declarative feature syste
 ### Task 8: Final Verification and Cleanup
 
 **Files:**
-- Modify: `packages/easyml-runner/src/easyml/runner/__init__.py` (if exports needed)
+- Modify: `packages/harnessml-runner/src/harnessml/runner/__init__.py` (if exports needed)
 - Review: All modified files
 
 **Step 1: Run the full test suite**
 
-Run: `uv run pytest packages/easyml-runner/tests/ -v`
+Run: `uv run pytest packages/harnessml-runner/tests/ -v`
 Expected: All tests PASS with 0 failures
 
 **Step 2: Run the broader project tests**
@@ -2357,14 +2357,14 @@ Expected: All tests PASS
 Ensure `FeatureStore`, `FeatureCache`, `FeatureDef`, `FeatureType`, `PairwiseMode`, `FeatureStoreConfig` are importable:
 
 ```python
-from easyml.runner.feature_store import FeatureStore
-from easyml.runner.feature_cache import FeatureCache
-from easyml.runner.schema import FeatureDef, FeatureType, PairwiseMode, FeatureStoreConfig
+from harnessml.runner.feature_store import FeatureStore
+from harnessml.runner.feature_cache import FeatureCache
+from harnessml.runner.schema import FeatureDef, FeatureType, PairwiseMode, FeatureStoreConfig
 ```
 
 **Step 4: Verify MCP tool works end-to-end**
 
-Test that the EasyML MCP server can expose the updated tools by checking the tool definitions parse correctly.
+Test that the HarnessML MCP server can expose the updated tools by checking the tool definitions parse correctly.
 
 **Step 5: Commit any remaining changes**
 

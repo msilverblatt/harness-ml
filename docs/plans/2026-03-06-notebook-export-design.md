@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add notebook generation and cloud upload capabilities to easyml, enabling users
+Add notebook generation and cloud upload capabilities to harnessml, enabling users
 to export their pipeline as a Jupyter notebook and optionally upload data/notebooks
 to Google Drive or Kaggle.
 
@@ -10,16 +10,16 @@ to Google Drive or Kaggle.
 
 ### 1. Notebook Builder (`core/runner/notebook.py`)
 
-Generates a `.ipynb` from a project config. The notebook mirrors the easyml
-pipeline (not standalone code) — it imports easyml-core and runs the same
+Generates a `.ipynb` from a project config. The notebook mirrors the harnessml
+pipeline (not standalone code) — it imports harness-core and runs the same
 stages.
 
 **Destination parameter** controls platform-specific cells:
 
 | Destination | Data loading | Install cell | Output paths |
 |-------------|-------------|--------------|--------------|
-| `colab` | `drive.mount()` + Drive paths | `!pip install easyml-core` | `/content/drive/...` |
-| `kaggle` | `/kaggle/input/<dataset>/` | `!pip install -q easyml-core` | `/kaggle/working/` |
+| `colab` | `drive.mount()` + Drive paths | `!pip install harness-core` | `/content/drive/...` |
+| `kaggle` | `/kaggle/input/<dataset>/` | `!pip install -q harness-core` | `/kaggle/working/` |
 | `local` | Local filesystem paths | None (assumes installed) | Project directory |
 
 **Notebook structure (cells):**
@@ -90,7 +90,7 @@ Handles Kaggle operations via `kaggle` CLI/API.
 
 ### Google Drive
 1. First call triggers OAuth browser flow
-2. Token cached at `<project_dir>/.easyml/drive_token.json`
+2. Token cached at `<project_dir>/.harnessml/drive_token.json`
 3. Subsequent calls reuse cached token (auto-refresh)
 4. User needs a Google Cloud project with Drive API enabled + OAuth client ID
 
@@ -111,7 +111,7 @@ uploading, or upload without generating a notebook.
 ## File Layout
 
 ```
-packages/easyml-core/src/easyml/core/runner/
+packages/harness-core/src/harnessml/core/runner/
   notebook.py          # Notebook generation
   drives/
     drive.py           # Google Drive adapter

@@ -1,10 +1,10 @@
-# EasyML v2 Refactor Implementation Plan
+# HarnessML v2 Refactor Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Consolidate 8 packages into 3 (core, plugin, sports), extract domain-specific code, add general-purpose feature engineering, comprehensive metrics, data source management, and MCP optimizations.
 
-**Architecture:** easyml-core (general engine), easyml-plugin (MCP thin dispatcher with hot-reload), easyml-sports (optional matchup domain plugin). Core exposes extension hooks; plugins register implementations.
+**Architecture:** harness-core (general engine), harness-plugin (MCP thin dispatcher with hot-reload), harness-sports (optional matchup domain plugin). Core exposes extension hooks; plugins register implementations.
 
 **Tech Stack:** Python 3.11+, uv workspace, Pydantic v2, OmegaConf, FastMCP (async), Pandera (optional), shap (optional), matplotlib (optional)
 
@@ -16,19 +16,19 @@
 
 ## Phase 1: Package Consolidation
 
-**Goal:** Merge 5 packages (schemas, config, guardrails, models, experiments) into easyml-core alongside the runner. Delete 3 dead packages (features, data, config). All existing tests pass under new import paths.
+**Goal:** Merge 5 packages (schemas, config, guardrails, models, experiments) into harness-core alongside the runner. Delete 3 dead packages (features, data, config). All existing tests pass under new import paths.
 
-### Task 1.1: Create easyml-core package skeleton
+### Task 1.1: Create harness-core package skeleton
 
 **Files:**
-- Create: `packages/easyml-core/pyproject.toml`
-- Create: `packages/easyml-core/src/easyml/core/__init__.py`
+- Create: `packages/harness-core/pyproject.toml`
+- Create: `packages/harness-core/src/harnessml/core/__init__.py`
 
 **Step 1: Create pyproject.toml**
 
 ```toml
 [project]
-name = "easyml-core"
+name = "harness-core"
 version = "0.1.0"
 description = "General-purpose agentic ML framework"
 requires-python = ">=3.11"
@@ -54,7 +54,7 @@ shap = ["shap>=0.42"]
 viz = ["matplotlib>=3.7"]
 quality = ["pandera>=0.17"]
 all = [
-    "easyml-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality]",
+    "harness-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality]",
 ]
 
 [build-system]
@@ -62,56 +62,56 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/easyml"]
+packages = ["src/harnessml"]
 ```
 
 **Step 2: Create namespace __init__.py**
 
 ```python
-# packages/easyml-core/src/easyml/core/__init__.py
-"""EasyML Core — general-purpose agentic ML framework."""
+# packages/harness-core/src/harnessml/core/__init__.py
+"""HarnessML Core — general-purpose agentic ML framework."""
 ```
 
 **Step 3: Create subdirectory structure**
 
 Run:
 ```bash
-mkdir -p packages/easyml-core/src/easyml/core/{schemas,config,guardrails,models,models/wrappers,runner,runner/sources,feature_eng}
-mkdir -p packages/easyml-core/tests
+mkdir -p packages/harness-core/src/harnessml/core/{schemas,config,guardrails,models,models/wrappers,runner,runner/sources,feature_eng}
+mkdir -p packages/harness-core/tests
 ```
 
 **Step 4: Commit**
 
 ```bash
-git add packages/easyml-core/
-git commit -m "feat: create easyml-core package skeleton"
+git add packages/harness-core/
+git commit -m "feat: create harness-core package skeleton"
 ```
 
 ---
 
-### Task 1.2: Move easyml-schemas into easyml-core/schemas
+### Task 1.2: Move harnessml-schemas into harness-core/schemas
 
 **Files:**
-- Move: `packages/easyml-schemas/src/easyml/schemas/core.py` → `packages/easyml-core/src/easyml/core/schemas/contracts.py`
-- Move: `packages/easyml-schemas/src/easyml/schemas/metrics.py` → `packages/easyml-core/src/easyml/core/schemas/metrics.py`
-- Create: `packages/easyml-core/src/easyml/core/schemas/__init__.py`
-- Move: `packages/easyml-schemas/tests/` → `packages/easyml-core/tests/schemas/`
+- Move: `packages/harnessml-schemas/src/harnessml/schemas/core.py` → `packages/harness-core/src/harnessml/core/schemas/contracts.py`
+- Move: `packages/harnessml-schemas/src/harnessml/schemas/metrics.py` → `packages/harness-core/src/harnessml/core/schemas/metrics.py`
+- Create: `packages/harness-core/src/harnessml/core/schemas/__init__.py`
+- Move: `packages/harnessml-schemas/tests/` → `packages/harness-core/tests/schemas/`
 
 **Step 1: Copy files**
 
 ```bash
-cp packages/easyml-schemas/src/easyml/schemas/core.py packages/easyml-core/src/easyml/core/schemas/contracts.py
-cp packages/easyml-schemas/src/easyml/schemas/metrics.py packages/easyml-core/src/easyml/core/schemas/metrics.py
-cp -r packages/easyml-schemas/tests/ packages/easyml-core/tests/schemas/
+cp packages/harnessml-schemas/src/harnessml/schemas/core.py packages/harness-core/src/harnessml/core/schemas/contracts.py
+cp packages/harnessml-schemas/src/harnessml/schemas/metrics.py packages/harness-core/src/harnessml/core/schemas/metrics.py
+cp -r packages/harnessml-schemas/tests/ packages/harness-core/tests/schemas/
 ```
 
 **Step 2: Create __init__.py that re-exports everything**
 
 ```python
-# packages/easyml-core/src/easyml/core/schemas/__init__.py
+# packages/harness-core/src/harnessml/core/schemas/__init__.py
 """Shared Pydantic contracts and metric functions."""
-from easyml.core.schemas.contracts import *  # noqa: F401,F403
-from easyml.core.schemas.metrics import *    # noqa: F401,F403
+from harnessml.core.schemas.contracts import *  # noqa: F401,F403
+from harnessml.core.schemas.metrics import *    # noqa: F401,F403
 ```
 
 **Step 3: Create backward-compat shim at old import path**
@@ -119,15 +119,15 @@ from easyml.core.schemas.metrics import *    # noqa: F401,F403
 To avoid breaking everything at once, create a shim that re-exports from the new location. This will be removed at the end of Phase 1.
 
 ```python
-# packages/easyml-schemas/src/easyml/schemas/__init__.py (TEMPORARY)
+# packages/harnessml-schemas/src/harnessml/schemas/__init__.py (TEMPORARY)
 # Backward-compat shim — will be removed after all imports are updated
-from easyml.core.schemas import *  # noqa: F401,F403
+from harnessml.core.schemas import *  # noqa: F401,F403
 ```
 
 **Step 4: Run existing tests**
 
 ```bash
-uv run pytest packages/easyml-core/tests/schemas/ -v
+uv run pytest packages/harness-core/tests/schemas/ -v
 ```
 
 Expected: PASS (tests use the types, which are now in the new location)
@@ -135,104 +135,104 @@ Expected: PASS (tests use the types, which are now in the new location)
 **Step 5: Commit**
 
 ```bash
-git add packages/easyml-core/src/easyml/core/schemas/ packages/easyml-core/tests/schemas/
-git commit -m "feat: move easyml-schemas into easyml-core/schemas"
+git add packages/harness-core/src/harnessml/core/schemas/ packages/harness-core/tests/schemas/
+git commit -m "feat: move harnessml-schemas into harness-core/schemas"
 ```
 
 ---
 
-### Task 1.3: Move easyml-config into easyml-core/config
+### Task 1.3: Move harnessml-config into harness-core/config
 
 **Files:**
-- Move: `packages/easyml-config/src/easyml/config/merge.py` → `packages/easyml-core/src/easyml/core/config/merge.py`
-- Move: `packages/easyml-config/src/easyml/config/loader.py` → `packages/easyml-core/src/easyml/core/config/loader.py`
-- Move: `packages/easyml-config/src/easyml/config/resolver.py` → `packages/easyml-core/src/easyml/core/config/resolver.py`
-- Create: `packages/easyml-core/src/easyml/core/config/__init__.py`
+- Move: `packages/harnessml-config/src/harnessml/config/merge.py` → `packages/harness-core/src/harnessml/core/config/merge.py`
+- Move: `packages/harnessml-config/src/harnessml/config/loader.py` → `packages/harness-core/src/harnessml/core/config/loader.py`
+- Move: `packages/harnessml-config/src/harnessml/config/resolver.py` → `packages/harness-core/src/harnessml/core/config/resolver.py`
+- Create: `packages/harness-core/src/harnessml/core/config/__init__.py`
 - Move tests
 
 **Follow the same pattern as Task 1.2:** Copy files, create __init__.py with re-exports, add backward-compat shim, run tests, commit.
 
-Internal imports within config (e.g., resolver.py imports from merge.py) must be updated to use `easyml.core.config.merge` instead of `easyml.config.merge`.
+Internal imports within config (e.g., resolver.py imports from merge.py) must be updated to use `harnessml.core.config.merge` instead of `harnessml.config.merge`.
 
 ---
 
-### Task 1.4: Move easyml-models into easyml-core/models
+### Task 1.4: Move harnessml-models into harness-core/models
 
 **Files:**
-- Move all files from `packages/easyml-models/src/easyml/models/` → `packages/easyml-core/src/easyml/core/models/`
-- Move `packages/easyml-models/src/easyml/models/wrappers/` → `packages/easyml-core/src/easyml/core/models/wrappers/`
+- Move all files from `packages/harnessml-models/src/harnessml/models/` → `packages/harness-core/src/harnessml/core/models/`
+- Move `packages/harnessml-models/src/harnessml/models/wrappers/` → `packages/harness-core/src/harnessml/core/models/wrappers/`
 - Move tests
 
 **Key imports to update inside the models package:**
-- `wrappers/*.py`: `from easyml.models.base import BaseModel` → `from easyml.core.models.base import BaseModel`
-- `registry.py`: `from easyml.models.base` → `from easyml.core.models.base`
-- `cv.py`: `from easyml.schemas.core import Fold` → `from easyml.core.schemas.contracts import Fold`
+- `wrappers/*.py`: `from harnessml.models.base import BaseModel` → `from harnessml.core.models.base import BaseModel`
+- `registry.py`: `from harnessml.models.base` → `from harnessml.core.models.base`
+- `cv.py`: `from harnessml.schemas.core import Fold` → `from harnessml.core.schemas.contracts import Fold`
 
 Add backward-compat shim at old path. Run tests. Commit.
 
 ---
 
-### Task 1.5: Move easyml-experiments into easyml-core (inline into runner)
+### Task 1.5: Move harnessml-experiments into harness-core (inline into runner)
 
 The experiments package is 3 files (~200 LOC). Rather than creating a separate `experiments/` directory, merge its functionality into the runner since that's where experiments are actually orchestrated.
 
 **Files:**
-- `packages/easyml-experiments/src/easyml/experiments/manager.py` → `packages/easyml-core/src/easyml/core/runner/experiment.py` (merge with existing `experiment.py` in runner)
+- `packages/harnessml-experiments/src/harnessml/experiments/manager.py` → `packages/harness-core/src/harnessml/core/runner/experiment.py` (merge with existing `experiment.py` in runner)
 
 **Note:** The runner already has `experiment.py` with CLI-level experiment logic. The experiments package has `ExperimentManager` with create/detect/log/promote. These should be unified into one file.
 
 **Step 1: Read both files and merge** — the runner's experiment.py likely already duplicates most of the ExperimentManager logic. Keep the most complete version.
 
-**Step 2: Update imports from `easyml.experiments` → `easyml.core.runner.experiment`**
+**Step 2: Update imports from `harnessml.experiments` → `harnessml.core.runner.experiment`**
 
 **Step 3: Add backward-compat shim. Run tests. Commit.**
 
 ---
 
-### Task 1.6: Move easyml-guardrails into easyml-core/guardrails
+### Task 1.6: Move harnessml-guardrails into harness-core/guardrails
 
 **Files:**
-- Move all files from `packages/easyml-guardrails/src/easyml/guardrails/` → `packages/easyml-core/src/easyml/core/guardrails/`
+- Move all files from `packages/harnessml-guardrails/src/harnessml/guardrails/` → `packages/harness-core/src/harnessml/core/guardrails/`
 - Move tests
 
 **Key imports to update:**
-- `base.py`: `from easyml.schemas.core import GuardrailViolation` → `from easyml.core.schemas.contracts import GuardrailViolation`
+- `base.py`: `from harnessml.schemas.core import GuardrailViolation` → `from harnessml.core.schemas.contracts import GuardrailViolation`
 - `inventory.py`: update schema imports
 
 Add backward-compat shim. Run tests. Commit.
 
 ---
 
-### Task 1.7: Move easyml-runner into easyml-core/runner
+### Task 1.7: Move harnessml-runner into harness-core/runner
 
-This is the largest move. All files from `packages/easyml-runner/src/easyml/runner/` go to `packages/easyml-core/src/easyml/core/runner/`.
+This is the largest move. All files from `packages/harnessml-runner/src/harnessml/runner/` go to `packages/harness-core/src/harnessml/core/runner/`.
 
 **Step 1: Copy all source files**
 
 ```bash
-cp -r packages/easyml-runner/src/easyml/runner/* packages/easyml-core/src/easyml/core/runner/
-cp -r packages/easyml-runner/tests/* packages/easyml-core/tests/runner/
+cp -r packages/harnessml-runner/src/harnessml/runner/* packages/harness-core/src/harnessml/core/runner/
+cp -r packages/harnessml-runner/tests/* packages/harness-core/tests/runner/
 ```
 
-**Step 2: Mass update imports across ALL files in easyml-core/runner/**
+**Step 2: Mass update imports across ALL files in harness-core/runner/**
 
-Find and replace (in all `.py` files under `packages/easyml-core/src/`):
-- `from easyml.schemas` → `from easyml.core.schemas`
-- `from easyml.config` → `from easyml.core.config`
-- `from easyml.models` → `from easyml.core.models`
-- `from easyml.features` → `from easyml.core.runner` (features package is dead, any remaining refs point to feature_store)
-- `from easyml.data` → `from easyml.core.runner` (data package is dead)
-- `from easyml.experiments` → `from easyml.core.runner.experiment`
-- `from easyml.guardrails` → `from easyml.core.guardrails`
-- `from easyml.runner` → `from easyml.core.runner`
-- `import easyml.runner` → `import easyml.core.runner`
+Find and replace (in all `.py` files under `packages/harness-core/src/`):
+- `from harnessml.schemas` → `from harnessml.core.schemas`
+- `from harnessml.config` → `from harnessml.core.config`
+- `from harnessml.models` → `from harnessml.core.models`
+- `from harnessml.features` → `from harnessml.core.runner` (features package is dead, any remaining refs point to feature_store)
+- `from harnessml.data` → `from harnessml.core.runner` (data package is dead)
+- `from harnessml.experiments` → `from harnessml.core.runner.experiment`
+- `from harnessml.guardrails` → `from harnessml.core.guardrails`
+- `from harnessml.runner` → `from harnessml.core.runner`
+- `import harnessml.runner` → `import harnessml.core.runner`
 
-**Step 3: Update easyml-core pyproject.toml** — remove workspace dependencies on old packages, all code is now local.
+**Step 3: Update harness-core pyproject.toml** — remove workspace dependencies on old packages, all code is now local.
 
 **Step 4: Run full test suite**
 
 ```bash
-uv run pytest packages/easyml-core/tests/ -v
+uv run pytest packages/harness-core/tests/ -v
 ```
 
 Fix any remaining import issues until all tests pass.
@@ -240,34 +240,34 @@ Fix any remaining import issues until all tests pass.
 **Step 5: Commit**
 
 ```bash
-git commit -m "feat: move easyml-runner into easyml-core/runner"
+git commit -m "feat: move harnessml-runner into harness-core/runner"
 ```
 
 ---
 
-### Task 1.8: Update easyml-plugin imports
+### Task 1.8: Update harness-plugin imports
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py`
-- Modify: `packages/easyml-plugin/pyproject.toml`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py`
+- Modify: `packages/harness-plugin/pyproject.toml`
 
 **Step 1: Update pyproject.toml dependency**
 
 ```toml
-dependencies = ["easyml-core", "mcp>=1.0"]
+dependencies = ["harness-core", "mcp>=1.0"]
 ```
 
 **Step 2: Update all imports in mcp_server.py**
 
-The MCP server currently does `from easyml.runner import config_writer as cw` inside each tool function. Update to:
+The MCP server currently does `from harnessml.runner import config_writer as cw` inside each tool function. Update to:
 ```python
-from easyml.core.runner import config_writer as cw
+from harnessml.core.runner import config_writer as cw
 ```
 
 **Step 3: Run MCP server smoke test**
 
 ```bash
-uv run python -c "from easyml.plugin.mcp_server import mcp; print('MCP server loads OK')"
+uv run python -c "from harnessml.plugin.mcp_server import mcp; print('MCP server loads OK')"
 ```
 
 **Step 4: Commit**
@@ -277,27 +277,27 @@ uv run python -c "from easyml.plugin.mcp_server import mcp; print('MCP server lo
 ### Task 1.9: Remove backward-compat shims and delete old packages
 
 **Step 1: Remove shims** from:
-- `packages/easyml-schemas/src/easyml/schemas/__init__.py`
-- `packages/easyml-config/src/easyml/config/__init__.py`
-- `packages/easyml-models/src/easyml/models/__init__.py`
-- `packages/easyml-experiments/src/easyml/experiments/__init__.py`
-- `packages/easyml-guardrails/src/easyml/guardrails/__init__.py`
-- `packages/easyml-runner/src/easyml/runner/__init__.py`
+- `packages/harnessml-schemas/src/harnessml/schemas/__init__.py`
+- `packages/harnessml-config/src/harnessml/config/__init__.py`
+- `packages/harnessml-models/src/harnessml/models/__init__.py`
+- `packages/harnessml-experiments/src/harnessml/experiments/__init__.py`
+- `packages/harnessml-guardrails/src/harnessml/guardrails/__init__.py`
+- `packages/harnessml-runner/src/harnessml/runner/__init__.py`
 
 **Step 2: Delete old packages**
 
 ```bash
-rm -rf packages/easyml-schemas
-rm -rf packages/easyml-config
-rm -rf packages/easyml-features
-rm -rf packages/easyml-data
-rm -rf packages/easyml-models
-rm -rf packages/easyml-experiments
-rm -rf packages/easyml-guardrails
-rm -rf packages/easyml-runner
+rm -rf packages/harnessml-schemas
+rm -rf packages/harnessml-config
+rm -rf packages/harnessml-features
+rm -rf packages/harnessml-data
+rm -rf packages/harnessml-models
+rm -rf packages/harnessml-experiments
+rm -rf packages/harnessml-guardrails
+rm -rf packages/harnessml-runner
 ```
 
-**Step 3: Update root pyproject.toml workspace** to only include easyml-core, easyml-plugin, (and later easyml-sports).
+**Step 3: Update root pyproject.toml workspace** to only include harness-core, harness-plugin, (and later harness-sports).
 
 **Step 4: Run full test suite one final time**
 
@@ -305,7 +305,7 @@ rm -rf packages/easyml-runner
 uv run pytest -v
 ```
 
-All tests must pass with only easyml-core and easyml-plugin.
+All tests must pass with only harness-core and harness-plugin.
 
 **Step 5: Commit**
 
@@ -322,14 +322,14 @@ git commit -m "chore: remove old packages, consolidation complete"
 ### Task 2.1: Create handler dispatch structure
 
 **Files:**
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/__init__.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/models.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/data.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/features.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/experiments.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/config.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py`
-- Create: `packages/easyml-plugin/src/easyml/plugin/handlers/_validation.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/__init__.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/models.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/data.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/features.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/experiments.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/config.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py`
+- Create: `packages/harness-plugin/src/harnessml/plugin/handlers/_validation.py`
 
 **Step 1: Create _validation.py with shared utilities**
 
@@ -364,11 +364,11 @@ import importlib
 import os
 from mcp.server.fastmcp import FastMCP, Context
 
-mcp = FastMCP("easyml")
-_DEV_MODE = os.environ.get("EASYML_DEV", "0") == "1"
+mcp = FastMCP("harnessml")
+_DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
 
 def _load_handler(module_name: str):
-    mod = importlib.import_module(f"easyml.plugin.handlers.{module_name}")
+    mod = importlib.import_module(f"harnessml.plugin.handlers.{module_name}")
     if _DEV_MODE:
         importlib.reload(mod)
     return mod
@@ -385,9 +385,9 @@ async def manage_models(action: str, ctx: Context, ...) -> str:
 ### Task 2.2: Convert tools to async with progress reporting
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py` (all tool defs → `async def`)
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py` (add progress to backtest)
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/experiments.py` (add progress to explore)
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py` (all tool defs → `async def`)
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py` (add progress to backtest)
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/experiments.py` (add progress to explore)
 
 **Step 1:** Change all 6 tool functions from `def` to `async def` and add `ctx: Context` parameter.
 
@@ -402,10 +402,10 @@ async def manage_models(action: str, ctx: Context, ...) -> str:
 ### Task 2.3: Add batch actions
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/models.py` — add `add_batch`, `update_batch`, `remove_batch`, `clone`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/data.py` — add `add_sources_batch`, `fill_nulls_batch`, `add_views_batch`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py` — add `compare_runs`
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/experiments.py` — add `compare`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/models.py` — add `add_batch`, `update_batch`, `remove_batch`, `clone`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/data.py` — add `add_sources_batch`, `fill_nulls_batch`, `add_views_batch`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py` — add `compare_runs`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/experiments.py` — add `compare`
 
 For each batch action:
 1. Accept a JSON array of items
@@ -421,7 +421,7 @@ For each batch action:
 ### Task 2.4: Add response modes
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/mcp_server.py` — add `detail: str | None = None` to pipeline, configure, experiments tool signatures
+- Modify: `packages/harness-plugin/src/harnessml/plugin/mcp_server.py` — add `detail: str | None = None` to pipeline, configure, experiments tool signatures
 - Modify: handlers to respect `detail="summary"|"full"|"metrics"`
 
 **This changes the MCP contract (new parameter) — requires restart.**
@@ -436,7 +436,7 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 ### Task 2.5: Add cross-parameter hints and actionable errors
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/_validation.py` — add hint generators
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/_validation.py` — add hint generators
 - Modify: each handler — add hint collection after successful operations and context to error messages
 
 **Commit.**
@@ -445,18 +445,18 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 
 ## Phase 3: Domain Extraction
 
-**Goal:** Create easyml-sports, move `generate_pairwise_matchups()`, rename seed→prior everywhere, parameterize hardcoded column detection. Fix mm-women.
+**Goal:** Create harness-sports, move `generate_pairwise_matchups()`, rename seed→prior everywhere, parameterize hardcoded column detection. Fix mm-women.
 
-### Task 3.1: Create easyml-sports package
+### Task 3.1: Create harness-sports package
 
 **Files:**
-- Create: `packages/easyml-sports/pyproject.toml`
-- Create: `packages/easyml-sports/src/easyml/sports/__init__.py`
-- Create: `packages/easyml-sports/src/easyml/sports/matchups.py`
-- Create: `packages/easyml-sports/src/easyml/sports/hooks.py`
-- Create: `packages/easyml-sports/tests/`
+- Create: `packages/harness-sports/pyproject.toml`
+- Create: `packages/harness-sports/src/harnessml/sports/__init__.py`
+- Create: `packages/harness-sports/src/harnessml/sports/matchups.py`
+- Create: `packages/harness-sports/src/harnessml/sports/hooks.py`
+- Create: `packages/harness-sports/tests/`
 
-**Step 1:** Move `generate_pairwise_matchups()` (lines 76-190 of runner/matchups.py) to `easyml-sports/matchups.py`. Keep `compute_interactions()` and `predict_all_matchups()` in core (they're generic).
+**Step 1:** Move `generate_pairwise_matchups()` (lines 76-190 of runner/matchups.py) to `harness-sports/matchups.py`. Keep `compute_interactions()` and `predict_all_matchups()` in core (they're generic).
 
 **Step 2:** Create `hooks.py` that registers sports-specific behavior with core extension points (defined in Task 3.3).
 
@@ -466,7 +466,7 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 
 ### Task 3.2: Rename seed→prior throughout core
 
-**Files (all in `packages/easyml-core/src/easyml/core/runner/`):**
+**Files (all in `packages/harness-core/src/harnessml/core/runner/`):**
 - Modify: `schema.py` lines 455-456: `seed_compression` → `prior_compression`, `seed_compression_threshold` → `prior_compression_threshold`
 - Modify: `meta_learner.py` lines 32, 39, 57, 80, 133, 156, 168, 223, 232, 265: `seed_diffs` → `prior_diffs`
 - Modify: `postprocessing.py` lines 64-70, 108-113: `seed_compression` → `prior_compression`
@@ -478,7 +478,7 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 - `seed_compression_threshold` → `prior_compression_threshold`
 - `seed_diffs` → `prior_diffs`
 
-**Step 1:** Run find-and-replace across all `.py` files in easyml-core.
+**Step 1:** Run find-and-replace across all `.py` files in harness-core.
 **Step 2:** Update the mm-women pipeline.yaml config to use new names.
 **Step 3:** Run tests. Fix any breakage.
 **Step 4:** Commit.
@@ -488,16 +488,16 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 ### Task 3.3: Define extension hooks in core
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/feature_store.py` — add `_expansion_hooks` class variable and hook registration
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py` — parameterize `_inject_entity()` lines 168-171 to remove hardcoded "TeamA"/"TeamB", add `_provider_injection_hooks`
-- Modify: `packages/easyml-core/src/easyml/core/runner/training.py` — add `_pre_training_hooks`
-- Modify: `packages/easyml-core/src/easyml/core/runner/postprocessing.py` — add `_post_prediction_hooks`
+- Modify: `packages/harness-core/src/harnessml/core/runner/feature_store.py` — add `_expansion_hooks` class variable and hook registration
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py` — parameterize `_inject_entity()` lines 168-171 to remove hardcoded "TeamA"/"TeamB", add `_provider_injection_hooks`
+- Modify: `packages/harness-core/src/harnessml/core/runner/training.py` — add `_pre_training_hooks`
+- Modify: `packages/harness-core/src/harnessml/core/runner/postprocessing.py` — add `_post_prediction_hooks`
 
 **Step 1:** In `pipeline.py:_inject_entity()`, replace the hardcoded fallback chain at lines 168-171 with a configurable list of column name candidates read from config. Default to generic names (`["entity_a", "group_a"]`). The sports plugin will add `["team_a", "TeamA"]` to this list via hook.
 
 **Step 2:** Add hook registration pattern (as described in the design doc Section 3) to feature_store, pipeline, training, and postprocessing.
 
-**Step 3:** In `easyml-sports/hooks.py`, register the sports-specific implementations.
+**Step 3:** In `harness-sports/hooks.py`, register the sports-specific implementations.
 
 **Step 4:** Run tests. Commit.
 
@@ -507,7 +507,7 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 
 **Files:**
 - Modify: `projects/womens-tournament/config/pipeline.yaml` (or wherever mm-women config lives)
-- Ensure easyml-sports is installed as dependency
+- Ensure harness-sports is installed as dependency
 
 **Step 1:** Update pipeline.yaml to use renamed config keys (prior_compression instead of seed_compression).
 **Step 2:** Ensure sports plugin is installed and hooks are registered at project load time.
@@ -523,8 +523,8 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 ### Task 4.1: Add formula functions
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/feature_engine.py` — extend `_SAFE_FUNCTIONS`
-- Create: `packages/easyml-core/tests/runner/test_formula_functions.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/feature_engine.py` — extend `_SAFE_FUNCTIONS`
+- Create: `packages/harness-core/tests/runner/test_formula_functions.py`
 
 **Step 1: Write tests** for each new function (reciprocal, exp, sin_cycle, cos_cycle, zscore, minmax, rank_pct, winsorize, safe_div, pct_of_total, maximum, minimum, where, isnull, expm1, power).
 
@@ -537,8 +537,8 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 ### Task 4.2: Add rolling aggregation functions
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/view_executor.py` — extend rolling step handler
-- Create: `packages/easyml-core/tests/runner/test_rolling_aggs.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/view_executor.py` — extend rolling step handler
+- Create: `packages/harness-core/tests/runner/test_rolling_aggs.py`
 
 **Step 1: Write tests** for: median, skew, kurt, slope, ema, range, cv, pct_change, first, last.
 
@@ -551,9 +551,9 @@ For `configure(action="show", section="models")`: return only the models YAML bl
 ### Task 4.3: Add lag step
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/schema.py` — add LagStep to TransformStep union
-- Modify: `packages/easyml-core/src/easyml/core/runner/view_executor.py` — implement lag executor
-- Create: `packages/easyml-core/tests/runner/test_lag_step.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/schema.py` — add LagStep to TransformStep union
+- Modify: `packages/harness-core/src/harnessml/core/runner/view_executor.py` — implement lag executor
+- Create: `packages/harness-core/tests/runner/test_lag_step.py`
 
 **Schema:**
 ```python
@@ -586,7 +586,7 @@ Each task: add Pydantic model to schema.py, implement executor in view_executor.
 ### Task 4.11: Enhance auto-feature search
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/transformation_tester.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/transformation_tester.py`
 - Modify: handler for `manage_features(action="auto_search")`
 
 Add `search_types` parameter: `["interactions", "lags", "rolling"]`. For each type, systematically generate candidates and rank by marginal lift (correlation or residual-based).
@@ -602,8 +602,8 @@ Add `search_types` parameter: `["interactions", "lags", "rolling"]`. For each ty
 ### Task 5.1: Implement MetricRegistry with task-type dispatch
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/schemas/metrics.py`
-- Create: `packages/easyml-core/tests/schemas/test_metric_registry.py`
+- Modify: `packages/harness-core/src/harnessml/core/schemas/metrics.py`
+- Create: `packages/harness-core/tests/schemas/test_metric_registry.py`
 
 Refactor existing metric functions into a `MetricRegistry` class that auto-selects metrics by task type. Existing metric functions stay as-is; the registry wraps them.
 
@@ -614,8 +614,8 @@ Refactor existing metric functions into a `MetricRegistry` class that auto-selec
 ### Task 5.2: Add binary classification metrics
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/schemas/metrics.py`
-- Create: `packages/easyml-core/tests/schemas/test_binary_metrics.py`
+- Modify: `packages/harness-core/src/harnessml/core/schemas/metrics.py`
+- Create: `packages/harness-core/tests/schemas/test_binary_metrics.py`
 
 Add: precision, recall, mcc, pr_auc, specificity, confusion_matrix, cohen_kappa.
 
@@ -670,8 +670,8 @@ Add: crps, pit_histogram_data, sharpness, coverage_at_level.
 ### Task 5.8: Enhanced calibration
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/calibration.py`
-- Create: `packages/easyml-core/tests/runner/test_calibration_enhanced.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/calibration.py`
+- Create: `packages/harness-core/tests/runner/test_calibration_enhanced.py`
 
 Add: BetaCalibrator, reliability_diagram_data, hosmer_lemeshow_test, calibration_slope_intercept, calibration_decomposition, bootstrap_ci, per_class_calibration.
 
@@ -682,8 +682,8 @@ Add: BetaCalibrator, reliability_diagram_data, hosmer_lemeshow_test, calibration
 ### Task 5.9: SHAP integration
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/diagnostics.py`
-- Create: `packages/easyml-core/tests/runner/test_shap.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/diagnostics.py`
+- Create: `packages/harness-core/tests/runner/test_shap.py`
 
 Add `compute_shap_values()` with optional `shap` import. Methods: auto/tree/kernel/linear.
 
@@ -694,7 +694,7 @@ Add `compute_shap_values()` with optional `shap` import. Methods: auto/tree/kern
 ### Task 5.10: ROC/PR curve data + permutation importance
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/diagnostics.py`
+- Modify: `packages/harness-core/src/harnessml/core/runner/diagnostics.py`
 
 Add: `roc_curve_data()`, `pr_curve_data()`, `permutation_importance()`.
 
@@ -707,7 +707,7 @@ All return structured dicts/arrays (not plots).
 ### Task 5.11: Optional matplotlib rendering
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/viz.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/viz.py`
 
 When `matplotlib` is installed, render: roc_curve.png, pr_curve.png, calibration.png, confusion_matrix.png, shap_summary.png, feature_importance.png.
 
@@ -722,10 +722,10 @@ Exposed via `pipeline(action="diagnostics", render="png", output_dir="./plots/")
 ### Task 5.12: Wire progress reporting into backtest and exploration
 
 **Files:**
-- Modify: `packages/easyml-core/src/easyml/core/runner/pipeline.py` — accept optional progress callback
-- Modify: `packages/easyml-core/src/easyml/core/runner/exploration.py` — accept optional progress callback
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/pipeline.py` — pass `ctx.report_progress` as callback
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/experiments.py` — same
+- Modify: `packages/harness-core/src/harnessml/core/runner/pipeline.py` — accept optional progress callback
+- Modify: `packages/harness-core/src/harnessml/core/runner/exploration.py` — accept optional progress callback
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/pipeline.py` — pass `ctx.report_progress` as callback
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/experiments.py` — same
 
 The core runner methods accept an optional `on_progress: Callable[[int, int, str], None]` parameter. The MCP handlers wrap `ctx.report_progress` into this callback.
 
@@ -740,9 +740,9 @@ The core runner methods accept an optional `on_progress: Callable[[int, int, str
 ### Task 6.1: Create source registry
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/sources/registry.py`
-- Create: `packages/easyml-core/src/easyml/core/runner/sources/__init__.py`
-- Create: `packages/easyml-core/tests/runner/sources/test_registry.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/sources/registry.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/sources/__init__.py`
+- Create: `packages/harness-core/tests/runner/sources/test_registry.py`
 
 Implement `SourceDef` dataclass and `SourceRegistry` with topological ordering (reuse pattern from mm's source_registry.py).
 
@@ -755,8 +755,8 @@ Sources stored in `config/sources.yaml`. State in `config/sources_state.json`.
 ### Task 6.2: Implement freshness tracker
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/sources/freshness.py`
-- Create: `packages/easyml-core/tests/runner/sources/test_freshness.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/sources/freshness.py`
+- Create: `packages/harness-core/tests/runner/sources/test_freshness.py`
 
 `FreshnessTracker`: reads sources_state.json, compares timestamps to refresh_frequency, returns stale sources.
 
@@ -767,8 +767,8 @@ Sources stored in `config/sources.yaml`. State in `config/sources_state.json`.
 ### Task 6.3: Implement schema validation
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/sources/validation.py`
-- Create: `packages/easyml-core/tests/runner/sources/test_validation.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/sources/validation.py`
+- Create: `packages/harness-core/tests/runner/sources/test_validation.py`
 
 Optional Pandera integration. `validate_source(source_def, df)` returns list of violations.
 
@@ -779,8 +779,8 @@ Optional Pandera integration. `validate_source(source_def, df)` returns list of 
 ### Task 6.4: Implement built-in adapters
 
 **Files:**
-- Create: `packages/easyml-core/src/easyml/core/runner/sources/adapters.py`
-- Create: `packages/easyml-core/tests/runner/sources/test_adapters.py`
+- Create: `packages/harness-core/src/harnessml/core/runner/sources/adapters.py`
+- Create: `packages/harness-core/tests/runner/sources/test_adapters.py`
 
 Four adapters: `FileAdapter`, `UrlAdapter`, `ApiAdapter`, `ComputedAdapter`.
 
@@ -791,7 +791,7 @@ Four adapters: `FileAdapter`, `UrlAdapter`, `ApiAdapter`, `ComputedAdapter`.
 ### Task 6.5: Wire MCP actions
 
 **Files:**
-- Modify: `packages/easyml-plugin/src/easyml/plugin/handlers/data.py`
+- Modify: `packages/harness-plugin/src/harnessml/plugin/handlers/data.py`
 
 Add actions: `add_source`, `add_sources_batch`, `check_freshness`, `refresh`, `refresh_all`, `validate_source`.
 
