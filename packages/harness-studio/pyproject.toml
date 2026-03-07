@@ -1,0 +1,36 @@
+[project]
+name = "harness-studio"
+version = "0.1.0"
+description = "Companion web dashboard for HarnessML"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Matt Silverblatt-Buser" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "harness-core>=0.1.0,<1.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "aiosqlite>=0.20",
+    "websockets>=12.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/msilverblatt/harness-ml"
+Repository = "https://github.com/msilverblatt/harness-ml"
+
+[project.scripts]
+harness-studio = "harnessml.studio.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harnessml"]
+
+[tool.uv.sources]
+harness-core = { workspace = true }
