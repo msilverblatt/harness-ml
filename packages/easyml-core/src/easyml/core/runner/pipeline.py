@@ -480,6 +480,7 @@ class PipelineRunner:
                         train_df=model_train_df,
                         registry=self._registry,
                         target_column=self.config.data.target_column,
+                        data_config=self.config.data,
                     )
 
                     # Compute fingerprint including upstream dependencies
@@ -584,9 +585,10 @@ class PipelineRunner:
             return pd.DataFrame()
 
         # Build predictions DataFrame
+        target_col = self.config.data.target_column
         preds_df = test_df[[fold_col]].copy()
-        if "result" in test_df.columns:
-            preds_df["result"] = test_df["result"].values
+        if target_col in test_df.columns:
+            preds_df[target_col] = test_df[target_col].values
 
         # Add diff_prior if available
         if "diff_prior" in test_df.columns:
@@ -599,6 +601,12 @@ class PipelineRunner:
         for feat_name in meta_feature_names:
             if feat_name in test_df.columns:
                 preds_df[feat_name] = test_df[feat_name].values
+
+        # Pass through columns needed by logit adjustments
+        for adj in self.config.ensemble.logit_adjustments:
+            for col in adj.columns:
+                if col in test_df.columns and col not in preds_df.columns:
+                    preds_df[col] = test_df[col].values
 
         # Train and predict in wave order (providers before consumers)
         context = ProviderContext(fold_column=fold_col)
@@ -625,6 +633,7 @@ class PipelineRunner:
                         target_fold=fold_value,
                         fold_column=fold_col,
                         target_column=self.config.data.target_column,
+                        data_config=self.config.data,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -677,7 +686,7 @@ class PipelineRunner:
             if f"prob_{name}" in preds_df.columns
         ]
 
-        if ensemble_config["method"] == "stacked" and "result" in self._df.columns:
+        if ensemble_config["method"] == "stacked" and self.config.data.target_column in self._df.columns:
             try:
                 # Generate backtest predictions for meta-learner training
                 bt_data = self._generate_backtest_for_meta(fold_value, active_models)
@@ -752,7 +761,8 @@ class PipelineRunner:
             for name in available_models
         }
 
-        y_true = combined["result"].values.astype(float)
+        target_col = self.config.data.target_column
+        y_true = combined[target_col].values.astype(float)
         prior_diffs = combined["diff_prior"].values.astype(float)
         fold_labels = combined[fold_col].values
 
@@ -810,6 +820,7 @@ class PipelineRunner:
             raise ValueError("No active models to backtest.")
 
         self._failed_models = set()
+        self._fold_errors: list[str] = []
         self._model_cdf_scales = {}
 
         # Generate CV folds from strategy
@@ -847,7 +858,14 @@ class PipelineRunner:
                 )
 
         if not fold_data:
-            raise ValueError("No valid holdout folds produced predictions.")
+            details = ""
+            if self._failed_models:
+                details += f"\nFailed models: {', '.join(sorted(self._failed_models))}"
+            if self._fold_errors:
+                details += "\nErrors:\n" + "\n".join(self._fold_errors[:10])
+            raise ValueError(
+                f"No valid holdout folds produced predictions.{details}"
+            )
 
         # Only models with include_in_ensemble=True participate in ensemble
         active_model_names = [
@@ -1022,9 +1040,10 @@ class PipelineRunner:
         if len(train_df) == 0 or len(test_df) == 0:
             return None
 
+        target_col = self.config.data.target_column
         preds_df = test_df[[fold_col]].copy()
-        if "result" in test_df.columns:
-            preds_df["result"] = test_df["result"].values
+        if target_col in test_df.columns:
+            preds_df[target_col] = test_df[target_col].values
 
         # Add diff_prior if available
         if "diff_prior" in test_df.columns:
@@ -1037,6 +1056,12 @@ class PipelineRunner:
         for feat_name in meta_feature_names:
             if feat_name in test_df.columns:
                 preds_df[feat_name] = test_df[feat_name].values
+
+        # Pass through columns needed by logit adjustments
+        for adj in self.config.ensemble.logit_adjustments:
+            for col in adj.columns:
+                if col in test_df.columns and col not in preds_df.columns:
+                    preds_df[col] = test_df[col].values
 
         # Resolve feature_sets if feature declarations are configured
         resolved_models = dict(active_models)
@@ -1111,6 +1136,7 @@ class PipelineRunner:
                         registry=self._registry,
                         fold_column=fold_col,
                         target_column=self.config.data.target_column,
+                        data_config=self.config.data,
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -1165,12 +1191,13 @@ class PipelineRunner:
                     if model_def.include_in_ensemble:
                         preds_df[f"prob_{model_name}"] = probs
 
-                except Exception:
+                except Exception as exc:
                     logger.exception(
                         "Failed to train/predict %s for fold %d",
                         model_name, test_fold,
                     )
                     self._failed_models.add(model_name)
+                    self._fold_errors.append(f"  - {model_name} (fold {test_fold}): {exc}")
                     continue
 
         # Check we got at least one model
@@ -1276,7 +1303,8 @@ class PipelineRunner:
             for name in available_models
         }
 
-        y_true = train_combined["result"].values.astype(float)
+        target_col = self.config.data.target_column
+        y_true = train_combined[target_col].values.astype(float)
         prior_diffs = train_combined["diff_prior"].values.astype(float)
         fold_labels = train_combined[fold_col].values
 
@@ -1323,7 +1351,7 @@ class PipelineRunner:
 
             per_fold_data[fold_id] = {
                 "preds": {"ensemble": df["prob_ensemble"].values},
-                "y": df["result"].values.astype(float),
+                "y": df[self.config.data.target_column].values.astype(float),
             }
 
         if not per_fold_data:

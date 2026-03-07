@@ -21,6 +21,7 @@ def build_pick_log(
     preds_df: pd.DataFrame,
     fold_id: int,
     fold_column: str = "fold",
+    target_column: str = "result",
 ) -> pd.DataFrame:
     """Build per-prediction pick log from predictions DataFrame.
 
@@ -44,7 +45,7 @@ def build_pick_log(
     prob_b = 1.0 - prob_a
 
     predicted_winner = np.where(prob_a > 0.5, "A", "B")
-    actual_winner = np.where(preds_df["result"].values == 1, "A", "B")
+    actual_winner = np.where(preds_df[target_column].values == 1, "A", "B")
     correct = predicted_winner == actual_winner
     confidence = np.abs(prob_a - 0.5)
     model_agreement = compute_model_agreement(preds_df)
@@ -82,6 +83,7 @@ def build_pick_log(
 def build_diagnostics_report(
     fold_data: dict[int, pd.DataFrame],
     fold_column: str = "fold",
+    target_column: str = "result",
 ) -> pd.DataFrame:
     """Build per-fold metrics table.
 
@@ -102,7 +104,7 @@ def build_diagnostics_report(
     rows = []
     for fold_id in sorted(fold_data.keys()):
         df = fold_data[fold_id]
-        results = evaluate_fold_predictions(df, {}, fold_id=fold_id)
+        results = evaluate_fold_predictions(df, {}, fold_id=fold_id, target_column=target_column)
 
         # Find the ensemble entry
         ensemble_metrics = None

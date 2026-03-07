@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
 from easyml.core.models.registry import ModelRegistry
-from easyml.core.runner.schema import ModelDef
+from easyml.core.runner.data_utils import get_feature_columns
+from easyml.core.runner.schema import DataConfig, ModelDef
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def train_single_model(
     fold_column: str | None = None,
     augment_symmetry: bool = False,
     target_column: str = "result",
+    data_config: DataConfig | None = None,
 ) -> tuple[Any, list[str], dict[str, Any]]:
     """Train a single model from its ModelDef.
 
@@ -72,8 +74,17 @@ def train_single_model(
             f"(train_folds={model_def.train_folds}, target_fold={target_fold})"
         )
 
-    # Get feature columns that exist in the data
-    feature_cols = [f for f in model_def.features if f in df.columns]
+    # Get feature columns
+    if model_def.features:
+        feature_cols = [f for f in model_def.features if f in df.columns]
+    else:
+        # Default to all available numeric features
+        if data_config is not None:
+            feature_cols = get_feature_columns(df, data_config, fold_column=fold_column)
+        else:
+            # Fallback: all numeric columns except target and fold
+            feature_cols = [c for c in df.select_dtypes(include=['number']).columns
+                           if c != target_column and c != fold_column]
 
     # Auto-exclude fold column from features
     if fold_column:
@@ -158,11 +169,11 @@ def train_single_model(
         if is_regressor and cdf_scale is None:
             train_margins = models[0].predict_margin(X)
             y_binary = (
-                df["result"].values.astype(np.float64)
+                df[target_column].values.astype(np.float64)
                 if not augment_symmetry
                 else np.concatenate([
-                    df["result"].values.astype(np.float64),
-                    1.0 - df["result"].values.astype(np.float64),
+                    df[target_column].values.astype(np.float64),
+                    1.0 - df[target_column].values.astype(np.float64),
                 ])
             )
             cdf_scale = _fit_cdf_scale_after_training(train_margins, y_binary)
@@ -177,11 +188,11 @@ def train_single_model(
         if is_regressor and cdf_scale is None:
             train_margins = model.predict_margin(X)
             y_binary = (
-                df["result"].values.astype(np.float64)
+                df[target_column].values.astype(np.float64)
                 if not augment_symmetry
                 else np.concatenate([
-                    df["result"].values.astype(np.float64),
-                    1.0 - df["result"].values.astype(np.float64),
+                    df[target_column].values.astype(np.float64),
+                    1.0 - df[target_column].values.astype(np.float64),
                 ])
             )
             cdf_scale = _fit_cdf_scale_after_training(train_margins, y_binary)
@@ -288,9 +299,9 @@ def _fit_cdf_scale(margins: np.ndarray, y_binary: np.ndarray) -> float:
         probs = _sigmoid(margins, scale)
         return float(np.mean((probs - y_binary) ** 2))
 
-    margin_std = max(float(np.std(margins)), 0.1)
-    lo = np.log(margin_std * 0.01)
-    hi = np.log(margin_std * 100.0)
+    margin_std = max(float(np.std(margins)), 1.0)
+    lo = np.log(margin_std / 10.0)
+    hi = np.log(margin_std * 10.0)
     result = minimize_scalar(brier_at_scale, bounds=(lo, hi), method="bounded")
     return float(np.exp(result.x))
 

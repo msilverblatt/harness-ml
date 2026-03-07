@@ -144,8 +144,9 @@ class TabNetModel(BaseModel):
             X = (X - self._feature_means) / self._feature_stds
         preds = []
         for model in self._models:
-            # predict_proba returns (n, 2) for binary classification
-            p = model.predict_proba(X)[:, 1]
+            p = model.predict_proba(X)
+            if p.shape[1] == 2:
+                p = p[:, 1]
             preds.append(p)
         return np.mean(preds, axis=0)
 

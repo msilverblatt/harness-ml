@@ -32,7 +32,10 @@ class ElasticNetModel(BaseModel):
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        return self._model.predict_proba(X)[:, 1]
+        probs = self._model.predict_proba(X)
+        if probs.shape[1] == 2:
+            return probs[:, 1]
+        return probs
 
     @property
     def is_regression(self) -> bool:

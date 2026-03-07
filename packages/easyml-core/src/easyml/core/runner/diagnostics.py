@@ -141,6 +141,7 @@ def evaluate_fold_predictions(
     preds: pd.DataFrame,
     actuals: dict[str, int],
     fold_id: int,
+    target_column: str = "result",
 ) -> list[dict]:
     """Compute per-model metrics for a single fold.
 
@@ -162,13 +163,13 @@ def evaluate_fold_predictions(
         Each dict has: model, fold, accuracy, brier_score, ece, log_loss.
     """
     # Determine ground truth
-    if "result" in preds.columns:
-        y_true = preds["result"].values.astype(float)
+    if target_column in preds.columns:
+        y_true = preds[target_column].values.astype(float)
     elif actuals:
         # Use actuals dict — assumes index or row order matches
         y_true = np.array(list(actuals.values()), dtype=float)
     else:
-        raise ValueError("No ground truth: 'result' column missing and actuals is empty")
+        raise ValueError(f"No ground truth: '{target_column}' column missing and actuals is empty")
 
     # Find prob_* columns
     prob_cols = [c for c in preds.columns if c.startswith("prob_")]
@@ -205,6 +206,7 @@ def evaluate_fold_predictions(
 
 def compute_pooled_metrics(
     fold_predictions: list[pd.DataFrame],
+    target_column: str = "result",
 ) -> dict[str, dict]:
     """Compute pooled metrics across all folds.
 
@@ -226,10 +228,10 @@ def compute_pooled_metrics(
 
     combined = pd.concat(fold_predictions, ignore_index=True)
 
-    if "result" not in combined.columns:
-        raise ValueError("'result' column required in prediction DataFrames")
+    if target_column not in combined.columns:
+        raise ValueError(f"'{target_column}' column required in prediction DataFrames")
 
-    y_true = combined["result"].values.astype(float)
+    y_true = combined[target_column].values.astype(float)
 
     prob_cols = [c for c in combined.columns if c.startswith("prob_")]
 

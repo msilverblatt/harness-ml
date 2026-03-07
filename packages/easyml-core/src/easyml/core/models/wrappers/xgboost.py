@@ -66,7 +66,10 @@ class XGBoostModel(BaseModel):
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         if self._mode == "classifier":
-            return self._model.predict_proba(X)[:, 1]
+            probs = self._model.predict_proba(X)
+            if probs.shape[1] == 2:
+                return probs[:, 1]
+            return probs
         else:
             if self._cdf_scale is None:
                 raise ValueError(

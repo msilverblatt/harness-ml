@@ -2354,10 +2354,11 @@ def show_diagnostics(
         else:
             return f"**Error**: No predictions found in run `{run_dir.name}`."
 
-    if "result" not in preds_df.columns:
-        return "**Error**: Predictions file missing 'result' column for evaluation."
+    target_col = pipeline_data.get("data", {}).get("target_column", "result")
+    if target_col not in preds_df.columns:
+        return f"**Error**: Predictions file missing '{target_col}' column for evaluation."
 
-    y_true = preds_df["result"].values.astype(float)
+    y_true = preds_df[target_col].values.astype(float)
     prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
 
     if not prob_cols:
