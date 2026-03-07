@@ -317,13 +317,13 @@ class TestMmConfigValidates:
         assert result.config.data.processed_dir == "data/processed"
         assert result.config.data.features_dir == "data/features"
 
-    def test_availability_adjustment(self, tmp_path):
-        """Availability adjustment is parsed."""
+    def test_logit_adjustments(self, tmp_path):
+        """Logit adjustments are parsed."""
         config_dir = _setup_mm_config_dir(tmp_path)
         result = validate_project(config_dir)
         assert result.valid, f"Validation failed:\n{result.format()}"
 
-        assert result.config.ensemble.availability_adjustment == 0.1
+        assert isinstance(result.config.ensemble.logit_adjustments, list)
 
     def test_model_count(self, tmp_path):
         """All 10 models in the fixture are loaded."""

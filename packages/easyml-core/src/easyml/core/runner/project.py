@@ -392,7 +392,7 @@ class Project:
         calibration: str = "spline",
         spline_n_bins: int = 20,
         spline_prob_max: float = 0.985,
-        availability_adjustment: float = 0.1,
+        logit_adjustments: list[dict] | None = None,
         pre_calibration: dict[str, str] | None = None,
         exclude_models: list[str] | None = None,
     ) -> "Project":
@@ -408,7 +408,7 @@ class Project:
             calibration=calibration,
             spline_n_bins=spline_n_bins,
             spline_prob_max=spline_prob_max,
-            availability_adjustment=availability_adjustment,
+            logit_adjustments=logit_adjustments or [],
             pre_calibration=pre_calibration or {},
             exclude_models=exclude_models or list(self._ensemble.exclude_models),
         )

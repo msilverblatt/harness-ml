@@ -94,10 +94,10 @@ def apply_ensemble_postprocessing(
     if clip_floor > 0:
         probs = np.clip(probs, clip_floor, 1.0 - clip_floor)
 
-    # Step 8: Availability adjustment
-    av_strength = ensemble_config.get("availability_adjustment", 0.0)
-    if av_strength > 0:
-        probs = apply_availability_adjustment(probs, preds, ensemble_config, av_strength)
+    # Step 8: Logit adjustments
+    logit_adjustments = ensemble_config.get("logit_adjustments", [])
+    if logit_adjustments:
+        probs = apply_logit_adjustments(probs, preds, logit_adjustments)
 
     # Step 9: Prior-proximity compression
     compression = ensemble_config.get("prior_compression", 0.0)
@@ -110,62 +110,70 @@ def apply_ensemble_postprocessing(
     return preds
 
 
-def apply_availability_adjustment(
+def apply_logit_adjustments(
     probs: np.ndarray,
     preds: pd.DataFrame,
-    ensemble_config: dict,
-    strength: float,
+    adjustments: list[dict],
 ) -> np.ndarray:
-    """Adjust ensemble probabilities based on model availability.
+    """Apply one or more logit-space adjustments to ensemble probabilities.
 
-    When some models have no prediction for certain games (NaN in prob_*
-    columns), pulls ensemble predictions toward 0.5 proportional to the
-    fraction of missing models and the strength parameter.
+    Each adjustment is a dict with keys: columns, strength, default, mode.
+
+    Modes:
+      - paired: 2 columns (entity A value, entity B value), each 0-1.
+        Penalty = strength * (1 - value). Applied as
+        logit -= penalty_a, logit += penalty_b.
+      - diff: 1 column (signed difference). Applied as
+        logit += strength * value.
 
     Parameters
     ----------
     probs : np.ndarray
-        Ensemble probabilities (from meta-learner).
+        Ensemble probabilities.
     preds : pd.DataFrame
-        Predictions DataFrame with prob_* columns for each model.
-    ensemble_config : dict
-        Ensemble configuration (needs exclude_models list).
-    strength : float
-        Adjustment strength (0.0 = no adjustment, 1.0 = full pull to 0.5).
+        Predictions DataFrame with the referenced columns.
+    adjustments : list[dict]
+        Each entry has: columns (list[str]), strength (float),
+        default (float), mode ("paired" | "diff").
 
     Returns
     -------
     np.ndarray
         Adjusted probabilities.
     """
-    # Identify all prob_* columns, excluding prob_ensemble
-    prob_cols = [
-        c for c in preds.columns
-        if c.startswith("prob_") and c != "prob_ensemble"
-    ]
+    eps = 1e-7
+    clipped = np.clip(probs, eps, 1 - eps)
+    logits = np.log(clipped / (1 - clipped))
 
-    # Filter out excluded models
-    exclude = set(ensemble_config.get("exclude_models", []))
-    active_cols = [
-        c for c in prob_cols
-        if c.replace("prob_", "", 1) not in exclude
-    ]
+    for adj in adjustments:
+        columns = adj.get("columns", [])
+        strength = adj.get("strength", 0.0)
+        default = adj.get("default", 1.0)
+        mode = adj.get("mode", "paired")
 
-    n_total_active = len(active_cols)
-    if n_total_active == 0:
-        return probs.copy()
+        if strength == 0.0:
+            continue
 
-    # Count non-NaN values per row across active model columns
-    active_data = preds[active_cols]
-    n_available = active_data.notna().sum(axis=1).values
+        if mode == "paired" and len(columns) == 2:
+            a_col, b_col = columns
+            if a_col not in preds.columns or b_col not in preds.columns:
+                continue
+            val_a = preds[a_col].values.astype(np.float64)
+            val_b = preds[b_col].values.astype(np.float64)
+            val_a = np.where(np.isnan(val_a), default, val_a)
+            val_b = np.where(np.isnan(val_b), default, val_b)
+            logits -= strength * (1.0 - val_a)
+            logits += strength * (1.0 - val_b)
 
-    # Compute coverage and pull factor
-    coverage_ratio = n_available / n_total_active
-    pull_factor = strength * (1.0 - coverage_ratio)
+        elif mode == "diff" and len(columns) == 1:
+            col = columns[0]
+            if col not in preds.columns:
+                continue
+            val = preds[col].values.astype(np.float64)
+            val = np.where(np.isnan(val), default, val)
+            logits += strength * val
 
-    # Apply: adjusted = probs * (1 - pull_factor) + 0.5 * pull_factor
-    adjusted = probs * (1.0 - pull_factor) + 0.5 * pull_factor
-    return adjusted
+    return 1.0 / (1.0 + np.exp(-logits))
 
 
 def apply_prior_compression(

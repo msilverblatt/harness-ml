@@ -15,8 +15,23 @@ members = [
 testpaths = ["packages/easyml-core/tests", "tests"]
 addopts = "--import-mode=importlib"
 
+[project.optional-dependencies]
+all = [
+    "easyml-core[all]",
+    "easyml-plugin",
+    "easyml-sports",
+]
+
+[tool.uv.sources]
+easyml-core = { workspace = true }
+easyml-plugin = { workspace = true }
+easyml-sports = { workspace = true }
+
 [dependency-groups]
 dev = [
+    "easyml-core[all]",
+    "easyml-plugin",
+    "easyml-sports",
     "catboost>=1.2.10",
     "click>=8.0",
     "lightgbm>=4.6.0",

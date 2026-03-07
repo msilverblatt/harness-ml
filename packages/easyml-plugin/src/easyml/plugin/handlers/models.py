@@ -31,7 +31,7 @@ def _handle_add(*, name, model_type, preset, features, params, active, include_i
     return cw.add_model(resolve_project_dir(project_dir), name, **kw)
 
 
-def _handle_update(*, name, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, project_dir, **_kwargs):
+def _handle_update(*, name, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, replace_params=False, project_dir, **_kwargs):
     from easyml.core.runner import config_writer as cw
 
     err = validate_required(name, "name")
@@ -45,6 +45,7 @@ def _handle_update(*, name, features, params, active, include_in_ensemble, mode,
         include_in_ensemble=include_in_ensemble,
         mode=mode,
         prediction_type=prediction_type,
+        replace_params=replace_params,
     )
     if cdf_scale is not None:
         kw["cdf_scale"] = cdf_scale

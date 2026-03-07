@@ -64,7 +64,7 @@ def _ensemble_yaml() -> dict:
             "meta_learner": {},
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.1,
+            "logit_adjustments": [],
             "exclude_models": [],
         },
     }

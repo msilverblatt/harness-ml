@@ -8,7 +8,7 @@ import pytest
 from easyml.core.runner.calibration import SplineCalibrator
 from easyml.core.runner.meta_learner import StackedEnsemble
 from easyml.core.runner.postprocessing import (
-    apply_availability_adjustment,
+    apply_logit_adjustments,
     apply_ensemble_postprocessing,
     apply_prior_compression,
 )
@@ -73,7 +73,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
             "prior_compression_threshold": 4,
         }
@@ -98,7 +98,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
 
@@ -117,7 +117,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
 
@@ -134,7 +134,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
         result_t1 = apply_ensemble_postprocessing(preds_df, meta, None, config_t1)
@@ -144,7 +144,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 2.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
         result_t2 = apply_ensemble_postprocessing(preds_df, meta, None, config_t2)
@@ -164,7 +164,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.1,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
 
@@ -182,7 +182,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
         result_no = apply_ensemble_postprocessing(preds_df, meta, None, config_no_comp)
@@ -192,7 +192,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.3,
             "prior_compression_threshold": 4,
         }
@@ -222,7 +222,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
 
@@ -265,7 +265,7 @@ class TestApplyEnsemblePostprocessing:
             "meta_features": [],
             "temperature": 1.0,
             "clip_floor": 0.0,
-            "availability_adjustment": 0.0,
+            "logit_adjustments": [],
             "prior_compression": 0.0,
         }
 
@@ -277,6 +277,77 @@ class TestApplyEnsemblePostprocessing:
             result_with["prob_ensemble"].values,
             result_without["prob_ensemble"].values,
         )
+
+    def test_with_logit_adjustments_paired(self):
+        """Logit adjustments in paired mode should shift probabilities."""
+        preds_df = _make_preds_df(50, 2)
+        preds_df["a_health"] = 0.5  # entity A is unhealthy
+        preds_df["b_health"] = 1.0  # entity B is healthy
+        model_names = ["model_0", "model_1"]
+        meta = _fit_meta_learner(preds_df, model_names)
+
+        config_no_adj = {
+            "exclude_models": [],
+            "meta_features": [],
+            "temperature": 1.0,
+            "clip_floor": 0.0,
+            "logit_adjustments": [],
+            "prior_compression": 0.0,
+        }
+        result_no = apply_ensemble_postprocessing(preds_df, meta, None, config_no_adj)
+
+        config_adj = {
+            "exclude_models": [],
+            "meta_features": [],
+            "temperature": 1.0,
+            "clip_floor": 0.0,
+            "logit_adjustments": [{
+                "columns": ["a_health", "b_health"],
+                "strength": 0.5,
+                "default": 1.0,
+                "mode": "paired",
+            }],
+            "prior_compression": 0.0,
+        }
+        result_adj = apply_ensemble_postprocessing(preds_df, meta, None, config_adj)
+
+        # A is unhealthy -> probs should decrease (less confident in A)
+        assert result_adj["prob_ensemble"].mean() < result_no["prob_ensemble"].mean()
+
+    def test_with_logit_adjustments_diff(self):
+        """Logit adjustments in diff mode should shift probabilities."""
+        preds_df = _make_preds_df(50, 2)
+        preds_df["diff_health"] = -0.5  # negative = A is worse
+        model_names = ["model_0", "model_1"]
+        meta = _fit_meta_learner(preds_df, model_names)
+
+        config_no_adj = {
+            "exclude_models": [],
+            "meta_features": [],
+            "temperature": 1.0,
+            "clip_floor": 0.0,
+            "logit_adjustments": [],
+            "prior_compression": 0.0,
+        }
+        result_no = apply_ensemble_postprocessing(preds_df, meta, None, config_no_adj)
+
+        config_adj = {
+            "exclude_models": [],
+            "meta_features": [],
+            "temperature": 1.0,
+            "clip_floor": 0.0,
+            "logit_adjustments": [{
+                "columns": ["diff_health"],
+                "strength": 0.5,
+                "default": 0.0,
+                "mode": "diff",
+            }],
+            "prior_compression": 0.0,
+        }
+        result_adj = apply_ensemble_postprocessing(preds_df, meta, None, config_adj)
+
+        # Negative diff -> probs should decrease
+        assert result_adj["prob_ensemble"].mean() < result_no["prob_ensemble"].mean()
 
 
 # -----------------------------------------------------------------------
@@ -326,111 +397,191 @@ class TestApplySeedCompression:
         assert abs(result[1] - 0.35) < 1e-10
 
 
-class TestApplyAvailabilityAdjustment:
-    def test_no_adjustment_all_models_present(self):
-        """All prob_* columns have valid values -> no change."""
+class TestApplyLogitAdjustments:
+    def test_paired_mode_both_healthy_no_change(self):
+        """Both entities fully healthy -> no change."""
         probs = np.array([0.8, 0.2, 0.5])
         preds = pd.DataFrame({
-            "prob_model_a": [0.7, 0.3, 0.6],
-            "prob_model_b": [0.9, 0.1, 0.4],
-            "prob_model_c": [0.6, 0.4, 0.5],
+            "a_health": [1.0, 1.0, 1.0],
+            "b_health": [1.0, 1.0, 1.0],
         })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=0.5)
-        np.testing.assert_allclose(result, probs)
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.5,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        np.testing.assert_allclose(result, probs, atol=1e-7)
 
-    def test_pulls_toward_half_when_models_missing(self):
-        """Setting some prob_* to NaN should pull output toward 0.5."""
+    def test_paired_mode_a_unhealthy_pulls_down(self):
+        """Entity A unhealthy should reduce probability (less confident in A)."""
+        probs = np.array([0.7])
+        preds = pd.DataFrame({
+            "a_health": [0.5],
+            "b_health": [1.0],
+        })
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.1,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        assert result[0] < 0.7
+
+    def test_paired_mode_b_unhealthy_pulls_up(self):
+        """Entity B unhealthy should increase probability (more confident in A)."""
+        probs = np.array([0.3])
+        preds = pd.DataFrame({
+            "a_health": [1.0],
+            "b_health": [0.5],
+        })
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.1,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        assert result[0] > 0.3
+
+    def test_paired_mode_nan_uses_default(self):
+        """NaN values should be replaced with default (1.0 = no penalty)."""
+        probs = np.array([0.7])
+        preds = pd.DataFrame({
+            "a_health": [np.nan],
+            "b_health": [np.nan],
+        })
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.5,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        np.testing.assert_allclose(result, probs, atol=1e-7)
+
+    def test_paired_mode_zero_strength_no_change(self):
+        """strength=0 should produce no change regardless of values."""
         probs = np.array([0.8, 0.2])
         preds = pd.DataFrame({
-            "prob_model_a": [0.7, np.nan],
-            "prob_model_b": [0.9, np.nan],
-            "prob_model_c": [0.6, 0.5],
+            "a_health": [0.0, 0.0],
+            "b_health": [0.0, 0.0],
         })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=0.6)
-        # Row 0: all 3 present -> coverage=1.0, pull_factor=0.0 -> no change
-        np.testing.assert_allclose(result[0], 0.8)
-        # Row 1: 1 of 3 present -> coverage=1/3, pull_factor=0.6*(2/3)=0.4
-        # adjusted = 0.2 * 0.6 + 0.5 * 0.4 = 0.32
-        np.testing.assert_allclose(result[1], 0.32)
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.0,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        np.testing.assert_allclose(result, probs, atol=1e-7)
 
-    def test_zero_strength_no_change(self):
-        """strength=0.0 should return unchanged probabilities."""
-        probs = np.array([0.9, 0.1, 0.7])
+    def test_diff_mode_positive_increases_prob(self):
+        """Positive diff with positive strength should increase probability."""
+        probs = np.array([0.5])
+        preds = pd.DataFrame({"diff_metric": [1.0]})
+        adjustments = [{
+            "columns": ["diff_metric"],
+            "strength": 0.5,
+            "default": 0.0,
+            "mode": "diff",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        assert result[0] > 0.5
+
+    def test_diff_mode_negative_decreases_prob(self):
+        """Negative diff with positive strength should decrease probability."""
+        probs = np.array([0.5])
+        preds = pd.DataFrame({"diff_metric": [-1.0]})
+        adjustments = [{
+            "columns": ["diff_metric"],
+            "strength": 0.5,
+            "default": 0.0,
+            "mode": "diff",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        assert result[0] < 0.5
+
+    def test_diff_mode_nan_uses_default(self):
+        """NaN in diff mode should use default (0.0 = no change)."""
+        probs = np.array([0.6])
+        preds = pd.DataFrame({"diff_metric": [np.nan]})
+        adjustments = [{
+            "columns": ["diff_metric"],
+            "strength": 1.0,
+            "default": 0.0,
+            "mode": "diff",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        np.testing.assert_allclose(result, probs, atol=1e-7)
+
+    def test_missing_columns_skipped(self):
+        """Adjustments referencing missing columns should be skipped."""
+        probs = np.array([0.7, 0.3])
+        preds = pd.DataFrame({"unrelated": [1, 2]})
+        adjustments = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 1.0,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result = apply_logit_adjustments(probs, preds, adjustments)
+        np.testing.assert_allclose(result, probs, atol=1e-7)
+
+    def test_multiple_adjustments_stack(self):
+        """Multiple adjustments should be applied sequentially."""
+        probs = np.array([0.5])
         preds = pd.DataFrame({
-            "prob_model_a": [0.7, np.nan, 0.6],
-            "prob_model_b": [np.nan, np.nan, 0.4],
+            "a_health": [0.5],
+            "b_health": [1.0],
+            "diff_boost": [0.5],
         })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=0.0)
-        np.testing.assert_allclose(result, probs)
+        adj_paired_only = [{
+            "columns": ["a_health", "b_health"],
+            "strength": 0.1,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        adj_both = [
+            {
+                "columns": ["a_health", "b_health"],
+                "strength": 0.1,
+                "default": 1.0,
+                "mode": "paired",
+            },
+            {
+                "columns": ["diff_boost"],
+                "strength": 0.1,
+                "default": 0.0,
+                "mode": "diff",
+            },
+        ]
+        result_one = apply_logit_adjustments(probs, preds, adj_paired_only)
+        result_both = apply_logit_adjustments(probs, preds, adj_both)
+        # The diff_boost is positive, so result_both should be higher than result_one
+        assert result_both[0] > result_one[0]
 
-    def test_full_strength_all_missing(self):
-        """strength=1.0 and all models NaN should fully pull to 0.5."""
-        probs = np.array([0.9, 0.1])
-        preds = pd.DataFrame({
-            "prob_model_a": [np.nan, np.nan],
-            "prob_model_b": [np.nan, np.nan],
-        })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
-        np.testing.assert_allclose(result, [0.5, 0.5])
-
-    def test_partial_missing_some_games(self):
-        """Only some rows have NaN - verify per-row behavior."""
-        probs = np.array([0.8, 0.6, 0.3, 0.9])
-        preds = pd.DataFrame({
-            "prob_model_a": [0.7, np.nan, 0.5, 0.8],
-            "prob_model_b": [0.9, 0.4, np.nan, 0.7],
-            "prob_model_c": [0.6, 0.3, np.nan, np.nan],
-            "prob_model_d": [0.5, np.nan, 0.6, 0.9],
-        })
-        config = {"exclude_models": []}
-        strength = 1.0
-        result = apply_availability_adjustment(probs, preds, config, strength)
-
-        # Row 0: 4/4 present -> coverage=1.0, pull=0.0 -> 0.8
-        np.testing.assert_allclose(result[0], 0.8)
-        # Row 1: 2/4 present -> coverage=0.5, pull=0.5 -> 0.6*0.5 + 0.5*0.5 = 0.55
-        np.testing.assert_allclose(result[1], 0.55)
-        # Row 2: 2/4 present -> coverage=0.5, pull=0.5 -> 0.3*0.5 + 0.5*0.5 = 0.4
-        np.testing.assert_allclose(result[2], 0.4)
-        # Row 3: 3/4 present -> coverage=0.75, pull=0.25 -> 0.9*0.75 + 0.5*0.25 = 0.8
-        np.testing.assert_allclose(result[3], 0.8)
-
-    def test_excluded_models_not_counted(self):
-        """Excluded models should not be counted in coverage calculation."""
-        probs = np.array([0.8])
-        preds = pd.DataFrame({
-            "prob_model_a": [0.7],
-            "prob_model_b": [np.nan],  # excluded, should not matter
-        })
-        config = {"exclude_models": ["model_b"]}
-        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
-        # Only model_a is active, and it is present -> coverage=1.0 -> no change
-        np.testing.assert_allclose(result[0], 0.8)
-
-    def test_ensemble_column_excluded(self):
-        """prob_ensemble should not count as a model column."""
-        probs = np.array([0.8])
-        preds = pd.DataFrame({
-            "prob_model_a": [np.nan],
-            "prob_model_b": [0.5],
-            "prob_ensemble": [0.6],
-        })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
-        # model_a (NaN) + model_b (present) -> coverage=0.5, pull=0.5 -> 0.65
-        np.testing.assert_allclose(result[0], 0.65)
-
-    def test_no_active_models_returns_unchanged(self):
-        """Edge case: no active model columns -> return probs unchanged."""
+    def test_empty_adjustments_no_change(self):
+        """Empty adjustments list should produce no change."""
         probs = np.array([0.8, 0.2])
-        preds = pd.DataFrame({
-            "prob_ensemble": [0.5, 0.5],
-            "some_other_col": [1, 2],
-        })
-        config = {"exclude_models": []}
-        result = apply_availability_adjustment(probs, preds, config, strength=1.0)
-        np.testing.assert_allclose(result, probs)
+        preds = pd.DataFrame({"anything": [1, 2]})
+        result = apply_logit_adjustments(probs, preds, [])
+        np.testing.assert_allclose(result, probs, atol=1e-7)
+
+    def test_symmetry_of_paired_adjustment(self):
+        """Swapping A and B health should produce complementary probabilities."""
+        probs = np.array([0.6])
+        preds_ab = pd.DataFrame({"a_h": [0.5], "b_h": [1.0]})
+        preds_ba = pd.DataFrame({"a_h": [1.0], "b_h": [0.5]})
+        adj = [{
+            "columns": ["a_h", "b_h"],
+            "strength": 0.2,
+            "default": 1.0,
+            "mode": "paired",
+        }]
+        result_ab = apply_logit_adjustments(probs, preds_ab, adj)
+        result_ba = apply_logit_adjustments(1.0 - probs, preds_ba, adj)
+        # result_ab[0] + result_ba[0] should equal 1.0 (symmetry in logit space)
+        np.testing.assert_allclose(result_ab[0] + result_ba[0], 1.0, atol=1e-7)

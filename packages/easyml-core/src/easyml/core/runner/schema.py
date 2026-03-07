@@ -551,6 +551,33 @@ class ModelDef(BaseModel):
 # Ensemble definition
 # -----------------------------------------------------------------------
 
+class LogitAdjustment(BaseModel):
+    """A single logit-space post-processing adjustment.
+
+    Modes:
+      - paired: 2 columns (entity A value, entity B value), each 0-1.
+        Penalty = strength * (1 - value). Applied as logit -= penalty_a,
+        logit += penalty_b.
+      - diff: 1 column, already a signed difference.
+        Applied as logit += strength * value.
+    """
+
+    columns: list[str]
+    strength: float = 0.1
+    default: float = 1.0
+    mode: Literal["paired", "diff"] = "paired"
+
+    @field_validator("columns")
+    @classmethod
+    def _check_columns(cls, v: list[str], info) -> list[str]:
+        mode = info.data.get("mode", "paired")
+        if mode == "paired" and len(v) != 2:
+            raise ValueError("paired mode requires exactly 2 columns")
+        if mode == "diff" and len(v) != 1:
+            raise ValueError("diff mode requires exactly 1 column")
+        return v
+
+
 class EnsembleDef(BaseModel):
     """Ensemble configuration."""
 
@@ -565,7 +592,7 @@ class EnsembleDef(BaseModel):
     prior_compression_threshold: int = 4
     temperature: float = 1.0
     clip_floor: float = 0.0
-    availability_adjustment: float = 0.1
+    logit_adjustments: list[LogitAdjustment] = []
     exclude_models: list[str] = []
     prior_feature: str | None = None  # data column to use as prior (mapped to diff_prior)
 

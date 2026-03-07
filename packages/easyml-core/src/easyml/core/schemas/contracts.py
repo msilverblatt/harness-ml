@@ -80,7 +80,7 @@ class EnsembleConfig(BaseModel):
     post_calibration: str | None = None
     temperature: float = 1.0
     clip_floor: float = 0.0
-    availability_adjustment: float = 0.1
+    logit_adjustments: list[dict[str, Any]] = []
 
 
 # ---------------------------------------------------------------------------
