@@ -55,8 +55,8 @@ class RandomForestModel(BaseModel):
 
         self._model = RandomForestClassifier(**self.params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        self._model.fit(X, y)
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
+        self._model.fit(X, y, sample_weight=sample_weight)
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

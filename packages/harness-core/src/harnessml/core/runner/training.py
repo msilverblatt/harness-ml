@@ -68,6 +68,19 @@ def train_single_model(
     # Filter by train_folds setting
     df = _filter_train_folds(train_df, model_def.train_folds, target_fold, fold_column)
 
+    # Apply training_filter (non-destructive row exclusion)
+    if model_def.training_filter:
+        exclude_expr = model_def.training_filter.get("exclude")
+        if exclude_expr:
+            mask = ~df.eval(exclude_expr)
+            df = df.loc[mask].copy()
+            logger.info(
+                "training_filter excluded %d rows for model %s (kept %d)",
+                int((~mask).sum()),
+                model_name,
+                len(df),
+            )
+
     if len(df) == 0:
         raise ValueError(
             f"No training data for model {model_name} after filtering "
@@ -142,9 +155,25 @@ def train_single_model(
     else:
         y = df[target_column].values.astype(np.float64)
 
+    # Compute sample weights for class imbalance handling
+    sample_weight: np.ndarray | None = None
+    if model_def.class_weight is not None:
+        if is_regressor:
+            logger.warning(
+                "class_weight is set for regressor model %s; ignoring "
+                "(class weighting only applies to classifiers).",
+                model_name,
+            )
+        else:
+            from sklearn.utils.class_weight import compute_sample_weight
+            sample_weight = compute_sample_weight(model_def.class_weight, y)
+
     # Augment symmetry if requested
     if augment_symmetry:
         X, y = _augment_matchup_symmetry(X, y, feature_cols)
+        # Re-compute sample weights for augmented data
+        if sample_weight is not None:
+            sample_weight = compute_sample_weight(model_def.class_weight, y)
 
     # Use preset CDF scale if provided
     cdf_scale = model_def.cdf_scale
@@ -153,6 +182,7 @@ def train_single_model(
     model_type = _resolve_model_type(model_def)
 
     metrics: dict[str, Any] = {}
+    metrics["n_train_rows"] = len(df)
 
     # Multi-seed training
     n_seeds = model_def.n_seeds
@@ -162,7 +192,7 @@ def train_single_model(
             params = dict(model_def.params)
             params["random_state"] = seed_idx
             model = _create_model(registry, model_type, params, model_def, cdf_scale)
-            model.fit(X, y, **fit_kwargs)
+            model.fit(X, y, sample_weight=sample_weight, **fit_kwargs)
             models.append(model)
         metrics["n_seeds"] = n_seeds
         # Fit CDF scale post-training from first model's predictions
@@ -183,7 +213,7 @@ def train_single_model(
     else:
         params = dict(model_def.params)
         model = _create_model(registry, model_type, params, model_def, cdf_scale)
-        model.fit(X, y, **fit_kwargs)
+        model.fit(X, y, sample_weight=sample_weight, **fit_kwargs)
         # Fit CDF scale post-training from model's predictions
         if is_regressor and cdf_scale is None:
             train_margins = model.predict_margin(X)

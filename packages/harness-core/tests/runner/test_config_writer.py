@@ -15,6 +15,7 @@ from harnessml.core.runner.config_writer import (
     add_model,
     add_target,
     available_features,
+    compare_runs,
     configure_backtest,
     configure_denylist,
     configure_ensemble,
@@ -179,6 +180,50 @@ class TestUpdateModel:
 
         data = _load_yaml(project / "config" / "models.yaml")
         assert data["models"]["logreg"]["zero_fill_features"] == ["feat_a", "feat_b"]
+
+    def test_update_model_append_features(self, tmp_path):
+        """update_model with append_features should add to existing list."""
+        project = _setup_project(tmp_path)
+        # logreg starts with features=["diff_x"]
+        result = update_model(project, "logreg", append_features=["diff_y", "feat_a"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["diff_x", "diff_y", "feat_a"]
+
+    def test_update_model_append_features_skips_duplicates(self, tmp_path):
+        """append_features should not add features already in the list."""
+        project = _setup_project(tmp_path)
+        result = update_model(project, "logreg", append_features=["diff_x", "new_feat"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["diff_x", "new_feat"]
+
+    def test_update_model_remove_features(self, tmp_path):
+        """update_model with remove_features should remove from existing list."""
+        project = _setup_project(tmp_path)
+        # First add more features so we can remove some
+        update_model(project, "logreg", features=["a", "b", "c", "d"])
+        result = update_model(project, "logreg", remove_features=["b", "d"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["a", "c"]
+
+    def test_update_model_append_and_remove_features(self, tmp_path):
+        """append_features and remove_features can be used together."""
+        project = _setup_project(tmp_path)
+        # logreg starts with features=["diff_x"]
+        result = update_model(
+            project, "logreg",
+            append_features=["new_a", "new_b"],
+            remove_features=["diff_x"],
+        )
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["new_a", "new_b"]
 
 
 class TestRemoveModel:
@@ -1276,3 +1321,110 @@ class TestInspectPredictions:
         (tmp_path / "outputs").mkdir()
         result = inspect_predictions(tmp_path)
         assert "Error" in result
+
+
+class TestCompareRuns:
+    """Tests for compare_runs with latest mode and deltas."""
+
+    def _setup_with_runs(self, tmp_path, runs_data):
+        """Create a project with fake run directories containing metrics."""
+        import json
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "pipeline.yaml").write_text(
+            yaml.dump({"data": {"outputs_dir": "outputs"}})
+        )
+
+        outputs_dir = tmp_path / "outputs"
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        for run_name, metrics in runs_data.items():
+            run_dir = outputs_dir / run_name
+            run_dir.mkdir()
+            (run_dir / "pooled_metrics.json").write_text(json.dumps(metrics))
+
+        return tmp_path
+
+    def test_compare_latest_shows_deltas(self, tmp_path):
+        """compare_runs with latest=True compares two most recent runs and shows deltas."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.75, "Brier": 0.20},
+            "run_002": {"Accuracy": 0.80, "Brier": 0.18},
+        })
+        result = compare_runs(project, latest=True)
+        assert "Accuracy" in result
+        assert "0.8000" in result  # newer run
+        assert "0.7500" in result  # older run
+        assert "Brier" in result
+        # Deltas should include direction indicators
+        assert "\u2191" in result or "\u2193" in result
+
+    def test_compare_latest_direction_indicators(self, tmp_path):
+        """Accuracy up = good (up arrow), Brier down = good (up arrow)."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.75, "Brier": 0.20},
+            "run_002": {"Accuracy": 0.80, "Brier": 0.18},
+        })
+        result = compare_runs(project, latest=True)
+        lines = result.split("\n")
+        for line in lines:
+            if "| Accuracy" in line:
+                # Accuracy went up: +0.0500 with up arrow (good)
+                assert "+0.0500" in line
+                assert "\u2191" in line
+            if "| Brier" in line:
+                # Brier went down: -0.0200 with up arrow (good, lower is better)
+                assert "-0.0200" in line
+                assert "\u2191" in line
+
+    def test_compare_explicit_run_ids(self, tmp_path):
+        """compare_runs with explicit run IDs works."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.70},
+            "run_002": {"Accuracy": 0.75},
+            "run_003": {"Accuracy": 0.80},
+        })
+        result = compare_runs(project, run_id_a="run_001", run_id_b="run_003")
+        assert "run_001" in result
+        assert "run_003" in result
+        assert "0.7000" in result
+        assert "0.8000" in result
+
+    def test_compare_latest_needs_two_runs(self, tmp_path):
+        """Error when fewer than 2 runs exist."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.75},
+        })
+        result = compare_runs(project, latest=True)
+        assert "Error" in result
+
+    def test_compare_latest_ignores_current_dir(self, tmp_path):
+        """The 'current' symlink directory should be excluded."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.70},
+            "run_002": {"Accuracy": 0.80},
+        })
+        # Create a 'current' directory that would sort last
+        (tmp_path / "outputs" / "current").mkdir()
+        result = compare_runs(project, latest=True)
+        assert "run_001" in result
+        assert "run_002" in result
+        assert "current" not in result
+
+    def test_compare_runs_missing_run_id(self, tmp_path):
+        """Error when explicit mode but missing run IDs."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.70},
+        })
+        result = compare_runs(project, run_id_a="run_001")
+        assert "Error" in result
+
+    def test_compare_runs_nonexistent_run(self, tmp_path):
+        """Error when a specified run does not exist."""
+        project = self._setup_with_runs(tmp_path, {
+            "run_001": {"Accuracy": 0.70},
+        })
+        result = compare_runs(project, run_id_a="run_001", run_id_b="run_999")
+        assert "Error" in result
+        assert "run_999" in result

@@ -29,7 +29,7 @@ class CatBoostModel(BaseModel):
         params.setdefault("allow_writing_files", False)
         self._model = CatBoostClassifier(**params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray, eval_set=None) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, eval_set=None, **kwargs) -> None:
         from catboost import CatBoostClassifier
 
         params = dict(self.params)
@@ -44,6 +44,8 @@ class CatBoostModel(BaseModel):
             fit_kwargs["eval_set"] = (X_val, y_val)
             if early_stopping:
                 fit_kwargs["early_stopping_rounds"] = early_stopping
+        if sample_weight is not None:
+            fit_kwargs["sample_weight"] = sample_weight
 
         self._model.fit(X, y, **fit_kwargs)
         self._fitted = True

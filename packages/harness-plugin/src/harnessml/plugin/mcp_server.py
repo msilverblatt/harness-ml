@@ -58,6 +58,8 @@ async def models(
     model_type: str | None = None,
     preset: str | None = None,
     features: list[str] | None = None,
+    append_features: list[str] | None = None,
+    remove_features: list[str] | None = None,
     params: str | dict | None = None,
     active: bool | None = None,
     include_in_ensemble: bool | None = None,
@@ -65,6 +67,7 @@ async def models(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    class_weight: str | dict | None = None,
     items: str | list | None = None,
     purge: bool = False,
     replace_params: bool = False,
@@ -78,13 +81,17 @@ async def models(
         mode (e.g. "classifier", "regressor"), prediction_type (e.g. "margin"),
         cdf_scale (float, scales regressor output to a probability via CDF),
         zero_fill_features (list of feature columns to fill with 0 before
-        NaN row removal during training).
+        NaN row removal during training),
+        class_weight ("balanced" or JSON dict mapping class labels to weights,
+        e.g. {"0": 1.0, "1": 2.5}).
       - "update": Update an existing model in place. Requires name.
         Optional: features, params (JSON string), active, include_in_ensemble,
-        mode, prediction_type, cdf_scale, zero_fill_features. Merges params
+        mode, prediction_type, cdf_scale, zero_fill_features, class_weight. Merges params
         with existing by default. Pass replace_params=true to fully replace
         the params dict instead of merging.
         Pass active=true or include_in_ensemble=true to explicitly re-enable.
+        append_features: list of features to add to the existing list (skips duplicates).
+        remove_features: list of features to remove from the existing list.
       - "remove": Disable a model (sets active=false, include_in_ensemble=false).
         Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
@@ -107,6 +114,8 @@ async def models(
         model_type=model_type,
         preset=preset,
         features=features,
+        append_features=append_features,
+        remove_features=remove_features,
         params=params,
         active=active,
         include_in_ensemble=include_in_ensemble,
@@ -114,6 +123,7 @@ async def models(
         prediction_type=prediction_type,
         cdf_scale=cdf_scale,
         zero_fill_features=zero_fill_features,
+        class_weight=class_weight,
         items=items,
         purge=purge,
         replace_params=replace_params,
@@ -670,7 +680,10 @@ async def pipeline(
         Optional: detail ("summary" for condensed output, "full" (default)
         for complete results).
       - "compare_runs": Compare metrics from two runs side by side.
-        Requires run_ids (list of 2 run IDs).
+        Requires run_ids (list of 2 run IDs). Shows deltas with direction
+        indicators.
+      - "compare_latest": Compare the two most recent runs automatically.
+        No parameters required. Shows deltas with direction indicators.
       - "compare_targets": Run backtests for all configured target profiles and
         show side-by-side comparison. No additional params required — uses
         target profiles from configure(action='add_target').

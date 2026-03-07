@@ -516,6 +516,9 @@ class ModelDef(BaseModel):
     cdf_scale: float | None = None
     training_filter: dict[str, Any] | None = None
 
+    # Class imbalance handling
+    class_weight: str | dict | None = None  # None, "balanced", or {label: weight}
+
     # Per-model NaN handling
     zero_fill_features: list[str] = []  # fill these with 0 before dropna
 

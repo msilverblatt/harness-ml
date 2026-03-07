@@ -43,13 +43,13 @@ class ElasticNetModel(BaseModel):
         sklearn_params.setdefault("l1_ratio", 0.5)
         self._model = LogisticRegression(**sklearn_params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
         X = np.nan_to_num(X, nan=0.0)
         if self._normalize:
             from sklearn.preprocessing import StandardScaler
             self._scaler = StandardScaler()
             X = self._scaler.fit_transform(X)
-        self._model.fit(X, y)
+        self._model.fit(X, y, sample_weight=sample_weight)
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:

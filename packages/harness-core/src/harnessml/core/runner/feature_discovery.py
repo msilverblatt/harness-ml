@@ -80,12 +80,36 @@ def compute_feature_correlations(
             cols.append("type")
         return pd.DataFrame(columns=cols)
 
-    correlations = df[feature_cols].corrwith(df[target_col]).dropna()
+    if df[target_col].nunique() > 2:
+        # Multiclass target: use ANOVA-based eta-squared instead of
+        # point-biserial correlation, which is only meaningful for binary.
+        from scipy import stats
+
+        corr_values = []
+        for col in feature_cols:
+            groups = [
+                df.loc[df[target_col] == c, col].dropna()
+                for c in df[target_col].unique()
+            ]
+            groups = [g for g in groups if len(g) > 0]
+            if len(groups) < 2:
+                corr_values.append(0.0)
+                continue
+            f_stat, _ = stats.f_oneway(*groups)
+            n = sum(len(g) for g in groups)
+            k = len(groups)
+            denom = f_stat * (k - 1) + (n - k)
+            eta_sq = (f_stat * (k - 1)) / denom if denom > 0 else 0.0
+            corr_values.append(float(eta_sq))
+
+        correlations_series = pd.Series(corr_values, index=feature_cols)
+    else:
+        correlations_series = df[feature_cols].corrwith(df[target_col]).dropna()
 
     result = pd.DataFrame({
-        "feature": correlations.index,
-        "correlation": correlations.values,
-        "abs_correlation": correlations.abs().values,
+        "feature": correlations_series.index,
+        "correlation": correlations_series.values,
+        "abs_correlation": correlations_series.abs().values,
     }).sort_values("abs_correlation", ascending=False).reset_index(drop=True)
 
     if feature_defs is not None:

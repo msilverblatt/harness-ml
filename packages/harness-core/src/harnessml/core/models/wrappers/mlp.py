@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 
 from harnessml.core.models.base import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 def _build_mlp(
@@ -105,7 +108,9 @@ class MLPModel(BaseModel):
         result = (X - self._feature_means) / self._feature_stds
         return np.nan_to_num(result, nan=0.0)
 
-    def fit(self, X: np.ndarray, y: np.ndarray, *, eval_set=None) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, eval_set=None, **kwargs) -> None:
+        if sample_weight is not None:
+            logger.warning("MLPModel does not support sample_weight; ignoring.")
         import torch
         import torch.nn as nn
 

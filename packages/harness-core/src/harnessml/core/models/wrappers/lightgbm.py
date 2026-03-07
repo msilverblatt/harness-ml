@@ -30,7 +30,7 @@ class LightGBMModel(BaseModel):
         clean_params.setdefault("verbosity", -1)
         self._model = LGBMClassifier(**clean_params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
         import lightgbm as lgb
 
         if "eval_set" in kwargs and self._early_stopping:
@@ -38,6 +38,8 @@ class LightGBMModel(BaseModel):
             kwargs["callbacks"].append(
                 lgb.early_stopping(self._early_stopping, verbose=False)
             )
+        if sample_weight is not None:
+            kwargs["sample_weight"] = sample_weight
         self._model.fit(X, y, **kwargs)
         self._fitted = True
 

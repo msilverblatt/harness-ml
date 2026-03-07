@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 
 from harnessml.core.models.base import BaseModel
+
+logger = logging.getLogger(__name__)
 
 # Keys that belong to TabNetClassifier.fit(), not __init__()
 _FIT_KEYS = frozenset({
@@ -103,7 +106,9 @@ class TabNetModel(BaseModel):
 
         return init_kwargs, fit_kwargs
 
-    def fit(self, X: np.ndarray, y: np.ndarray, *, eval_set=None) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, eval_set=None, **kwargs) -> None:
+        if sample_weight is not None:
+            logger.warning("TabNetModel does not support sample_weight; ignoring.")
         from pytorch_tabnet.tab_model import TabNetClassifier
 
         # Normalization
