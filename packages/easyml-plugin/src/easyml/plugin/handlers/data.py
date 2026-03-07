@@ -345,6 +345,19 @@ def _handle_restore(*, project_dir, **_kwargs):
     return cw.restore_full_data(resolve_project_dir(project_dir))
 
 
+def _handle_fetch_url(*, data_path, name, project_dir, **_kwargs):
+    """Download a file from a URL to the raw data directory."""
+    from easyml.core.runner import config_writer as cw
+    err = validate_required(data_path, "data_path (the URL)")
+    if err:
+        return err
+    return cw.fetch_url(
+        resolve_project_dir(project_dir),
+        data_path,
+        filename=name,
+    )
+
+
 ACTIONS = {
     "add": _handle_add,
     "validate": _handle_validate,
@@ -375,6 +388,7 @@ ACTIONS = {
     "refresh": _handle_refresh,
     "refresh_all": _handle_refresh_all,
     "validate_source": _handle_validate_source,
+    "fetch_url": _handle_fetch_url,
 }
 
 

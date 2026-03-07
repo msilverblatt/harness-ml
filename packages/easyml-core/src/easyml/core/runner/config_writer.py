@@ -766,6 +766,25 @@ def restore_full_data(project_dir: Path) -> str:
     return _restore(Path(project_dir))
 
 
+def fetch_url(project_dir: Path, url: str, *, filename: str | None = None) -> str:
+    """Download a file from a URL to the project's raw data directory."""
+    import urllib.request
+    from urllib.parse import urlparse
+
+    project_dir = Path(project_dir)
+    raw_dir = project_dir / "data" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    if not filename:
+        filename = Path(urlparse(url).path).name or "download.csv"
+
+    dest = raw_dir / filename
+    urllib.request.urlretrieve(url, dest)
+
+    size_mb = dest.stat().st_size / (1024 * 1024)
+    return f"Downloaded `{filename}` ({size_mb:.1f} MB) to `{dest.relative_to(project_dir)}`."
+
+
 def inspect_data(project_dir: Path, *, column: str | None = None) -> str:
     """Inspect the features dataset.
 

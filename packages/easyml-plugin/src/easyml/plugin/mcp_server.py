@@ -245,6 +245,9 @@ async def manage_data(
         as features_full.parquet. Requires fraction (0.0-1.0). Optional:
         stratify_column (preserve class ratios), seed.
       - "restore": Restore full feature store from backup (features_full.parquet).
+      - "fetch_url": Download a file from a URL to the raw data directory.
+        Requires data_path (the URL). Optional: name (filename to save as,
+        auto-detected from URL if omitted).
     """
     return _load_handler("data").dispatch(
         action,

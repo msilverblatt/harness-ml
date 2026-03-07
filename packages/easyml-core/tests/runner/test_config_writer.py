@@ -1155,3 +1155,45 @@ class TestFormatTargetComparison:
         output = format_target_comparison(results)
         assert "short" in output
         assert "broken" in output
+
+
+class TestFetchUrl:
+    def test_fetch_url(self, tmp_path, monkeypatch):
+        from easyml.core.runner.config_writer import fetch_url
+
+        # Mock urllib.request.urlretrieve to just write a file
+        def mock_urlretrieve(url, dest):
+            Path(dest).write_text("a,b\n1,2\n3,4\n")
+
+        import urllib.request
+        monkeypatch.setattr(urllib.request, "urlretrieve", mock_urlretrieve)
+
+        result = fetch_url(tmp_path, "https://example.com/data.csv")
+        assert (tmp_path / "data" / "raw" / "data.csv").exists()
+        assert "data.csv" in result
+        assert "Downloaded" in result
+
+    def test_fetch_url_custom_filename(self, tmp_path, monkeypatch):
+        from easyml.core.runner.config_writer import fetch_url
+
+        def mock_urlretrieve(url, dest):
+            Path(dest).write_text("test data")
+
+        import urllib.request
+        monkeypatch.setattr(urllib.request, "urlretrieve", mock_urlretrieve)
+
+        result = fetch_url(tmp_path, "https://example.com/some/path", filename="custom.csv")
+        assert (tmp_path / "data" / "raw" / "custom.csv").exists()
+        assert "custom.csv" in result
+
+    def test_fetch_url_auto_filename(self, tmp_path, monkeypatch):
+        from easyml.core.runner.config_writer import fetch_url
+
+        def mock_urlretrieve(url, dest):
+            Path(dest).write_text("test data")
+
+        import urllib.request
+        monkeypatch.setattr(urllib.request, "urlretrieve", mock_urlretrieve)
+
+        result = fetch_url(tmp_path, "https://example.com/datasets/sp500_data.parquet")
+        assert (tmp_path / "data" / "raw" / "sp500_data.parquet").exists()
