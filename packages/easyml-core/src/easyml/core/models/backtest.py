@@ -8,81 +8,36 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from easyml.core.schemas.metrics import MetricRegistry
+
 
 # ---------------------------------------------------------------------------
-# Metric functions
+# Metric lookup — delegates to MetricRegistry (binary task type)
 # ---------------------------------------------------------------------------
 
-def _brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Mean squared error between predictions and binary labels."""
-    return float(np.mean((y_pred - y_true) ** 2))
-
-
-def _accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Fraction of correct predictions (threshold = 0.5)."""
-    return float(np.mean((y_pred >= 0.5) == y_true))
-
-
-def _log_loss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Binary cross-entropy loss."""
-    eps = 1e-15
-    y_pred = np.clip(y_pred, eps, 1.0 - eps)
-    return float(-np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred)))
-
-
-def _ece(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
-    """Expected Calibration Error with equal-width bins."""
-    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
-    ece = 0.0
-    n = len(y_true)
-    for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
-        mask = (y_pred >= lo) & (y_pred < hi)
-        if mask.sum() == 0:
-            continue
-        bin_acc = y_true[mask].mean()
-        bin_conf = y_pred[mask].mean()
-        ece += (mask.sum() / n) * abs(bin_acc - bin_conf)
-    return float(ece)
-
-
-def _auc_roc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Area under ROC curve."""
-    from sklearn.metrics import roc_auc_score
-    try:
-        return float(roc_auc_score(y_true, y_pred))
-    except ValueError:
-        return float("nan")
-
-
-def _f1(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """F1 score at threshold 0.5."""
-    from sklearn.metrics import f1_score
-    return float(f1_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
-
-
-def _precision(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Precision at threshold 0.5."""
-    from sklearn.metrics import precision_score
-    return float(precision_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
-
-
-def _recall(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Recall at threshold 0.5."""
-    from sklearn.metrics import recall_score
-    return float(recall_score(y_true, (y_pred >= 0.5).astype(int), zero_division=0))
-
-
-_METRIC_REGISTRY: dict[str, callable] = {
-    "brier": _brier_score,
-    "accuracy": _accuracy,
-    "log_loss": _log_loss,
-    "ece": _ece,
-    "auc_roc": _auc_roc,
-    "auc": _auc_roc,       # alias
-    "f1": _f1,
-    "precision": _precision,
-    "recall": _recall,
+# Aliases that map to canonical MetricRegistry names
+_METRIC_ALIASES: dict[str, str] = {
+    "auc": "auc_roc",
 }
+
+
+def _get_metric_fn(name: str):
+    """Look up a metric function from MetricRegistry, resolving aliases."""
+    canonical = _METRIC_ALIASES.get(name, name)
+    fn = MetricRegistry.get("binary", canonical)
+    if fn is None:
+        available = list(MetricRegistry.list_metrics("binary").get("binary", []))
+        raise ValueError(
+            f"Unknown metric {name!r}. Available binary metrics: {available}"
+        )
+    return fn
+
+
+def _METRIC_REGISTRY_lookup(name: str, y_true, y_pred) -> float:
+    """Compute a named metric via MetricRegistry."""
+    fn = _get_metric_fn(name)
+    val = fn(y_true, y_pred)
+    return float(val)
 
 
 # ---------------------------------------------------------------------------
@@ -129,12 +84,9 @@ class BacktestRunner:
     def __init__(self, metrics: list[str] | None = None) -> None:
         self.metrics = metrics or ["brier", "accuracy"]
 
-        # Validate metric names
+        # Validate metric names up front
         for m in self.metrics:
-            if m not in _METRIC_REGISTRY:
-                raise ValueError(
-                    f"Unknown metric {m!r}. Supported: {list(_METRIC_REGISTRY.keys())}"
-                )
+            _get_metric_fn(m)  # raises ValueError if unknown
 
     def run(
         self,
@@ -175,7 +127,7 @@ class BacktestRunner:
             # Per-fold metrics
             fold_metrics = {}
             for m in self.metrics:
-                fold_metrics[m] = _METRIC_REGISTRY[m](y_true, y_pred)
+                fold_metrics[m] = _METRIC_REGISTRY_lookup(m, y_true, y_pred)
             per_fold_metrics[fold_id] = fold_metrics
 
         # Pooled metrics
@@ -183,7 +135,7 @@ class BacktestRunner:
         pooled_preds = np.concatenate(all_preds)
         pooled_metrics = {}
         for m in self.metrics:
-            pooled_metrics[m] = _METRIC_REGISTRY[m](pooled_y, pooled_preds)
+            pooled_metrics[m] = _METRIC_REGISTRY_lookup(m, pooled_y, pooled_preds)
 
         return BacktestResult(
             pooled_metrics=pooled_metrics,

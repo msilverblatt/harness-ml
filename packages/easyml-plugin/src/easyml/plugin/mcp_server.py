@@ -116,6 +116,7 @@ async def models(
         zero_fill_features=zero_fill_features,
         items=items,
         purge=purge,
+        replace_params=replace_params,
         project_dir=project_dir,
     )
 

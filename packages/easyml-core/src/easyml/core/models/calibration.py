@@ -16,10 +16,38 @@ from sklearn.linear_model import LogisticRegression
 
 
 # ---------------------------------------------------------------------------
+# Base Calibrator
+# ---------------------------------------------------------------------------
+
+class BaseCalibrator:
+    """Shared save/load/is_fitted logic for all calibrators."""
+
+    _is_fitted: bool = False
+
+    def save(self, path: str | Path) -> None:
+        """Persist the fitted calibrator to disk via joblib."""
+        if not self._is_fitted:
+            raise RuntimeError("Cannot save unfitted calibrator")
+        joblib.dump(self, Path(path))
+
+    @classmethod
+    def load(cls, path: str | Path) -> Self:
+        """Load a previously saved calibrator."""
+        obj = joblib.load(Path(path))
+        if not isinstance(obj, cls):
+            raise TypeError(f"Expected {cls.__name__}, got {type(obj).__name__}")
+        return obj
+
+    @property
+    def is_fitted(self) -> bool:
+        return self._is_fitted
+
+
+# ---------------------------------------------------------------------------
 # Spline Calibrator
 # ---------------------------------------------------------------------------
 
-class SplineCalibrator:
+class SplineCalibrator(BaseCalibrator):
     """Monotonic spline calibration using PCHIP interpolation.
 
     Uses quantile binning to compute empirical calibration points, then fits
@@ -107,30 +135,12 @@ class SplineCalibrator:
         out = self._spline(y_pred)
         return np.clip(out, 1 - self._prob_max, self._prob_max)
 
-    def save(self, path: str | Path) -> None:
-        """Persist the fitted calibrator to disk via joblib."""
-        if not self._is_fitted:
-            raise RuntimeError("Cannot save unfitted calibrator")
-        joblib.dump(self, Path(path))
-
-    @classmethod
-    def load(cls, path: str | Path) -> Self:
-        """Load a previously saved calibrator."""
-        obj = joblib.load(Path(path))
-        if not isinstance(obj, cls):
-            raise TypeError(f"Expected {cls.__name__}, got {type(obj).__name__}")
-        return obj
-
-    @property
-    def is_fitted(self) -> bool:
-        return self._is_fitted
-
 
 # ---------------------------------------------------------------------------
 # Platt Calibrator
 # ---------------------------------------------------------------------------
 
-class PlattCalibrator:
+class PlattCalibrator(BaseCalibrator):
     """Platt scaling — logistic regression on raw probabilities.
 
     Parameters
@@ -160,30 +170,12 @@ class PlattCalibrator:
         out = self._lr.predict_proba(y_pred)[:, 1]
         return np.clip(out, 1e-7, 1.0 - 1e-7)
 
-    def save(self, path: str | Path) -> None:
-        """Persist the fitted calibrator to disk via joblib."""
-        if not self._is_fitted:
-            raise RuntimeError("Cannot save unfitted calibrator")
-        joblib.dump(self, Path(path))
-
-    @classmethod
-    def load(cls, path: str | Path) -> Self:
-        """Load a previously saved calibrator."""
-        obj = joblib.load(Path(path))
-        if not isinstance(obj, cls):
-            raise TypeError(f"Expected {cls.__name__}, got {type(obj).__name__}")
-        return obj
-
-    @property
-    def is_fitted(self) -> bool:
-        return self._is_fitted
-
 
 # ---------------------------------------------------------------------------
 # Isotonic Calibrator
 # ---------------------------------------------------------------------------
 
-class IsotonicCalibrator:
+class IsotonicCalibrator(BaseCalibrator):
     """Isotonic regression calibration — nonparametric, monotone."""
 
     def __init__(self) -> None:
@@ -206,21 +198,3 @@ class IsotonicCalibrator:
             raise RuntimeError("Calibrator not fitted")
         y_pred = np.asarray(y_pred, dtype=float)
         return self._iso.predict(y_pred)
-
-    def save(self, path: str | Path) -> None:
-        """Persist the fitted calibrator to disk via joblib."""
-        if not self._is_fitted:
-            raise RuntimeError("Cannot save unfitted calibrator")
-        joblib.dump(self, Path(path))
-
-    @classmethod
-    def load(cls, path: str | Path) -> Self:
-        """Load a previously saved calibrator."""
-        obj = joblib.load(Path(path))
-        if not isinstance(obj, cls):
-            raise TypeError(f"Expected {cls.__name__}, got {type(obj).__name__}")
-        return obj
-
-    @property
-    def is_fitted(self) -> bool:
-        return self._is_fitted

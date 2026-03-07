@@ -623,6 +623,7 @@ class BacktestConfig(BaseModel):
     window_size: int | None = None
     n_folds: int | None = None
     purge_gap: int = 1
+    eval_filter: str | None = None  # pandas query expression to filter test folds before metrics
 
     @field_validator("cv_strategy")
     @classmethod

@@ -207,6 +207,7 @@ def predict_single_model(
     test_df: pd.DataFrame,
     feature_columns: list[str],
     cdf_scale: float | None = None,
+    feature_medians: dict[str, float] | None = None,
 ) -> np.ndarray:
     """Generate predictions from a fitted model.
 
@@ -226,6 +227,9 @@ def predict_single_model(
     cdf_scale : float | None
         CDF scale for regressor conversion. Required for regressors
         without a pre-set cdf_scale.
+    feature_medians : dict[str, float] | None
+        Pre-computed feature medians from training data for NaN imputation.
+        If None, falls back to computing medians from test data.
 
     Returns
     -------
@@ -237,11 +241,20 @@ def predict_single_model(
     # Handle NaN in test features
     nan_mask = np.isnan(X_test)
     if nan_mask.any():
-        col_medians = np.nanmedian(X_test, axis=0)
-        col_medians = np.where(np.isnan(col_medians), 0.0, col_medians)
-        for col_idx in range(X_test.shape[1]):
-            row_mask = nan_mask[:, col_idx]
-            X_test[row_mask, col_idx] = col_medians[col_idx]
+        if feature_medians is not None:
+            # Use pre-computed training-data medians
+            for col_idx, col_name in enumerate(feature_columns):
+                row_mask = nan_mask[:, col_idx]
+                if row_mask.any():
+                    fill_val = feature_medians.get(col_name, 0.0)
+                    X_test[row_mask, col_idx] = fill_val
+        else:
+            # Fallback: compute medians from test data
+            col_medians = np.nanmedian(X_test, axis=0)
+            col_medians = np.where(np.isnan(col_medians), 0.0, col_medians)
+            for col_idx in range(X_test.shape[1]):
+                row_mask = nan_mask[:, col_idx]
+                X_test[row_mask, col_idx] = col_medians[col_idx]
 
     is_regressor = _is_regressor(model_def)
 
@@ -329,6 +342,35 @@ def _fit_cdf_scale_from_data(
     Kept for backward compatibility.
     """
     return _fit_cdf_scale(y_margin, y_binary)
+
+
+def compute_feature_medians(
+    train_df: pd.DataFrame,
+    feature_columns: list[str],
+) -> dict[str, float]:
+    """Compute per-feature medians from training data for NaN imputation.
+
+    Parameters
+    ----------
+    train_df : pd.DataFrame
+        Training data.
+    feature_columns : list[str]
+        Feature column names.
+
+    Returns
+    -------
+    dict[str, float]
+        Mapping from feature name to median value. Falls back to 0.0
+        if a feature is entirely NaN.
+    """
+    medians = {}
+    for col in feature_columns:
+        if col in train_df.columns:
+            med = train_df[col].median()
+            medians[col] = 0.0 if pd.isna(med) else float(med)
+        else:
+            medians[col] = 0.0
+    return medians
 
 
 def _augment_matchup_symmetry(

@@ -69,41 +69,41 @@ class ModelRegistry:
 
             registry.register("random_forest", RandomForestModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "sklearn (random_forest)")
 
         try:
             from easyml.core.models.wrappers.xgboost import XGBoostModel
 
             registry.register("xgboost", XGBoostModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "xgboost")
 
         try:
             from easyml.core.models.wrappers.catboost import CatBoostModel
 
             registry.register("catboost", CatBoostModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "catboost")
 
         try:
             from easyml.core.models.wrappers.lightgbm import LightGBMModel
 
             registry.register("lightgbm", LightGBMModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "lightgbm")
 
         try:
             from easyml.core.models.wrappers.mlp import MLPModel
 
             registry.register("mlp", MLPModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "torch (mlp)")
 
         try:
             from easyml.core.models.wrappers.tabnet import TabNetModel
 
             registry.register("tabnet", TabNetModel)
         except ImportError:
-            pass
+            logger.debug("Optional dependency not available: %s", "pytorch-tabnet (tabnet)")
 
         return registry

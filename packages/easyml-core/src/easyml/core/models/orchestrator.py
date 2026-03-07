@@ -133,7 +133,8 @@ class TrainOrchestrator:
 
         # Select features for this model
         model_features = config.get("features", feature_columns)
-        feat_indices = [feature_columns.index(f) for f in model_features if f in feature_columns]
+        col_index = {c: i for i, c in enumerate(feature_columns)}
+        feat_indices = [col_index[f] for f in model_features if f in col_index]
         X_sub = X[:, feat_indices] if feat_indices else X
 
         # Create and train

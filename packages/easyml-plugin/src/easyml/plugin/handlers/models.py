@@ -84,8 +84,11 @@ def _handle_add_batch(*, items, project_dir, **_kwargs):
     for i, item in enumerate(parsed):
         try:
             item_name = item.get("name", f"item_{i}")
-            _handle_add(project_dir=project_dir, **_with_defaults(item))
-            results.append(item_name)
+            result = _handle_add(project_dir=project_dir, **_with_defaults(item))
+            if isinstance(result, str) and result.startswith("**Error**"):
+                errors.append(f"{item_name}: {result}")
+            else:
+                results.append(item_name)
         except Exception as e:
             errors.append(f"{item.get('name', f'item_{i}')}: {e}")
     summary = f"Added {len(results)} model(s)."
@@ -103,8 +106,11 @@ def _handle_update_batch(*, items, project_dir, **_kwargs):
     for i, item in enumerate(parsed):
         try:
             item_name = item.get("name", f"item_{i}")
-            _handle_update(project_dir=project_dir, **_with_defaults(item, for_update=True))
-            results.append(item_name)
+            result = _handle_update(project_dir=project_dir, **_with_defaults(item, for_update=True))
+            if isinstance(result, str) and result.startswith("**Error**"):
+                errors.append(f"{item_name}: {result}")
+            else:
+                results.append(item_name)
         except Exception as e:
             errors.append(f"{item.get('name', f'item_{i}')}: {e}")
     summary = f"Updated {len(results)} model(s)."
@@ -199,10 +205,8 @@ def _with_defaults(item: dict, for_update: bool = False) -> dict:
         "prediction_type": None,
         "cdf_scale": None,
         "zero_fill_features": None,
+        "replace_params": None,
     }
-    if not for_update:
-        # For add, we don't need purge
-        pass
     result = {k: item.get(k, v) for k, v in defaults.items()}
     return result
 

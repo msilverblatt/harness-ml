@@ -51,34 +51,37 @@ class SplineCalibrator:
         y_prob_sorted = y_prob[order]
         y_true_sorted = y_true[order]
 
-        # Equal-frequency bins
-        bins = np.array_split(np.arange(len(y_prob_sorted)), self.n_bins)
+        # Fixed-stride binning (matches reference implementation)
+        n = len(y_prob_sorted)
+        bin_size = max(n // self.n_bins, 10)
 
         mean_preds = []
         mean_actuals = []
-        for bin_idx in bins:
-            if len(bin_idx) == 0:
+        for i in range(0, n, bin_size):
+            chunk_pred = y_prob_sorted[i : i + bin_size]
+            chunk_true = y_true_sorted[i : i + bin_size]
+            if len(chunk_pred) == 0:
                 continue
-            mean_preds.append(y_prob_sorted[bin_idx].mean())
-            mean_actuals.append(y_true_sorted[bin_idx].mean())
+            mean_preds.append(chunk_pred.mean())
+            mean_actuals.append(chunk_true.mean())
 
         mean_preds = np.array(mean_preds)
         mean_actuals = np.array(mean_actuals)
 
         # Isotonic regression to enforce monotonicity before PCHIP
-        iso = IsotonicRegression(y_min=0.001, y_max=self.prob_max, out_of_bounds="clip")
+        iso = IsotonicRegression(y_min=1e-7, y_max=self.prob_max, out_of_bounds="clip")
         mean_actuals_mono = iso.fit_transform(mean_preds, mean_actuals)
 
         # PCHIP guarantees monotone interpolation between nodes
         self._interpolator = PchipInterpolator(mean_preds, mean_actuals_mono)
 
     def transform(self, y_prob: np.ndarray) -> np.ndarray:
-        """Apply PCHIP calibration, clipping output to (0.001, prob_max)."""
+        """Apply PCHIP calibration, clipping output to (1e-7, prob_max)."""
         if self._interpolator is None:
             raise RuntimeError("SplineCalibrator has not been fitted yet.")
         y_prob = np.asarray(y_prob, dtype=float)
         calibrated = self._interpolator(y_prob)
-        return np.clip(calibrated, 0.001, self.prob_max)
+        return np.clip(calibrated, 1e-7, self.prob_max)
 
     @property
     def is_fitted(self) -> bool:
@@ -93,7 +96,7 @@ class IsotonicCalibrator:
 
     def __init__(self) -> None:
         self._model = IsotonicRegression(
-            y_min=0.001, y_max=0.999, out_of_bounds="clip"
+            y_min=1e-7, y_max=1.0 - 1e-7, out_of_bounds="clip"
         )
         self._fitted = False
 

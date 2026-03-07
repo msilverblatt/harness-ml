@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from pathlib import Path
 
 import yaml
@@ -2075,9 +2076,9 @@ def run_experiment(
             exp_val = exp_metrics.get(metric, float("nan"))
             delta = exp_val - base_val
 
-            base_str = f"{base_val:.4f}" if not isinstance(base_val, float) or base_val == base_val else "N/A"
-            exp_str = f"{exp_val:.4f}" if not isinstance(exp_val, float) or exp_val == exp_val else "N/A"
-            delta_str = f"{delta:+.4f}" if delta == delta else "N/A"
+            base_str = "N/A" if isinstance(base_val, float) and math.isnan(base_val) else f"{base_val:.4f}"
+            exp_str = "N/A" if isinstance(exp_val, float) and math.isnan(exp_val) else f"{exp_val:.4f}"
+            delta_str = "N/A" if isinstance(delta, float) and math.isnan(delta) else f"{delta:+.4f}"
 
             lines.append(f"| {metric} | {base_str} | {exp_str} | {delta_str} |")
 

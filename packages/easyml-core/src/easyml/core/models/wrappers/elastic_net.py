@@ -42,17 +42,26 @@ class ElasticNetModel(BaseModel):
         return False
 
     def save(self, path: Path) -> None:
+        import json
+
         import joblib
 
+        path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
         joblib.dump(self._model, path / "model.joblib")
+        meta = {"params": self.params}
+        (path / "meta.json").write_text(json.dumps(meta))
 
     @classmethod
     def load(cls, path: Path) -> ElasticNetModel:
+        import json
+
         import joblib
 
+        path = Path(path)
+        meta = json.loads((path / "meta.json").read_text())
         instance = cls.__new__(cls)
-        instance.params = {}
+        instance.params = meta["params"]
         instance._model = joblib.load(path / "model.joblib")
         instance._fitted = True
         return instance

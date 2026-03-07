@@ -41,7 +41,7 @@ class TestSplineCalibrator:
         calibrated = cal.transform(y_prob)
 
         # Output should be clipped within bounds
-        assert calibrated.min() >= 0.001
+        assert calibrated.min() >= 1e-7
         assert calibrated.max() <= 0.985
         assert len(calibrated) == len(y_prob)
 
@@ -104,7 +104,7 @@ class TestIsotonicCalibrator:
         calibrated = cal.transform(y_prob)
 
         assert len(calibrated) == len(y_prob)
-        assert calibrated.min() >= 0.001
+        assert calibrated.min() >= 1e-7
         assert calibrated.max() <= 0.999
 
     def test_is_fitted_property(self):
