@@ -41,15 +41,15 @@ features(action="add", name="sex_male", formula="(Sex == 'male').astype(int)", t
          project_dir="examples/titanic")
 
 # 7. Add models
-models(action="add", name="xgb_main", preset="binary_default",
+models(action="add", name="xgb_main", preset="xgboost_classifier",
        features=["age", "fare", "sibsp", "parch", "sex_male"],
        project_dir="examples/titanic")
 
-models(action="add", name="lgb_main", model_type="lightgbm", preset="binary_default",
+models(action="add", name="lgb_main", preset="lightgbm_classifier",
        features=["age", "fare", "sibsp", "parch", "sex_male"],
        project_dir="examples/titanic")
 
-models(action="add", name="lr_baseline", model_type="logistic_regression", preset="binary_default",
+models(action="add", name="lr_baseline", preset="logistic_regression",
        features=["age", "fare", "sibsp", "parch", "sex_male"],
        project_dir="examples/titanic")
 

@@ -14,6 +14,12 @@
 [![Tests](https://img.shields.io/badge/tests-2242%20passing-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
+### From raw CSV to stacked ensemble in under a minute
+
+<video src="docs/assets/titanic-demo.mp4" controls width="100%"></video>
+
+<sub>Full example: [examples/titanic](examples/titanic/)</sub>
+
 ---
 
 ## Why HarnessML?
