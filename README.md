@@ -1,4 +1,6 @@
 
+<div align="center">
+
 ```
  ██╗  ██╗ █████╗ ██████╗ ███╗   ██╗███████╗███████╗███████╗    ███╗   ███╗██╗
  ██║  ██║██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝██╔════╝    ████╗ ████║██║
@@ -8,55 +10,66 @@
  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝    ╚═╝     ╚═╝╚══════╝
 ```
 
-**An ML framework built for AI agents.** Guardrails, experiment tracking, and full pipeline orchestration — so your agent does data science, not plumbing.
+**An Agent-Computer Interface (ACI) for machine learning.**<br>
+Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-2242%20passing-brightgreen.svg)]()
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776ab.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
+[![Tests](https://img.shields.io/badge/tests-1983%20passing-22c55e.svg?style=flat-square)]()
+[![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b.svg?style=flat-square)](LICENSE)
 
-### From raw CSV to stacked ensemble in under a minute
+<br>
 
+**Raw CSV to stacked ensemble, under a minute**
 
 https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
+<sub>[examples/titanic](examples/titanic/)</sub>
 
-<sub>Full example: [examples/titanic](examples/titanic/)</sub>
+</div>
 
----
+<br>
 
 ## Why HarnessML?
 
-AI agents burn context tokens on DataFrame wrangling, YAML editing, file I/O, and experiment bookkeeping. That's not data science — that's plumbing.
+We are currently forcing AI agents to use human tools. When an LLM writes Python for data science, it enters a fragile loop: hallucinating deprecated pandas methods, exhausting its context window on boilerplate CV loops, and getting stuck in debugging spirals that destroy its ability to reason about the actual problem.
 
-HarnessML gives agents a **single MCP tool call** for every ML operation: backtest, experiment, feature engineering, model tuning. The framework handles caching, logging, guardrails, and orchestration automatically. The agent focuses on hypotheses and results.
+**HarnessML is an Agent-Computer Interface (ACI) for machine learning.**
+
+Instead of generating brittle Python scripts, the agent communicates with a deterministic backend via the **Model Context Protocol (MCP)**. HarnessML gives agents a **single, structured tool call** for complex ML operations: backtesting, feature engineering, experiment tracking, and ensembling.
+
+- **Zero boilerplate.** The agent never writes a `for` loop. It declares a hypothesis.
+- **Bounded execution.** 12 guardrails (3 non-overridable) prevent the agent from causing data leakage, temporal crossover, or silent feature pipeline failures — before training starts.
+- **Structured reasoning.** The agent receives deterministic, structured evaluations back — not stack traces that burn half its context window. It stays focused on the scientific method, not syntax errors.
+- **Persistent state.** Every run is fingerprinted and logged. Experiments get isolated config overlays. The agent picks up where it left off across sessions — no re-discovery, no repeated work.
 
 ```
-Agent: "Add an XGBoost model with these features and run a backtest"
-                          ↓
-              models(action="add", ...)
-              pipeline(action="run_backtest")
-                          ↓
-       Automatic: CV splits, training, calibration,
-       ensemble weighting, metrics, logging, fingerprinting
-                          ↓
-Agent: "Brier improved 0.003. Let's try adding interaction features."
+models(action="add", name="xgb_main", features=[...])
+pipeline(action="run_backtest")
+  → CV splits, training, calibration, ensemble, metrics, logging
+pipeline(action="compare_latest")
+  → "Brier: 0.182 → 0.179 (↑ +0.003)"
 ```
+
+<br>
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
-uv run pytest  # 2242 tests
+uv run pytest  # 1983 tests
 ```
+
+<br>
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     harness-core                        │
-│  schemas ∙ config ∙ guardrails ∙ models ∙ runner        │
-│  feature_eng ∙ calibration ∙ views ∙ sources            │
+│  schemas · config · guardrails · models · runner        │
+│  feature_eng · calibration · views · sources            │
 ├────────────────────────┬────────────────────────────────┤
 │    harness-plugin      │       harness-sports           │
 │    MCP server          │       domain plugin            │
@@ -64,21 +77,28 @@ uv run pytest  # 2242 tests
 └────────────────────────┴────────────────────────────────┘
 ```
 
-Three packages, one `uv` workspace:
-
 | Package | What it does |
 |---------|-------------|
 | **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, metrics, data sources |
 | **harness-plugin** | MCP server with hot-reloadable handlers — change handler code, no restart needed |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
 
+<br>
+
 ## What's Inside
 
-### Models (8 wrappers)
+<details>
+<summary><b>Models</b> — 8 wrappers</summary>
+<br>
 
-XGBoost, LightGBM, CatBoost, Random Forest, Logistic Regression, ElasticNet, MLP (PyTorch), TabNet — all configurable via YAML with eval_set/early stopping, normalization, and inspect-based kwargs forwarding.
+XGBoost · LightGBM · CatBoost · Random Forest · Logistic Regression · ElasticNet · MLP (PyTorch) · TabNet
 
-### Metrics (45 across 6 task types)
+All configurable via YAML with eval_set/early stopping, normalization, class weighting, and inspect-based kwargs forwarding.
+</details>
+
+<details>
+<summary><b>Metrics</b> — 45 across 6 task types</summary>
+<br>
 
 | Task | Examples |
 |------|----------|
@@ -88,53 +108,76 @@ XGBoost, LightGBM, CatBoost, Random Forest, Logistic Regression, ElasticNet, MLP
 | Ranking | ndcg, mrr, map |
 | Survival | concordance_index, brier_survival |
 | Probabilistic | crps, calibration, sharpness |
+</details>
 
-### Features (4 types)
+<details>
+<summary><b>Features</b> — 4 types</summary>
+<br>
 
 - **entity** — per-entity stats, auto-generates pairwise diffs
 - **pairwise** — formula features across entity pairs
 - **instance** — context columns passed through
 - **regime** — boolean flags that gate feature sets
+</details>
 
-### Calibration (4 methods)
+<details>
+<summary><b>Calibration</b> — 4 methods</summary>
+<br>
 
-Spline (PCHIP), Isotonic, Platt, Beta — all with save/load and fitted state tracking.
+Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted state tracking.
+</details>
 
-### CV Strategies
+<details>
+<summary><b>CV Strategies</b></summary>
+<br>
 
-`leave_one_out` (symmetric LOSO), `expanding_window`, `sliding_window`, `k_fold`, `stratified`
+`leave_one_out` (symmetric LOSO) · `expanding_window` · `sliding_window` · `k_fold` · `stratified`
+</details>
 
-### View Engine (22 transform steps)
+<details>
+<summary><b>View Engine</b> — 22 transform steps</summary>
+<br>
 
 `filter` `select` `derive` `group_by` `join` `union` `unpivot` `sort` `head` `rolling` `cast` `distinct` `rank` `isin` `cond_agg` `lag` `ewm` `diff` `trend` `encode` `bin` `datetime` `null_indicator`
+</details>
 
-### Guardrails (12 total)
+<details>
+<summary><b>Guardrails</b> — 12 total</summary>
+<br>
 
 3 **non-overridable** (data leakage, temporal integrity, critical path) + 9 overridable. Violations are logged for audit. Once locked, they cannot be bypassed.
+</details>
 
-### Exploration
+<details>
+<summary><b>Exploration</b></summary>
+<br>
 
 - **Auto-search** — discover feature interactions, lags, rolling aggregations
 - **Feature diversity** — overlap matrix, diversity score, redundant detection
 - **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
+</details>
+
+<br>
 
 ## MCP Tools
-
-When connected via MCP, agents get these tools:
 
 | Tool | Actions |
 |------|---------|
 | `data` | ingest sources, validate, fill nulls, rename, derive columns, manage views, upload to Drive/Kaggle |
 | `features` | register features, test transforms, discover correlations, analyze diversity |
-| `models` | add/update/clone models, batch operations, view presets |
+| `models` | add/update/clone models, batch operations, class weighting, append/remove features |
 | `configure` | init projects, set backtest/ensemble config, run guardrail checks |
-| `pipeline` | run backtests, predict, diagnostics, compare runs, explain models, export notebooks |
+| `pipeline` | run backtests, predict, diagnostics, compare runs, compare latest, explain models, export notebooks |
 | `experiments` | create/run/promote experiments with config overlays |
 | `competitions` | simulations, brackets, scoring for tournament events |
 
+<br>
+
 ## Usage
 
-### Python API
+<details>
+<summary><b>Python API</b></summary>
+<br>
 
 ```python
 from harnessml.core.config import resolve_config
@@ -150,8 +193,11 @@ trained = orchestrator.train_all(X, y, feature_columns=cols)
 metrics = MetricRegistry()
 print(f"Brier: {metrics.get('binary', 'brier')(y_true, y_prob):.4f}")
 ```
+</details>
 
-### YAML-Driven Pipeline
+<details>
+<summary><b>YAML-Driven Pipeline</b></summary>
+<br>
 
 ```yaml
 # config/pipeline.yaml
@@ -173,10 +219,13 @@ ensemble:
   method: stacked
   calibration: spline
 ```
+</details>
 
-### Agent Workflow
+<details open>
+<summary><b>Agent Workflow</b></summary>
+<br>
 
-```
+```python
 # The agent never writes pipeline code. It declares intent:
 
 models(action="add", name="lgb_tempo", preset="binary_default",
@@ -191,15 +240,21 @@ pipeline(action="diagnostics")
 experiments(action="create", name="exp-003-tempo-features")
 # → Isolated overlay — production config untouched
 ```
+</details>
+
+<br>
 
 ## Design Philosophy
 
+- **Agent UX over human UX** — designed for the cognitive profile and context limitations of an LLM, not for a human in a Jupyter notebook. Tools return structured summaries, not massive tracebacks
 - **Declarative over imperative** — YAML config and registries, not boilerplate code
 - **Defaults over decision fatigue** — sensible presets for models, CV, metrics
 - **Automatic over manual** — caching, logging, fingerprinting, guardrails happen without intervention
 - **Single source of truth** — config is the contract; overlays enable isolated testing
 - **Deterministic** — fingerprinting ensures identical configs produce identical results
 - **Everything configurable** — no hardcoded thresholds, metric lists, or domain assumptions
+
+<br>
 
 ## Development
 
