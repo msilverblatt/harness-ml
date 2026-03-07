@@ -31,3 +31,6 @@ Thumbs.db
 catboost_info/
 docs/plans/
 .claude/
+.worktrees/
+.mcp.json
+projects/
