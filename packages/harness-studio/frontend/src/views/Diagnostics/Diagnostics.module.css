@@ -4,34 +4,183 @@
     height: 100%;
 }
 
-.selectorRow {
+/* --- Run Selector --- */
+
+.runSelector {
     margin-bottom: var(--space-4);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.runSelectorHeader {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .selectorLabel {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.select {
-    background: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
+.runQuickActions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.quickBtn {
     font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    padding: var(--space-2);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-3);
     border-radius: var(--radius-sm);
-    outline: none;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.quickBtn:hover:not(:disabled) {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+}
+
+.quickBtn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.quickBtnActive {
+    background: var(--color-accent);
+    color: var(--color-bg-primary);
+    border-color: var(--color-accent);
+}
+
+.runList {
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.runItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border-subtle);
+    transition: background 0.1s;
+}
+
+.runItem:last-child {
+    border-bottom: none;
+}
+
+.runItem:hover {
+    background: var(--color-bg-hover);
+}
+
+.runItemSelected {
+    background: rgba(88, 166, 255, 0.08);
+    border-left: 3px solid var(--color-accent);
+    padding-left: calc(var(--space-4) - 3px);
+}
+
+.runCheckbox {
+    accent-color: var(--color-accent);
     cursor: pointer;
 }
 
-.select:hover {
-    border-color: var(--color-accent);
+.runItemContent {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
 }
+
+.runTimestamp {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+}
+
+.runBadges {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.expBadge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: rgba(240, 136, 62, 0.15);
+    color: var(--color-tool-experiments);
+    border: 1px solid rgba(240, 136, 62, 0.3);
+    white-space: nowrap;
+}
+
+.bestBadge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--color-success);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    white-space: nowrap;
+}
+
+.runMetricInline {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+/* --- Tab Bar --- */
+
+.tabBar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--color-border-subtle);
+    margin-bottom: var(--space-4);
+    margin-top: var(--space-3);
+}
+
+.tab {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s;
+}
+
+.tab:hover {
+    color: var(--color-text-secondary);
+}
+
+.tabActive {
+    color: var(--color-text-primary);
+    border-bottom-color: var(--color-accent);
+}
+
+/* --- Sections --- */
 
 .sectionTitle {
     font-family: var(--font-sans);
@@ -102,8 +251,10 @@
     border: 1px solid var(--color-border-subtle);
     border-radius: var(--radius-md);
     padding: var(--space-4);
-    min-height: 300px;
+    min-height: 200px;
 }
+
+/* --- Correlation Matrix --- */
 
 .correlationGrid {
     display: grid;
@@ -150,6 +301,8 @@
     font-family: var(--font-mono);
 }
 
+/* --- Fold Table --- */
+
 .foldTable {
     width: 100%;
     border-collapse: collapse;
@@ -171,4 +324,96 @@
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--color-border-subtle);
     color: var(--color-text-primary);
+}
+
+/* --- Meta-Learner Coefficients --- */
+
+.coeffSubtitle {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.coeffList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.coeffRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.coeffName {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    min-width: 120px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.coeffBarTrack {
+    flex: 1;
+    height: 20px;
+    background: var(--color-bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 240px;
+}
+
+.coeffBarFill {
+    height: 100%;
+    border-radius: 2px;
+    min-width: 2px;
+    transition: width 0.3s ease;
+}
+
+.coeffValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    min-width: 60px;
+    font-weight: 600;
+}
+
+/* --- Comparison Table --- */
+
+.compareMetricName {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.compareValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.compareDelta {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.expBadgeSmall {
+    display: inline-block;
+    font-size: 9px;
+    padding: 0 4px;
+    margin-left: var(--space-1);
+    border-radius: 2px;
+    background: rgba(240, 136, 62, 0.15);
+    color: var(--color-tool-experiments);
+    vertical-align: middle;
+}
+
+/* --- Report --- */
+
+.reportContainer {
+    margin-top: var(--space-4);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
 }

@@ -2,8 +2,9 @@ import { useApi } from '../../hooks/useApi';
 import styles from './Diagnostics.module.css';
 
 interface CorrelationResponse {
-    models: string[];
-    matrix: number[][];
+    models?: string[];
+    matrix?: number[][];
+    error?: string;
 }
 
 interface CorrelationMatrixProps {
@@ -28,37 +29,41 @@ export function CorrelationMatrix({ runId }: CorrelationMatrixProps) {
         );
     }
 
-    if (error || !data || data.models.length === 0) {
+    if (error || !data || data.error || !data.models || data.models.length === 0) {
         return (
             <div className={styles.chartContainer}>
                 <div className={styles.emptyState}>
-                    {error ? `Error: ${error}` : 'No correlation data available.'}
+                    {data?.error ?? error ?? 'No correlation data available.'}
                 </div>
             </div>
         );
     }
 
     const { models, matrix } = data;
+    if (!matrix) {
+        return (
+            <div className={styles.chartContainer}>
+                <div className={styles.emptyState}>No correlation matrix available.</div>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.chartContainer}>
-            <div className={styles.categoryHeader}>Model Correlations</div>
+            <div className={styles.categoryHeader}>Prediction Correlations</div>
             <div
                 className={styles.correlationGrid}
                 style={{ gridTemplateColumns: `auto repeat(${models.length}, 1fr)` }}
             >
-                {/* Top-left empty cell */}
                 <div />
-                {/* Column headers */}
                 {models.map(name => (
                     <div key={`col-${name}`} className={styles.correlationHeader}>
                         {name}
                     </div>
                 ))}
-                {/* Rows */}
                 {models.map((rowName, rowIdx) => (
-                    <>
-                        <div key={`row-${rowName}`} className={styles.rowHeader}>
+                    <div key={`row-group-${rowName}`} style={{ display: 'contents' }}>
+                        <div className={styles.rowHeader}>
                             {rowName}
                         </div>
                         {models.map((colName, colIdx) => {
@@ -74,7 +79,7 @@ export function CorrelationMatrix({ runId }: CorrelationMatrixProps) {
                                 </div>
                             );
                         })}
-                    </>
+                    </div>
                 ))}
             </div>
         </div>

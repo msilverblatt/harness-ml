@@ -19,8 +19,9 @@ interface CalibrationPoint {
 }
 
 interface CalibrationResponse {
-    calibration: CalibrationPoint[];
-    prob_column: string;
+    calibration?: CalibrationPoint[];
+    prob_column?: string;
+    error?: string;
 }
 
 interface CalibrationPlotProps {
@@ -38,12 +39,11 @@ export function CalibrationPlot({ runId }: CalibrationPlotProps) {
         );
     }
 
-    if (error || !data || data.calibration.length === 0) {
+    if (error || !data || data.error || !data.calibration || data.calibration.length === 0) {
+        const msg = data?.error ?? error ?? 'No calibration data available.';
         return (
             <div className={styles.chartContainer}>
-                <div className={styles.emptyState}>
-                    {error ? `Error: ${error}` : 'No calibration data available.'}
-                </div>
+                <div className={styles.emptyState}>{msg}</div>
             </div>
         );
     }
@@ -56,8 +56,10 @@ export function CalibrationPlot({ runId }: CalibrationPlotProps) {
 
     return (
         <div className={styles.chartContainer}>
-            <div className={styles.categoryHeader}>Calibration Curve</div>
-            <ResponsiveContainer width="100%" height={260}>
+            <div className={styles.categoryHeader}>
+                Calibration Curve ({data.prob_column ?? 'ensemble'})
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart margin={{ top: 10, right: 20, bottom: 20, left: 20 }}>
                     <CartesianGrid
                         strokeDasharray="3 3"

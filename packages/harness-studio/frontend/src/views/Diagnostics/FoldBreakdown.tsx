@@ -5,8 +5,29 @@ interface FoldBreakdownProps {
     runId: string;
 }
 
+interface FoldData {
+    fold: number;
+    n_samples: number;
+    [key: string]: unknown;
+}
+
+interface FoldsResponse {
+    folds?: FoldData[];
+    metric_names?: string[];
+    error?: string;
+}
+
+function formatCell(value: unknown): string {
+    if (typeof value === 'number') {
+        if (Number.isInteger(value)) return String(value);
+        if (Math.abs(value) >= 100) return value.toFixed(1);
+        return value.toFixed(4);
+    }
+    return String(value ?? '');
+}
+
 export function FoldBreakdown({ runId }: FoldBreakdownProps) {
-    const { data: metrics, loading, error } = useApi<Record<string, number>>(`/api/runs/${runId}/metrics`);
+    const { data, loading, error } = useApi<FoldsResponse>(`/api/runs/${runId}/folds`);
 
     if (loading) {
         return <div className={styles.emptyState}>Loading fold breakdown...</div>;
@@ -16,36 +37,37 @@ export function FoldBreakdown({ runId }: FoldBreakdownProps) {
         return <div className={styles.emptyState}>Error: {error}</div>;
     }
 
-    if (!metrics || Object.keys(metrics).length === 0) {
-        return <div className={styles.emptyState}>No metrics available.</div>;
+    if (!data || data.error || !data.folds || data.folds.length === 0) {
+        return <div className={styles.emptyState}>No fold data available.</div>;
     }
 
-    const entries = Object.entries(metrics).sort(([a], [b]) => a.localeCompare(b));
+    const { folds, metric_names } = data;
+    const cols = metric_names ?? [];
 
     return (
-        <div>
-            <div className={styles.categoryHeader}>Fold Breakdown</div>
-            <div className={styles.emptyState} style={{ paddingBottom: 'var(--space-2)' }}>
-                Per-fold breakdown available after backtest run
-            </div>
-            <div className={styles.chartContainer}>
-                <table className={styles.foldTable}>
-                    <thead>
-                        <tr>
-                            <th>Metric</th>
-                            <th>Pooled Value</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {entries.map(([name, value]) => (
-                            <tr key={name}>
-                                <td>{name}</td>
-                                <td>{value.toFixed(4)}</td>
-                            </tr>
+        <div className={styles.chartContainer}>
+            <table className={styles.foldTable}>
+                <thead>
+                    <tr>
+                        <th>Fold</th>
+                        <th>Samples</th>
+                        {cols.map(col => (
+                            <th key={col}>{col}</th>
                         ))}
-                    </tbody>
-                </table>
-            </div>
+                    </tr>
+                </thead>
+                <tbody>
+                    {folds.map((fold) => (
+                        <tr key={fold.fold}>
+                            <td>{fold.fold}</td>
+                            <td>{fold.n_samples}</td>
+                            {cols.map(col => (
+                                <td key={col}>{formatCell(fold[col])}</td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
