@@ -328,8 +328,8 @@ def auto_next_id(
 # -----------------------------------------------------------------------
 
 _LOG_HEADER = (
-    "| ID | Date | Hypothesis | Changes | Accuracy | Brier | ECE | LogLoss | Verdict | Notes |\n"
-    "|-----|------|------------|---------|----------|-------|-----|---------|---------|-------|\n"
+    "| ID | Date | Hypothesis | Changes | Accuracy | Brier | ECE | LogLoss | Verdict | Conclusion | Notes |\n"
+    "|-----|------|------------|---------|----------|-------|-----|---------|---------|------------|-------|\n"
 )
 
 
@@ -341,6 +341,7 @@ def auto_log_result(
     metrics: dict[str, float],
     baseline_metrics: dict[str, float],
     verdict: str,
+    conclusion: str = "",
     notes: str = "",
 ) -> None:
     """Append a row to an ``EXPERIMENT_LOG.md`` markdown table.
@@ -378,7 +379,7 @@ def auto_log_result(
     row = (
         f"| {experiment_id} | {date_str} | {hypothesis} | {changes} "
         f"| {_fmt('accuracy')} | {_fmt('brier_score')} | {_fmt('ece')} "
-        f"| {_fmt('log_loss')} | {verdict} | {notes} |\n"
+        f"| {_fmt('log_loss')} | {verdict} | {conclusion} | {notes} |\n"
     )
 
     with open(log_path, "a") as f:

@@ -356,7 +356,7 @@ class TestPipelineDispatch:
     def test_all_actions_registered(self):
         from harnessml.plugin.handlers.pipeline import ACTIONS
         expected = {
-            "run_backtest", "predict", "diagnostics", "list_runs",
+            "progress", "run_backtest", "predict", "diagnostics", "list_runs",
             "show_run", "compare_runs", "compare_latest", "compare_targets",
             "explain", "inspect_predictions", "export_notebook",
         }

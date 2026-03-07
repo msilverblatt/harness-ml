@@ -308,6 +308,7 @@ class ExperimentManager:
         hypothesis: str,
         changes: str,
         verdict: str,
+        conclusion: str = "",
         notes: str = "",
     ) -> None:
         """Append a log entry for an experiment to the log file.
@@ -322,6 +323,8 @@ class ExperimentManager:
             Brief description of what was changed.
         verdict:
             One of "keep", "revert", or "partial".
+        conclusion:
+            What was learned from this experiment.
         notes:
             Optional additional observations.
         """
@@ -343,6 +346,8 @@ class ExperimentManager:
             f"**Changes:** {changes}",
             f"**Verdict:** {verdict}",
         ]
+        if conclusion:
+            entry_lines.append(f"**Conclusion:** {conclusion}")
         if notes:
             entry_lines.append(f"**Notes:** {notes}")
         entry_lines.append("")  # trailing newline

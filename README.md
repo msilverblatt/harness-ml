@@ -40,6 +40,7 @@ HarnessML is an **Agent-Computer Interface**. One tool call per operation. Deter
 | **Guardrailed** | 12 constraints block data leakage and temporal contamination before training starts |
 | **Structured I/O** | Deterministic results back — not stack traces that burn context |
 | **Persistent** | Every run fingerprinted and logged. Experiments survive session boundaries |
+| **Disciplined** | Required hypothesis/conclusion, phased workflow gates, exhaustive exploration before tuning |
 
 ```
 models(action="add", name="xgb_main", features=[...])
@@ -153,6 +154,18 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 - **Auto-search** — discover feature interactions, lags, rolling aggregations
 - **Feature diversity** — overlap matrix, diversity score, redundant detection
 - **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
+- **Workflow tracking** — phased gates ensure feature discovery and model diversity before tuning
+</details>
+
+<details>
+<summary><b>Experiment Discipline</b></summary>
+<br>
+
+- **Required hypothesis** — every experiment must state what it expects and why
+- **Required conclusion** — document what was learned, not just pass/fail
+- **Phased workflow** — EDA → model diversity → feature engineering → tuning → ensemble
+- **Workflow gates** — soft warnings by default, hard blocks with `workflow.enforce_phases: true`
+- **Skills** — `docs/skills/` ships 3 agent skills for experiment execution, space exploration, and domain research
 </details>
 
 <br>
@@ -165,8 +178,8 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 | `features` | register features, test transforms, discover correlations, analyze diversity |
 | `models` | add/update/clone models, batch operations, class weighting, append/remove features |
 | `configure` | init projects, set backtest/ensemble config, run guardrail checks |
-| `pipeline` | run backtests, predict, diagnostics, compare runs, compare latest, explain models, export notebooks |
-| `experiments` | create/run/promote experiments with config overlays |
+| `pipeline` | run backtests, predict, diagnostics, compare runs, compare latest, explain models, workflow progress, export notebooks |
+| `experiments` | create/run/promote experiments with config overlays, required hypothesis, Bayesian exploration with workflow gates |
 | `competitions` | simulations, brackets, scoring for tournament events |
 
 <br>
@@ -235,8 +248,12 @@ pipeline(action="run_backtest")
 pipeline(action="diagnostics")
 # → Per-model breakdown, ensemble weights, calibration curves
 
-experiments(action="create", name="exp-003-tempo-features")
+experiments(action="create", description="test tempo features",
+           hypothesis="Tempo differential captures pace mismatch advantage")
 # → Isolated overlay — production config untouched
+
+pipeline(action="progress")
+# → Workflow checklist: feature discovery ✓, model diversity (2/4), tuning: NOT ready
 ```
 </details>
 
