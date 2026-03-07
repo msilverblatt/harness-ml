@@ -1,6 +1,7 @@
 """Harness Studio — companion dashboard server."""
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -64,8 +65,13 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
 async def lifespan(application: FastAPI):
     import asyncio
 
-    project_dir = getattr(application.state, "project_dir", ".")
-    db_path = Path(project_dir) / ".studio" / "events.db"
+    project_dir = Path(getattr(application.state, "project_dir", ".")).resolve()
+    # Explicit DB path via state (from CLI --db) or env var, else per-project default
+    db_path_str = getattr(application.state, "db_path", None) or os.environ.get("HARNESS_STUDIO_DB")
+    if db_path_str:
+        db_path = Path(db_path_str)
+    else:
+        db_path = project_dir / ".studio" / "events.db"
     try:
         from harnessml.studio.event_store import EventStore
         db_path.parent.mkdir(parents=True, exist_ok=True)

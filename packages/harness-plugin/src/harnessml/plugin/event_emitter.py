@@ -60,7 +60,15 @@ class EventEmitter:
 
 
 def create_emitter(project_dir: str | Path | None = None) -> EventEmitter:
-    """Create an EventEmitter, enabled if HARNESS_STUDIO_DB is set or project_dir given."""
+    """Create an EventEmitter.
+
+    Resolution order for the database path:
+      1. HARNESS_STUDIO_DB env var (explicit, set by user or .mcp.json)
+      2. <project_dir>/.studio/events.db (per-project fallback)
+
+    To ensure MCP events appear in Studio, set HARNESS_STUDIO_DB in
+    your .mcp.json env block to match Studio's --db path.
+    """
     db_path = os.environ.get("HARNESS_STUDIO_DB")
     if not db_path and project_dir:
         db_path = str(Path(project_dir) / ".studio" / "events.db")

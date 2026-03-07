@@ -53,7 +53,7 @@ class EventStore:
             conn.commit()
             return cur.lastrowid  # type: ignore[return-value]
 
-    def query(self, *, tool: str | None = None, limit: int = 50, before_id: int | None = None, exclude_transient: bool = False) -> list[dict]:
+    def query(self, *, tool: str | None = None, limit: int = 500, before_id: int | None = None, exclude_transient: bool = False) -> list[dict]:
         """Query events, newest first."""
         with self._lock:
             conn = self._get_conn()

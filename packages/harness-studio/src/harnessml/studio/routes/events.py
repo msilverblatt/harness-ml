@@ -7,7 +7,7 @@ router = APIRouter(tags=["events"])
 
 
 @router.get("/events")
-async def list_events(request: Request, tool: str | None = None, limit: int = 50, before_id: int | None = None):
+async def list_events(request: Request, tool: str | None = None, limit: int = 500, before_id: int | None = None):
     store = request.app.state.event_store
     if store is None:
         return []

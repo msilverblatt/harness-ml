@@ -19,16 +19,14 @@ mcp = FastMCP("harnessml")
 _DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
 
 _emitter = None
-_emitter_project_dir = None
 
 
 def _get_emitter(project_dir: str | None = None):
-    global _emitter, _emitter_project_dir
-    # Re-create emitter if project_dir changes or first call
-    if _emitter is None or (project_dir and project_dir != _emitter_project_dir):
+    global _emitter
+    # Initialize once — all events go to the same DB regardless of project_dir
+    if _emitter is None:
         from harnessml.plugin.event_emitter import create_emitter
         _emitter = create_emitter(project_dir=project_dir)
-        _emitter_project_dir = project_dir
     return _emitter
 
 
