@@ -1,5 +1,4 @@
 """Tests for TrackingCallback."""
-import pytest
 
 from harnessml.core.models.tracking import TrackingCallback
 

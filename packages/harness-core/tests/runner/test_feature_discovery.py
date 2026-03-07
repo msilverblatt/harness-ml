@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.feature_discovery import (
     compute_feature_correlations,
     compute_feature_importance,
@@ -14,7 +13,6 @@ from harnessml.core.runner.feature_discovery import (
     suggest_features,
 )
 from harnessml.core.runner.schema import FeatureDef, FeatureType
-
 
 # -----------------------------------------------------------------------
 # Fixtures

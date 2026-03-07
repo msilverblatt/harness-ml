@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import json
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.sources.adapters import (
     ADAPTERS,
     ApiAdapter,
@@ -17,7 +15,6 @@ from harnessml.core.runner.sources.adapters import (
     FileAdapter,
     UrlAdapter,
 )
-
 
 # ---------------------------------------------------------------------------
 # FileAdapter

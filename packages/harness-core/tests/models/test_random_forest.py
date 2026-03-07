@@ -2,7 +2,6 @@
 import logging
 
 import numpy as np
-import pytest
 
 
 def test_rf_filters_boosting_params_with_warning(caplog):

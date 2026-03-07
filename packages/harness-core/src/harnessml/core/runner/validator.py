@@ -10,10 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import ValidationError
-
 from harnessml.core.config.merge import deep_merge
-from harnessml.core.runner.schema import FeaturesConfig, ProjectConfig
+from harnessml.core.runner.schema import ProjectConfig
+from pydantic import ValidationError
 
 # Top-level pipeline.yaml keys that map directly to ProjectConfig fields.
 # These are passed through as-is during multi-section parsing.

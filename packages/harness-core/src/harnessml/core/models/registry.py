@@ -57,8 +57,8 @@ class ModelRegistry:
         registry = cls()
 
         # Always available (sklearn)
-        from harnessml.core.models.wrappers.logistic import LogisticRegressionModel
         from harnessml.core.models.wrappers.elastic_net import ElasticNetModel
+        from harnessml.core.models.wrappers.logistic import LogisticRegressionModel
 
         registry.register("logistic_regression", LogisticRegressionModel)
         registry.register("elastic_net", ElasticNetModel)

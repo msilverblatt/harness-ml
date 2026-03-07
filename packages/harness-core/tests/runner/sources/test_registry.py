@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import yaml
-
 from harnessml.core.runner.sources.registry import SourceDef, SourceRegistry
 
 

@@ -2,28 +2,22 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from harnessml.core.runner.schema import (
     BacktestConfig,
     ColumnCleaningRule,
     DataConfig,
     EnsembleDef,
-    ExperimentDef,
-    FeatureDecl,
     FeaturesConfig,
     GuardrailDef,
     InjectionDef,
     InteractionDef,
     ModelDef,
     ProjectConfig,
-    ServerDef,
     ServerToolDef,
     SourceConfig,
-    SourceDecl,
     TargetProfile,
 )
-
+from pydantic import ValidationError
 
 # -----------------------------------------------------------------------
 # Helpers — minimal valid sub-configs

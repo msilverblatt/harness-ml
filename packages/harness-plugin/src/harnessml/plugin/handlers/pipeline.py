@@ -3,12 +3,16 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    validate_enum, validate_required, collect_hints, format_response_with_hints,
+    collect_hints,
+    format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
 
 
 async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
     import asyncio
+
     from harnessml.core.runner import config_writer as cw
 
     loop = asyncio.get_running_loop()
@@ -209,6 +213,7 @@ def _extract_metrics_from_output(output: str) -> dict[str, str]:
 async def _handle_compare_targets(*, ctx, project_dir, **_kwargs):
     """Compare backtest performance across all configured target profiles."""
     import asyncio
+
     from harnessml.core.runner import config_writer as cw
 
     proj = resolve_project_dir(project_dir)
@@ -322,8 +327,8 @@ def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs)
 
 
 def _handle_progress(*, project_dir, **_kwargs):
-    from harnessml.core.runner.workflow_tracker import WorkflowTracker
     import yaml
+    from harnessml.core.runner.workflow_tracker import WorkflowTracker
 
     proj = resolve_project_dir(project_dir)
     config_dir = proj / "config"

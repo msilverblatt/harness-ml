@@ -29,9 +29,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, model_validator
-
 from harnessml.core.runner.sweep import set_nested_key
+from pydantic import BaseModel, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -508,7 +507,6 @@ def _run_baseline(
 
 def _save_study_json(path: Path, study: Any) -> None:
     """Serialize the Optuna study to JSON for later analysis."""
-    import optuna
 
     trials_data = []
     for t in study.trials:

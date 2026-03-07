@@ -1,9 +1,12 @@
 """Handler for configure tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import resolve_project_dir, parse_json_param
+from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    validate_enum, validate_required, collect_hints, format_response_with_hints,
+    collect_hints,
+    format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
 
 

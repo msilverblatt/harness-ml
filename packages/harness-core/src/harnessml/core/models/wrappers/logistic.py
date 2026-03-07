@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-
 from harnessml.core.models.base import BaseModel
 
 

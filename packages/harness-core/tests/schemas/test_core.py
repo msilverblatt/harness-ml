@@ -1,9 +1,17 @@
-import pytest
 from harnessml.core.schemas.contracts import (
-    FeatureMeta, TemporalFilter, ModelConfig, EnsembleConfig,
-    StageConfig, ArtifactDecl, PipelineConfig, RunManifest,
-    ExperimentResult, GuardrailViolation, Fold, SourceMeta,
+    ArtifactDecl,
+    EnsembleConfig,
+    ExperimentResult,
+    FeatureMeta,
+    Fold,
+    GuardrailViolation,
+    ModelConfig,
+    RunManifest,
+    SourceMeta,
+    StageConfig,
+    TemporalFilter,
 )
+
 
 def test_feature_meta_basic():
     fm = FeatureMeta(

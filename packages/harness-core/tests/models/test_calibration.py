@@ -1,6 +1,5 @@
 """Tests for probability calibrators."""
 import numpy as np
-
 from harnessml.core.models.calibration import (
     IsotonicCalibrator,
     PlattCalibrator,

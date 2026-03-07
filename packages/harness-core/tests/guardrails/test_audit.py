@@ -1,9 +1,7 @@
 """Tests for structured JSON audit log."""
 
 import json
-from datetime import datetime, timezone, timedelta
-
-import pytest
+from datetime import datetime, timedelta, timezone
 
 from harnessml.core.guardrails.audit import AuditLogger
 

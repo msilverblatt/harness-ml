@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.prediction_cache import PredictionCache
 
 

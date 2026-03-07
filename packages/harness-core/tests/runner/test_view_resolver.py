@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.schema import (
     DataConfig,
     FilterStep,
@@ -15,7 +14,6 @@ from harnessml.core.runner.schema import (
     ViewDef,
 )
 from harnessml.core.runner.view_resolver import ViewResolver
-
 
 # ---------------------------------------------------------------------------
 # Helpers

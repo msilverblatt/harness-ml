@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
+from harnessml.sports.competitions.optimizer import (
+    BUILTIN_STRATEGIES,
+    CompetitionOptimizer,
+    StrategyFn,
+    chalk_strategy,
+)
 from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
@@ -14,18 +19,6 @@ from harnessml.sports.competitions.schemas import (
 )
 from harnessml.sports.competitions.simulator import CompetitionSimulator
 from harnessml.sports.competitions.structure import build_structure
-from harnessml.sports.competitions.optimizer import (
-    BUILTIN_STRATEGIES,
-    CompetitionOptimizer,
-    StrategyFn,
-    chalk_strategy,
-    near_chalk_strategy,
-    random_sim_strategy,
-    contrarian_strategy,
-    late_contrarian_strategy,
-    champion_anchor_strategy,
-)
-
 
 # ---------------------------------------------------------------------------
 # Helpers

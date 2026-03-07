@@ -7,11 +7,9 @@ Guards validate preconditions before a pipeline stage runs:
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pandas as pd
-
 from harnessml.core.schemas.contracts import GuardrailViolation
 
 

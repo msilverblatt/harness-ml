@@ -1,12 +1,9 @@
 """Tests for the Bayesian exploration engine."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 from harnessml.core.runner.exploration import (
     AxisDef,
     ExplorationSpace,
@@ -15,7 +12,6 @@ from harnessml.core.runner.exploration import (
     _next_exploration_dir,
     format_exploration_report,
 )
-
 
 # -----------------------------------------------------------------------
 # Schema validation
