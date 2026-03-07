@@ -944,9 +944,10 @@ def sample_data(project_dir, *, fraction=0.1, stratify_column=None, seed=42):
 
     # Sample
     if stratify_column and stratify_column in df.columns:
-        sample = df.groupby(stratify_column, group_keys=False).apply(
-            lambda x: x.sample(frac=fraction, random_state=seed)
-        )
+        parts = []
+        for _, group in df.groupby(stratify_column):
+            parts.append(group.sample(frac=fraction, random_state=seed))
+        sample = pd.concat(parts, ignore_index=True)
     else:
         sample = df.sample(frac=fraction, random_state=seed)
 
