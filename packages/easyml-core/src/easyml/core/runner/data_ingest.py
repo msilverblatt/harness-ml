@@ -919,3 +919,53 @@ def rename_columns(
 
     renamed = [f"'{old}' → '{new}'" for old, new in mapping.items()]
     return f"Renamed {len(mapping)} columns: {', '.join(renamed)}"
+
+
+# -----------------------------------------------------------------------
+# Sampling for fast iteration
+# -----------------------------------------------------------------------
+
+def sample_data(project_dir, *, fraction=0.1, stratify_column=None, seed=42):
+    """Sample the feature store for fast iteration. Saves backup as features_full.parquet."""
+    project_dir = Path(project_dir)
+    features_dir = project_dir / "data" / "features"
+    features_path = features_dir / "features.parquet"
+    backup_path = features_dir / "features_full.parquet"
+
+    if not features_path.exists():
+        return "**Error**: No features.parquet found."
+
+    df = pd.read_parquet(features_path)
+    original_len = len(df)
+
+    # Save backup if not already backed up
+    if not backup_path.exists():
+        df.to_parquet(backup_path, index=False)
+
+    # Sample
+    if stratify_column and stratify_column in df.columns:
+        sample = df.groupby(stratify_column, group_keys=False).apply(
+            lambda x: x.sample(frac=fraction, random_state=seed)
+        )
+    else:
+        sample = df.sample(frac=fraction, random_state=seed)
+
+    sample.to_parquet(features_path, index=False)
+    return f"Sampled {len(sample):,} rows from {original_len:,} ({fraction:.0%}). Backup saved as `features_full.parquet`."
+
+
+def restore_full_data(project_dir):
+    """Restore the full feature store from backup."""
+    import shutil
+
+    project_dir = Path(project_dir)
+    features_dir = project_dir / "data" / "features"
+    features_path = features_dir / "features.parquet"
+    backup_path = features_dir / "features_full.parquet"
+
+    if not backup_path.exists():
+        return "**Error**: No backup found (`features_full.parquet` does not exist)."
+
+    shutil.move(str(backup_path), str(features_path))
+    df = pd.read_parquet(features_path)
+    return f"Restored full dataset: {len(df):,} rows."

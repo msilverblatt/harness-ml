@@ -151,6 +151,10 @@ async def manage_data(
     expression: str | None = None,
     group_by: str | None = None,
     dtype: str | None = None,
+    # Sample parameters:
+    fraction: float | None = None,
+    stratify_column: str | None = None,
+    seed: int | None = None,
     # Batch parameters:
     sources: str | list | None = None,
     views: str | list | None = None,
@@ -237,6 +241,10 @@ async def manage_data(
         order with per-source progress reporting.
       - "validate_source": Load a file source and validate against its schema
         definition. Requires name.
+      - "sample": Downsample the feature store for fast iteration. Saves backup
+        as features_full.parquet. Requires fraction (0.0-1.0). Optional:
+        stratify_column (preserve class ratios), seed.
+      - "restore": Restore full feature store from backup (features_full.parquet).
     """
     return _load_handler("data").dispatch(
         action,
@@ -261,6 +269,9 @@ async def manage_data(
         description=description,
         format=format,
         n_rows=n_rows,
+        fraction=fraction,
+        stratify_column=stratify_column,
+        seed=seed,
         sources=sources,
         views=views,
         project_dir=project_dir,

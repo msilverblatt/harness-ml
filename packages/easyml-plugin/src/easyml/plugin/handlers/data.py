@@ -328,6 +328,23 @@ def _handle_validate_source(*, name, project_dir, **_kwargs):
     return cw.validate_source_data(resolve_project_dir(project_dir), name)
 
 
+def _handle_sample(*, fraction, stratify_column, seed, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    if fraction is None:
+        return "**Error**: `fraction` (0.0-1.0) is required for sample."
+    return cw.sample_data(
+        resolve_project_dir(project_dir),
+        fraction=fraction,
+        stratify_column=stratify_column,
+        seed=seed or 42,
+    )
+
+
+def _handle_restore(*, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    return cw.restore_full_data(resolve_project_dir(project_dir))
+
+
 ACTIONS = {
     "add": _handle_add,
     "validate": _handle_validate,
@@ -352,6 +369,8 @@ ACTIONS = {
     "add_sources_batch": _handle_add_sources_batch,
     "fill_nulls_batch": _handle_fill_nulls_batch,
     "add_views_batch": _handle_add_views_batch,
+    "sample": _handle_sample,
+    "restore": _handle_restore,
     "check_freshness": _handle_check_freshness,
     "refresh": _handle_refresh,
     "refresh_all": _handle_refresh_all,

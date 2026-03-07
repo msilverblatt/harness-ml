@@ -976,3 +976,58 @@ class TestDropRows:
 
         with pytest.raises(ValueError, match="condition"):
             drop_rows(tmp_path, condition="nonexistent_col > 0")
+
+
+class TestSampleData:
+    def test_sample_fraction(self, tmp_path):
+        from easyml.core.runner.data_ingest import sample_data
+
+        features_dir = tmp_path / "data" / "features"
+        features_dir.mkdir(parents=True)
+        df = pd.DataFrame({"a": range(1000), "target": [0, 1] * 500})
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        result = sample_data(tmp_path, fraction=0.1, seed=42)
+        assert "Sampled" in result
+
+        df2 = pd.read_parquet(features_dir / "features.parquet")
+        assert 80 <= len(df2) <= 120  # ~100 rows
+
+    def test_sample_creates_backup(self, tmp_path):
+        from easyml.core.runner.data_ingest import sample_data
+
+        features_dir = tmp_path / "data" / "features"
+        features_dir.mkdir(parents=True)
+        df = pd.DataFrame({"a": range(100)})
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        sample_data(tmp_path, fraction=0.5, seed=42)
+        assert (features_dir / "features_full.parquet").exists()
+        df_full = pd.read_parquet(features_dir / "features_full.parquet")
+        assert len(df_full) == 100
+
+    def test_sample_restore(self, tmp_path):
+        from easyml.core.runner.data_ingest import sample_data, restore_full_data
+
+        features_dir = tmp_path / "data" / "features"
+        features_dir.mkdir(parents=True)
+        df = pd.DataFrame({"a": range(100)})
+        df.to_parquet(features_dir / "features.parquet", index=False)
+
+        sample_data(tmp_path, fraction=0.5, seed=42)
+        result = restore_full_data(tmp_path)
+        assert "Restored" in result
+
+        df2 = pd.read_parquet(features_dir / "features.parquet")
+        assert len(df2) == 100
+        assert not (features_dir / "features_full.parquet").exists()
+
+    def test_sample_no_features(self, tmp_path):
+        from easyml.core.runner.data_ingest import sample_data
+        result = sample_data(tmp_path, fraction=0.1)
+        assert "Error" in result
+
+    def test_restore_no_backup(self, tmp_path):
+        from easyml.core.runner.data_ingest import restore_full_data
+        result = restore_full_data(tmp_path)
+        assert "Error" in result

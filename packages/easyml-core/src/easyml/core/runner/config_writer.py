@@ -754,6 +754,18 @@ def drop_rows(
     )
 
 
+def sample_data(project_dir: Path, *, fraction=0.1, stratify_column=None, seed=42) -> str:
+    """Sample the feature store for fast iteration."""
+    from easyml.core.runner.data_ingest import sample_data as _sample
+    return _sample(Path(project_dir), fraction=fraction, stratify_column=stratify_column, seed=seed)
+
+
+def restore_full_data(project_dir: Path) -> str:
+    """Restore the full feature store from backup."""
+    from easyml.core.runner.data_ingest import restore_full_data as _restore
+    return _restore(Path(project_dir))
+
+
 def inspect_data(project_dir: Path, *, column: str | None = None) -> str:
     """Inspect the features dataset.
 
