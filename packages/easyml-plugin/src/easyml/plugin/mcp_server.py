@@ -86,6 +86,8 @@ async def manage_models(
       - "remove": Disable a model (sets active=false, include_in_ensemble=false).
         Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
+      - "show": Show full configuration for a single model (type, features,
+        params, status). Requires name.
       - "presets": Show available model presets.
       - "add_batch": Add multiple models. Requires items (JSON array of model
         configs, each with name + model_type or preset + optional fields).

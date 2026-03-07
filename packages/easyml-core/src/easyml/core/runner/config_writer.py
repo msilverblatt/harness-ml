@@ -240,6 +240,44 @@ def show_models(project_dir: Path) -> str:
     return "\n".join(lines)
 
 
+def show_model(project_dir: Path, name: str) -> str:
+    """Show full configuration for a single model."""
+    config_dir = _get_config_dir(Path(project_dir))
+    models_path = config_dir / "models.yaml"
+    data = _load_yaml(models_path)
+
+    models = data.get("models", {})
+    if name not in models:
+        available = sorted(models.keys())
+        return f"**Error**: Model `{name}` not found. Available: {', '.join(available) or '(none)'}"
+
+    model_config = models[name]
+
+    lines = [f"## Model: `{name}`\n"]
+    lines.append(f"- **Type**: {model_config.get('type', '?')}")
+    lines.append(f"- **Active**: {model_config.get('active', True)}")
+    lines.append(f"- **In Ensemble**: {model_config.get('include_in_ensemble', True)}")
+
+    features = model_config.get("features", [])
+    lines.append(f"\n### Features ({len(features)})\n")
+    for f in features:
+        lines.append(f"- {f}")
+
+    params = model_config.get("params", {})
+    if params:
+        lines.append(f"\n### Parameters\n")
+        lines.append(f"```yaml\n{yaml.dump(params, default_flow_style=False)}```")
+
+    # Show any other config keys
+    skip_keys = {"type", "active", "include_in_ensemble", "features", "params"}
+    extras = {k: v for k, v in model_config.items() if k not in skip_keys}
+    if extras:
+        lines.append(f"\n### Other Settings\n")
+        lines.append(f"```yaml\n{yaml.dump(extras, default_flow_style=False)}```")
+
+    return "\n".join(lines)
+
+
 def show_presets() -> str:
     """List available model presets."""
     from easyml.core.runner.presets import get_preset, list_presets

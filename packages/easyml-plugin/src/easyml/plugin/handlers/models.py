@@ -206,11 +206,20 @@ def _with_defaults(item: dict, for_update: bool = False) -> dict:
     return result
 
 
+def _handle_show(*, name, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    err = validate_required(name, "name")
+    if err:
+        return err
+    return cw.show_model(resolve_project_dir(project_dir), name)
+
+
 ACTIONS = {
     "add": _handle_add,
     "update": _handle_update,
     "remove": _handle_remove,
     "list": _handle_list,
+    "show": _handle_show,
     "presets": _handle_presets,
     "add_batch": _handle_add_batch,
     "update_batch": _handle_update_batch,

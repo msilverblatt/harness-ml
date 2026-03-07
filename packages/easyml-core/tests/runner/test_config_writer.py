@@ -26,6 +26,7 @@ from easyml.core.runner.config_writer import (
     remove_model,
     set_active_target,
     show_config,
+    show_model,
     show_models,
     show_presets,
     update_data_config,
@@ -1014,3 +1015,56 @@ class TestListRuns:
         result = list_runs(tmp_path)
         assert "20260301_100000" in result
         assert "|" not in result  # no table formatting
+
+
+class TestShowModel:
+    def test_show_model(self, tmp_path):
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        models_data = {
+            "models": {
+                "xgb_core": {
+                    "type": "xgboost",
+                    "active": True,
+                    "include_in_ensemble": True,
+                    "features": ["feat_a", "feat_b", "feat_c"],
+                    "params": {"n_estimators": 200, "max_depth": 4, "learning_rate": 0.05},
+                }
+            }
+        }
+        (config_dir / "models.yaml").write_text(yaml.dump(models_data))
+
+        result = show_model(tmp_path, "xgb_core")
+        assert "xgb_core" in result
+        assert "xgboost" in result
+        assert "feat_a" in result
+        assert "feat_b" in result
+        assert "n_estimators" in result
+        assert "200" in result
+
+    def test_show_model_not_found(self, tmp_path):
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "models.yaml").write_text(yaml.dump({"models": {}}))
+        result = show_model(tmp_path, "nonexistent")
+        assert "Error" in result
+
+    def test_show_model_extra_keys(self, tmp_path):
+        """Extra config keys beyond standard ones are shown in Other Settings."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        models_data = {
+            "models": {
+                "lgb_test": {
+                    "type": "lightgbm",
+                    "features": ["f1"],
+                    "params": {},
+                    "cdf_scale": 1.5,
+                }
+            }
+        }
+        (config_dir / "models.yaml").write_text(yaml.dump(models_data))
+
+        result = show_model(tmp_path, "lgb_test")
+        assert "cdf_scale" in result
+        assert "1.5" in result
