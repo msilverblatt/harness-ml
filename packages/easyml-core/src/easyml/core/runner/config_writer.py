@@ -166,11 +166,13 @@ def update_model(
     prediction_type: str | None = None,
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
+    replace_params: bool = False,
 ) -> str:
     """Update an existing model in models.yaml.
 
     Only provided fields are merged — None values keep the existing value.
-    For params, does a dict merge (update, not replace).
+    For params, does a dict merge by default. Set replace_params=True to
+    fully replace the params dict instead of merging.
     """
     config_dir = _get_config_dir(Path(project_dir))
     models_path = config_dir / "models.yaml"
@@ -185,9 +187,12 @@ def update_model(
     if features is not None:
         model_def["features"] = features
     if params is not None:
-        existing_params = model_def.get("params", {})
-        existing_params.update(params)
-        model_def["params"] = existing_params
+        if replace_params:
+            model_def["params"] = params
+        else:
+            existing_params = model_def.get("params", {})
+            existing_params.update(params)
+            model_def["params"] = existing_params
     if active is not None:
         model_def["active"] = active
     if include_in_ensemble is not None:
@@ -2603,14 +2608,14 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
 
     # Find the probability column (ensemble_prob or similar)
     prob_col = None
-    for candidate in ["ensemble_prob", "probability", "prob", "pred_prob", "prediction"]:
+    for candidate in ["ensemble_prob", "prob_ensemble", "probability", "prob", "pred_prob", "prediction"]:
         if candidate in df.columns:
             prob_col = candidate
             break
     if prob_col is None:
-        # Try any column ending in _prob
+        # Try any column ending in _prob or starting with prob_
         for c in df.columns:
-            if c.endswith("_prob"):
+            if c.endswith("_prob") or c.startswith("prob_"):
                 prob_col = c
                 break
     if prob_col is None:
