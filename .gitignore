@@ -40,3 +40,9 @@ projects/
 **/outputs/
 **/experiments/
 !**/src/views/Experiments/
+
+# Harness Studio
+packages/harness-studio/frontend/node_modules/
+packages/harness-studio/frontend/dist/
+packages/harness-studio/src/harnessml/studio/static/
+.studio/

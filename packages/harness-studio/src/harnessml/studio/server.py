@@ -6,10 +6,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from harnessml.studio.broadcaster import EventBroadcaster
-from harnessml.studio.routes import events, experiments, project, runs
-from harnessml.studio.routes import ws
+from harnessml.studio.routes import events, experiments, project, runs, ws
 
 
 @asynccontextmanager
@@ -47,3 +45,10 @@ app.include_router(ws.router)
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# Serve pre-built frontend static files (must be AFTER API routes)
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
