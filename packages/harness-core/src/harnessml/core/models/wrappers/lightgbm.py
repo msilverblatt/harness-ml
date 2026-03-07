@@ -21,17 +21,23 @@ class LightGBMModel(BaseModel):
         super().__init__(params)
         from lightgbm import LGBMClassifier
 
-        # Strip early_stopping_rounds from constructor — requires eval_set
+        # Strip early_stopping_rounds from constructor — handled via callback
         self._early_stopping = self.params.get("early_stopping_rounds")
         clean_params = {
             k: v for k, v in self.params.items()
             if k != "early_stopping_rounds"
         }
+        clean_params.setdefault("verbosity", -1)
         self._model = LGBMClassifier(**clean_params)
 
     def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
+        import lightgbm as lgb
+
         if "eval_set" in kwargs and self._early_stopping:
-            self._model.set_params(early_stopping_rounds=self._early_stopping)
+            kwargs.setdefault("callbacks", [])
+            kwargs["callbacks"].append(
+                lgb.early_stopping(self._early_stopping, verbose=False)
+            )
         self._model.fit(X, y, **kwargs)
         self._fitted = True
 

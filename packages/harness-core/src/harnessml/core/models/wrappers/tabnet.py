@@ -63,6 +63,7 @@ class TabNetModel(BaseModel):
         scheduler_step_size: int | None = None,
         scheduler_gamma: float | None = None,
         seed_stride: int = 1,
+        seed: int = 0,
     ):
         super().__init__(params)
         self._n_seeds = n_seeds
@@ -73,6 +74,7 @@ class TabNetModel(BaseModel):
         self._scheduler_step_size = scheduler_step_size
         self._scheduler_gamma = scheduler_gamma
         self._seed_stride = seed_stride
+        self._base_seed = seed
         self._feature_means: np.ndarray | None = None
         self._feature_stds: np.ndarray | None = None
 
@@ -133,7 +135,7 @@ class TabNetModel(BaseModel):
 
         self._models = []
         for seed_idx in range(self._n_seeds):
-            seed_val = seed_idx * self._seed_stride
+            seed_val = self._base_seed + seed_idx * self._seed_stride
             model = TabNetClassifier(**init_kwargs, seed=seed_val)
             model.fit(X, y, **fit_kwargs)
             self._models.append(model)
@@ -165,6 +167,7 @@ class TabNetModel(BaseModel):
             "scheduler_step_size": self._scheduler_step_size,
             "scheduler_gamma": self._scheduler_gamma,
             "seed_stride": self._seed_stride,
+            "seed": self._base_seed,
         }
         if self._feature_means is not None:
             meta["feature_means"] = self._feature_means.tolist()
@@ -182,6 +185,7 @@ class TabNetModel(BaseModel):
         self._scheduler_step_size = meta.get("scheduler_step_size")
         self._scheduler_gamma = meta.get("scheduler_gamma")
         self._seed_stride = meta.get("seed_stride", 1)
+        self._base_seed = meta.get("seed", 0)
         if "feature_means" in meta:
             self._feature_means = np.array(meta["feature_means"])
         else:

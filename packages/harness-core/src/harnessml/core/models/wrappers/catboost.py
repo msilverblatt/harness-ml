@@ -25,22 +25,27 @@ class CatBoostModel(BaseModel):
     def _build_model(self) -> None:
         from catboost import CatBoostClassifier
 
-        self._model = CatBoostClassifier(**self.params)
+        params = dict(self.params)
+        params.setdefault("allow_writing_files", False)
+        self._model = CatBoostClassifier(**params)
 
     def fit(self, X: np.ndarray, y: np.ndarray, eval_set=None) -> None:
-        from catboost import CatBoostClassifier, Pool
+        from catboost import CatBoostClassifier
 
         params = dict(self.params)
-        if eval_set is None:
-            params.pop("early_stopping_rounds", None)
+        early_stopping = params.pop("early_stopping_rounds", None)
+        params.setdefault("verbose", 0)
+        params.setdefault("allow_writing_files", False)
         self._model = CatBoostClassifier(**params)
+
+        fit_kwargs: dict = {}
         if eval_set is not None:
             X_val, y_val = eval_set[0]
-            train_pool = Pool(X, y)
-            val_pool = Pool(X_val, y_val)
-            self._model.fit(train_pool, eval_set=val_pool, verbose=0)
-        else:
-            self._model.fit(X, y, verbose=0)
+            fit_kwargs["eval_set"] = (X_val, y_val)
+            if early_stopping:
+                fit_kwargs["early_stopping_rounds"] = early_stopping
+
+        self._model.fit(X, y, **fit_kwargs)
         self._fitted = True
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
