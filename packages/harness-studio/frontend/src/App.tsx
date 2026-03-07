@@ -1,13 +1,24 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles/tokens.css';
 import './styles/reset.css';
+import { Layout } from './components/Layout/Layout';
+
+function Placeholder({ name }: { name: string }) {
+    return <div style={{ padding: 'var(--space-4)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)' }}>{name}</div>;
+}
 
 function App() {
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <h1 style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
-                Harness Studio
-            </h1>
-        </div>
+        <BrowserRouter>
+            <Routes>
+                <Route element={<Layout />}>
+                    <Route index element={<Placeholder name="Activity" />} />
+                    <Route path="dag" element={<Placeholder name="DAG" />} />
+                    <Route path="experiments" element={<Placeholder name="Experiments" />} />
+                    <Route path="diagnostics" element={<Placeholder name="Diagnostics" />} />
+                </Route>
+            </Routes>
+        </BrowserRouter>
     );
 }
 
