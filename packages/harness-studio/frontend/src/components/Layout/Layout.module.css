@@ -16,11 +16,71 @@
     flex-shrink: 0;
 }
 
+.headerLeft {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+}
+
 .logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+.logoName {
     font-family: var(--font-mono);
     font-size: var(--font-size-lg);
     color: var(--color-text-primary);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+}
+
+.logoBadge {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     font-weight: 600;
+    color: var(--color-accent);
+    background: rgba(88, 166, 255, 0.1);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 1px 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+}
+
+.divider {
+    width: 1px;
+    height: 20px;
+    background: var(--color-border);
+    flex-shrink: 0;
+}
+
+.project {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.projectName {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.projectTask {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
 }
 
 .tabs {
@@ -49,6 +109,46 @@
 .tabActive {
     color: var(--color-text-primary);
     background: var(--color-bg-tertiary);
+}
+
+.headerRight {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.statusLive,
+.statusOffline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.statusLive {
+    color: var(--color-success);
+}
+
+.statusOffline {
+    color: var(--color-text-muted);
+}
+
+.statusDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.statusLive .statusDot {
+    background: var(--color-success);
+    box-shadow: 0 0 4px var(--color-success);
+}
+
+.statusOffline .statusDot {
+    background: var(--color-text-muted);
 }
 
 .content {

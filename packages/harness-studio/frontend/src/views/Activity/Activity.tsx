@@ -1,10 +1,10 @@
-import { useWebSocket } from '../../hooks/useWebSocket';
+import { useLayoutContext } from '../../components/Layout/Layout';
 import { StatBar } from './StatBar';
 import { EventLog } from './EventLog';
 import styles from './Activity.module.css';
 
 export function Activity() {
-    const { events, connected } = useWebSocket();
+    const { events, connected } = useLayoutContext();
 
     return (
         <div className={styles.activity}>
