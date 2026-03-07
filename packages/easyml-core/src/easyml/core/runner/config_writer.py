@@ -2554,6 +2554,124 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
     return format_shap_report(results, model_name=model_file.stem)
 
 
+def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: str = "worst", top_n: int = 10) -> str:
+    """Inspect predictions from a backtest run.
+
+    Modes:
+    - "worst": most confident wrong predictions
+    - "best": most confident correct predictions
+    - "uncertain": predictions closest to 0.5
+    """
+    import pandas as pd
+
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured."
+
+    target_col = pipeline_data.get("data", {}).get("target_column", "target")
+
+    # Find run directory
+    from easyml.core.runner.run_manager import RunManager
+    mgr = RunManager(project_dir / outputs_dir)
+
+    if run_id:
+        run_path = project_dir / outputs_dir / run_id
+    else:
+        runs = mgr.list_runs()
+        if not runs:
+            return "**Error**: No runs found. Run a backtest first."
+        run_path = Path(runs[0]["path"])
+
+    if not run_path.exists():
+        return f"**Error**: Run directory not found: {run_path.name}"
+
+    # Load prediction files
+    preds_dir = run_path / "predictions"
+    if not preds_dir.exists():
+        return f"**Error**: No predictions directory in run `{run_path.name}`."
+
+    parquet_files = sorted(preds_dir.glob("*.parquet"))
+    if not parquet_files:
+        return "**Error**: No prediction files found."
+
+    dfs = [pd.read_parquet(f) for f in parquet_files]
+    df = pd.concat(dfs, ignore_index=True)
+
+    # Find the probability column (ensemble_prob or similar)
+    prob_col = None
+    for candidate in ["ensemble_prob", "probability", "prob", "pred_prob", "prediction"]:
+        if candidate in df.columns:
+            prob_col = candidate
+            break
+    if prob_col is None:
+        # Try any column ending in _prob
+        for c in df.columns:
+            if c.endswith("_prob"):
+                prob_col = c
+                break
+    if prob_col is None:
+        return f"**Error**: No probability column found. Columns: {list(df.columns)}"
+
+    if target_col not in df.columns:
+        return f"**Error**: Target column `{target_col}` not found in predictions."
+
+    # Compute metrics for sorting
+    df["_confidence"] = (df[prob_col] - 0.5).abs() * 2
+    df["_predicted"] = (df[prob_col] > 0.5).astype(int)
+    df["_correct"] = (df["_predicted"] == df[target_col]).astype(int)
+
+    if mode == "worst":
+        # Most confident AND wrong
+        wrong = df[df["_correct"] == 0].sort_values("_confidence", ascending=False)
+        subset = wrong.head(top_n)
+        title = "Most Confident Wrong Predictions"
+    elif mode == "best":
+        correct = df[df["_correct"] == 1].sort_values("_confidence", ascending=False)
+        subset = correct.head(top_n)
+        title = "Most Confident Correct Predictions"
+    elif mode == "uncertain":
+        subset = df.sort_values("_confidence", ascending=True).head(top_n)
+        title = "Most Uncertain Predictions"
+    else:
+        return f"**Error**: Unknown mode `{mode}`. Use 'worst', 'best', or 'uncertain'."
+
+    if subset.empty:
+        return f"No predictions match mode '{mode}'."
+
+    # Format output
+    lines = [f"## {title}\n"]
+
+    # Pick display columns: key columns + target + prob + confidence
+    display_cols = []
+    key_cols = pipeline_data.get("data", {}).get("key_columns", [])
+    for kc in key_cols:
+        if kc in df.columns:
+            display_cols.append(kc)
+    display_cols.extend([target_col, prob_col, "_confidence"])
+
+    header = "| " + " | ".join(display_cols) + " |"
+    sep = "|" + "|".join("------" for _ in display_cols) + "|"
+    lines.extend([header, sep])
+
+    for _, row in subset.iterrows():
+        vals = []
+        for c in display_cols:
+            v = row[c]
+            if isinstance(v, float):
+                vals.append(f"{v:.4f}")
+            else:
+                vals.append(str(v))
+        lines.append("| " + " | ".join(vals) + " |")
+
+    lines.append(f"\n*Showing {len(subset)} of {len(df)} total predictions.*")
+
+    return "\n".join(lines)
+
+
 def promote_experiment(
     project_dir: Path,
     experiment_id: str,

@@ -1197,3 +1197,82 @@ class TestFetchUrl:
 
         result = fetch_url(tmp_path, "https://example.com/datasets/sp500_data.parquet")
         assert (tmp_path / "data" / "raw" / "sp500_data.parquet").exists()
+
+
+class TestInspectPredictions:
+    def test_inspect_predictions_worst(self, tmp_path):
+        from easyml.core.runner.config_writer import inspect_predictions
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n  target_column: target\n  outputs_dir: outputs\n  key_columns: [id]\n"
+        )
+
+        run_dir = tmp_path / "outputs" / "20260306_100000" / "predictions"
+        run_dir.mkdir(parents=True)
+        df = pd.DataFrame({
+            "id": ["a", "b", "c", "d", "e"],
+            "target": [0, 1, 0, 1, 0],
+            "ensemble_prob": [0.9, 0.1, 0.2, 0.8, 0.95],
+        })
+        df.to_parquet(run_dir / "fold_1.parquet", index=False)
+
+        result = inspect_predictions(tmp_path, mode="worst", top_n=3)
+        # Most confident wrong: id=e (0.95 predicted 1, actual 0),
+        # id=a (0.9 predicted 1, actual 0), id=b (0.1 predicted 0, actual 1)
+        assert "0.9500" in result or "0.95" in result
+        assert "Confident Wrong" in result
+
+    def test_inspect_predictions_best(self, tmp_path):
+        from easyml.core.runner.config_writer import inspect_predictions
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n  target_column: target\n  outputs_dir: outputs\n"
+        )
+
+        run_dir = tmp_path / "outputs" / "20260306_100000" / "predictions"
+        run_dir.mkdir(parents=True)
+        df = pd.DataFrame({
+            "target": [1, 0, 1],
+            "ensemble_prob": [0.9, 0.1, 0.6],
+        })
+        df.to_parquet(run_dir / "fold_1.parquet", index=False)
+
+        result = inspect_predictions(tmp_path, mode="best", top_n=2)
+        assert "Confident Correct" in result
+
+    def test_inspect_predictions_uncertain(self, tmp_path):
+        from easyml.core.runner.config_writer import inspect_predictions
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n  target_column: target\n  outputs_dir: outputs\n"
+        )
+
+        run_dir = tmp_path / "outputs" / "20260306_100000" / "predictions"
+        run_dir.mkdir(parents=True)
+        df = pd.DataFrame({
+            "target": [1, 0, 1],
+            "ensemble_prob": [0.51, 0.1, 0.9],
+        })
+        df.to_parquet(run_dir / "fold_1.parquet", index=False)
+
+        result = inspect_predictions(tmp_path, mode="uncertain", top_n=1)
+        assert "Uncertain" in result
+        assert "0.5100" in result or "0.51" in result
+
+    def test_inspect_predictions_no_runs(self, tmp_path):
+        from easyml.core.runner.config_writer import inspect_predictions
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n  target_column: target\n  outputs_dir: outputs\n"
+        )
+        (tmp_path / "outputs").mkdir()
+        result = inspect_predictions(tmp_path)
+        assert "Error" in result

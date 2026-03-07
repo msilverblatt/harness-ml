@@ -627,6 +627,7 @@ async def pipeline(
     detail: str | None = None,
     name: str | None = None,
     top_n: int | None = None,
+    mode: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -654,6 +655,10 @@ async def pipeline(
       - "explain": SHAP-based feature importance for a trained model. Requires
         shap package. Optional: name (model name, defaults to first), top_n
         (default 10), run_id (defaults to most recent).
+      - "inspect_predictions": Inspect predictions from a backtest run.
+        Optional: run_id (defaults to most recent), mode ("worst" for most
+        confident wrong, "best" for most confident correct, "uncertain" for
+        closest to 0.5), top_n (default 10).
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(
@@ -667,6 +672,7 @@ async def pipeline(
         detail=detail,
         name=name,
         top_n=top_n,
+        mode=mode,
         project_dir=project_dir,
     )
     if asyncio.iscoroutine(result):

@@ -286,6 +286,16 @@ def _handle_explain(*, name, run_id, top_n, project_dir, **_kwargs):
     )
 
 
+def _handle_inspect_predictions(*, run_id, mode, top_n, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    return cw.inspect_predictions(
+        resolve_project_dir(project_dir),
+        run_id=run_id,
+        mode=mode or "worst",
+        top_n=top_n or 10,
+    )
+
+
 ACTIONS = {
     "run_backtest": _handle_run_backtest,
     "predict": _handle_predict,
@@ -295,6 +305,7 @@ ACTIONS = {
     "compare_runs": _handle_compare_runs,
     "compare_targets": _handle_compare_targets,
     "explain": _handle_explain,
+    "inspect_predictions": _handle_inspect_predictions,
 }
 
 
