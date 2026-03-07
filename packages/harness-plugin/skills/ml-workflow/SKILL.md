@@ -147,7 +147,7 @@ You are conducting iterative ML experimentation with HarnessML, a framework desi
 ### Data Management (`data`)
 
 **Ingestion & Profiling:**
-- `action="add"` — Ingest CSV/parquet/Excel into feature store. Params: `data_path`, `join_on`, `prefix`, `auto_clean`
+- `action="add"` — Ingest CSV/parquet/Excel into feature store. Params: `data_path`, `join_on`, `prefix`, `auto_clean` (default false)
 - `action="validate"` — Preview dataset without ingesting. Params: `data_path`
 - `action="profile"` — Summary statistics per column. Optional: `category`
 - `action="status"` — Quick overview (row/col count, target distribution, time range)

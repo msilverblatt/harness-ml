@@ -17,8 +17,8 @@ def compute_shap_summary(model, X, feature_names, *, top_n=10):
     -------
     list of (feature_name, mean_abs_shap) tuples, sorted descending.
     """
-    import shap
     import numpy as np
+    import shap
 
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)

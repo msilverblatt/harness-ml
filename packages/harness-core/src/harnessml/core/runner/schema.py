@@ -12,7 +12,6 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Discriminator, Tag, field_validator
 
-
 # -----------------------------------------------------------------------
 # Feature & source declarations
 # -----------------------------------------------------------------------

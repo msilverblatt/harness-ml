@@ -6,20 +6,19 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.data_ingest import (
     IngestResult,
-    ingest_dataset,
-    validate_dataset,
-    fill_nulls,
-    drop_duplicates,
-    drop_rows,
-    rename_columns,
-    derive_column,
-    _detect_join_keys,
     _auto_clean,
     _compute_correlation_preview,
     _compute_null_rates,
+    _detect_join_keys,
+    derive_column,
+    drop_duplicates,
+    drop_rows,
+    fill_nulls,
+    ingest_dataset,
+    rename_columns,
+    validate_dataset,
 )
 
 
@@ -526,8 +525,9 @@ class TestIngestResultFormat:
         assert "Top Correlations" in md
         assert "+0.2300" in md
         assert "Warnings" in md
-        assert "High Null" in md
+        assert "Null Summary" in md
         assert "coach_tenure" in md
+        assert "fill_nulls" in md
 
     def test_format_summary_no_warnings(self):
         result = IngestResult(
@@ -565,9 +565,10 @@ class TestIngestResultFormat:
             null_rates={},
             correlation_preview=[],
             cleaning_actions=["Dropped 5 exact duplicate rows"],
+            auto_clean=True,
         )
         md = result.format_summary()
-        assert "Auto-Clean" in md
+        assert "Auto-Clean Applied" in md
         assert "duplicate" in md
 
 
@@ -887,7 +888,7 @@ class TestEndToEndConfigDrivenPath:
         df.to_parquet(features_dir / "my_dataset.parquet", index=False)
 
         # Verify config loads correctly
-        from harnessml.core.runner.data_utils import load_data_config, get_features_path
+        from harnessml.core.runner.data_utils import get_features_path, load_data_config
 
         config = load_data_config(tmp_path)
         assert config.features_file == "my_dataset.parquet"
@@ -1007,7 +1008,7 @@ class TestSampleData:
         assert len(df_full) == 100
 
     def test_sample_restore(self, tmp_path):
-        from harnessml.core.runner.data_ingest import sample_data, restore_full_data
+        from harnessml.core.runner.data_ingest import restore_full_data, sample_data
 
         features_dir = tmp_path / "data" / "features"
         features_dir.mkdir(parents=True)

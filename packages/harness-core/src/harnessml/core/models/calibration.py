@@ -14,7 +14,6 @@ from scipy.interpolate import PchipInterpolator
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 
-
 # ---------------------------------------------------------------------------
 # Base Calibrator
 # ---------------------------------------------------------------------------

@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 import yaml
-
 from harnessml.core.runner.experiment import (
     ChangeSet,
     ExperimentResult,
@@ -23,7 +21,6 @@ from harnessml.core.runner.experiment import (
     run_sweep,
     save_frozen_config,
 )
-
 
 # -----------------------------------------------------------------------
 # ChangeSet dataclass

@@ -6,7 +6,6 @@ from typing import Any, Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
-
 # ---------------------------------------------------------------------------
 # Temporal / leakage filters
 # ---------------------------------------------------------------------------

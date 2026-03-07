@@ -45,3 +45,15 @@ dev = [
     "xgboost>=3.2.0",
     "ruff>=0.15.5",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501", "E741", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F841", "E402"]
+"**/tests/**" = ["F841", "E402", "F401"]

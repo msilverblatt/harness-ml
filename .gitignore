@@ -31,3 +31,11 @@ Thumbs.db
 catboost_info/
 docs/plans/
 .claude/
+.worktrees/
+.mcp.json
+projects/
+
+# HarnessML generated artifacts
+**/data/features/cache/
+**/outputs/
+**/experiments/

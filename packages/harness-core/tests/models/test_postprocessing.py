@@ -1,7 +1,6 @@
 """Tests for ensemble post-processing steps."""
 import numpy as np
 import pytest
-
 from harnessml.core.models.postprocessing import (
     EnsemblePostprocessor,
     ProbabilityClipping,

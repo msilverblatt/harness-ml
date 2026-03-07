@@ -1,8 +1,6 @@
 """Tests for pipeline execution planner."""
 from __future__ import annotations
 
-import pytest
-
 from harnessml.core.runner.pipeline_planner import (
     PipelinePlan,
     PipelineStep,

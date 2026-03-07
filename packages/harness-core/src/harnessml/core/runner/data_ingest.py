@@ -214,6 +214,7 @@ class IngestResult:
     cleaning_actions: list[str] = field(default_factory=list)
     is_bootstrap: bool = False
     source_registered: bool = False
+    auto_clean: bool = False
 
     def format_summary(self) -> str:
         """Markdown summary for tool response."""
@@ -230,10 +231,27 @@ class IngestResult:
                 cols_preview += f", ... (+{len(self.columns_added) - 10} more)"
             lines.append(f"- **Columns**: {cols_preview}")
 
-        if self.cleaning_actions:
-            lines.append("\n### Auto-Clean Actions\n")
+        if self.auto_clean and self.cleaning_actions:
+            lines.append("\n### Auto-Clean Applied\n")
             for action in self.cleaning_actions:
                 lines.append(f"- {action}")
+        elif not self.auto_clean:
+            # Report null summary when auto_clean is off
+            cols_with_nulls = {
+                k: v for k, v in self.null_rates.items() if v > 0.0
+            }
+            if cols_with_nulls:
+                lines.append("\n### Null Summary\n")
+                for col, rate in sorted(
+                    cols_with_nulls.items(), key=lambda x: -x[1]
+                ):
+                    count = int(round(rate * self.rows_total))
+                    lines.append(
+                        f"- {col}: {count} nulls ({rate:.1%})"
+                    )
+                lines.append(
+                    "\nUse fill_nulls or null_indicator features to handle these."
+                )
 
         if self.correlation_preview:
             lines.append("\n### Top Correlations with Target\n")
@@ -248,7 +266,7 @@ class IngestResult:
                 lines.append(f"- {w}")
 
         high_null = {k: v for k, v in self.null_rates.items() if v > 0.1}
-        if high_null:
+        if high_null and self.auto_clean:
             lines.append("\n### High Null Columns (>10%)\n")
             for col, rate in sorted(high_null.items(), key=lambda x: -x[1]):
                 lines.append(f"- {col}: {rate:.1%}")
@@ -269,7 +287,7 @@ def ingest_dataset(
     name: str | None = None,
     prefix: str | None = None,
     features_dir: str | None = None,
-    auto_clean: bool = True,
+    auto_clean: bool = False,
 ) -> IngestResult:
     """Add a new dataset to the project's feature store.
 
@@ -299,6 +317,7 @@ def ingest_dataset(
         Override path to features directory.
     auto_clean : bool
         If True, auto-clean the data (coerce types, fill nulls, dedup).
+        Defaults to False to preserve null signal.
 
     Returns
     -------
@@ -315,7 +334,7 @@ def ingest_dataset(
         name = data_file.stem
 
     # Resolve features path
-    from harnessml.core.runner.data_utils import get_features_path, load_data_config
+    from harnessml.core.runner.data_utils import load_data_config
 
     if features_dir is not None:
         feat_dir = Path(features_dir)
@@ -377,6 +396,7 @@ def ingest_dataset(
             cleaning_actions=cleaning_actions,
             is_bootstrap=True,
             source_registered=source_registered,
+            auto_clean=auto_clean,
         )
 
     # ---------------------------------------------------------------
@@ -432,6 +452,7 @@ def ingest_dataset(
             correlation_preview=[],
             warnings=["No new columns to add (all columns already exist)."],
             cleaning_actions=cleaning_actions,
+            auto_clean=auto_clean,
         )
 
     # Apply prefix to new columns
@@ -493,6 +514,7 @@ def ingest_dataset(
         warnings=warnings,
         cleaning_actions=cleaning_actions,
         source_registered=source_registered,
+        auto_clean=auto_clean,
     )
 
 
@@ -569,13 +591,13 @@ def validate_dataset(
         existing = pd.read_parquet(parquet_path)
         common_cols = sorted(set(df.columns) & set(existing.columns))
         new_cols = sorted(set(df.columns) - set(existing.columns))
-        lines.append(f"\n### Overlap with Existing Features\n")
+        lines.append("\n### Overlap with Existing Features\n")
         lines.append(f"- **Common columns** (potential join keys): {', '.join(common_cols) if common_cols else 'none'}")
         lines.append(f"- **New columns**: {', '.join(new_cols[:15]) if new_cols else 'none'}")
         if len(new_cols) > 15:
             lines.append(f"  ... +{len(new_cols) - 15} more")
     else:
-        lines.append(f"\n*No existing features file — this would be a bootstrap ingestion.*")
+        lines.append("\n*No existing features file — this would be a bootstrap ingestion.*")
 
     return "\n".join(lines)
 

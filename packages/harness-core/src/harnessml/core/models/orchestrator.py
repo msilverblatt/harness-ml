@@ -10,10 +10,8 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-
 from harnessml.core.models.base import BaseModel
 from harnessml.core.models.fingerprint import Fingerprint
 from harnessml.core.models.registry import ModelRegistry

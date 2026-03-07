@@ -9,7 +9,6 @@ shap = pytest.importorskip("shap")
 
 from harnessml.core.runner.diagnostics import compute_shap_values
 
-
 # -----------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------

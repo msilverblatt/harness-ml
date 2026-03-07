@@ -1,9 +1,12 @@
 """Handler for manage_data tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import resolve_project_dir, parse_json_param
+from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    validate_enum, validate_required, collect_hints, format_response_with_hints,
+    collect_hints,
+    format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
 
 
@@ -363,7 +366,8 @@ def _handle_upload_drive(*, files, folder_id, folder_name, name, project_dir, **
         return "**Error**: `files` (list of file paths) is required for upload_drive."
     parsed = parse_json_param(files) if isinstance(files, str) else files
     from pathlib import Path
-    from harnessml.core.runner.drives.drive import upload_file, create_folder
+
+    from harnessml.core.runner.drives.drive import create_folder, upload_file
 
     pdir = resolve_project_dir(project_dir)
     credentials_dir = pdir / ".harnessml"
@@ -397,6 +401,7 @@ def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_k
         return "**Error**: `files` (list of file paths) is required for upload_kaggle."
     parsed = parse_json_param(files) if isinstance(files, str) else files
     from pathlib import Path
+
     from harnessml.core.runner.drives.kaggle import upload_dataset
 
     pdir = resolve_project_dir(project_dir)

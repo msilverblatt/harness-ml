@@ -7,11 +7,10 @@ appropriate registry.
 from __future__ import annotations
 
 import importlib
-from typing import Any
 
-from harnessml.core.runner.sources import SourceRegistry
 from harnessml.core.feature_eng.registry import FeatureRegistry
 from harnessml.core.runner.schema import FeatureDecl, SourceDecl
+from harnessml.core.runner.sources import SourceRegistry
 
 
 def load_features(

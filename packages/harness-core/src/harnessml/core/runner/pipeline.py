@@ -20,20 +20,22 @@ if platform.system() == "Darwin":
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from harnessml.core.runner.meta_learner import StackedEnsemble
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.models.backtest import BacktestRunner
-from harnessml.core.models.orchestrator import TrainOrchestrator
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.dag import build_provider_map, infer_dependencies, topological_waves
 from harnessml.core.runner.fingerprint import compute_fingerprint
-from harnessml.core.runner.prediction_cache import PredictionCache
+from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
 from harnessml.core.runner.meta_learner import train_meta_learner_loso
 from harnessml.core.runner.postprocessing import apply_ensemble_postprocessing
+from harnessml.core.runner.prediction_cache import PredictionCache
 from harnessml.core.runner.schema import ModelDef, ProjectConfig
 from harnessml.core.runner.stage_guards import PipelineGuards
 from harnessml.core.runner.training import (
@@ -41,7 +43,6 @@ from harnessml.core.runner.training import (
     predict_single_model,
     train_single_model,
 )
-from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
 from harnessml.core.runner.validator import validate_project
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,19 @@ class PipelineRunner:
         """Return True if the configured task type is multiclass."""
         return self.config is not None and self.config.data.task == "multiclass"
 
+    def _is_regression(self) -> bool:
+        """Return True if the configured task type is regression."""
+        return self.config is not None and self.config.data.task == "regression"
+
+    def _task_type(self) -> str:
+        """Return the task type string for metric registry lookups."""
+        if self.config is None:
+            return "binary"
+        task = self.config.data.task
+        if task in ("classification", "binary"):
+            return "binary"
+        return task  # regression, multiclass, ranking, etc.
+
     def load(self) -> None:
         """Validate config and set up ModelRegistry.
 
@@ -302,6 +316,65 @@ class PipelineRunner:
             logger.warning(w)
 
         self._load_data()
+        self._validate_config_against_data()
+
+    def _validate_config_against_data(self) -> None:
+        """Validate config against loaded data. Raises ValueError with all issues."""
+        if self._df is None or self.config is None:
+            return
+
+        errors: list[str] = []
+
+        # 1. Target column
+        target = self.config.data.target_column
+        if target and target not in self._df.columns:
+            cols_preview = list(self._df.columns[:10])
+            errors.append(
+                f"Target column '{target}' not found in data. "
+                f"Available: {cols_preview}..."
+            )
+
+        # 2. Fold column
+        fold = self.config.backtest.fold_column
+        if fold and fold not in self._df.columns:
+            cols_preview = list(self._df.columns[:10])
+            errors.append(
+                f"Fold column '{fold}' not found in data. "
+                f"Available: {cols_preview}..."
+            )
+
+        # 3. Feature columns
+        # Collect features provided by provider models (injected at runtime)
+        provided_features: set[str] = set()
+        for model_def in self.config.models.values():
+            for col in model_def.provides:
+                provided_features.add(col)
+                provided_features.add(f"diff_{col}")
+
+        available = set(self._df.columns) | provided_features
+        for model_name, model_def in self._get_active_models().items():
+            if model_def.features:
+                missing = [f for f in model_def.features if f not in available]
+                if missing:
+                    errors.append(
+                        f"Model '{model_name}' references missing features: {missing}"
+                    )
+
+        # 4. Metrics valid for task type
+        from harnessml.core.models.backtest import _get_metric_fn
+
+        task_type = self._task_type()
+        for metric in self.config.backtest.metrics:
+            try:
+                _get_metric_fn(metric, task_type=task_type)
+            except ValueError as e:
+                errors.append(str(e))
+
+        if errors:
+            raise ValueError(
+                "Config validation failed:\n"
+                + "\n".join(f"  - {e}" for e in errors)
+            )
 
     def _load_data(self) -> None:
         """Read features DataFrame and normalize column names.
@@ -486,6 +559,7 @@ class PipelineRunner:
                         registry=self._registry,
                         target_column=self.config.data.target_column,
                         data_config=self.config.data,
+                        task_type=self._task_type(),
                     )
 
                     # Compute fingerprint including upstream dependencies
@@ -513,6 +587,7 @@ class PipelineRunner:
                             feature_columns=feature_cols,
                             cdf_scale=metrics.get("cdf_scale"),
                             feature_medians=medians,
+                            task_type=self._task_type(),
                         )
                         context.store_instance(
                             model_name, model_def.provides,
@@ -641,6 +716,7 @@ class PipelineRunner:
                         fold_column=fold_col,
                         target_column=self.config.data.target_column,
                         data_config=self.config.data,
+                        task_type=self._task_type(),
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -652,6 +728,7 @@ class PipelineRunner:
                         feature_columns=feature_cols,
                         cdf_scale=cdf_scale,
                         feature_medians=medians,
+                        task_type=self._task_type(),
                     )
 
                     # Store provider outputs for downstream consumers
@@ -663,6 +740,7 @@ class PipelineRunner:
                             feature_columns=feature_cols,
                             cdf_scale=cdf_scale,
                             feature_medians=medians,
+                            task_type=self._task_type(),
                         )
                         context.store_instance(
                             model_name, model_def.provides,
@@ -972,14 +1050,14 @@ class PipelineRunner:
 
         # Build per-fold diagnostics
         target_col = self.config.data.target_column if self.config else "result"
-        task_type = "multiclass" if self._is_multiclass() else "binary"
+        task_type = self._task_type()
         diagnostics_df = build_diagnostics_report(
             fold_data, target_column=target_col, task=task_type,
         )
 
         # Build combined pick log across folds (binary-only)
         pick_logs = []
-        if not self._is_multiclass():
+        if not self._is_multiclass() and not self._is_regression():
             for fold_id, df in sorted(fold_data.items()):
                 if "prob_ensemble" in df.columns:
                     pick_logs.append(build_pick_log(df, fold_id, target_column=target_col))
@@ -1200,6 +1278,7 @@ class PipelineRunner:
                         fold_column=fold_col,
                         target_column=self.config.data.target_column,
                         data_config=self.config.data,
+                        task_type=self._task_type(),
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
@@ -1214,6 +1293,7 @@ class PipelineRunner:
                         feature_columns=feature_cols,
                         cdf_scale=cdf_scale,
                         feature_medians=medians,
+                        task_type=self._task_type(),
                     )
 
                     # If this model provides features, predict on train
@@ -1227,6 +1307,7 @@ class PipelineRunner:
                                 feature_columns=feature_cols,
                                 cdf_scale=cdf_scale,
                                 feature_medians=medians,
+                                task_type=self._task_type(),
                             )
                             context.store_instance(
                                 model_name,
@@ -1301,6 +1382,7 @@ class PipelineRunner:
         or None if no meta-learner was trained.
         """
         is_multiclass = self._is_multiclass()
+        is_regression = self._is_regression()
         holdout_folds = sorted(fold_data.keys())
         last_meta = None
 
@@ -1340,6 +1422,10 @@ class PipelineRunner:
             if is_multiclass:
                 # For multiclass, apply meta-learner directly (skip binary postprocessing)
                 fold_data[holdout] = self._apply_multiclass_meta(
+                    fold_data[holdout], meta, active_model_names,
+                )
+            elif is_regression:
+                fold_data[holdout] = self._apply_regression_meta(
                     fold_data[holdout], meta, active_model_names,
                 )
             else:
@@ -1387,6 +1473,29 @@ class PipelineRunner:
         for cls_idx in range(n_classes):
             df[f"prob_ensemble_c{cls_idx}"] = probs[:, cls_idx]
         df["prob_ensemble"] = probs.argmax(axis=1).astype(float)
+        return df
+
+    def _apply_regression_meta(
+        self,
+        df: pd.DataFrame,
+        meta: "StackedEnsemble",
+        active_model_names: list[str],
+    ) -> pd.DataFrame:
+        """Apply regression meta-learner predictions to a fold DataFrame."""
+        model_preds = {}
+        for name in active_model_names:
+            col = f"prob_{name}"
+            if col in df.columns:
+                model_preds[name] = df[col].values
+
+        if not model_preds:
+            return df
+
+        prior_diffs = df["diff_prior"].values.astype(float) if "diff_prior" in df.columns else np.zeros(len(df))
+
+        preds = meta.predict(model_preds, prior_diffs)
+        df = df.copy()
+        df["prob_ensemble"] = preds
         return df
 
     def _train_meta_for_fold(
@@ -1475,6 +1584,7 @@ class PipelineRunner:
             ensemble_config=ensemble_config,
             extra_features=extra_features if extra_features else None,
             n_classes=n_classes,
+            task_type=self._task_type(),
         )
 
         return meta, cal, pre_cals
@@ -1523,7 +1633,7 @@ class PipelineRunner:
                 "models_trained": active_model_names,
             }
 
-        bt_runner = BacktestRunner(metrics=bt_config.metrics)
+        bt_runner = BacktestRunner(metrics=bt_config.metrics, task_type=self._task_type())
         bt_result = bt_runner.run(per_fold_data)
 
         return {
@@ -1542,7 +1652,8 @@ class PipelineRunner:
         active_model_names: list[str],
     ) -> dict[str, Any]:
         """Compute multiclass metrics directly using sklearn."""
-        from sklearn.metrics import accuracy_score, log_loss as sklearn_log_loss, f1_score
+        from sklearn.metrics import accuracy_score, f1_score
+        from sklearn.metrics import log_loss as sklearn_log_loss
 
         target_col = self.config.data.target_column
         combined = pd.concat(list(fold_data.values()), ignore_index=True)

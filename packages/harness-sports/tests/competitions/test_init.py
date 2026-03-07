@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import harnessml.sports.competitions as comp
 
-
 # Every symbol that should be re-exported from the package
 EXPECTED_SYMBOLS = [
     # schemas.py

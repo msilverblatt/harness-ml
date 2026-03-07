@@ -290,14 +290,14 @@ def show_model(project_dir: Path, name: str) -> str:
 
     params = model_config.get("params", {})
     if params:
-        lines.append(f"\n### Parameters\n")
+        lines.append("\n### Parameters\n")
         lines.append(f"```yaml\n{yaml.dump(params, default_flow_style=False)}```")
 
     # Show any other config keys
     skip_keys = {"type", "active", "include_in_ensemble", "features", "params"}
     extras = {k: v for k, v in model_config.items() if k not in skip_keys}
     if extras:
-        lines.append(f"\n### Other Settings\n")
+        lines.append("\n### Other Settings\n")
         lines.append(f"```yaml\n{yaml.dump(extras, default_flow_style=False)}```")
 
     return "\n".join(lines)
@@ -690,7 +690,7 @@ def add_dataset(
     join_on: list[str] | None = None,
     prefix: str | None = None,
     features_dir: str | None = None,
-    auto_clean: bool = True,
+    auto_clean: bool = False,
 ) -> str:
     """Add a new dataset by merging into the features parquet.
 
@@ -725,7 +725,7 @@ def add_dataset(
             lines.append(f"- **Columns**: {cols_preview}")
         lines.append("- **Source registered** in pipeline config")
         if result.errors:
-            lines.append(f"\n### Errors\n")
+            lines.append("\n### Errors\n")
             for src, err in result.errors.items():
                 lines.append(f"- {src}: {err}")
         return "\n".join(lines)
@@ -971,7 +971,6 @@ def available_features(
         return "\n".join(lines)
 
     # Fallback: flat column listing
-    import pandas as pd
 
     try:
         df = get_features_df(project_dir, config)
@@ -1005,7 +1004,6 @@ def feature_store_status(project_dir: Path) -> str:
     except Exception:
         config = DataConfig()
 
-    import pandas as pd
 
     try:
         df = get_features_df(project_dir, config)
@@ -1025,6 +1023,7 @@ def feature_store_status(project_dir: Path) -> str:
     else:
         import os
         from datetime import datetime
+
         from harnessml.core.runner.data_utils import get_features_path
         parquet_path = get_features_path(project_dir, config)
         lines.append(f"- **File**: `{parquet_path.relative_to(project_dir)}`")
@@ -1138,9 +1137,9 @@ def add_feature(
     """
     project_dir = Path(project_dir)
 
+    from harnessml.core.runner.data_utils import load_data_config
     from harnessml.core.runner.feature_store import FeatureStore
     from harnessml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
-    from harnessml.core.runner.data_utils import load_data_config
 
     config = load_data_config(project_dir)
     store = FeatureStore(project_dir, config)
@@ -1234,10 +1233,10 @@ def add_features_batch(
     pairwise_mode, category, description. Handles @-references between
     features via topological ordering.
     """
-    from harnessml.core.runner.feature_store import FeatureStore
-    from harnessml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
     from harnessml.core.runner.data_utils import load_data_config
     from harnessml.core.runner.feature_engine import _topological_sort_features
+    from harnessml.core.runner.feature_store import FeatureStore
+    from harnessml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
 
     project_dir = Path(project_dir)
     config = load_data_config(project_dir)
@@ -1347,7 +1346,6 @@ def discover_features(
     except Exception:
         config = DataConfig()
 
-    import pandas as pd
 
     _report(0, 5, "Loading feature data...")
     try:
@@ -1476,8 +1474,6 @@ def experiment_create(
     hypothesis: str = "",
 ) -> str:
     """Create a new experiment directory with auto-generated ID."""
-    config_dir = _get_config_dir(Path(project_dir))
-
     experiments_dir = Path(project_dir) / "experiments"
     experiments_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1578,12 +1574,12 @@ def show_config(project_dir: Path) -> str:
         lines.append(f"- **{name}**: {m.type} ({status}, {len(m.features)} features)")
 
     # Ensemble
-    lines.append(f"\n### Ensemble\n")
+    lines.append("\n### Ensemble\n")
     lines.append(f"- Method: {config.ensemble.method}")
     lines.append(f"- Temperature: {config.ensemble.temperature}")
 
     # Backtest
-    lines.append(f"\n### Backtest\n")
+    lines.append("\n### Backtest\n")
     lines.append(f"- Strategy: {config.backtest.cv_strategy}")
     lines.append(f"- Fold values: {config.backtest.fold_values}")
     lines.append(f"- Metrics: {config.backtest.metrics}")
@@ -1604,7 +1600,6 @@ def check_guardrails(project_dir: Path) -> str:
     project_dir = Path(project_dir)
     config_dir = _get_config_dir(project_dir)
 
-    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
     models_data = _load_yaml(config_dir / "models.yaml")
     sources_data = _load_yaml(config_dir / "sources.yaml")
 
@@ -2004,7 +1999,7 @@ def run_predict(
 
         if "prob_ensemble" in preds_df.columns:
             ens_probs = preds_df["prob_ensemble"]
-            lines.append(f"\n### Ensemble Probability Distribution\n")
+            lines.append("\n### Ensemble Probability Distribution\n")
             lines.append(f"- Mean: {ens_probs.mean():.4f}")
             lines.append(f"- Std: {ens_probs.std():.4f}")
             lines.append(f"- Min: {ens_probs.min():.4f}")
@@ -2013,7 +2008,7 @@ def run_predict(
             preds_df["_confidence"] = (preds_df["prob_ensemble"] - 0.5).abs()
             top = preds_df.nlargest(10, "_confidence")
 
-            lines.append(f"\n### Top 10 Most Confident Predictions\n")
+            lines.append("\n### Top 10 Most Confident Predictions\n")
             lines.append("| Row | Ensemble Prob | Confidence |")
             lines.append("|-----|---------------|------------|")
             for idx, row in top.iterrows():
@@ -2521,6 +2516,7 @@ def show_diagnostics(
     if task == "multiclass":
         # Multiclass diagnostics: use per-class prob columns
         import re
+
         from sklearn.metrics import accuracy_score, f1_score
         from sklearn.metrics import log_loss as sklearn_log_loss
 
@@ -2656,10 +2652,10 @@ def show_diagnostics(
 
         agreement = compute_model_agreement(preds_df)
         mean_agreement = float(np.mean(agreement))
-        lines.append(f"\n### Model Agreement\n")
+        lines.append("\n### Model Agreement\n")
         lines.append(f"- Mean agreement with ensemble: {mean_agreement:.4f}")
 
-        lines.append(f"\n### Calibration Summary\n")
+        lines.append("\n### Calibration Summary\n")
         for m in model_metrics:
             model_name = m["model"]
             col = f"prob_{model_name}"
@@ -2735,8 +2731,8 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
     except ImportError:
         return "**Error**: `shap` package is not installed. Install with `pip install shap`."
 
+    from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
     from harnessml.core.runner.explainability import compute_shap_summary, format_shap_report
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config, get_feature_columns
 
     project_dir = Path(project_dir)
     config_dir = _get_config_dir(project_dir)
@@ -3243,8 +3239,8 @@ def add_view(
         )
 
     # Validate steps parse as TransformStep
-    from pydantic import TypeAdapter, ValidationError
     from harnessml.core.runner.schema import TransformStep
+    from pydantic import TypeAdapter, ValidationError
     adapter = TypeAdapter(list[TransformStep])
     try:
         adapter.validate_python(steps)
@@ -3328,8 +3324,8 @@ def update_view(
         view_def["source"] = source
 
     if steps is not None:
-        from pydantic import TypeAdapter, ValidationError
         from harnessml.core.runner.schema import TransformStep
+        from pydantic import TypeAdapter, ValidationError
         adapter = TypeAdapter(list[TransformStep])
         try:
             adapter.validate_python(steps)

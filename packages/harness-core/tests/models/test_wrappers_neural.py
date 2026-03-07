@@ -1,6 +1,6 @@
 """Tests for MLP and TabNet neural network wrappers."""
-import pytest
 import numpy as np
+import pytest
 
 try:
     import torch
@@ -288,6 +288,7 @@ def test_mlp_batch_norm_save_load(tmp_path):
 def test_mlp_weight_decay():
     """weight_decay param is accepted and passed to optimizer."""
     from unittest.mock import patch
+
     from harnessml.core.models.wrappers.mlp import MLPModel
 
     X = np.random.randn(50, 3).astype(np.float32)

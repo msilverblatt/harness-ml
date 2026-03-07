@@ -15,12 +15,11 @@ Example
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 from harnessml.core.runner.schema import (
     BacktestConfig,
     DataConfig,
@@ -138,12 +137,7 @@ class Project:
             self._data_columns = set()
             return
 
-        import pandas as pd
-
-        # Read only metadata — no need to load full data
-        pf = pd.read_parquet(parquet_path, columns=[])
-        # Actually, read_parquet with empty columns list doesn't give us column names
-        # Read the schema instead
+        # Read schema to get column names without loading data
         import pyarrow.parquet as pq
 
         schema = pq.read_schema(parquet_path)

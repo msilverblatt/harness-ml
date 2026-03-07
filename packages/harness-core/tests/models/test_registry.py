@@ -1,8 +1,7 @@
 """Tests for BaseModel protocol and ModelRegistry."""
+
 import numpy as np
 import pytest
-from pathlib import Path
-
 from harnessml.core.models.base import BaseModel
 from harnessml.core.models.registry import ModelRegistry
 

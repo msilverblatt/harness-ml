@@ -189,11 +189,11 @@ async def data(
     data_path: str | None = None,
     join_on: list[str] | None = None,
     prefix: str | None = None,
-    auto_clean: bool = True,
+    auto_clean: bool = False,
     column: str | None = None,
     strategy: str = "median",
     value: float | None = None,
-    columns: list[str] | None = None,
+    columns: list[str] | list[dict] | None = None,
     mapping: str | dict | None = None,
     category: str | None = None,
     # View management parameters:
@@ -232,7 +232,8 @@ async def data(
         records of the same schema). With join_on: MERGES columns from the
         new dataset onto existing rows by matching on the specified key
         columns (use for enriching with new features). Optional: prefix
-        (column name prefix for merged columns), auto_clean (default true).
+        (column name prefix for merged columns), auto_clean (default false;
+        set true to auto-fill nulls and drop duplicates).
       - "validate": Preview a dataset without ingesting. Requires data_path.
       - "fill_nulls": Fill nulls in a column. Requires column.
         Optional: strategy (median/mean/mode/zero/value), value.

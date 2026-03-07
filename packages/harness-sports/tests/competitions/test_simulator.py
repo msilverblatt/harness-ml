@@ -5,16 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
-    CompetitionStructure,
     MatchupContext,
 )
 from harnessml.sports.competitions.simulator import CompetitionSimulator
 from harnessml.sports.competitions.structure import build_structure
-
 
 # ---------------------------------------------------------------------------
 # Helpers

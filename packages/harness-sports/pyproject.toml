@@ -3,7 +3,23 @@ name = "harness-sports"
 version = "0.1.0"
 description = "Sports domain plugin for harnessml (matchup prediction, pairwise features)"
 requires-python = ">=3.11"
-dependencies = ["harness-core"]
+license = "MIT"
+authors = [{ name = "Matt Silverblatt-Buser" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["harness-core>=0.1.0,<1.0"]
+
+[project.urls]
+Homepage = "https://github.com/msilverblatt/harness-ml"
+Repository = "https://github.com/msilverblatt/harness-ml"
+Issues = "https://github.com/msilverblatt/harness-ml/issues"
 
 [build-system]
 requires = ["hatchling"]

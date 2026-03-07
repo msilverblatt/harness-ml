@@ -12,7 +12,7 @@ instead of relying solely on column-name heuristics.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -21,6 +21,11 @@ if TYPE_CHECKING:
     from harnessml.core.runner.schema import FeatureDef
 
 logger = logging.getLogger(__name__)
+
+
+def _is_continuous(y: pd.Series) -> bool:
+    """Return True if the target looks continuous (>20 unique values)."""
+    return int(y.nunique()) > 20
 
 
 def _lookup_type(feature_name: str, feature_defs: dict[str, FeatureDef] | None) -> str:
@@ -179,17 +184,24 @@ def compute_feature_importance(
     # Fill NaN features with median
     X = X.fillna(X.median())
 
+    logger.info("Computing feature importance (%s) for %d features, %d rows", method, len(feature_cols), len(X))
+
     if method == "xgboost":
         importance = _importance_xgboost(X, y, feature_cols)
     elif method == "mutual_info":
         importance = _importance_mutual_info(X, y, feature_cols)
+    elif method == "random_forest":
+        importance = _importance_random_forest(X, y, feature_cols)
     else:
-        raise ValueError(f"Unknown importance method: {method!r}. Use 'xgboost' or 'mutual_info'.")
+        raise ValueError(f"Unknown importance method: {method!r}. Use 'xgboost', 'mutual_info', or 'random_forest'.")
 
     result = pd.DataFrame({
         "feature": feature_cols,
         "importance": importance,
     }).sort_values("importance", ascending=False).reset_index(drop=True)
+
+    if not result.empty:
+        logger.info("Feature importance complete — top feature: %s (%.4f)", result.iloc[0]["feature"], result.iloc[0]["importance"])
 
     if feature_defs is not None:
         result["type"] = result["feature"].map(
@@ -209,12 +221,15 @@ def _importance_xgboost(
 ) -> np.ndarray:
     """Gain-based importance from a quick XGBoost fit."""
     try:
-        from xgboost import XGBClassifier
+        if _is_continuous(y):
+            from xgboost import XGBRegressor as _XGB
+        else:
+            from xgboost import XGBClassifier as _XGB
     except ImportError:
         logger.warning("xgboost not installed, falling back to mutual_info")
         return _importance_mutual_info(X, y, feature_cols)
 
-    model = XGBClassifier(
+    model = _XGB(
         max_depth=3,
         n_estimators=100,
         learning_rate=0.1,
@@ -238,13 +253,45 @@ def _importance_mutual_info(
     feature_cols: list[str],
 ) -> np.ndarray:
     """Mutual information importance."""
-    from sklearn.feature_selection import mutual_info_classif
-
-    mi = mutual_info_classif(X, y, random_state=42)
+    if _is_continuous(y):
+        from sklearn.feature_selection import mutual_info_regression
+        mi = mutual_info_regression(X, y, random_state=42)
+    else:
+        from sklearn.feature_selection import mutual_info_classif
+        mi = mutual_info_classif(X, y, random_state=42)
     total = mi.sum()
     if total > 0:
         return mi / total
     return mi
+
+
+def _importance_random_forest(
+    X: pd.DataFrame,
+    y: pd.Series,
+    feature_cols: list[str],
+) -> np.ndarray:
+    """Feature importance from a quick Random Forest fit."""
+    try:
+        if _is_continuous(y):
+            from sklearn.ensemble import RandomForestRegressor as _RF
+        else:
+            from sklearn.ensemble import RandomForestClassifier as _RF
+    except ImportError:
+        logger.warning("sklearn not installed, falling back to mutual_info")
+        return _importance_mutual_info(X, y, feature_cols)
+
+    model = _RF(
+        n_estimators=100,
+        max_depth=5,
+        random_state=42,
+    )
+    model.fit(X, y)
+
+    raw = model.feature_importances_
+    total = raw.sum()
+    if total > 0:
+        return raw / total
+    return raw
 
 
 # -----------------------------------------------------------------------

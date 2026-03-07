@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.feature_store import FeatureStore
 from harnessml.core.runner.schema import (
     DataConfig,
@@ -16,7 +15,6 @@ from harnessml.core.runner.schema import (
     PairwiseMode,
     SourceConfig,
 )
-
 
 # ------------------------------------------------------------------
 # Fixtures

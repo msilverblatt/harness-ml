@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.runner.diagnostics import (
     compute_model_agreement,
     evaluate_fold_predictions,

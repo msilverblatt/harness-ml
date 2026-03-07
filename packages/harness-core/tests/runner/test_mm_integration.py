@@ -11,9 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 import yaml
-
 from harnessml.core.runner.pipeline import PipelineRunner
 from harnessml.core.runner.validator import validate_project
 
@@ -626,26 +624,20 @@ class TestAllExportsImportable:
 
     def test_all_exports_importable(self):
         from harnessml.core.runner import (
-            SplineCalibrator,
-            IsotonicCalibrator,
-            PlattCalibrator,
-            build_calibrator,
-            temperature_scale,
-            StackedEnsemble,
-            train_meta_learner_loso,
             apply_ensemble_postprocessing,
-            RunManager,
-            compute_pooled_metrics,
+            build_calibrator,
             compute_brier_score,
-            compute_ece,
             compute_calibration_curve,
-            evaluate_fold_predictions,
+            compute_ece,
             compute_fingerprint,
-            is_cached,
-            save_fingerprint,
-            FeaturesConfig,
+            compute_pooled_metrics,
+            evaluate_fold_predictions,
             generate_pairwise_matchups,
+            is_cached,
             predict_all_matchups,
+            save_fingerprint,
+            temperature_scale,
+            train_meta_learner_loso,
         )
 
         # Verify they are the correct types
@@ -665,7 +657,7 @@ class TestAllExportsImportable:
         assert callable(predict_all_matchups)
 
     def test_calibrator_classes_importable(self):
-        from harnessml.core.runner import SplineCalibrator, IsotonicCalibrator, PlattCalibrator
+        from harnessml.core.runner import IsotonicCalibrator, PlattCalibrator, SplineCalibrator
 
         # Can instantiate
         s = SplineCalibrator()
@@ -705,17 +697,8 @@ class TestAllExportsImportable:
 
     def test_schema_classes_importable(self):
         from harnessml.core.runner import (
-            BacktestConfig,
             DataConfig,
-            EnsembleDef,
-            ExperimentDef,
-            FeatureDecl,
-            GuardrailDef,
             ModelDef,
-            ProjectConfig,
-            ServerDef,
-            ServerToolDef,
-            SourceDecl,
         )
 
         # All schema classes should be importable

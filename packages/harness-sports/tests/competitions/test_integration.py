@@ -10,8 +10,6 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
-import pytest
-
 from harnessml.sports.competitions.adjustments import apply_adjustments
 from harnessml.sports.competitions.confidence import generate_confidence_report
 from harnessml.sports.competitions.explainer import CompetitionExplainer
@@ -33,7 +31,6 @@ from harnessml.sports.competitions.schemas import (
 from harnessml.sports.competitions.scorer import CompetitionScorer
 from harnessml.sports.competitions.simulator import CompetitionSimulator
 from harnessml.sports.competitions.structure import build_structure
-
 
 # ---------------------------------------------------------------------------
 # Helpers

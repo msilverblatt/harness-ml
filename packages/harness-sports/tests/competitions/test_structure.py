@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import math
-
 import pytest
-
 from harnessml.sports.competitions.schemas import (
     CompetitionConfig,
     CompetitionFormat,
@@ -15,7 +12,6 @@ from harnessml.sports.competitions.structure import (
     _standard_bracket_order,
     build_structure,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

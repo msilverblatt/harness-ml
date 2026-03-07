@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.feature_utils import (
     group_features_by_category,
     inject_features,
@@ -15,7 +14,6 @@ from harnessml.core.runner.feature_utils import (
     validate_registry_coverage,
 )
 from harnessml.core.runner.schema import FeatureDecl, InjectionDef, ModelDef
-
 
 # -----------------------------------------------------------------------
 # Helpers

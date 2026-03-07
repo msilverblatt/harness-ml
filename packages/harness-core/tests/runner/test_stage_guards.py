@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.guards import GuardrailViolationError
 from harnessml.core.runner.schema import DataConfig
 from harnessml.core.runner.stage_guards import PipelineGuards

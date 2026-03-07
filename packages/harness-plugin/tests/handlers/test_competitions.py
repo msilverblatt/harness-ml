@@ -4,8 +4,7 @@ from __future__ import annotations
 import json
 
 import pytest
-
-from harnessml.plugin.handlers.competitions import dispatch, ACTIONS, _REGISTRY
+from harnessml.plugin.handlers.competitions import _REGISTRY, ACTIONS, dispatch
 
 
 @pytest.fixture(autouse=True)

@@ -14,7 +14,6 @@ from typing import Any, Callable
 
 from harnessml.core.guardrails.base import Guardrail, GuardrailError
 
-
 # ---------------------------------------------------------------------------
 # Tool definition
 # ---------------------------------------------------------------------------
