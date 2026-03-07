@@ -76,6 +76,7 @@ def _extract_section(full_output: str, section: str) -> str:
     YAML-based extraction for backwards compatibility.
     """
     import re
+
     import yaml
 
     # --- Primary path: match markdown ### headers ---
