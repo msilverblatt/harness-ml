@@ -29,3 +29,5 @@ Thumbs.db
 .env.*
 !.env.example
 catboost_info/
+docs/plans/
+.claude/
