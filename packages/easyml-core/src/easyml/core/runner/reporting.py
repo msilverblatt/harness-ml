@@ -219,13 +219,28 @@ def generate_markdown_report(
     # Meta-Learner Coefficients
     if meta_coefficients:
         sections.append("## Meta-Learner Coefficients\n")
-        sections.append("| Model | Coefficient |")
-        sections.append("|-------|-------------|")
-        for model_name, coeff in sorted(
-            meta_coefficients.items(), key=lambda x: abs(x[1]), reverse=True
-        ):
-            sections.append(f"| {model_name} | {coeff:+.4f} |")
-        sections.append("")
+        # Check if coefficients are nested (multiclass: {class_label: {model: coeff}})
+        first_val = next(iter(meta_coefficients.values()), None)
+        if isinstance(first_val, dict):
+            # Multiclass: one table per class
+            for class_label, class_coeffs in sorted(meta_coefficients.items()):
+                sections.append(f"### {class_label}\n")
+                sections.append("| Model | Coefficient |")
+                sections.append("|-------|-------------|")
+                for model_name, coeff in sorted(
+                    class_coeffs.items(), key=lambda x: abs(x[1]), reverse=True
+                ):
+                    sections.append(f"| {model_name} | {coeff:+.4f} |")
+                sections.append("")
+        else:
+            # Binary: flat {model: coeff}
+            sections.append("| Model | Coefficient |")
+            sections.append("|-------|-------------|")
+            for model_name, coeff in sorted(
+                meta_coefficients.items(), key=lambda x: abs(x[1]), reverse=True
+            ):
+                sections.append(f"| {model_name} | {coeff:+.4f} |")
+            sections.append("")
 
     # Pick Analysis Summary
     if pick_log is not None and len(pick_log) > 0:
