@@ -21,6 +21,7 @@ from easyml.core.runner.config_writer import (
     configure_exclude_columns,
     experiment_create,
     inspect_data,
+    list_runs,
     list_targets,
     remove_model,
     set_active_target,
@@ -975,3 +976,41 @@ class TestTargetProfiles:
         result = set_active_target(project, "nonexistent")
         assert "Error" in result
         assert "nonexistent" in result
+
+
+class TestListRuns:
+    def test_list_runs_with_metrics(self, tmp_path):
+        """list_runs should include metrics when available."""
+        import json
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text("data:\n  outputs_dir: outputs\n")
+
+        for run_id, brier, acc in [("20260301_100000", 0.25, 0.55), ("20260302_100000", 0.22, 0.60)]:
+            run_dir = tmp_path / "outputs" / run_id
+            run_dir.mkdir(parents=True)
+            (run_dir / "pooled_metrics.json").write_text(
+                json.dumps({"brier": brier, "accuracy": acc})
+            )
+
+        result = list_runs(tmp_path)
+        assert "0.2500" in result  # brier formatted to 4 decimal places
+        assert "0.6000" in result  # accuracy formatted
+        assert "20260301_100000" in result
+        assert "20260302_100000" in result
+        assert "Brier" in result  # metric names title-cased in header
+        assert "Accuracy" in result
+
+    def test_list_runs_without_metrics(self, tmp_path):
+        """list_runs falls back to bullet list when no metrics files exist."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text("data:\n  outputs_dir: outputs\n")
+
+        run_dir = tmp_path / "outputs" / "20260301_100000"
+        run_dir.mkdir(parents=True)
+
+        result = list_runs(tmp_path)
+        assert "20260301_100000" in result
+        assert "|" not in result  # no table formatting

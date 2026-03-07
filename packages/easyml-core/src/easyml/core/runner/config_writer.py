@@ -1659,8 +1659,9 @@ def scaffold_init(
 # -----------------------------------------------------------------------
 
 def list_runs(project_dir: Path) -> str:
-    """List all pipeline runs."""
-    config_dir = _get_config_dir(Path(project_dir))
+    """List all pipeline runs with key metrics."""
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
     pipeline_path = config_dir / "pipeline.yaml"
     pipeline_data = _load_yaml(pipeline_path)
 
@@ -1670,17 +1671,50 @@ def list_runs(project_dir: Path) -> str:
 
     from easyml.core.runner.run_manager import RunManager
 
-    mgr = RunManager(Path(outputs_dir))
+    abs_outputs = project_dir / outputs_dir
+    mgr = RunManager(abs_outputs)
     runs = mgr.list_runs()
 
     if not runs:
         return "No runs found."
 
+    # Try to detect metrics from the most recent run
+    metric_keys = _detect_run_metrics(runs[0]["path"])
+
     lines = ["## Pipeline Runs\n"]
-    for r in runs:
-        marker = " **(current)**" if r["is_current"] else ""
-        lines.append(f"- `{r['run_id']}`{marker}")
+    if metric_keys:
+        header = "| Run ID | " + " | ".join(k.title() for k in metric_keys) + " | Current |"
+        sep = "|--------|" + "|".join("-------" for _ in metric_keys) + "|---------|"
+        lines.extend([header, sep])
+        for r in runs:
+            metrics = _load_run_metrics(r["path"])
+            vals = " | ".join(metrics.get(k, "—") for k in metric_keys)
+            current = " ✓" if r["is_current"] else ""
+            lines.append(f"| {r['run_id']} | {vals} | {current} |")
+    else:
+        for r in runs:
+            marker = " **(current)**" if r["is_current"] else ""
+            lines.append(f"- `{r['run_id']}`{marker}")
+
     return "\n".join(lines)
+
+
+def _detect_run_metrics(run_path) -> list[str]:
+    """Detect which metrics exist from a run's pooled_metrics.json."""
+    metrics_file = Path(run_path) / "pooled_metrics.json"
+    if metrics_file.exists():
+        data = json.loads(metrics_file.read_text())
+        return list(data.keys())
+    return []
+
+
+def _load_run_metrics(run_path) -> dict[str, str]:
+    """Load and format metrics from a run directory."""
+    metrics_file = Path(run_path) / "pooled_metrics.json"
+    if metrics_file.exists():
+        data = json.loads(metrics_file.read_text())
+        return {k: f"{v:.4f}" if isinstance(v, float) else str(v) for k, v in data.items()}
+    return {}
 
 
 def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
