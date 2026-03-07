@@ -1,6 +1,3 @@
-
-<div align="center">
-
 ```
  ██╗  ██╗ █████╗ ██████╗ ███╗   ██╗███████╗███████╗███████╗    ███╗   ███╗██╗
  ██║  ██║██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝██╔════╝    ████╗ ████║██║
@@ -9,6 +6,7 @@
  ██║  ██║██║  ██║██║  ██║██║ ╚████║███████╗███████║███████║    ██║ ╚═╝ ██║███████╗
  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝    ╚═╝     ╚═╝╚══════╝
 ```
+<div align="center">
 
 **An Agent-Computer Interface (ACI) for machine learning.**<br>
 Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
