@@ -33,7 +33,7 @@ def _handle_add(*, name, model_type, preset, features, params, active, include_i
     return cw.add_model(resolve_project_dir(project_dir), name, **kw)
 
 
-def _handle_update(*, name, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, class_weight=None, replace_params=False, project_dir, **_kwargs):
+def _handle_update(*, name, features, append_features=None, remove_features=None, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, class_weight=None, replace_params=False, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(name, "name")
@@ -42,6 +42,8 @@ def _handle_update(*, name, features, params, active, include_in_ensemble, mode,
     parsed_params = parse_json_param(params)
     kw = dict(
         features=features,
+        append_features=append_features,
+        remove_features=remove_features,
         params=parsed_params,
         active=active,
         include_in_ensemble=include_in_ensemble,
@@ -202,6 +204,8 @@ def _with_defaults(item: dict, for_update: bool = False) -> dict:
         "model_type": None,
         "preset": None,
         "features": None,
+        "append_features": None,
+        "remove_features": None,
         "params": None,
         "active": None,
         "include_in_ensemble": None,

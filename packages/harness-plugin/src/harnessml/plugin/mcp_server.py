@@ -58,6 +58,8 @@ async def models(
     model_type: str | None = None,
     preset: str | None = None,
     features: list[str] | None = None,
+    append_features: list[str] | None = None,
+    remove_features: list[str] | None = None,
     params: str | dict | None = None,
     active: bool | None = None,
     include_in_ensemble: bool | None = None,
@@ -88,6 +90,8 @@ async def models(
         with existing by default. Pass replace_params=true to fully replace
         the params dict instead of merging.
         Pass active=true or include_in_ensemble=true to explicitly re-enable.
+        append_features: list of features to add to the existing list (skips duplicates).
+        remove_features: list of features to remove from the existing list.
       - "remove": Disable a model (sets active=false, include_in_ensemble=false).
         Requires name. Pass purge=True to delete the entry permanently.
       - "list": List all models with type, status, feature count.
@@ -110,6 +114,8 @@ async def models(
         model_type=model_type,
         preset=preset,
         features=features,
+        append_features=append_features,
+        remove_features=remove_features,
         params=params,
         active=active,
         include_in_ensemble=include_in_ensemble,

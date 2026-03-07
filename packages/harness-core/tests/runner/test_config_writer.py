@@ -180,6 +180,50 @@ class TestUpdateModel:
         data = _load_yaml(project / "config" / "models.yaml")
         assert data["models"]["logreg"]["zero_fill_features"] == ["feat_a", "feat_b"]
 
+    def test_update_model_append_features(self, tmp_path):
+        """update_model with append_features should add to existing list."""
+        project = _setup_project(tmp_path)
+        # logreg starts with features=["diff_x"]
+        result = update_model(project, "logreg", append_features=["diff_y", "feat_a"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["diff_x", "diff_y", "feat_a"]
+
+    def test_update_model_append_features_skips_duplicates(self, tmp_path):
+        """append_features should not add features already in the list."""
+        project = _setup_project(tmp_path)
+        result = update_model(project, "logreg", append_features=["diff_x", "new_feat"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["diff_x", "new_feat"]
+
+    def test_update_model_remove_features(self, tmp_path):
+        """update_model with remove_features should remove from existing list."""
+        project = _setup_project(tmp_path)
+        # First add more features so we can remove some
+        update_model(project, "logreg", features=["a", "b", "c", "d"])
+        result = update_model(project, "logreg", remove_features=["b", "d"])
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["a", "c"]
+
+    def test_update_model_append_and_remove_features(self, tmp_path):
+        """append_features and remove_features can be used together."""
+        project = _setup_project(tmp_path)
+        # logreg starts with features=["diff_x"]
+        result = update_model(
+            project, "logreg",
+            append_features=["new_a", "new_b"],
+            remove_features=["diff_x"],
+        )
+        assert "Updated model" in result
+
+        data = _load_yaml(project / "config" / "models.yaml")
+        assert data["models"]["logreg"]["features"] == ["new_a", "new_b"]
+
 
 class TestRemoveModel:
     """Test remove_model."""

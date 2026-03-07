@@ -163,6 +163,8 @@ def update_model(
     name: str,
     *,
     features: list[str] | None = None,
+    append_features: list[str] | None = None,
+    remove_features: list[str] | None = None,
     params: dict | None = None,
     active: bool | None = None,
     include_in_ensemble: bool | None = None,
@@ -178,6 +180,11 @@ def update_model(
     Only provided fields are merged — None values keep the existing value.
     For params, does a dict merge by default. Set replace_params=True to
     fully replace the params dict instead of merging.
+
+    Feature list helpers:
+      - append_features: add to the existing feature list (skips duplicates).
+      - remove_features: remove from the existing feature list.
+    These are applied after ``features`` (if given), so they can be combined.
     """
     config_dir = _get_config_dir(Path(project_dir))
     models_path = config_dir / "models.yaml"
@@ -191,6 +198,12 @@ def update_model(
 
     if features is not None:
         model_def["features"] = features
+    if append_features:
+        existing = model_def.get("features", [])
+        model_def["features"] = existing + [f for f in append_features if f not in existing]
+    if remove_features:
+        existing = model_def.get("features", [])
+        model_def["features"] = [f for f in existing if f not in remove_features]
     if params is not None:
         if replace_params:
             model_def["params"] = params
