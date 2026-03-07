@@ -468,6 +468,114 @@ def compute_pooled_metrics_multiclass(
     return metrics
 
 
+def evaluate_fold_predictions_regression(
+    preds: pd.DataFrame,
+    fold_id: int,
+    target_column: str = "result",
+) -> list[dict]:
+    """Compute per-model regression metrics for a single fold.
+
+    Parameters
+    ----------
+    preds : pd.DataFrame
+        Prediction DataFrame with prob_{model_name} columns and
+        a target column with continuous values.
+    fold_id : int
+        Fold identifier for the output.
+    target_column : str
+        Name of the column containing ground truth values.
+
+    Returns
+    -------
+    list of dict
+        Each dict has: model, fold, rmse, mae, r_squared.
+    """
+    from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
+
+    if target_column not in preds.columns:
+        raise ValueError(f"No ground truth: '{target_column}' column missing")
+
+    y_true = preds[target_column].values.astype(float)
+
+    prob_cols = [c for c in preds.columns if c.startswith("prob_")]
+
+    results = []
+    for col in prob_cols:
+        model_name = col.replace("prob_", "", 1)
+        y_pred = preds[col].values.astype(float)
+
+        valid = ~np.isnan(y_pred) & ~np.isnan(y_true)
+        if valid.sum() == 0:
+            continue
+
+        y_t = y_true[valid]
+        y_p = y_pred[valid]
+
+        results.append({
+            "model": model_name,
+            "fold": fold_id,
+            "rmse": float(root_mean_squared_error(y_t, y_p)),
+            "mae": float(mean_absolute_error(y_t, y_p)),
+            "r_squared": float(r2_score(y_t, y_p)),
+        })
+
+    return results
+
+
+def compute_pooled_metrics_regression(
+    fold_predictions: list[pd.DataFrame],
+    target_column: str = "result",
+) -> dict[str, dict]:
+    """Compute pooled regression metrics across all folds.
+
+    Parameters
+    ----------
+    fold_predictions : list of pd.DataFrame
+        Each DataFrame has prob_{model_name} columns and a target column.
+    target_column : str
+        Name of the column containing ground truth values.
+
+    Returns
+    -------
+    dict mapping model_name -> metric dict
+        Each metric dict has: rmse, mae, r_squared, n_samples.
+    """
+    from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
+
+    if not fold_predictions:
+        return {}
+
+    combined = pd.concat(fold_predictions, ignore_index=True)
+
+    if target_column not in combined.columns:
+        raise ValueError(f"'{target_column}' column required in prediction DataFrames")
+
+    y_true = combined[target_column].values.astype(float)
+
+    prob_cols = [c for c in combined.columns if c.startswith("prob_")]
+
+    metrics: dict[str, dict] = {}
+    for col in prob_cols:
+        model_name = col.replace("prob_", "", 1)
+        y_pred = combined[col].values.astype(float)
+
+        valid = ~np.isnan(y_pred) & ~np.isnan(y_true)
+        if valid.sum() == 0:
+            continue
+
+        y_t = y_true[valid]
+        y_p = y_pred[valid]
+
+        metrics[model_name] = {
+            "rmse": float(root_mean_squared_error(y_t, y_p)),
+            "mae": float(mean_absolute_error(y_t, y_p)),
+            "r_squared": float(r2_score(y_t, y_p)),
+            "n_samples": int(valid.sum()),
+        }
+
+    return metrics
+
+
 def _compute_accuracy(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     """Compute accuracy from probabilities (threshold 0.5)."""
     predictions = (y_prob >= 0.5).astype(float)

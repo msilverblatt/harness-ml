@@ -116,6 +116,11 @@ def build_diagnostics_report(
             results = evaluate_fold_predictions_multiclass(
                 df, fold_id=fold_id, target_column=target_column,
             )
+        elif task == "regression":
+            from harnessml.core.runner.diagnostics import evaluate_fold_predictions_regression
+            results = evaluate_fold_predictions_regression(
+                df, fold_id=fold_id, target_column=target_column,
+            )
         else:
             results = evaluate_fold_predictions(
                 df, {}, fold_id=fold_id, target_column=target_column,
