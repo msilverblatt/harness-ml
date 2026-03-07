@@ -23,11 +23,11 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 **Why first?** Bad data corrupts everything downstream. Temporal issues create invisible leakage (hardest to debug). Fix now, not later.
 
 **Steps:**
-1. Register raw data sources via `manage_data(action="add_source", name="...", data_path="...")`
-2. Ingest into feature store: `manage_data(action="add", data_path="...", join_on=[...], prefix="...")`
-3. Profile data: `manage_data(action="profile")` — check types, null rates, distributions
-4. Check freshness: `manage_data(action="check_freshness")` — verify sources are current
-5. Validate sources: `manage_data(action="validate_source", name="...")` — schema checks
+1. Register raw data sources via `data(action="add_source", name="...", data_path="...")`
+2. Ingest into feature store: `data(action="add", data_path="...", join_on=[...], prefix="...")`
+3. Profile data: `data(action="profile")` — check types, null rates, distributions
+4. Check freshness: `data(action="check_freshness")` — verify sources are current
+5. Validate sources: `data(action="validate_source", name="...")` — schema checks
 6. Resolve issues: drop duplicates, fill nulls (single or batch), rename columns
 
 **Red flags:** If your data has temporal issues or heavy leakage, all downstream models fail.
@@ -44,17 +44,17 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 
 **Steps:**
 1. Ingest base features from raw data sources
-2. Test transformations: `manage_features(action="test_transformations", ...)`
+2. Test transformations: `features(action="test_transformations", ...)`
    - Log, sqrt, rank, z-score, interactions
    - Returns which transforms improve correlation most
-3. Auto-search for features: `manage_features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])`
+3. Auto-search for features: `features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])`
    - Automatically discovers interactions, lag features, and rolling aggregations
 4. Add winning transformations
-5. Discover important features: `manage_features(action="discover", ...)`
+5. Discover important features: `features(action="discover", ...)`
    - Correlation analysis with target
    - XGBoost feature importance (what models will use)
    - Redundancy detection (drop correlated pairs)
-6. Check diversity: `manage_features(action="diversity")` — ensure models use different feature sets
+6. Check diversity: `features(action="diversity")` — ensure models use different feature sets
 7. Create composite features (pairwise differences, ratios, interactions)
 8. Define regimes (context flags that gate feature sets)
 
@@ -79,9 +79,9 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 
 **Steps:**
 1. Configure backtest: `configure(action="backtest", cv_strategy="...", seasons=[...], metrics=[...])`
-2. Add baseline model: `manage_models(action="add", name="xgb_baseline", preset="xgboost_classifier", ...)`
+2. Add baseline model: `models(action="add", name="xgb_baseline", preset="xgboost_classifier", ...)`
 3. Add comparison models: Try different architectures (XGB, LGB, MLP)
-4. Clone and tweak: `manage_models(action="clone", name="xgb_baseline", ...)` — clone with overrides
+4. Clone and tweak: `models(action="clone", name="xgb_baseline", ...)` — clone with overrides
 5. Run backtest: `pipeline(action="run_backtest", ...)`
 6. Inspect diagnostics: `pipeline(action="diagnostics")`
    - Brier score (overall accuracy)
@@ -121,18 +121,18 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 **Approaches:**
 
 1. **Manual Single-Variable** (slower, more interpretable)
-   - `manage_experiments(action="create", description="...", hypothesis="...")`
-   - `manage_experiments(action="write_overlay", experiment_id="...", overlay={...})`
-   - `manage_experiments(action="run", experiment_id="...")`
+   - `experiments(action="create", description="...", hypothesis="...")`
+   - `experiments(action="write_overlay", experiment_id="...", overlay={...})`
+   - `experiments(action="run", experiment_id="...")`
    - Compare to baseline
 
 2. **Bayesian Exploration** (recommended, faster)
-   - `manage_experiments(action="explore", search_space={axes: [...], budget: 50, primary_metric: "brier"})`
+   - `experiments(action="explore", search_space={axes: [...], budget: 50, primary_metric: "brier"})`
    - Returns best hyperparams, parameter importance, full trial history
    - Prediction cache shared across trials (unchanged models never retrain)
 
 3. **Quick Run** (one-shot experiment)
-   - `manage_experiments(action="quick_run", description="...", overlay={...})`
+   - `experiments(action="quick_run", description="...", overlay={...})`
    - Creates, configures, and runs in one call
 
 **Expected ROI:**
@@ -144,7 +144,7 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 
 ## Available MCP Tools
 
-### Data Management (`manage_data`)
+### Data Management (`data`)
 
 **Ingestion & Profiling:**
 - `action="add"` — Ingest CSV/parquet/Excel into feature store. Params: `data_path`, `join_on`, `prefix`, `auto_clean`
@@ -180,7 +180,7 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 
 **Available view step ops:** filter, select, derive, group_by, join, union, unpivot, sort, head, rolling, cast, distinct, rank, isin, cond_agg, lag, ewm, diff, trend, encode, bin, datetime, null_indicator
 
-### Feature Engineering (`manage_features`)
+### Feature Engineering (`features`)
 - `action="add"` — Create a feature. Params: `name`, `type` (team/pairwise/matchup/regime), `formula`, `source`, `column`, `condition`, `pairwise_mode`, `category`, `description`
 - `action="add_batch"` — Create multiple features with topological ordering. Params: `features` (JSON array)
 - `action="test_transformations"` — Test math transforms. Params: `features` (column names), `test_interactions`
@@ -188,7 +188,7 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 - `action="diversity"` — Analyze feature diversity across models
 - `action="auto_search"` — Auto-search for features. Params: `features`, `search_types` (interactions/lags/rolling), `top_n`
 
-### Model Management (`manage_models`)
+### Model Management (`models`)
 - `action="add"` — Add a model. Params: `name`, `preset` or `model_type`, `features`, `params`, `mode`, `prediction_type`, `cdf_scale`, `zero_fill_features`
 - `action="update"` — Update model config. Same params as add (merges)
 - `action="remove"` — Disable model. Params: `name`, `purge` (permanent delete)
@@ -208,7 +208,7 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 - `action="exclude_columns"` — Manage excluded columns. Params: `add_columns`, `remove_columns`
 - `action="set_denylist"` — Manage feature leakage denylist. Params: `add_columns`, `remove_columns`
 
-### Experiments (`manage_experiments`)
+### Experiments (`experiments`)
 - `action="create"` — Create experiment. Params: `description`, `hypothesis`
 - `action="write_overlay"` — Write overlay YAML. Params: `experiment_id`, `overlay` (JSON, supports dot-notation keys)
 - `action="run"` — Run experiment backtest. Params: `experiment_id`, `primary_metric`, `variant`
@@ -234,30 +234,30 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 
 ```
 1. configure(action="init", project_name="...", task="binary", target_column="...")
-2. manage_data(action="add_source", name="...", data_path="...")  # register sources
-3. manage_data(action="add", data_path="...")  # ingest into feature store
-4. manage_data(action="profile")  # check for issues
-5. manage_data(action="check_freshness")  # verify data is current
-6. manage_features(action="discover")  # what's useful?
+2. data(action="add_source", name="...", data_path="...")  # register sources
+3. data(action="add", data_path="...")  # ingest into feature store
+4. data(action="profile")  # check for issues
+5. data(action="check_freshness")  # verify data is current
+6. features(action="discover")  # what's useful?
 7. configure(action="backtest", cv_strategy="...", seasons=[...])
-8. manage_models(action="add", preset="xgboost_classifier", ...)
+8. models(action="add", preset="xgboost_classifier", ...)
 9. pipeline(action="run_backtest")  # establish baseline
 ```
 
 ### Pattern: Feature Engineering Cycle
 
 ```
-1. manage_features(action="test_transformations", features=[...])
+1. features(action="test_transformations", features=[...])
    -> Which transforms improved correlation?
-2. manage_features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])
+2. features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])
    -> Automated discovery of interactions, lags, rolling features
-3. manage_features(action="add", name="...", formula="...", ...)
+3. features(action="add", name="...", formula="...", ...)
    -> Add winning transforms
-4. manage_features(action="discover", method="xgboost", top_n=30)
+4. features(action="discover", method="xgboost", top_n=30)
    -> Which features does XGBoost think matter?
-5. manage_features(action="diversity")
+5. features(action="diversity")
    -> Are models using diverse feature sets?
-6. manage_models(action="update", name="xgb_baseline", features=[...])
+6. models(action="update", name="xgb_baseline", features=[...])
    -> Add top features to models
 7. pipeline(action="run_backtest")  # did metrics improve?
 8. Repeat or advance to Phase 3
@@ -266,20 +266,20 @@ You are conducting iterative ML experimentation with EasyML, a framework designe
 ### Pattern: Model Selection
 
 ```
-1. Add baseline: manage_models(action="add", preset="xgboost_classifier", ...)
-2. Add comparison: manage_models(action="add", preset="lightgbm_classifier", ...)
-3. Clone variant: manage_models(action="clone", name="xgb_baseline", ...)
+1. Add baseline: models(action="add", preset="xgboost_classifier", ...)
+2. Add comparison: models(action="add", preset="lightgbm_classifier", ...)
+3. Clone variant: models(action="clone", name="xgb_baseline", ...)
 4. pipeline(action="run_backtest")  # compare architectures
 5. pipeline(action="diagnostics")  # check calibration, agreement
 6. pipeline(action="compare_runs", run_ids=["run-001", "run-002"])  # compare runs
-7. Disable underperformers: manage_models(action="update", name="...", active=false)
+7. Disable underperformers: models(action="update", name="...", active=false)
 8. configure(action="ensemble", method="stacked", calibration="spline")
 ```
 
 ### Pattern: Hyperparameter Tuning (Bayesian)
 
 ```
-manage_experiments(action="explore", search_space={
+experiments(action="explore", search_space={
   "axes": [
     {"key": "models.xgb.params.max_depth", "type": "integer", "low": 3, "high": 10},
     {"key": "models.xgb.params.learning_rate", "type": "continuous", "low": 0.001, "high": 0.3, "log": true},

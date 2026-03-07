@@ -104,12 +104,13 @@ easyml experiment promote exp-001
 ### MCP Tool Interface
 
 When running the MCP server, the framework provides tools for:
-- `manage_experiments` — Create, run, promote experiments; define overlays
-- `manage_data` — Ingest sources, validate, fill nulls, rename columns, manage views
-- `manage_features` — Register features, test transformations, discover correlations, analyze diversity
-- `manage_models` — Add models, adjust ensembles, control active models
+- `experiments` — Create, run, promote experiments; define overlays
+- `data` — Ingest sources, validate, fill nulls, rename columns, manage views
+- `features` — Register features, test transformations, discover correlations, analyze diversity
+- `models` — Add models, adjust ensembles, control active models
 - `configure` — Initialize projects, update backtest/ensemble config, run guardrails checks
 - `pipeline` — Run backtests, make predictions, get diagnostics, list/show/compare runs
+- `competitions` — Simulations, brackets, scoring for tournament-style events
 
 ## Key Capabilities
 
@@ -175,8 +176,8 @@ Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv) workspac
 
 When an AI agent is connected to EasyML via MCP, it never needs to:
 
-1. **Write data pipeline code** — Use `manage_data` to ingest sources, define views, validate outputs
-2. **Engineer features manually** — Use `manage_features` to register declarative features; EasyML handles caching and routing
+1. **Write data pipeline code** — Use `data` to ingest sources, define views, validate outputs
+2. **Engineer features manually** — Use `features` to register declarative features; EasyML handles caching and routing
 3. **Track experiments** — All runs are fingerprinted and logged; history is searchable
 4. **Re-run identical experiments** — DNR (Do Not Repeat) prevents accidental duplication
 5. **Mutate production config** — Use experiment overlays to test hypotheses in isolation

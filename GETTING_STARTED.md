@@ -55,11 +55,11 @@ This means **you focus on data science decisions**, not infrastructure:
 - Better to fix now than hunt for leakage bugs later
 
 **Tools:**
-- `manage_data(action="add", data_path=...)` — Ingest sources
-- `manage_data(action="validate")` — Type/null/distribution checks
-- `manage_data(action="profile")` — Summary statistics per column
-- `manage_data(action="drop_duplicates")`
-- `manage_data(action="fill_nulls", strategy="median")`
+- `data(action="add", data_path=...)` — Ingest sources
+- `data(action="validate")` — Type/null/distribution checks
+- `data(action="profile")` — Summary statistics per column
+- `data(action="drop_duplicates")`
+- `data(action="fill_nulls", strategy="median")`
 
 ---
 
@@ -82,7 +82,7 @@ This means **you focus on data science decisions**, not infrastructure:
 
 2. **Test transformations** — Log, square root, rank, z-score, interactions
    ```
-   manage_features(action="test_transformations",
+   features(action="test_transformations",
                    features=["seed", "rating"],
                    test_interactions=true)
    ```
@@ -99,7 +99,7 @@ This means **you focus on data science decisions**, not infrastructure:
 
 4. **Discover important features** — Use correlation and importance analysis
    ```
-   manage_features(action="discover",
+   features(action="discover",
                    method="xgboost",  # or "mutual_info"
                    top_n=30)
    ```
@@ -160,7 +160,7 @@ This means **you focus on data science decisions**, not infrastructure:
 
 2. **Add baseline model** — Simple, proven approach
    ```
-   manage_models(action="add",
+   models(action="add",
                  name="xgb_baseline",
                  preset="xgboost_classifier",
                  features=["diff_rating", "diff_seed"])
@@ -168,8 +168,8 @@ This means **you focus on data science decisions**, not infrastructure:
 
 3. **Add comparison models** — Test different architectures
    ```
-   manage_models(action="add", name="lgb_v1", preset="lightgbm_classifier", ...)
-   manage_models(action="add", name="mlp_v1", type="mlp", ...)
+   models(action="add", name="lgb_v1", preset="lightgbm_classifier", ...)
+   models(action="add", name="mlp_v1", type="mlp", ...)
    ```
 
 4. **Run backtest** — Get honest CV metrics on all models
@@ -191,7 +191,7 @@ This means **you focus on data science decisions**, not infrastructure:
 
 6. **Keep top performers** — Disable models with worse metrics
    ```
-   manage_models(action="update",
+   models(action="update",
                  name="mlp_v1",
                  active=false)
    ```
@@ -349,19 +349,19 @@ easyml validate --config config/pipeline.yaml
 
 ```bash
 # Raw tournament schedule
-manage_data(action="add",
+data(action="add",
             data_path="raw/schedule.csv",
             join_on=["home_id", "away_id", "season"],
             prefix="schedule_")
 
 # Team statistics
-manage_data(action="add",
+data(action="add",
             data_path="raw/team_stats.csv",
             join_on=["team_id", "season"],
             prefix="team_")
 
 # External ratings (KenPom, BartorVik, etc.)
-manage_data(action="add",
+data(action="add",
             data_path="raw/kenpom.csv",
             join_on=["team_id", "season"],
             prefix="kenpom_")
@@ -371,7 +371,7 @@ manage_data(action="add",
 
 ```bash
 # Profile the merged feature set
-manage_data(action="profile")
+data(action="profile")
 ```
 
 Returns:
@@ -403,14 +403,14 @@ team_stats_2019 = get_prior_season_stats(2018)  # Previous season
 
 If nulls are found:
 ```bash
-manage_data(action="fill_nulls",
+data(action="fill_nulls",
             column="kenpom_rating",
             strategy="median")
 ```
 
 If duplicates:
 ```bash
-manage_data(action="drop_duplicates",
+data(action="drop_duplicates",
             columns=["home_id", "away_id", "season"])
 ```
 
@@ -442,7 +442,7 @@ features:
 ### 2.2 Test Transformations
 
 ```bash
-manage_features(action="test_transformations",
+features(action="test_transformations",
                 features=["seed", "rating", "wins_pct"],
                 test_interactions=true)
 ```
@@ -488,7 +488,7 @@ features:
 ### 2.3 Discover Important Features
 
 ```bash
-manage_features(action="discover",
+features(action="discover",
                 method="xgboost",
                 top_n=30)
 ```
@@ -547,7 +547,7 @@ configure(action="backtest",
 ### 3.2 Add Baseline Model
 
 ```bash
-manage_models(action="add",
+models(action="add",
               name="xgb_baseline",
               preset="xgboost_classifier",
               features=["diff_rating", "diff_seed", "diff_wins_pct", "home_court_advantage"])
@@ -562,12 +562,12 @@ Presets include sensible defaults:
 ### 3.3 Add Diverse Models
 
 ```bash
-manage_models(action="add",
+models(action="add",
               name="lgb_v1",
               preset="lightgbm_classifier",
               features=["diff_rating", "diff_seed", "diff_wins_pct", "home_court_advantage"])
 
-manage_models(action="add",
+models(action="add",
               name="mlp_v1",
               type="mlp",
               features=["diff_rating", "diff_seed", "diff_wins_pct", "home_court_advantage", "tournament_time"],
@@ -612,7 +612,7 @@ Notes:
 Disable underperformers:
 
 ```bash
-manage_models(action="update",
+models(action="update",
               name="mlp_v1",
               active=false)
 ```
@@ -848,7 +848,7 @@ Every tool invocation is logged:
 ```json
 {
   "timestamp": "2026-03-01T14:23:45Z",
-  "tool": "manage_experiments",
+  "tool": "experiments",
   "action": "run",
   "args": {"experiment_id": "exp-001-xgb-depth"},
   "guardrails_passed": true,
@@ -860,7 +860,7 @@ Every tool invocation is logged:
 
 Query logs:
 ```python
-logs = logger.query(tool="manage_experiments", status="success")
+logs = logger.query(tool="experiments", status="success")
 ```
 
 ---
@@ -873,10 +873,10 @@ Test whether each feature matters:
 
 ```bash
 # Baseline with all features
-manage_models(add, name="baseline", features=[...all 20 features...])
+models(add, name="baseline", features=[...all 20 features...])
 
 # Ablation 1: Remove feature X
-manage_models(add, name="ablation_no_x", features=[...19 features...])
+models(add, name="ablation_no_x", features=[...19 features...])
 
 # Compare metrics
 # If metrics drop significantly, feature X matters

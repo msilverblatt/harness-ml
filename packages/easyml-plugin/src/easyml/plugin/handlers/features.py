@@ -103,7 +103,7 @@ def _handle_diversity(*, project_dir, **_kwargs):
 
     models = cfg.get("models", {})
     if not models:
-        return "**Error**: No models configured. Add models first with `manage_models(action='add', ...)`."
+        return "**Error**: No models configured. Add models first with `models(action='add', ...)`."
 
     return format_diversity_report(models)
 

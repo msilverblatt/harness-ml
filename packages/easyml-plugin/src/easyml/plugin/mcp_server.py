@@ -45,13 +45,13 @@ def _safe_tool(fn):
 
 
 # -----------------------------------------------------------------------
-# 1. manage_models
+# 1. models
 # -----------------------------------------------------------------------
 
 
 @mcp.tool()
 @_safe_tool
-async def manage_models(
+async def models(
     action: str,
     ctx: Context,
     name: str | None = None,
@@ -67,6 +67,7 @@ async def manage_models(
     zero_fill_features: list[str] | None = None,
     items: str | list | None = None,
     purge: bool = False,
+    replace_params: bool = False,
     project_dir: str | None = None,
 ) -> str:
     """Manage models in the project.
@@ -81,7 +82,8 @@ async def manage_models(
       - "update": Update an existing model in place. Requires name.
         Optional: features, params (JSON string), active, include_in_ensemble,
         mode, prediction_type, cdf_scale, zero_fill_features. Merges params
-        with existing.
+        with existing by default. Pass replace_params=true to fully replace
+        the params dict instead of merging.
         Pass active=true or include_in_ensemble=true to explicitly re-enable.
       - "remove": Disable a model (sets active=false, include_in_ensemble=false).
         Requires name. Pass purge=True to delete the entry permanently.
@@ -119,13 +121,13 @@ async def manage_models(
 
 
 # -----------------------------------------------------------------------
-# 2. manage_data
+# 2. data
 # -----------------------------------------------------------------------
 
 
 @mcp.tool()
 @_safe_tool
-async def manage_data(
+async def data(
     action: str,
     ctx: Context,
     data_path: str | None = None,
@@ -282,13 +284,13 @@ async def manage_data(
 
 
 # -----------------------------------------------------------------------
-# 3. manage_features
+# 3. features
 # -----------------------------------------------------------------------
 
 
 @mcp.tool()
 @_safe_tool
-async def manage_features(
+async def features(
     action: str,
     ctx: Context,
     name: str | None = None,
@@ -357,13 +359,13 @@ async def manage_features(
 
 
 # -----------------------------------------------------------------------
-# 4. manage_experiments
+# 4. experiments
 # -----------------------------------------------------------------------
 
 
 @mcp.tool()
 @_safe_tool
-async def manage_experiments(
+async def experiments(
     action: str,
     ctx: Context,
     experiment_id: str | None = None,
@@ -536,13 +538,13 @@ async def configure(
 
 
 # -----------------------------------------------------------------------
-# 6. manage_competitions
+# 6. competitions
 # -----------------------------------------------------------------------
 
 
 @mcp.tool()
 @_safe_tool
-async def manage_competitions(
+async def competitions(
     action: str,
     ctx: Context,
     config: str | None = None,

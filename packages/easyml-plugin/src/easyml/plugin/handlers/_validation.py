@@ -48,7 +48,7 @@ def collect_hints(action: str, tool: str = "", **kwargs) -> list[str]:
 
 
 def _model_hints(action: str, **kwargs) -> list[str]:
-    """Hints for manage_models actions."""
+    """Hints for models actions."""
     hints = []
     if action == "add":
         mode = kwargs.get("mode")
@@ -77,7 +77,7 @@ def _model_hints(action: str, **kwargs) -> list[str]:
 
 
 def _data_hints(action: str, **kwargs) -> list[str]:
-    """Hints for manage_data actions."""
+    """Hints for data actions."""
     hints = []
     if action == "add" and not kwargs.get("join_on"):
         hints.append(
@@ -114,7 +114,7 @@ def _config_hints(action: str, **kwargs) -> list[str]:
 
 
 def _experiment_hints(action: str, **kwargs) -> list[str]:
-    """Hints for manage_experiments actions."""
+    """Hints for experiments actions."""
     hints = []
     if action == "quick_run" and not kwargs.get("hypothesis"):
         hints.append(
@@ -156,7 +156,7 @@ def missing_data_error() -> str:
     """Standard error when feature store has no data."""
     return actionable_error(
         "Feature store is empty — no data has been loaded.",
-        suggestion="Run `manage_data(action='add', data_path='path/to/data.csv')` to load data.",
+        suggestion="Run `data(action='add', data_path='path/to/data.csv')` to load data.",
     )
 
 

@@ -61,9 +61,9 @@ thin async dispatcher with hot-reloadable handlers) + **easyml-sports**
 ## How to Add a New Feature
 
 Use the MCP tool or config_writer:
-1. `manage_features(action="add", name="...", formula="...", type="grouped|instance|formula|regime")`
-2. For batch: `manage_features(action="add_batch", features=[{...}, ...])`
-3. For auto-discovery: `manage_features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])`
+1. `features(action="add", name="...", formula="...", type="grouped|instance|formula|regime")`
+2. For batch: `features(action="add_batch", features=[{...}, ...])`
+3. For auto-discovery: `features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])`
 
 ## How to Add a New View Step
 
