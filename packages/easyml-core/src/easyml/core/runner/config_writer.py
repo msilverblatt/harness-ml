@@ -2463,6 +2463,78 @@ def show_diagnostics(
     return "\n".join(lines)
 
 
+def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | None = None, top_n: int = 10) -> str:
+    """Run SHAP explainability on a trained model from a backtest run."""
+    try:
+        import shap  # noqa: F401
+    except ImportError:
+        return "**Error**: `shap` package is not installed. Install with `pip install shap`."
+
+    from easyml.core.runner.explainability import compute_shap_summary, format_shap_report
+    from easyml.core.runner.data_utils import get_features_df, load_data_config, get_feature_columns
+
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured."
+
+    # Find the run directory
+    from easyml.core.runner.run_manager import RunManager
+    mgr = RunManager(project_dir / outputs_dir)
+
+    if run_id:
+        run_path = project_dir / outputs_dir / run_id
+    else:
+        runs = mgr.list_runs()
+        if not runs:
+            return "**Error**: No runs found. Run a backtest first."
+        run_path = Path(runs[0]["path"])
+
+    if not run_path.exists():
+        return f"**Error**: Run directory not found: {run_path}"
+
+    # Find model artifacts
+    models_dir = run_path / "models"
+    if not models_dir.exists():
+        return f"**Error**: No models directory in run {run_path.name}."
+
+    # Pick a model (specific or first available)
+    import pickle
+    model_files = sorted(models_dir.glob("*.pkl"))
+    if not model_files:
+        return "**Error**: No model artifacts (.pkl) found."
+
+    if name:
+        target_file = models_dir / f"{name}.pkl"
+        if not target_file.exists():
+            available = [f.stem for f in model_files]
+            return f"**Error**: Model `{name}` not found. Available: {', '.join(available)}"
+        model_file = target_file
+    else:
+        model_file = model_files[0]
+
+    with open(model_file, "rb") as f:
+        model = pickle.load(f)
+
+    # Load feature data
+    config = load_data_config(project_dir)
+    df = get_features_df(project_dir, config)
+    fold_column = pipeline_data.get("backtest", {}).get("fold_column")
+    feature_cols = get_feature_columns(df, config, fold_column=fold_column)
+    X = df[feature_cols].values
+
+    # Compute SHAP
+    try:
+        results = compute_shap_summary(model, X, feature_cols, top_n=top_n)
+    except Exception as e:
+        return f"**Error** computing SHAP values: {e}"
+
+    return format_shap_report(results, model_name=model_file.stem)
+
+
 def promote_experiment(
     project_dir: Path,
     experiment_id: str,

@@ -276,6 +276,16 @@ async def _handle_compare_targets(*, ctx, project_dir, **_kwargs):
     return cw.format_target_comparison(results)
 
 
+def _handle_explain(*, name, run_id, top_n, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    return cw.explain_model(
+        resolve_project_dir(project_dir),
+        name=name,
+        run_id=run_id,
+        top_n=top_n or 10,
+    )
+
+
 ACTIONS = {
     "run_backtest": _handle_run_backtest,
     "predict": _handle_predict,
@@ -284,6 +294,7 @@ ACTIONS = {
     "show_run": _handle_show_run,
     "compare_runs": _handle_compare_runs,
     "compare_targets": _handle_compare_targets,
+    "explain": _handle_explain,
 }
 
 

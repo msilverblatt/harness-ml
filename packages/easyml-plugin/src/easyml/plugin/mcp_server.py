@@ -622,6 +622,8 @@ async def pipeline(
     run_ids: list[str] | None = None,
     fold_value: int | None = None,
     detail: str | None = None,
+    name: str | None = None,
+    top_n: int | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -646,6 +648,9 @@ async def pipeline(
       - "compare_targets": Run backtests for all configured target profiles and
         show side-by-side comparison. No additional params required — uses
         target profiles from configure(action='add_target').
+      - "explain": SHAP-based feature importance for a trained model. Requires
+        shap package. Optional: name (model name, defaults to first), top_n
+        (default 10), run_id (defaults to most recent).
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(
@@ -657,6 +662,8 @@ async def pipeline(
         run_ids=run_ids,
         fold_value=fold_value,
         detail=detail,
+        name=name,
+        top_n=top_n,
         project_dir=project_dir,
     )
     if asyncio.iscoroutine(result):
