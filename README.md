@@ -16,11 +16,7 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 [![Tests](https://img.shields.io/badge/tests-1983%20passing-22c55e.svg?style=flat-square)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b.svg?style=flat-square)](LICENSE)
 
-<br>
-
 </div>
-
-<br>
 
 ## Why HarnessML?
 
@@ -42,8 +38,7 @@ pipeline(action="run_backtest")
 pipeline(action="compare_latest")
   → "Brier: 0.182 → 0.179 (↑ +0.003)"
 ```
-<br>
-**Raw CSV to stacked ensemble, under a minute**
+### Raw CSV to stacked ensemble, under a minute
 
 https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
