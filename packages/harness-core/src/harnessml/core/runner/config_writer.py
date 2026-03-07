@@ -2326,6 +2326,112 @@ def show_run(
     return "\n".join(lines)
 
 
+# Metrics where lower values are better — used for delta direction indicators.
+_LOWER_IS_BETTER = frozenset({
+    "brier", "brier_score", "log_loss", "logloss", "mae", "mse", "rmse",
+    "ece", "expected_calibration_error", "mape", "smape", "rae",
+})
+
+
+def compare_runs(
+    project_dir: Path,
+    run_id_a: str | None = None,
+    run_id_b: str | None = None,
+    latest: bool = False,
+) -> str:
+    """Compare metrics from two pipeline runs side by side with deltas.
+
+    Parameters
+    ----------
+    run_id_a, run_id_b : str | None
+        Explicit run IDs to compare.
+    latest : bool
+        If True, automatically compare the two most recent runs (ignoring
+        run_id_a / run_id_b).
+    """
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured."
+
+    outputs_path = project_dir / outputs_dir
+
+    if latest:
+        if not outputs_path.exists():
+            return "**Error**: No runs found."
+        runs = sorted(
+            [d for d in outputs_path.iterdir() if d.is_dir() and d.name != "current"],
+            key=lambda d: d.name,
+        )
+        if len(runs) < 2:
+            return "**Error**: Need at least 2 runs to compare; found {}.".format(len(runs))
+        run_dir_a, run_dir_b = runs[-2], runs[-1]
+    else:
+        if not run_id_a or not run_id_b:
+            return "**Error**: Provide two run IDs or use latest=True."
+        run_dir_a = outputs_path / run_id_a
+        run_dir_b = outputs_path / run_id_b
+
+    for rd in (run_dir_a, run_dir_b):
+        if not rd.exists():
+            return f"**Error**: Run '{rd.name}' not found."
+
+    metrics_a = _load_run_metrics(run_dir_a)
+    metrics_b = _load_run_metrics(run_dir_b)
+
+    return _format_comparison_table(run_dir_a.name, metrics_a, run_dir_b.name, metrics_b)
+
+
+def _load_run_metrics(run_dir: Path) -> dict[str, float]:
+    """Load numeric metrics from a run directory."""
+    metrics_path = run_dir / "pooled_metrics.json"
+    if metrics_path.exists():
+        raw = json.loads(metrics_path.read_text())
+        return {k: v for k, v in raw.items() if isinstance(v, (int, float))}
+    return {}
+
+
+def _format_comparison_table(
+    id_a: str,
+    metrics_a: dict[str, float],
+    id_b: str,
+    metrics_b: dict[str, float],
+) -> str:
+    """Build a markdown comparison table with delta and direction columns."""
+    all_keys = sorted(set(list(metrics_a.keys()) + list(metrics_b.keys())))
+
+    lines = [f"## Run Comparison: `{id_a}` vs `{id_b}`\n"]
+
+    if not all_keys:
+        lines.append("No numeric metrics found in either run.")
+        return "\n".join(lines)
+
+    lines.append(f"| Metric | `{id_a}` | `{id_b}` | Delta |")
+    lines.append("|--------|------|------|-------|")
+    for key in all_keys:
+        val_a = metrics_a.get(key)
+        val_b = metrics_b.get(key)
+        col_a = f"{val_a:.4f}" if val_a is not None else "\u2014"
+        col_b = f"{val_b:.4f}" if val_b is not None else "\u2014"
+        delta_str = ""
+        if val_a is not None and val_b is not None:
+            diff = val_b - val_a
+            lower_better = key.lower() in _LOWER_IS_BETTER
+            if diff > 0:
+                arrow = "\u2193" if lower_better else "\u2191"
+            elif diff < 0:
+                arrow = "\u2191" if lower_better else "\u2193"
+            else:
+                arrow = "="
+            delta_str = f"{diff:+.4f} {arrow}"
+        lines.append(f"| {key} | {col_a} | {col_b} | {delta_str} |")
+
+    return "\n".join(lines)
+
+
 def show_diagnostics(
     project_dir: Path,
     run_id: str | None = None,

@@ -680,7 +680,10 @@ async def pipeline(
         Optional: detail ("summary" for condensed output, "full" (default)
         for complete results).
       - "compare_runs": Compare metrics from two runs side by side.
-        Requires run_ids (list of 2 run IDs).
+        Requires run_ids (list of 2 run IDs). Shows deltas with direction
+        indicators.
+      - "compare_latest": Compare the two most recent runs automatically.
+        No parameters required. Shows deltas with direction indicators.
       - "compare_targets": Run backtests for all configured target profiles and
         show side-by-side comparison. No additional params required — uses
         target profiles from configure(action='add_target').

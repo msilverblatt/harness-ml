@@ -135,11 +135,17 @@ def _handle_compare_runs(*, run_ids, project_dir, **_kwargs):
         return "**Error**: `run_ids` must be a list of 2 run IDs to compare."
     run_a, run_b = run_ids[0], run_ids[1]
 
-    result_a = cw.show_run(resolve_project_dir(project_dir), run_id=run_a)
-    result_b = cw.show_run(resolve_project_dir(project_dir), run_id=run_b)
+    return cw.compare_runs(
+        resolve_project_dir(project_dir),
+        run_id_a=run_a,
+        run_id_b=run_b,
+    )
 
-    # Parse metrics from both runs for side-by-side comparison
-    return _format_run_comparison(run_a, result_a, run_b, result_b)
+
+def _handle_compare_latest(*, project_dir, **_kwargs):
+    from harnessml.core.runner import config_writer as cw
+
+    return cw.compare_runs(resolve_project_dir(project_dir), latest=True)
 
 
 def _format_run_comparison(id_a: str, result_a: str, id_b: str, result_b: str) -> str:
@@ -322,6 +328,7 @@ ACTIONS = {
     "list_runs": _handle_list_runs,
     "show_run": _handle_show_run,
     "compare_runs": _handle_compare_runs,
+    "compare_latest": _handle_compare_latest,
     "compare_targets": _handle_compare_targets,
     "explain": _handle_explain,
     "inspect_predictions": _handle_inspect_predictions,

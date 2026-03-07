@@ -357,8 +357,8 @@ class TestPipelineDispatch:
         from harnessml.plugin.handlers.pipeline import ACTIONS
         expected = {
             "run_backtest", "predict", "diagnostics", "list_runs",
-            "show_run", "compare_runs", "compare_targets", "explain",
-            "inspect_predictions", "export_notebook",
+            "show_run", "compare_runs", "compare_latest", "compare_targets",
+            "explain", "inspect_predictions", "export_notebook",
         }
         assert set(ACTIONS.keys()) == expected
 
