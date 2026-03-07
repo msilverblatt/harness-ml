@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import {
     ReactFlow,
     Background,
@@ -11,7 +11,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { useApi } from '../../hooks/useApi';
-import { useWebSocket, type Event } from '../../hooks/useWebSocket';
+import { useRefreshKey } from '../../hooks/useRefreshKey';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import { SourceNode } from './nodes/SourceNode';
 import { FeatureNode } from './nodes/FeatureNode';
 import { ModelNode } from './nodes/ModelNode';
@@ -156,7 +157,7 @@ function DetailPanel({
     node: Node;
     onClose: () => void;
 }) {
-    const d = node.data as Record<string, unknown>;
+    const d = node.data as Record<string, string | number | boolean | string[] | Record<string, unknown> | { name: string; formula: string }[] | undefined>;
     const nodeType = node.type ?? 'unknown';
 
     function renderModelDetail() {
@@ -384,7 +385,7 @@ function DetailPanel({
         );
     }
 
-    const renderers: Record<string, () => JSX.Element> = {
+    const renderers: Record<string, () => ReactNode> = {
         model: renderModelDetail,
         ensemble: renderEnsembleDetail,
         features: renderFeatureStoreDetail,
@@ -412,11 +413,32 @@ function DetailPanel({
 }
 
 export function DAG() {
-    const { data, loading, error } = useApi<DagResponse>('/api/project/dag');
     const { events } = useWebSocket();
+    const dagRefreshKey = useRefreshKey(events, ['models', 'features', 'config', 'pipeline']);
+    const { data, loading, error } = useApi<DagResponse>('/api/project/dag', dagRefreshKey);
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
     const [runningNodeIds, setRunningNodeIds] = useState<Set<string>>(new Set());
     const processedEventCountRef = useRef(0);
+    const canvasRef = useRef<HTMLDivElement>(null);
+
+    // Force ReactFlow to re-mount and fitView on container resize
+    const [resizeKey, setResizeKey] = useState(0);
+    useEffect(() => {
+        const el = canvasRef.current;
+        if (!el) return;
+        let timer = 0;
+        const observer = new ResizeObserver(() => {
+            clearTimeout(timer);
+            timer = window.setTimeout(() => {
+                setResizeKey(k => k + 1);
+            }, 150);
+        });
+        observer.observe(el);
+        return () => {
+            clearTimeout(timer);
+            observer.disconnect();
+        };
+    }, []);
 
     const { nodes: layoutNodes, edges } = useMemo(() => {
         if (!data) return { nodes: [], edges: [] };
@@ -457,14 +479,16 @@ export function DAG() {
     }, [events, layoutNodes]);
 
     const nodes = useMemo(() => {
-        if (runningNodeIds.size === 0) return layoutNodes;
+        const selectedId = selectedNode?.id ?? null;
+        if (runningNodeIds.size === 0 && !selectedId) return layoutNodes;
         return layoutNodes.map(n => {
-            if (runningNodeIds.has(n.id)) {
-                return { ...n, data: { ...n.data, _running: true } };
-            }
-            return n;
+            const extras: Record<string, unknown> = {};
+            if (runningNodeIds.has(n.id)) extras._running = true;
+            if (n.id === selectedId) extras._selected = true;
+            if (Object.keys(extras).length === 0) return n;
+            return { ...n, data: { ...n.data, ...extras } };
         });
-    }, [layoutNodes, runningNodeIds]);
+    }, [layoutNodes, runningNodeIds, selectedNode]);
 
     const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
         setSelectedNode(node);
@@ -484,27 +508,30 @@ export function DAG() {
 
     return (
         <div className={styles.dagContainer}>
-            <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={nodeTypes}
-                onNodeClick={onNodeClick}
-                onPaneClick={onPaneClick}
-                fitView
-                proOptions={{ hideAttribution: true }}
-            >
-                <Background color="#30363d" gap={20} size={1} />
-                <Controls />
-                <MiniMap
-                    nodeColor={miniMapNodeColor}
-                    nodeStrokeWidth={3}
-                    pannable
-                    zoomable
-                    style={{
-                        backgroundColor: '#161b22',
-                    }}
-                />
-            </ReactFlow>
+            <div className={styles.dagCanvas} ref={canvasRef}>
+                <ReactFlow
+                    key={resizeKey}
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    onNodeClick={onNodeClick}
+                    onPaneClick={onPaneClick}
+                    fitView
+                    proOptions={{ hideAttribution: true }}
+                >
+                    <Background color="#30363d" gap={20} size={1} />
+                    <Controls />
+                    <MiniMap
+                        nodeColor={miniMapNodeColor}
+                        nodeStrokeWidth={3}
+                        pannable
+                        zoomable
+                        style={{
+                            backgroundColor: '#161b22',
+                        }}
+                    />
+                </ReactFlow>
+            </div>
             {selectedNode && (
                 <DetailPanel
                     node={selectedNode}

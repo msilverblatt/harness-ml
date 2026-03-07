@@ -17,6 +17,9 @@ class EventEmitter:
 
     def __init__(self, store=None):
         self._store = store
+        # Track the current running tool call for progress messages
+        self._current_tool: str | None = None
+        self._current_action: str | None = None
 
     @property
     def enabled(self) -> bool:
@@ -29,6 +32,31 @@ class EventEmitter:
             self._store.record(tool=tool, action=action, params=params, result=result, duration_ms=duration_ms, status=status)
         except Exception:
             logger.debug("Event emission failed (non-fatal)", exc_info=True)
+
+    def progress(self, *, current: int, total: int, message: str,
+                  tool_override: str | None = None, action_override: str | None = None) -> None:
+        """Emit a progress event for the currently running tool call."""
+        if self._store is None:
+            return
+        tool = tool_override or self._current_tool or "unknown"
+        action = action_override or self._current_action or "unknown"
+        try:
+            self._store.record(
+                tool=tool, action=action,
+                params={"current": current, "total": total},
+                result=message, duration_ms=0, status="progress",
+            )
+        except Exception:
+            logger.debug("Progress emission failed (non-fatal)", exc_info=True)
+
+    def set_current(self, tool: str, action: str) -> None:
+        """Set the current tool/action context for progress messages."""
+        self._current_tool = tool
+        self._current_action = action
+
+    def clear_current(self) -> None:
+        self._current_tool = None
+        self._current_action = None
 
 
 def create_emitter(project_dir: str | Path | None = None) -> EventEmitter:

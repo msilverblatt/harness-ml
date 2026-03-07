@@ -40,14 +40,12 @@ function mergeEvents(events: Event[]): Event[] {
             // Update the open group's display
             const group = openGroups.get(key);
             if (group) {
-                // Update the group with latest progress info but keep 'running' status
-                // so it continues to show the running style until success/error
                 group.result = event.result;
                 group.params = event.params;
                 consumed.add(event.id);
-                continue;
             }
-            // No open group — show standalone
+            // Never show progress events as standalone rows
+            continue;
         }
 
         if (event.status === 'success' || event.status === 'error') {

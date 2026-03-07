@@ -14,7 +14,12 @@ function getBaseUrl(): string {
     return window.location.origin;
 }
 
-export function useApi<T>(path: string): UseApiResult<T> {
+/**
+ * Fetch data from an API endpoint.
+ * Pass a `refreshKey` to trigger automatic refetches — when it changes, data is re-fetched.
+ * Useful for live-updating when WebSocket events arrive.
+ */
+export function useApi<T>(path: string, refreshKey?: unknown): UseApiResult<T> {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -29,7 +34,7 @@ export function useApi<T>(path: string): UseApiResult<T> {
         const controller = new AbortController();
 
         async function fetchData() {
-            setLoading(true);
+            setLoading(prev => data === null ? true : prev);
             setError(null);
 
             try {
@@ -61,7 +66,8 @@ export function useApi<T>(path: string): UseApiResult<T> {
             cancelled = true;
             controller.abort();
         };
-    }, [path, tick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [path, tick, refreshKey]);
 
     return { data, loading, error, refetch };
 }

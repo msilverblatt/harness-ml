@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useApi } from '../../hooks/useApi';
+import { useRefreshKey } from '../../hooks/useRefreshKey';
+import { useLayoutContext } from '../../components/Layout/Layout';
 import { ExperimentTable } from './ExperimentTable';
 import { MetricChart } from './MetricChart';
 import { ComparePanel } from './ComparePanel';
@@ -7,7 +9,9 @@ import type { Experiment } from './ExperimentTable';
 import styles from './Experiments.module.css';
 
 export function Experiments() {
-    const { data: experiments, loading, error } = useApi<Experiment[]>('/api/experiments');
+    const { events } = useLayoutContext();
+    const expKey = useRefreshKey(events, ['experiments', 'pipeline']);
+    const { data: experiments, loading, error } = useApi<Experiment[]>('/api/experiments', expKey);
     const [compareIds, setCompareIds] = useState<string[]>([]);
     const [chartMetric, setChartMetric] = useState<string | null>(null);
 

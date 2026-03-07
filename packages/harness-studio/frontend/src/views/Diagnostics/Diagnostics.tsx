@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../../hooks/useApi';
+import { useRefreshKey } from '../../hooks/useRefreshKey';
+import { useLayoutContext } from '../../components/Layout/Layout';
 import { RunSelector } from './RunSelector';
 import { MetricSummary } from './MetricSummary';
 import { CalibrationPlot } from './CalibrationPlot';
@@ -22,7 +24,9 @@ interface RunSummary {
 type TabId = 'overview' | 'report' | 'compare';
 
 export function Diagnostics() {
-    const { data: runs, loading, error } = useApi<RunSummary[]>('/api/runs');
+    const { events } = useLayoutContext();
+    const runsKey = useRefreshKey(events, ['experiments', 'pipeline']);
+    const { data: runs, loading, error } = useApi<RunSummary[]>('/api/runs', runsKey);
     const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
     const [compareMode, setCompareMode] = useState(false);
     const [activeTab, setActiveTab] = useState<TabId>('overview');
@@ -69,6 +73,8 @@ export function Diagnostics() {
     const selectedRun = runs.find(r => r.id === primaryRunId);
     const metricKeys = selectedRun ? Object.keys(selectedRun.metrics) : [];
     const isRegression = metricKeys.some(k => ['rmse', 'mae', 'r_squared', 'mape'].includes(k));
+    const hasMetaCoefficients = selectedRun?.meta_coefficients != null
+        && Object.keys(selectedRun.meta_coefficients).length > 0;
     const hasReport = selectedRun?.has_report ?? false;
     const showCompareTab = selectedRunIds.length >= 2;
 
@@ -127,16 +133,23 @@ export function Diagnostics() {
                             <div className={styles.sectionTitle}>Per-Fold Breakdown</div>
                             <FoldBreakdown runId={primaryRunId} />
 
-                            <div className={styles.twoColumn}>
-                                <div>
-                                    <div className={styles.sectionTitle}>Model Weights</div>
-                                    <MetaCoefficients runId={primaryRunId} />
+                            {hasMetaCoefficients ? (
+                                <div className={styles.twoColumn}>
+                                    <div>
+                                        <div className={styles.sectionTitle}>Model Weights</div>
+                                        <MetaCoefficients runId={primaryRunId} />
+                                    </div>
+                                    <div>
+                                        <div className={styles.sectionTitle}>Model Correlations</div>
+                                        <CorrelationMatrix runId={primaryRunId} />
+                                    </div>
                                 </div>
-                                <div>
+                            ) : (
+                                <>
                                     <div className={styles.sectionTitle}>Model Correlations</div>
                                     <CorrelationMatrix runId={primaryRunId} />
-                                </div>
-                            </div>
+                                </>
+                            )}
 
                             <div className={styles.sectionTitle}>
                                 {isRegression ? 'Predicted vs Actual' : 'Calibration'}

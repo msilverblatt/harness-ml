@@ -23,6 +23,14 @@
     flex-shrink: 0;
 }
 
+.logoLink {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    text-decoration: none;
+    cursor: pointer;
+}
+
 .logo {
     display: flex;
     align-items: center;
@@ -36,6 +44,13 @@
     color: var(--color-text-primary);
     font-weight: 400;
     letter-spacing: -0.01em;
+}
+
+.logoSvg {
+    height: 24px;
+    width: auto;
+    fill: var(--color-accent);
+    flex-shrink: 0;
 }
 
 .logoBadge {

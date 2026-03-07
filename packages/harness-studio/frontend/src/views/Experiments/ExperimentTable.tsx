@@ -61,11 +61,14 @@ function verdictClass(verdict?: string): string {
     }
 }
 
-function formatDelta(delta?: number): { text: string; className: string } {
+function formatDelta(delta?: number, primaryMetric?: string): { text: string; className: string } {
     if (delta == null) return { text: '--', className: '' };
     const sign = delta > 0 ? '+' : '';
     const text = `${sign}${delta.toFixed(4)}`;
-    const className = delta > 0 ? styles.deltaPositive : delta < 0 ? styles.deltaNegative : '';
+    if (delta === 0) return { text, className: '' };
+    const lowerBetter = primaryMetric ? LOWER_IS_BETTER.has(primaryMetric) : false;
+    const isImprovement = lowerBetter ? delta < 0 : delta > 0;
+    const className = isImprovement ? styles.deltaPositive : styles.deltaNegative;
     return { text, className };
 }
 
@@ -272,7 +275,7 @@ export function ExperimentTable({ experiments, selectedIds, onToggleCompare }: E
             <tbody>
                 {sorted.map(exp => {
                     const isExpanded = expandedId === exp.experiment_id;
-                    const delta = formatDelta(exp.primary_delta);
+                    const delta = formatDelta(exp.primary_delta, exp.primary_metric);
                     return (
                         <ExperimentRow
                             key={exp.experiment_id}
