@@ -1342,6 +1342,7 @@ def discover_features(
     pipeline_data = _load_yaml(_get_config_dir(project_dir) / "pipeline.yaml")
     backtest_data = pipeline_data.get("backtest", {})
     fold_col = backtest_data.get("fold_column")
+    target_col = pipeline_data.get("data", {}).get("target_column", "result")
     if config is not None:
         feature_cols = get_feature_columns(df, config, fold_column=fold_col)
         if config.feature_defs:
@@ -1363,11 +1364,11 @@ def discover_features(
 
     _report(1, 5, "Computing feature correlations...")
     correlations = compute_feature_correlations(
-        df, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
+        df, target_col=target_col, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
     )
     _report(2, 5, "Computing feature importance (method=%s)..." % method)
     importance = compute_feature_importance(
-        df, method=method, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
+        df, target_col=target_col, method=method, top_n=top_n, feature_columns=feature_cols, feature_defs=feat_defs,
     )
     _report(3, 5, "Detecting redundant features...")
     redundant = detect_redundant_features(df, feature_columns=feature_cols)

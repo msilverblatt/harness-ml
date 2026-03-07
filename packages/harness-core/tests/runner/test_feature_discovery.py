@@ -373,3 +373,39 @@ class TestStoreAwareReport:
         report = format_discovery_report(corr, imp, red, groups)
         assert "| Type |" in report
         assert "pairwise/barttorvik" in report
+
+
+# -----------------------------------------------------------------------
+# discover_features integration (config_writer)
+# -----------------------------------------------------------------------
+
+class TestDiscoverFeaturesTargetColumn:
+    """discover_features should read target_column from pipeline config."""
+
+    def test_discover_features_uses_target_column(self, tmp_path):
+        """When pipeline.yaml sets target_column to a non-default value,
+        discover_features should still work (no KeyError on 'result')."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text(
+            "data:\n  features_dir: data/features\n  features_file: features.parquet\n"
+            "  target_column: outcome\n  task: binary\nbacktest:\n  fold_column: fold\n"
+        )
+        (config_dir / "models.yaml").write_text("models: {}\n")
+        (config_dir / "sources.yaml").write_text("guardrails: {}\n")
+
+        features_dir = tmp_path / "data" / "features"
+        features_dir.mkdir(parents=True)
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame({
+            "feat_a": rng.standard_normal(100),
+            "feat_b": rng.standard_normal(100),
+            "outcome": rng.integers(0, 2, 100),
+            "fold": np.repeat([0, 1], 50),
+        })
+        df.to_parquet(features_dir / "features.parquet")
+
+        from harnessml.core.runner.config_writer import discover_features
+        result = discover_features(tmp_path)
+        assert "Error" not in result
+        assert "feat_a" in result or "feat_b" in result
