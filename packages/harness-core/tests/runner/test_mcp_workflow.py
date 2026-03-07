@@ -17,8 +17,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
-
 from harnessml.core.runner import config_writer
 from harnessml.core.runner.data_ingest import (
     drop_duplicates,
@@ -27,7 +25,7 @@ from harnessml.core.runner.data_ingest import (
     rename_columns,
     validate_dataset,
 )
-from harnessml.core.runner.data_utils import get_feature_columns, get_features_path, load_data_config
+from harnessml.core.runner.data_utils import get_feature_columns, load_data_config
 from harnessml.core.runner.feature_discovery import (
     compute_feature_correlations,
     compute_feature_importance,
@@ -41,7 +39,6 @@ from harnessml.core.runner.presets import list_presets
 from harnessml.core.runner.scaffold import scaffold_project
 from harnessml.core.runner.schema import DataConfig, ProjectConfig
 from harnessml.core.runner.transformation_tester import run_transformation_tests
-
 
 # ---------------------------------------------------------------------------
 # Helpers

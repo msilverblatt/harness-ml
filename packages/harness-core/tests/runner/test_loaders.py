@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest import mock
 
 import pytest
-
-from harnessml.core.runner.sources import SourceRegistry
 from harnessml.core.feature_eng.registry import FeatureRegistry
 from harnessml.core.runner.loaders import load_features, load_sources
 from harnessml.core.runner.schema import FeatureDecl, SourceDecl
-
+from harnessml.core.runner.sources import SourceRegistry
 
 # -----------------------------------------------------------------------
 # Helpers — create mock modules injected into sys.modules

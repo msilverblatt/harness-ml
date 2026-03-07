@@ -4,10 +4,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.schema import RollingStep
 from harnessml.core.runner.view_executor import execute_step
-
 
 # ---------------------------------------------------------------------------
 # Helpers

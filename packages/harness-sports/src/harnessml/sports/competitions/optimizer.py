@@ -12,7 +12,6 @@ import math
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
-
 from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     ScoringConfig,

@@ -1,10 +1,8 @@
 """Tests for the view step execution engine."""
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.schema import (
     CastStep,
     ConditionalAggStep,
@@ -23,7 +21,6 @@ from harnessml.core.runner.schema import (
     UnpivotStep,
 )
 from harnessml.core.runner.view_executor import execute_step
-
 
 # ---------------------------------------------------------------------------
 # Helpers

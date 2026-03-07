@@ -4,9 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from harnessml.core.runner.run_manager import RunManager
-
 
 # -----------------------------------------------------------------------
 # Tests: new_run

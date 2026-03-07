@@ -1,9 +1,9 @@
 """Tests for TabNet wrapper: normalize, val_fraction, scheduler, eval_set, learning_rate."""
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
+import pytest
 
 pytab = pytest.importorskip("pytorch_tabnet")
 

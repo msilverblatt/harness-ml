@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from harnessml.core.runner.calibration import (
     IsotonicCalibrator,
     PlattCalibrator,
@@ -11,7 +10,6 @@ from harnessml.core.runner.calibration import (
     build_calibrator,
     temperature_scale,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers

@@ -1,12 +1,8 @@
 """Tests for feature cache with manifest and cascade invalidation."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
-import pytest
-
-from harnessml.core.runner.feature_cache import FeatureCache, CacheEntry
+from harnessml.core.runner.feature_cache import CacheEntry, FeatureCache
 
 
 class TestCacheEntry:

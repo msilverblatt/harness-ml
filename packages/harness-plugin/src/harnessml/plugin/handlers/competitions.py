@@ -1,16 +1,13 @@
 """Handler for manage_competitions tool."""
 from __future__ import annotations
 
-import json
-
 from harnessml.plugin.handlers._common import parse_json_param
 from harnessml.plugin.handlers._validation import (
-    validate_enum,
-    validate_required,
     collect_hints,
     format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
-
 
 # ---------------------------------------------------------------------------
 # In-memory registry of created competitions
@@ -426,7 +423,7 @@ def _handle_profiles(*, name=None, top_n=None, **_kwargs):
 
     n = top_n or 20
     if "champion" not in round_probs.columns:
-        return f"**Error**: Round probabilities missing 'champion' column."
+        return "**Error**: Round probabilities missing 'champion' column."
 
     sorted_df = round_probs.sort_values("champion", ascending=False).head(n)
     structure = comp.get("structure")

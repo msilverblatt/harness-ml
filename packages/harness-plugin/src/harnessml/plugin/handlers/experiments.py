@@ -1,9 +1,12 @@
 """Handler for manage_experiments tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import resolve_project_dir, parse_json_param
+from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    validate_enum, validate_required, collect_hints, format_response_with_hints,
+    collect_hints,
+    format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
 
 
@@ -39,6 +42,7 @@ def _handle_write_overlay(*, experiment_id, overlay, project_dir, **_kwargs):
 
 async def _handle_run(*, experiment_id, primary_metric, variant, ctx, project_dir, **_kwargs):
     import asyncio
+
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(experiment_id, "experiment_id")
@@ -91,6 +95,7 @@ def _handle_promote(*, experiment_id, primary_metric, project_dir, **_kwargs):
 
 async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, ctx, project_dir, **_kwargs):
     import asyncio
+
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(description, "description")
@@ -134,6 +139,7 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
 
 async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
     import asyncio
+
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(search_space, "search_space")
@@ -143,8 +149,8 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
 
     # Workflow phase gate: check if exploration is premature
     try:
-        from harnessml.core.runner.workflow_tracker import WorkflowGateError, WorkflowTracker
         import yaml
+        from harnessml.core.runner.workflow_tracker import WorkflowTracker
 
         proj = resolve_project_dir(project_dir)
         config_dir = proj / "config"

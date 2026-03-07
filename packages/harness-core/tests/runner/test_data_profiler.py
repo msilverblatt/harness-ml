@@ -3,15 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamAWon support
 import numpy as np
 import pandas as pd
 import pytest
-
-import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamAWon support
-
 from harnessml.core.runner.data_profiler import DataProfile, profile_dataset
 from harnessml.core.runner.schema import DataConfig
-
 
 # -----------------------------------------------------------------------
 # Fixtures

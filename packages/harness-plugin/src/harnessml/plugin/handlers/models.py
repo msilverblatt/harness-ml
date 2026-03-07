@@ -1,9 +1,12 @@
 """Handler for manage_models tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import resolve_project_dir, parse_json_param
+from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    validate_enum, validate_required, collect_hints, format_response_with_hints,
+    collect_hints,
+    format_response_with_hints,
+    validate_enum,
+    validate_required,
 )
 
 
@@ -147,7 +150,6 @@ def _handle_remove_batch(*, items, project_dir, **_kwargs):
 
 def _handle_clone(*, name, items, project_dir, **_kwargs):
     """Clone an existing model with a new name and optional overrides."""
-    from harnessml.core.runner import config_writer as cw
     import yaml
 
     err = validate_required(name, "name (source model)")

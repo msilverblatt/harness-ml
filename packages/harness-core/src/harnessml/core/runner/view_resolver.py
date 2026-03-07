@@ -9,11 +9,9 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
-
-from harnessml.core.runner.schema import DataConfig, SourceConfig, ViewDef
+from harnessml.core.runner.schema import DataConfig
 from harnessml.core.runner.view_executor import execute_step
 
 logger = logging.getLogger(__name__)

@@ -1,13 +1,13 @@
 """Tests for explainability module."""
-import pytest
 import numpy as np
+import pytest
 
 
 class TestComputeShapSummary:
     def test_compute_shap_summary(self):
         shap = pytest.importorskip("shap")
-        from sklearn.ensemble import GradientBoostingClassifier
         from harnessml.core.runner.explainability import compute_shap_summary
+        from sklearn.ensemble import GradientBoostingClassifier
 
         rng = np.random.default_rng(42)
         X = rng.normal(size=(200, 5))
@@ -25,8 +25,8 @@ class TestComputeShapSummary:
 
     def test_compute_shap_top_n_limits(self):
         shap = pytest.importorskip("shap")
-        from sklearn.ensemble import GradientBoostingClassifier
         from harnessml.core.runner.explainability import compute_shap_summary
+        from sklearn.ensemble import GradientBoostingClassifier
 
         rng = np.random.default_rng(42)
         X = rng.normal(size=(100, 10))

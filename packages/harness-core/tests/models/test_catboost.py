@@ -1,6 +1,6 @@
 """Tests for CatBoost model wrapper with eval_set support."""
-import pytest
 import numpy as np
+import pytest
 
 try:
     import catboost

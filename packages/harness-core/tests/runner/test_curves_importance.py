@@ -4,13 +4,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.diagnostics import (
     permutation_importance_data,
     pr_curve_data,
     roc_curve_data,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers

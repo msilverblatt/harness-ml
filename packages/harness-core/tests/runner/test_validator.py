@@ -1,14 +1,10 @@
 """Tests for YAML loading and validation."""
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
-import pytest
 import yaml
-
-from harnessml.core.runner.validator import ValidationResult, validate_project
-
+from harnessml.core.runner.validator import validate_project
 
 # -----------------------------------------------------------------------
 # Helpers — write YAML fixtures to tmp_path

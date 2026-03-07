@@ -4,11 +4,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.runner.matchups import compute_interactions, predict_all_matchups
-from harnessml.sports.matchups import generate_pairwise_matchups
 from harnessml.core.runner.schema import InteractionDef, ModelDef
-
+from harnessml.sports.matchups import generate_pairwise_matchups
 
 # -----------------------------------------------------------------------
 # Helpers

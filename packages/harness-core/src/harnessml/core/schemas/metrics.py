@@ -1,19 +1,17 @@
 """Built-in metrics — probability, classification, regression, and ensemble diagnostics."""
 from __future__ import annotations
 
-import numpy as np
 from collections.abc import Callable
 from itertools import combinations
 
+import numpy as np
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
     brier_score_loss,
     cohen_kappa_score,
-    confusion_matrix as _sklearn_confusion_matrix,
     explained_variance_score,
     f1_score,
-    log_loss as _sklearn_log_loss,
     matthews_corrcoef,
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -25,7 +23,12 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-
+from sklearn.metrics import (
+    confusion_matrix as _sklearn_confusion_matrix,
+)
+from sklearn.metrics import (
+    log_loss as _sklearn_log_loss,
+)
 
 # ---------------------------------------------------------------------------
 # MetricRegistry — task-type dispatch
@@ -643,7 +646,6 @@ def crps(y_true: np.ndarray, y_pred: np.ndarray, **kwargs) -> float:
         return float(np.mean(np.abs(y_pred_arr - y_true_arr)))
 
     # Ensemble predictions: shape (n_samples, n_obs)
-    n_samples = y_pred_arr.shape[0]
     n_obs = y_pred_arr.shape[1]
     scores = np.zeros(n_obs)
     for j in range(n_obs):

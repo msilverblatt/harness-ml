@@ -5,13 +5,10 @@ Provides validate, inspect, experiment, run, serve, and init commands.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import click
-
 from harnessml.core.runner.validator import validate_project
-
 
 # -----------------------------------------------------------------------
 # Helper: load and validate config, exit on failure
@@ -309,7 +306,6 @@ def experiment_run(
     gender = ctx.obj["gender"]
 
     import yaml as _yaml
-
     from harnessml.core.runner.experiment import (
         compute_deltas,
         detect_experiment_changes,
