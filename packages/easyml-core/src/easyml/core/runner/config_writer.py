@@ -3206,3 +3206,40 @@ def validate_source_data(project_dir: Path, name: str) -> str:
             lines.append(f"- [{v.severity}] {v.column}: {v.message}")
 
     return "\n".join(lines)
+
+
+def format_target_comparison(results: dict[str, dict]) -> str:
+    """Format multi-target comparison as markdown table."""
+    if not results:
+        return "No results to compare."
+
+    # Collect all metric keys across targets
+    metric_keys: list[str] = []
+    for metrics in results.values():
+        for k in metrics:
+            if k not in metric_keys:
+                metric_keys.append(k)
+
+    lines = ["## Target Comparison\n"]
+    header = "| Target | " + " | ".join(metric_keys) + " |"
+    sep = "|--------|" + "|".join("------" for _ in metric_keys) + "|"
+    lines.extend([header, sep])
+
+    for target_name, metrics in results.items():
+        vals = " | ".join(
+            f"{metrics.get(k, '—'):.4f}" if isinstance(metrics.get(k), (int, float)) else str(metrics.get(k, "—"))
+            for k in metric_keys
+        )
+        lines.append(f"| {target_name} | {vals} |")
+
+    # Highlight best per metric
+    lines.append("\n**Best per metric:**")
+    for k in metric_keys:
+        vals = {name: m.get(k) for name, m in results.items() if k in m and isinstance(m.get(k), (int, float))}
+        if not vals:
+            continue
+        lower_better = k in ("brier", "ece", "log_loss", "rmse", "mae")
+        best_name = min(vals, key=vals.get) if lower_better else max(vals, key=vals.get)
+        lines.append(f"- {k}: **{best_name}** ({vals[best_name]:.4f})")
+
+    return "\n".join(lines)

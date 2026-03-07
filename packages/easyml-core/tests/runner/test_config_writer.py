@@ -1122,3 +1122,36 @@ class TestExperimentJournal:
         assert "exp-003" in result
         assert "exp-004" in result
         assert "exp-000" not in result
+
+
+class TestFormatTargetComparison:
+    def test_format_target_comparison(self):
+        from easyml.core.runner.config_writer import format_target_comparison
+
+        results = {
+            "short": {"brier": 0.2497, "accuracy": 0.5389, "auc_roc": 0.4686},
+            "medium": {"brier": 0.2481, "accuracy": 0.5308, "auc_roc": 0.5132},
+            "long": {"brier": 0.2300, "accuracy": 0.5800, "auc_roc": 0.5500},
+        }
+        output = format_target_comparison(results)
+        assert "short" in output
+        assert "medium" in output
+        assert "long" in output
+        assert "0.5132" in output
+        assert "Best per metric" in output
+        # brier is lower-better, so "long" should be best
+        assert "**long**" in output
+
+    def test_format_target_comparison_empty(self):
+        from easyml.core.runner.config_writer import format_target_comparison
+        assert "No results" in format_target_comparison({})
+
+    def test_format_target_comparison_with_error(self):
+        from easyml.core.runner.config_writer import format_target_comparison
+        results = {
+            "short": {"brier": 0.25, "accuracy": 0.55},
+            "broken": {"error": "something failed"},
+        }
+        output = format_target_comparison(results)
+        assert "short" in output
+        assert "broken" in output

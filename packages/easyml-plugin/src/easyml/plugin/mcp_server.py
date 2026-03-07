@@ -643,6 +643,9 @@ async def pipeline(
         for complete results).
       - "compare_runs": Compare metrics from two runs side by side.
         Requires run_ids (list of 2 run IDs).
+      - "compare_targets": Run backtests for all configured target profiles and
+        show side-by-side comparison. No additional params required — uses
+        target profiles from configure(action='add_target').
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(

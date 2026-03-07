@@ -200,6 +200,82 @@ def _extract_metrics_from_output(output: str) -> dict[str, str]:
     return metrics
 
 
+async def _handle_compare_targets(*, ctx, project_dir, **_kwargs):
+    """Compare backtest performance across all configured target profiles."""
+    import asyncio
+    from easyml.core.runner import config_writer as cw
+
+    proj = resolve_project_dir(project_dir)
+
+    # Load target profiles from pipeline.yaml
+    import yaml
+    config_path = proj / "config" / "pipeline.yaml"
+    if not config_path.exists():
+        return "**Error**: No pipeline.yaml found."
+
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f) or {}
+
+    targets = cfg.get("data", {}).get("targets", {})
+    if not targets:
+        return "**Error**: No target profiles configured. Use configure(action='add_target') first."
+
+    original_target = cfg.get("data", {}).get("target_column")
+    loop = asyncio.get_running_loop()
+    results = {}
+
+    for i, (target_name, target_def) in enumerate(targets.items()):
+        if ctx is not None:
+            await ctx.report_progress(
+                progress=i, total=len(targets),
+                message=f"Running backtest for target '{target_name}'..."
+            )
+
+        # Set active target
+        cw.set_active_target(proj, target_name)
+
+        # Run backtest
+        try:
+            def _progress_callback(current, total, message):
+                if ctx is not None:
+                    asyncio.run_coroutine_threadsafe(
+                        ctx.report_progress(progress=current, total=total, message=f"[{target_name}] {message}"),
+                        loop,
+                    )
+
+            result = await loop.run_in_executor(
+                None,
+                lambda tn=target_name: cw.run_backtest(proj, on_progress=_progress_callback),
+            )
+            # Try to extract metrics from the result string
+            metrics = _extract_metrics_from_output(result)
+            # Convert string values to floats
+            float_metrics = {}
+            for k, v in metrics.items():
+                try:
+                    float_metrics[k] = float(v)
+                except ValueError:
+                    float_metrics[k] = v
+            results[target_name] = float_metrics
+        except Exception as e:
+            results[target_name] = {"error": str(e)}
+
+    # Restore original target
+    if original_target:
+        import yaml as _yaml
+        config_path2 = proj / "config" / "pipeline.yaml"
+        with open(config_path2) as f:
+            cfg2 = _yaml.safe_load(f) or {}
+        cfg2.setdefault("data", {})["target_column"] = original_target
+        with open(config_path2, "w") as f:
+            _yaml.dump(cfg2, f, default_flow_style=False, sort_keys=False)
+
+    if ctx is not None:
+        await ctx.report_progress(progress=len(targets), total=len(targets), message="Comparison complete.")
+
+    return cw.format_target_comparison(results)
+
+
 ACTIONS = {
     "run_backtest": _handle_run_backtest,
     "predict": _handle_predict,
@@ -207,6 +283,7 @@ ACTIONS = {
     "list_runs": _handle_list_runs,
     "show_run": _handle_show_run,
     "compare_runs": _handle_compare_runs,
+    "compare_targets": _handle_compare_targets,
 }
 
 
