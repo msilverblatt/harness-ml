@@ -1,206 +1,208 @@
-# HarnessML
-
-**AI-driven machine learning without the context overhead.**
-
-HarnessML solves the problem of AI agents spending precious context tokens manipulating code, data pipelines, and YAML files instead of doing data science. It's an **automated ML orchestration framework** designed specifically for iterative AI-driven experimentation—with hard guardrails to enforce hygiene, automatic logging to prevent lost work, and declarative interfaces that let agents focus entirely on modeling decisions.
-
-## The Problem
-
-When an AI agent runs ML experiments iteratively, it spends token budget on:
-- Writing and debugging feature engineering code
-- Configuring data pipeline orchestration
-- Creating boilerplate experiment tracking
-- Managing file I/O and caching
-- Manually logging results that might get lost
-- Verifying data leakage and temporal integrity
-
-This leaves less context for the actual data science: exploring feature spaces, testing hypotheses, comparing model architectures, and navigating trade-offs.
-
-## The Solution
-
-HarnessML removes this overhead through:
-
-1. **Declarative Feature System** — Define features as Python functions with type annotations (`entity`, `pairwise`, `instance`, `regime`). The system handles caching, deduplication, and entity/period alignment automatically. No more DataFrame wrangling in feature code.
-
-2. **Hard Guardrails** — Non-overridable safety checks: data leakage detection, temporal integrity verification, critical path enforcement. Guardrails are advisory until locked; once locked, they cannot be bypassed. Violations are logged for audit.
-
-3. **Automatic Logging & Measurement** — Every experiment run is fingerprinted, timestamped, and logged. Metrics are computed across all models and folds. No experiment result is lost; nothing requires manual tracking.
-
-4. **YAML-Driven Orchestration** — The entire ML pipeline—sources, features, models, ensemble, backtest strategy—is defined in YAML. Agents manipulate structured config, not code. Config overlays enable isolated hypothesis testing without touching production.
-
-5. **Bayesian Exploration** — Define a search space (feature mixes, model subsets, hyperparams, ensemble settings) and the system intelligently explores it across budget constraints using Optuna TPE, caching predictions across trials so unchanged models never retrain.
-
-6. **MCP Interface** — All operations (backtest, experiment, explore, etc.) are single MCP tool calls. Agents invoke workflows, not pipelines.
-
-## Architecture
 
 ```
-+-------------------+
-|    harness-core    |   All engine code
-|  schemas, config, |
-|  guardrails,      |
-|  models, runner,  |
-|  feature_eng      |
-+---------+---------+
-          |
-    +-----+-----+
-    |           |
-+---v---+  +---v------+
-|plugin |  | sports   |
-| MCP   |  | optional |
-| server|  | domain   |
-+-------+  +----------+
+ ██╗  ██╗ █████╗ ██████╗ ███╗   ██╗███████╗███████╗███████╗    ███╗   ███╗██╗
+ ██║  ██║██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝██╔════╝    ████╗ ████║██║
+ ███████║███████║██████╔╝██╔██╗ ██║█████╗  ███████╗███████╗    ██╔████╔██║██║
+ ██╔══██║██╔══██║██╔══██╗██║╚██╗██║██╔══╝  ╚════██║╚════██║    ██║╚██╔╝██║██║
+ ██║  ██║██║  ██║██║  ██║██║ ╚████║███████╗███████║███████║    ██║ ╚═╝ ██║███████╗
+ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝╚══════╝    ╚═╝     ╚═╝╚══════╝
 ```
 
-Three packages in a uv workspace monorepo:
-- **harness-core** — All core engine code (schemas, config, guardrails, models, runner, feature engineering, metrics, data sources)
-- **harness-plugin** — MCP server (thin async dispatcher with hot-reloadable handlers)
-- **harness-sports** — Optional domain plugin for matchup prediction (registers via hook system)
+**An ML framework built for AI agents.** Guardrails, experiment tracking, and full pipeline orchestration — so your agent does data science, not plumbing.
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://img.shields.io/badge/tests-2242%20passing-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+
+---
+
+## Why HarnessML?
+
+AI agents burn context tokens on DataFrame wrangling, YAML editing, file I/O, and experiment bookkeeping. That's not data science — that's plumbing.
+
+HarnessML gives agents a **single MCP tool call** for every ML operation: backtest, experiment, feature engineering, model tuning. The framework handles caching, logging, guardrails, and orchestration automatically. The agent focuses on hypotheses and results.
+
+```
+Agent: "Add an XGBoost model with these features and run a backtest"
+                          ↓
+              models(action="add", ...)
+              pipeline(action="run_backtest")
+                          ↓
+       Automatic: CV splits, training, calibration,
+       ensemble weighting, metrics, logging, fingerprinting
+                          ↓
+Agent: "Brier improved 0.003. Let's try adding interaction features."
+```
 
 ## Quick Start
 
 ```bash
-git clone <repo-url> && cd harnessml
-uv sync          # install all packages + dev deps
-
-uv run pytest    # run full test suite (~1800+ tests)
+git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
+uv sync
+uv run pytest  # 2242 tests
 ```
 
-### Basic Usage
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     harness-core                        │
+│  schemas ∙ config ∙ guardrails ∙ models ∙ runner        │
+│  feature_eng ∙ calibration ∙ views ∙ sources            │
+├────────────────────────┬────────────────────────────────┤
+│    harness-plugin      │       harness-sports           │
+│    MCP server          │       domain plugin            │
+│    hot-reload handlers │       matchup prediction       │
+└────────────────────────┴────────────────────────────────┘
+```
+
+Three packages, one `uv` workspace:
+
+| Package | What it does |
+|---------|-------------|
+| **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, metrics, data sources |
+| **harness-plugin** | MCP server with hot-reloadable handlers — change handler code, no restart needed |
+| **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
+
+## What's Inside
+
+### Models (8 wrappers)
+
+XGBoost, LightGBM, CatBoost, Random Forest, Logistic Regression, ElasticNet, MLP (PyTorch), TabNet — all configurable via YAML with eval_set/early stopping, normalization, and inspect-based kwargs forwarding.
+
+### Metrics (45 across 6 task types)
+
+| Task | Examples |
+|------|----------|
+| Binary | brier, accuracy, log_loss, ece, auroc, f1, precision, recall |
+| Multiclass | macro/micro/weighted variants of all classification metrics |
+| Regression | rmse, mae, r2, mape |
+| Ranking | ndcg, mrr, map |
+| Survival | concordance_index, brier_survival |
+| Probabilistic | crps, calibration, sharpness |
+
+### Features (4 types)
+
+- **entity** — per-entity stats, auto-generates pairwise diffs
+- **pairwise** — formula features across entity pairs
+- **instance** — context columns passed through
+- **regime** — boolean flags that gate feature sets
+
+### Calibration (4 methods)
+
+Spline (PCHIP), Isotonic, Platt, Beta — all with save/load and fitted state tracking.
+
+### CV Strategies
+
+`leave_one_out` (symmetric LOSO), `expanding_window`, `sliding_window`, `k_fold`, `stratified`
+
+### View Engine (22 transform steps)
+
+`filter` `select` `derive` `group_by` `join` `union` `unpivot` `sort` `head` `rolling` `cast` `distinct` `rank` `isin` `cond_agg` `lag` `ewm` `diff` `trend` `encode` `bin` `datetime` `null_indicator`
+
+### Guardrails (12 total)
+
+3 **non-overridable** (data leakage, temporal integrity, critical path) + 9 overridable. Violations are logged for audit. Once locked, they cannot be bypassed.
+
+### Exploration
+
+- **Auto-search** — discover feature interactions, lags, rolling aggregations
+- **Feature diversity** — overlap matrix, diversity score, redundant detection
+- **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
+
+## MCP Tools
+
+When connected via MCP, agents get these tools:
+
+| Tool | Actions |
+|------|---------|
+| `data` | ingest sources, validate, fill nulls, rename, derive columns, manage views, upload to Drive/Kaggle |
+| `features` | register features, test transforms, discover correlations, analyze diversity |
+| `models` | add/update/clone models, batch operations, view presets |
+| `configure` | init projects, set backtest/ensemble config, run guardrail checks |
+| `pipeline` | run backtests, predict, diagnostics, compare runs, explain models, export notebooks |
+| `experiments` | create/run/promote experiments with config overlays |
+| `competitions` | simulations, brackets, scoring for tournament events |
+
+## Usage
+
+### Python API
 
 ```python
 from harnessml.core.config import resolve_config
 from harnessml.core.models import ModelRegistry, TrainOrchestrator
 from harnessml.core.schemas.metrics import MetricRegistry
 
-# 1. Load config
 config = resolve_config("config/", file_map={"models": "models.yaml"})
 
-# 2. Train models
 model_registry = ModelRegistry.with_defaults()
 orchestrator = TrainOrchestrator(model_registry, config["models"], output_dir="models/")
 trained = orchestrator.train_all(X, y, feature_columns=cols)
 
-# 3. Evaluate with any registered metric
 metrics = MetricRegistry()
 print(f"Brier: {metrics.get('binary', 'brier')(y_true, y_prob):.4f}")
 ```
 
 ### YAML-Driven Pipeline
 
-```bash
-# Initialize and validate project
-harnessml validate --config-dir config/
+```yaml
+# config/pipeline.yaml
+data:
+  target_column: result
+  fold_column: season
+  entity_columns: [home, away]
 
-# Run backtest
-harnessml run backtest
+models:
+  xgb_main:
+    type: xgboost
+    preset: binary_default
+    features: [elo_diff, win_pct_diff, scoring_margin_diff]
+    params:
+      max_depth: 4
+      learning_rate: 0.05
 
-# Create and run experiments
-harnessml experiment create exp-001-test-hyperparams
-harnessml experiment run exp-001
-harnessml experiment promote exp-001
+ensemble:
+  method: stacked
+  calibration: spline
 ```
 
-### MCP Tool Interface
+### Agent Workflow
 
-When running the MCP server, the framework provides tools for:
-- `experiments` — Create, run, promote experiments; define overlays
-- `data` — Ingest sources, validate, fill nulls, rename columns, manage views
-- `features` — Register features, test transformations, discover correlations, analyze diversity
-- `models` — Add models, adjust ensembles, control active models
-- `configure` — Initialize projects, update backtest/ensemble config, run guardrails checks
-- `pipeline` — Run backtests, make predictions, get diagnostics, list/show/compare runs
-- `competitions` — Simulations, brackets, scoring for tournament-style events
+```
+# The agent never writes pipeline code. It declares intent:
 
-## Key Capabilities
+models(action="add", name="lgb_tempo", preset="binary_default",
+       features=["tempo_diff", "adj_efficiency_diff"])
 
-### Model Wrappers (8 types)
-- **XGBoost, LightGBM, CatBoost** — Full eval_set/early stopping support
-- **Random Forest, Logistic Regression, ElasticNet** — scikit-learn wrappers with param filtering
-- **MLP** — PyTorch with optional normalize, batch_norm, early stopping, weight decay
-- **TabNet** — PyTorch-TabNet with optional normalize, val_fraction, LR scheduler
+pipeline(action="run_backtest")
+# → Automatic: CV, training, calibration, ensemble, metrics, logging
 
-All model params are configurable via YAML. The `ModelRegistry` uses inspect-based kwargs forwarding for generic model construction.
+pipeline(action="diagnostics")
+# → Per-model breakdown, ensemble weights, calibration curves
 
-### Feature System (4 types)
-- **entity** — Entity-level features (auto-generates pairwise diffs)
-- **pairwise** — Instance-level formula features
-- **instance** — Context columns passed through
-- **regime** — Boolean flags that gate feature sets
+experiments(action="create", name="exp-003-tempo-features")
+# → Isolated overlay — production config untouched
+```
 
-### Metrics (45 across 6 task types)
-- **binary** — brier, accuracy, log_loss, ece, auroc, f1, precision, recall, etc.
-- **multiclass** — macro/micro/weighted variants
-- **regression** — rmse, mae, r2, mape, etc.
-- **ranking** — ndcg, mrr, map
-- **survival** — concordance_index, brier_survival
-- **probabilistic** — crps, calibration, sharpness
+## Design Philosophy
 
-### Calibration (4 methods)
-- **Spline (PCHIP)** — Monotonic interpolation with isotonic pre-processing
-- **Isotonic** — Non-parametric monotonic regression
-- **Platt** — Logistic regression scaling
-- **Beta** — Beta distribution calibration
-
-### CV Strategies
-- **leave_one_out** — Symmetric LOSO (all other folds for training)
-- **expanding_window** — Temporal expanding window
-- **sliding_window** — Fixed-size sliding window
-- **k_fold** — Standard k-fold
-- **stratified** — Stratified k-fold
-
-### View Engine (22 transform steps)
-filter, select, derive, group_by, join, union, unpivot, sort, head, rolling, cast, distinct, rank, isin, cond_agg, lag, ewm, diff, trend, encode, bin, datetime, null_indicator
-
-### Guardrails (12 total)
-- **3 non-overridable** — Data leakage, temporal integrity, critical path enforcement
-- **9 overridable** — Feature naming, model config, feature diversity, etc.
-
-### Exploration
-- **Auto-search** — Discover feature interactions, lags, rolling aggregations
-- **Feature diversity** — Overlap matrix, diversity score, redundant pair detection, removal suggestions
-- **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
+- **Declarative over imperative** — YAML config and registries, not boilerplate code
+- **Defaults over decision fatigue** — sensible presets for models, CV, metrics
+- **Automatic over manual** — caching, logging, fingerprinting, guardrails happen without intervention
+- **Single source of truth** — config is the contract; overlays enable isolated testing
+- **Deterministic** — fingerprinting ensures identical configs produce identical results
+- **Everything configurable** — no hardcoded thresholds, metric lists, or domain assumptions
 
 ## Development
 
 ```bash
 uv sync                                          # install workspace
-uv run pytest packages/harness-core/tests/ -q     # core tests (~1800+)
-uv run pytest packages/harness-sports/tests/ -q   # sports plugin tests
-uv run pytest -v                                 # verbose all tests
+uv run pytest packages/harness-core/tests/ -q    # core tests
+uv run pytest packages/harness-sports/tests/ -q  # sports plugin tests
+uv run pytest -v                                 # verbose, all tests
 ```
 
-Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv) workspaces.
-
-## Using HarnessML as an Agent
-
-When an AI agent is connected to HarnessML via MCP, it never needs to:
-
-1. **Write data pipeline code** — Use `data` to ingest sources, define views, validate outputs
-2. **Engineer features manually** — Use `features` to register declarative features; HarnessML handles caching and routing
-3. **Track experiments** — All runs are fingerprinted and logged; history is searchable
-4. **Re-run identical experiments** — DNR (Do Not Repeat) prevents accidental duplication
-5. **Mutate production config** — Use experiment overlays to test hypotheses in isolation
-6. **Manage retraining** — Prediction cache ensures unchanged models skip retraining across trials
-7. **Check data hygiene** — Guardrails automatically verify leakage, temporal integrity, critical paths
-
-The agent focuses entirely on:
-- Defining feature mixes and model architectures
-- Stating hypotheses about what will improve metrics
-- Analyzing results from bulk explorations
-- Making data science decisions (not pipeline decisions)
-
-## Design Philosophy
-
-**HarnessML is built for agents, not humans.**
-
-- **Declarative over imperative** — YAML config and registry-based registration reduce code boilerplate
-- **Defaults over decision fatigue** — Sensible presets for models, CV, metrics, guardrails
-- **Structured contracts over strings** — Pydantic schemas everywhere; no magic field names
-- **Automatic over manual** — Caching, logging, fingerprinting, and guardrails happen without agent intervention
-- **Single source of truth** — YAML config is the contract; overlays enable isolated testing without mutations
-- **Predictable, deterministic** — Fingerprinting ensures identical configs always produce identical results; no hidden state
-- **Everything configurable** — No hardcoded thresholds, metric lists, or domain assumptions
+Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv).
 
 ## License
 
