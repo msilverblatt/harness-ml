@@ -970,11 +970,12 @@ class PipelineRunner:
             generate_markdown_report,
         )
 
-        # Build per-fold diagnostics (binary-only; multiclass uses its own metrics)
-        if not self._is_multiclass():
-            diagnostics_df = build_diagnostics_report(fold_data)
-        else:
-            diagnostics_df = pd.DataFrame()
+        # Build per-fold diagnostics
+        target_col = self.config.data.target_column if self.config else "result"
+        task_type = "multiclass" if self._is_multiclass() else "binary"
+        diagnostics_df = build_diagnostics_report(
+            fold_data, target_column=target_col, task=task_type,
+        )
 
         # Build combined pick log across folds (binary-only)
         pick_logs = []

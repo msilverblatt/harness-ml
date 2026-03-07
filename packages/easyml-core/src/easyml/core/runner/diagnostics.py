@@ -306,6 +306,166 @@ def compute_model_agreement(preds_df: pd.DataFrame) -> np.ndarray:
     return agreement_count / n_available
 
 
+def evaluate_fold_predictions_multiclass(
+    preds: pd.DataFrame,
+    fold_id: int,
+    target_column: str = "result",
+) -> list[dict]:
+    """Compute per-model metrics for a single fold (multiclass).
+
+    Finds per-model probability columns matching ``prob_{model}_c{i}``
+    pattern, reconstructs probability matrices, and computes accuracy,
+    log_loss, and f1_macro.
+
+    Parameters
+    ----------
+    preds : pd.DataFrame
+        Prediction DataFrame with ``prob_{model}_c{i}`` columns and
+        a target column with integer class labels.
+    fold_id : int
+        Fold identifier for the output.
+    target_column : str
+        Name of the column containing ground truth class labels.
+
+    Returns
+    -------
+    list of dict
+        Each dict has: model, fold, accuracy, log_loss, f1_macro.
+    """
+    import re
+    from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.metrics import log_loss as sklearn_log_loss
+
+    if target_column not in preds.columns:
+        raise ValueError(f"No ground truth: '{target_column}' column missing")
+
+    y_true = preds[target_column].values.astype(int)
+
+    # Group prob columns by model: prob_{model}_c{i}
+    pattern = re.compile(r"^prob_(.+)_c(\d+)$")
+    model_cols: dict[str, dict[int, str]] = {}
+    for col in preds.columns:
+        m = pattern.match(col)
+        if m:
+            model_name = m.group(1)
+            class_idx = int(m.group(2))
+            model_cols.setdefault(model_name, {})[class_idx] = col
+
+    results = []
+    for model_name, idx_to_col in sorted(model_cols.items()):
+        n_classes = max(idx_to_col.keys()) + 1
+        if set(idx_to_col.keys()) != set(range(n_classes)):
+            continue  # incomplete class columns
+
+        ordered_cols = [idx_to_col[i] for i in range(n_classes)]
+        prob_matrix = preds[ordered_cols].values.astype(float)
+
+        # Skip rows with NaN
+        valid = ~np.isnan(prob_matrix).any(axis=1)
+        if valid.sum() == 0:
+            continue
+
+        y_t = y_true[valid]
+        y_p = prob_matrix[valid]
+        y_pred = y_p.argmax(axis=1)
+
+        accuracy = float(accuracy_score(y_t, y_pred))
+        try:
+            ll = float(sklearn_log_loss(y_t, y_p))
+        except Exception:
+            ll = float("nan")
+        try:
+            f1m = float(f1_score(y_t, y_pred, average="macro"))
+        except Exception:
+            f1m = float("nan")
+
+        results.append({
+            "model": model_name,
+            "fold": fold_id,
+            "accuracy": accuracy,
+            "log_loss": ll,
+            "f1_macro": f1m,
+        })
+
+    return results
+
+
+def compute_pooled_metrics_multiclass(
+    fold_predictions: list[pd.DataFrame],
+    target_column: str = "result",
+) -> dict[str, dict]:
+    """Compute pooled multiclass metrics across all folds.
+
+    Parameters
+    ----------
+    fold_predictions : list of pd.DataFrame
+        Each DataFrame has ``prob_{model}_c{i}`` columns and a target column.
+    target_column : str
+        Name of the column containing ground truth class labels.
+
+    Returns
+    -------
+    dict mapping model_name -> metric dict
+        Each metric dict has: accuracy, log_loss, f1_macro, n_samples.
+    """
+    import re
+    from sklearn.metrics import accuracy_score, f1_score
+    from sklearn.metrics import log_loss as sklearn_log_loss
+
+    if not fold_predictions:
+        return {}
+
+    combined = pd.concat(fold_predictions, ignore_index=True)
+
+    if target_column not in combined.columns:
+        raise ValueError(f"'{target_column}' column required in prediction DataFrames")
+
+    y_true = combined[target_column].values.astype(int)
+
+    pattern = re.compile(r"^prob_(.+)_c(\d+)$")
+    model_cols: dict[str, dict[int, str]] = {}
+    for col in combined.columns:
+        m = pattern.match(col)
+        if m:
+            model_name = m.group(1)
+            class_idx = int(m.group(2))
+            model_cols.setdefault(model_name, {})[class_idx] = col
+
+    metrics: dict[str, dict] = {}
+    for model_name, idx_to_col in sorted(model_cols.items()):
+        n_classes = max(idx_to_col.keys()) + 1
+        if set(idx_to_col.keys()) != set(range(n_classes)):
+            continue
+
+        ordered_cols = [idx_to_col[i] for i in range(n_classes)]
+        prob_matrix = combined[ordered_cols].values.astype(float)
+
+        valid = ~np.isnan(prob_matrix).any(axis=1) & ~np.isnan(y_true.astype(float))
+        if valid.sum() == 0:
+            continue
+
+        y_t = y_true[valid]
+        y_p = prob_matrix[valid]
+        y_pred = y_p.argmax(axis=1)
+
+        m: dict = {
+            "accuracy": float(accuracy_score(y_t, y_pred)),
+            "n_samples": int(valid.sum()),
+        }
+        try:
+            m["log_loss"] = float(sklearn_log_loss(y_t, y_p))
+        except Exception:
+            pass
+        try:
+            m["f1_macro"] = float(f1_score(y_t, y_pred, average="macro"))
+        except Exception:
+            pass
+
+        metrics[model_name] = m
+
+    return metrics
+
+
 def _compute_accuracy(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     """Compute accuracy from probabilities (threshold 0.5)."""
     predictions = (y_prob >= 0.5).astype(float)

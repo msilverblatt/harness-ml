@@ -11,6 +11,7 @@ import pandas as pd
 from easyml.core.runner.diagnostics import (
     compute_model_agreement,
     evaluate_fold_predictions,
+    evaluate_fold_predictions_multiclass,
 )
 from easyml.core.runner.hooks import get_entity_column_candidates
 
@@ -84,6 +85,7 @@ def build_diagnostics_report(
     fold_data: dict[int, pd.DataFrame],
     fold_column: str = "fold",
     target_column: str = "result",
+    task: str = "binary",
 ) -> pd.DataFrame:
     """Build per-fold metrics table.
 
@@ -93,18 +95,32 @@ def build_diagnostics_report(
         Mapping of fold_id -> predictions DataFrame with prob_ensemble and result.
     fold_column : str
         Name of the fold column for the output DataFrame.
+    target_column : str
+        Name of the target column.
+    task : str
+        Task type: ``"binary"`` or ``"multiclass"``. When multiclass, uses
+        multiclass-specific metrics (accuracy, log_loss, f1_macro) instead
+        of binary metrics (brier, ece).
 
     Returns
     -------
     pd.DataFrame
-        Columns: {fold_column}, brier_score, accuracy, ece, log_loss, n_samples.
+        Columns: {fold_column}, metric columns, n_samples.
     """
-    _META_KEYS = {"model", "fold_id"}
+    _META_KEYS = {"model", "fold_id", "fold"}
 
     rows = []
     for fold_id in sorted(fold_data.keys()):
         df = fold_data[fold_id]
-        results = evaluate_fold_predictions(df, {}, fold_id=fold_id, target_column=target_column)
+
+        if task == "multiclass":
+            results = evaluate_fold_predictions_multiclass(
+                df, fold_id=fold_id, target_column=target_column,
+            )
+        else:
+            results = evaluate_fold_predictions(
+                df, {}, fold_id=fold_id, target_column=target_column,
+            )
 
         # Find the ensemble entry
         ensemble_metrics = None

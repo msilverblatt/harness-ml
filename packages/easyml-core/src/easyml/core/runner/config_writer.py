@@ -2355,98 +2355,189 @@ def show_diagnostics(
             return f"**Error**: No predictions found in run `{run_dir.name}`."
 
     target_col = pipeline_data.get("data", {}).get("target_column", "result")
+    task = pipeline_data.get("data", {}).get("task", "binary")
+
     if target_col not in preds_df.columns:
         return f"**Error**: Predictions file missing '{target_col}' column for evaluation."
 
-    y_true = preds_df[target_col].values.astype(float)
+    y_true = preds_df[target_col].values
     prob_cols = [c for c in preds_df.columns if c.startswith("prob_")]
 
     if not prob_cols:
         return "**Error**: No prob_* columns found in predictions."
 
-    from easyml.core.runner.diagnostics import (
-        compute_brier_score,
-        compute_calibration_curve,
-        compute_ece,
-        compute_model_agreement,
-    )
-
-    model_metrics = []
-    for col in sorted(prob_cols):
-        model_name = col.replace("prob_", "", 1)
-        y_prob = preds_df[col].values.astype(float)
-
-        valid = ~np.isnan(y_prob) & ~np.isnan(y_true)
-        if valid.sum() == 0:
-            continue
-
-        y_t = y_true[valid]
-        y_p = y_prob[valid]
-
-        brier = compute_brier_score(y_t, y_p)
-        ece = compute_ece(y_t, y_p)
-        accuracy = float(np.mean((y_p >= 0.5).astype(float) == y_t))
-        eps = 1e-15
-        y_clipped = np.clip(y_p, eps, 1.0 - eps)
-        log_loss = float(-np.mean(
-            y_t * np.log(y_clipped) + (1 - y_t) * np.log(1 - y_clipped)
-        ))
-
-        model_metrics.append({
-            "model": model_name,
-            "brier": brier,
-            "accuracy": accuracy,
-            "ece": ece,
-            "log_loss": log_loss,
-            "n_samples": int(valid.sum()),
-        })
-
     lines = [f"## Diagnostics: `{run_dir.name}`\n"]
     lines.append(f"- Predictions: {len(preds_df)} rows")
-    lines.append(f"- Models: {len(model_metrics)}\n")
 
-    lines.append("### Per-Model Metrics\n")
-    lines.append("| Model | Brier | Accuracy | ECE | Log Loss | N |")
-    lines.append("|-------|-------|----------|-----|----------|---|")
-    for m in sorted(model_metrics, key=lambda x: x["brier"]):
-        lines.append(
-            f"| {m['model']} | {m['brier']:.4f} | {m['accuracy']:.4f} "
-            f"| {m['ece']:.4f} | {m['log_loss']:.4f} | {m['n_samples']} |"
+    if task == "multiclass":
+        # Multiclass diagnostics: use per-class prob columns
+        import re
+        from sklearn.metrics import accuracy_score, f1_score
+        from sklearn.metrics import log_loss as sklearn_log_loss
+
+        y_true_int = y_true.astype(int)
+        pattern = re.compile(r"^prob_(.+)_c(\d+)$")
+        model_class_cols: dict[str, dict[int, str]] = {}
+        for col in preds_df.columns:
+            m = pattern.match(col)
+            if m:
+                model_name = m.group(1)
+                class_idx = int(m.group(2))
+                model_class_cols.setdefault(model_name, {})[class_idx] = col
+
+        model_metrics = []
+        for model_name, idx_to_col in sorted(model_class_cols.items()):
+            n_classes = max(idx_to_col.keys()) + 1
+            if set(idx_to_col.keys()) != set(range(n_classes)):
+                continue
+            ordered_cols = [idx_to_col[i] for i in range(n_classes)]
+            prob_matrix = preds_df[ordered_cols].values.astype(float)
+            valid = ~np.isnan(prob_matrix).any(axis=1)
+            if valid.sum() == 0:
+                continue
+            y_t = y_true_int[valid]
+            y_p = prob_matrix[valid]
+            y_pred = y_p.argmax(axis=1)
+
+            entry: dict = {
+                "model": model_name,
+                "accuracy": float(accuracy_score(y_t, y_pred)),
+                "n_samples": int(valid.sum()),
+            }
+            try:
+                entry["log_loss"] = float(sklearn_log_loss(y_t, y_p))
+            except Exception:
+                pass
+            try:
+                entry["f1_macro"] = float(f1_score(y_t, y_pred, average="macro"))
+            except Exception:
+                pass
+
+            # Per-class accuracy
+            per_class = {}
+            for cls in sorted(set(y_t)):
+                cls_mask = y_t == cls
+                if cls_mask.sum() > 0:
+                    per_class[int(cls)] = float(accuracy_score(y_t[cls_mask], y_pred[cls_mask]))
+            entry["per_class_accuracy"] = per_class
+
+            model_metrics.append(entry)
+
+        lines.append(f"- Models: {len(model_metrics)}\n")
+
+        lines.append("### Per-Model Metrics\n")
+        lines.append("| Model | Accuracy | Log Loss | F1 Macro | N |")
+        lines.append("|-------|----------|----------|----------|---|")
+        for entry in sorted(model_metrics, key=lambda x: -x["accuracy"]):
+            ll = entry.get("log_loss", float("nan"))
+            f1m = entry.get("f1_macro", float("nan"))
+            lines.append(
+                f"| {entry['model']} | {entry['accuracy']:.4f} "
+                f"| {ll:.4f} | {f1m:.4f} | {entry['n_samples']} |"
+            )
+
+        # Per-class accuracy breakdown
+        lines.append("\n### Per-Class Accuracy\n")
+        # Collect all class indices across models
+        all_classes = set()
+        for entry in model_metrics:
+            all_classes.update(entry.get("per_class_accuracy", {}).keys())
+        if all_classes:
+            class_headers = ["Model"] + [f"Class {c}" for c in sorted(all_classes)]
+            lines.append("| " + " | ".join(class_headers) + " |")
+            lines.append("|" + "|".join(["------"] * len(class_headers)) + "|")
+            for entry in sorted(model_metrics, key=lambda x: -x["accuracy"]):
+                cells = [entry["model"]]
+                for cls in sorted(all_classes):
+                    acc = entry.get("per_class_accuracy", {}).get(cls)
+                    cells.append(f"{acc:.4f}" if acc is not None else "N/A")
+                lines.append("| " + " | ".join(cells) + " |")
+
+    else:
+        # Binary diagnostics
+        from easyml.core.runner.diagnostics import (
+            compute_brier_score,
+            compute_calibration_curve,
+            compute_ece,
+            compute_model_agreement,
         )
 
-    agreement = compute_model_agreement(preds_df)
-    mean_agreement = float(np.mean(agreement))
-    lines.append(f"\n### Model Agreement\n")
-    lines.append(f"- Mean agreement with ensemble: {mean_agreement:.4f}")
+        y_true_float = y_true.astype(float)
 
-    lines.append(f"\n### Calibration Summary\n")
-    for m in model_metrics:
-        model_name = m["model"]
-        col = f"prob_{model_name}"
-        y_p = preds_df[col].values.astype(float)
-        valid = ~np.isnan(y_p)
-        if valid.sum() == 0:
-            continue
-        mean_pred = float(np.mean(y_p[valid]))
-        mean_actual = float(np.mean(y_true[valid]))
-        bias = mean_pred - mean_actual
-        cal_status = "well-calibrated" if abs(bias) < 0.02 else ("over-confident" if bias > 0 else "under-confident")
-        lines.append(f"- **{model_name}**: {cal_status} (bias: {bias:+.4f})")
+        model_metrics = []
+        for col in sorted(prob_cols):
+            model_name = col.replace("prob_", "", 1)
+            y_prob = preds_df[col].values.astype(float)
 
-    # Calibration curve for the ensemble (or best model)
-    ensemble_col = "prob_ensemble" if "prob_ensemble" in preds_df.columns else prob_cols[0]
-    y_ens = preds_df[ensemble_col].values.astype(float)
-    valid_ens = ~np.isnan(y_ens) & ~np.isnan(y_true)
-    if valid_ens.sum() > 0:
-        mean_pred, mean_actual, bin_counts = compute_calibration_curve(
-            y_true[valid_ens], y_ens[valid_ens], n_bins=10,
-        )
-        ens_name = ensemble_col.replace("prob_", "", 1)
-        lines.append(f"\n### Calibration Curve (`{ens_name}`)\n")
-        lines.append("| Predicted | Actual | Count |")
-        lines.append("|-----------|--------|-------|")
-        for p, a, c in zip(mean_pred, mean_actual, bin_counts):
-            lines.append(f"| {p:.3f} | {a:.3f} | {c} |")
+            valid = ~np.isnan(y_prob) & ~np.isnan(y_true_float)
+            if valid.sum() == 0:
+                continue
+
+            y_t = y_true_float[valid]
+            y_p = y_prob[valid]
+
+            brier = compute_brier_score(y_t, y_p)
+            ece = compute_ece(y_t, y_p)
+            accuracy = float(np.mean((y_p >= 0.5).astype(float) == y_t))
+            eps = 1e-15
+            y_clipped = np.clip(y_p, eps, 1.0 - eps)
+            log_loss_val = float(-np.mean(
+                y_t * np.log(y_clipped) + (1 - y_t) * np.log(1 - y_clipped)
+            ))
+
+            model_metrics.append({
+                "model": model_name,
+                "brier": brier,
+                "accuracy": accuracy,
+                "ece": ece,
+                "log_loss": log_loss_val,
+                "n_samples": int(valid.sum()),
+            })
+
+        lines.append(f"- Models: {len(model_metrics)}\n")
+
+        lines.append("### Per-Model Metrics\n")
+        lines.append("| Model | Brier | Accuracy | ECE | Log Loss | N |")
+        lines.append("|-------|-------|----------|-----|----------|---|")
+        for m in sorted(model_metrics, key=lambda x: x["brier"]):
+            lines.append(
+                f"| {m['model']} | {m['brier']:.4f} | {m['accuracy']:.4f} "
+                f"| {m['ece']:.4f} | {m['log_loss']:.4f} | {m['n_samples']} |"
+            )
+
+        agreement = compute_model_agreement(preds_df)
+        mean_agreement = float(np.mean(agreement))
+        lines.append(f"\n### Model Agreement\n")
+        lines.append(f"- Mean agreement with ensemble: {mean_agreement:.4f}")
+
+        lines.append(f"\n### Calibration Summary\n")
+        for m in model_metrics:
+            model_name = m["model"]
+            col = f"prob_{model_name}"
+            y_p = preds_df[col].values.astype(float)
+            valid = ~np.isnan(y_p)
+            if valid.sum() == 0:
+                continue
+            mean_pred = float(np.mean(y_p[valid]))
+            mean_actual = float(np.mean(y_true_float[valid]))
+            bias = mean_pred - mean_actual
+            cal_status = "well-calibrated" if abs(bias) < 0.02 else ("over-confident" if bias > 0 else "under-confident")
+            lines.append(f"- **{model_name}**: {cal_status} (bias: {bias:+.4f})")
+
+        # Calibration curve for the ensemble (or best model)
+        ensemble_col = "prob_ensemble" if "prob_ensemble" in preds_df.columns else prob_cols[0]
+        y_ens = preds_df[ensemble_col].values.astype(float)
+        valid_ens = ~np.isnan(y_ens) & ~np.isnan(y_true_float)
+        if valid_ens.sum() > 0:
+            mean_pred, mean_actual, bin_counts = compute_calibration_curve(
+                y_true_float[valid_ens], y_ens[valid_ens], n_bins=10,
+            )
+            ens_name = ensemble_col.replace("prob_", "", 1)
+            lines.append(f"\n### Calibration Curve (`{ens_name}`)\n")
+            lines.append("| Predicted | Actual | Count |")
+            lines.append("|-----------|--------|-------|")
+            for p, a, c in zip(mean_pred, mean_actual, bin_counts):
+                lines.append(f"| {p:.3f} | {a:.3f} | {c} |")
 
     # Feature importance (if we can load the config and data)
     try:
