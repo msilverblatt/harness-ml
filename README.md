@@ -30,16 +30,16 @@ https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
 ## Why HarnessML?
 
-We are currently forcing AI agents to use human tools. When an LLM writes Python for data science, it enters a fragile loop: hallucinating deprecated pandas methods, exhausting its context window on boilerplate CV loops, and getting stuck in debugging spirals that destroy its ability to reason about the actual problem.
+Agents writing Python for ML hit a death spiral: boilerplate → error → stack trace → context exhaustion → hallucinated results. Existing frameworks weren't built for this — they're libraries for humans in notebooks.
 
-**HarnessML is an Agent-Computer Interface (ACI) for machine learning.**
+HarnessML is an **Agent-Computer Interface**. One tool call per operation. Deterministic execution. Structured results back — no tracebacks, no codegen, no state management.
 
-Instead of generating brittle Python scripts, the agent communicates with a deterministic backend via the **Model Context Protocol (MCP)**. HarnessML gives agents a **single, structured tool call** for complex ML operations: backtesting, feature engineering, experiment tracking, and ensembling.
-
-- **Zero boilerplate.** The agent never writes a `for` loop. It declares a hypothesis.
-- **Bounded execution.** 12 guardrails (3 non-overridable) prevent the agent from causing data leakage, temporal crossover, or silent feature pipeline failures — before training starts.
-- **Structured reasoning.** The agent receives deterministic, structured evaluations back — not stack traces that burn half its context window. It stays focused on the scientific method, not syntax errors.
-- **Persistent state.** Every run is fingerprinted and logged. Experiments get isolated config overlays. The agent picks up where it left off across sessions — no re-discovery, no repeated work.
+| | |
+|---|---|
+| **Zero boilerplate** | The agent declares a hypothesis, not a training loop |
+| **Guardrailed** | 12 constraints block data leakage and temporal contamination before training starts |
+| **Structured I/O** | Deterministic results back — not stack traces that burn context |
+| **Persistent** | Every run fingerprinted and logged. Experiments survive session boundaries |
 
 ```
 models(action="add", name="xgb_main", features=[...])
