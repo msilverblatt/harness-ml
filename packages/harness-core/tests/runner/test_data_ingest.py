@@ -525,8 +525,9 @@ class TestIngestResultFormat:
         assert "Top Correlations" in md
         assert "+0.2300" in md
         assert "Warnings" in md
-        assert "High Null" in md
+        assert "Null Summary" in md
         assert "coach_tenure" in md
+        assert "fill_nulls" in md
 
     def test_format_summary_no_warnings(self):
         result = IngestResult(
@@ -564,9 +565,10 @@ class TestIngestResultFormat:
             null_rates={},
             correlation_preview=[],
             cleaning_actions=["Dropped 5 exact duplicate rows"],
+            auto_clean=True,
         )
         md = result.format_summary()
-        assert "Auto-Clean" in md
+        assert "Auto-Clean Applied" in md
         assert "duplicate" in md
 
 

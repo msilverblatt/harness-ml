@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from harnessml.core.config.merge import deep_merge
+from harnessml.core.config.merge import deep_merge, resolve_feature_mutations
 from harnessml.core.runner.schema import ProjectConfig
 from pydantic import ValidationError
 
@@ -256,6 +256,7 @@ def validate_project(
     # --- Apply overlay ---
     if overlay is not None:
         merged = deep_merge(merged, overlay)
+        merged = resolve_feature_mutations(merged)
 
     # --- Validate against ProjectConfig ---
     try:

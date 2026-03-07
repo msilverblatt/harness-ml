@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from harnessml.core.config.merge import deep_merge
+from harnessml.core.config.merge import deep_merge, resolve_feature_mutations
 from harnessml.core.schemas.contracts import GuardrailViolation
 
 # ---------------------------------------------------------------------------
@@ -471,6 +471,7 @@ class ExperimentManager:
 
         # Deep merge overlay into production
         merged = deep_merge(prod_config, overlay)
+        merged = resolve_feature_mutations(merged)
 
         # Write atomically: write to temp file in same directory, then rename
         parent_dir = production_config_path.parent

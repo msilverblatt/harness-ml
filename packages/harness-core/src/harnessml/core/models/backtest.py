@@ -16,6 +16,8 @@ from harnessml.core.schemas.metrics import MetricRegistry
 # Aliases that map to canonical MetricRegistry names
 _METRIC_ALIASES: dict[str, str] = {
     "auc": "auc_roc",
+    "r2": "r_squared",
+    "brier_score": "brier",
 }
 
 

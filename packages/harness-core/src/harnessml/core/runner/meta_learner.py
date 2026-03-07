@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 from harnessml.core.runner.calibration import build_calibrator
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 
 
 class StackedEnsemble:
@@ -26,10 +26,15 @@ class StackedEnsemble:
     Uses multinomial logistic regression and returns full probability matrix.
     """
 
-    def __init__(self, model_names: list[str], n_classes: int = 2) -> None:
+    def __init__(self, model_names: list[str], n_classes: int = 2, task_type: str = "binary") -> None:
         self.model_names = list(model_names)
         self.n_classes = n_classes
-        self._model: LogisticRegression | None = None
+        self.task_type = task_type
+        self._model: LogisticRegression | LinearRegression | None = None
+
+    @property
+    def _is_regression(self) -> bool:
+        return self.task_type == "regression"
 
     @property
     def _is_multiclass(self) -> bool:
@@ -101,7 +106,10 @@ class StackedEnsemble:
         """
         X = self._build_feature_matrix(model_preds, prior_diffs, extra_features)
         y = np.asarray(y_true, dtype=float)
-        self._model = LogisticRegression(C=C, max_iter=1000, solver="lbfgs")
+        if self._is_regression:
+            self._model = LinearRegression()
+        else:
+            self._model = LogisticRegression(C=C, max_iter=1000, solver="lbfgs")
         self._model.fit(X, y)
 
     def predict(
@@ -118,6 +126,8 @@ class StackedEnsemble:
         if self._model is None:
             raise RuntimeError("StackedEnsemble has not been fitted yet.")
         X = self._build_feature_matrix(model_preds, prior_diffs, extra_features)
+        if self._is_regression:
+            return self._model.predict(X)
         if self._is_multiclass:
             return self._model.predict_proba(X)
         return self._model.predict_proba(X)[:, 1]
@@ -152,11 +162,13 @@ class StackedEnsemble:
         state = {
             "model_names": self.model_names,
             "n_classes": self.n_classes,
+            "task_type": self.task_type,
             "coef": self._model.coef_.tolist(),
             "intercept": self._model.intercept_.tolist(),
-            "classes": self._model.classes_.tolist(),
-            "C": self._model.C,
         }
+        if not self._is_regression:
+            state["classes"] = self._model.classes_.tolist()
+            state["C"] = self._model.C
         path.write_text(json.dumps(state, indent=2))
 
     def load(self, path: Path) -> None:
@@ -165,13 +177,16 @@ class StackedEnsemble:
         state = json.loads(path.read_text())
         self.model_names = state["model_names"]
         self.n_classes = state.get("n_classes", 2)
-        self._model = LogisticRegression(
-            C=state["C"], max_iter=1000, solver="lbfgs"
-        )
-        # Reconstruct fitted model attributes
+        self.task_type = state.get("task_type", "binary")
+        if self._is_regression:
+            self._model = LinearRegression()
+        else:
+            self._model = LogisticRegression(
+                C=state["C"], max_iter=1000, solver="lbfgs"
+            )
+            self._model.classes_ = np.array(state["classes"])
         self._model.coef_ = np.array(state["coef"])
         self._model.intercept_ = np.array(state["intercept"])
-        self._model.classes_ = np.array(state["classes"])
 
 
 def train_meta_learner_loso(
@@ -183,6 +198,7 @@ def train_meta_learner_loso(
     ensemble_config: dict,
     extra_features: dict[str, np.ndarray] | None = None,
     n_classes: int = 2,
+    task_type: str = "binary",
 ) -> tuple[StackedEnsemble, Any, dict]:
     """Train stacked meta-learner with LOSO + nested calibrator CV.
 
@@ -215,6 +231,8 @@ def train_meta_learner_loso(
     tuple of (meta_learner, post_calibrator, pre_calibrators_dict)
     """
     is_multiclass = n_classes > 2
+    is_regression = task_type == "regression"
+    skip_calibration = is_multiclass or is_regression
 
     y_true = np.asarray(y_true, dtype=float)
     prior_diffs = np.asarray(prior_diffs, dtype=float)
@@ -244,9 +262,9 @@ def train_meta_learner_loso(
             continue
 
         # Step 1b: Fit per-model pre-calibrators on train fold only
-        # Skip pre-calibration for multiclass (calibrators are binary-only)
+        # Skip pre-calibration for multiclass and regression
         fold_pre_cals = {}
-        if not is_multiclass:
+        if not skip_calibration:
             for model_name in model_names:
                 if model_name in pre_cal_config:
                     method = pre_cal_config[model_name]
@@ -275,7 +293,7 @@ def train_meta_learner_loso(
             val_extra = {k: v[val_mask] for k, v in extra_features.items()}
 
         # Step 1d: Train meta-learner on train fold
-        fold_meta = StackedEnsemble(model_names, n_classes=n_classes)
+        fold_meta = StackedEnsemble(model_names, n_classes=n_classes, task_type=task_type)
         fold_meta.fit(
             train_preds,
             prior_diffs[train_mask],
@@ -292,9 +310,9 @@ def train_meta_learner_loso(
         )
 
     # Step 2: Fit post-calibrator on nested OOF predictions
-    # Skip post-calibration for multiclass (calibrators are binary-only)
+    # Skip post-calibration for multiclass and regression
     post_calibrator = None
-    if not is_multiclass:
+    if not skip_calibration:
         valid_mask = ~np.isnan(oof_preds)
         if valid_mask.sum() >= 20:
             post_calibrator = build_calibrator(cal_method, ensemble_config)
@@ -302,9 +320,9 @@ def train_meta_learner_loso(
                 post_calibrator.fit(y_true[valid_mask], oof_preds[valid_mask])
 
     # Step 3: Fit final pre-calibrators on ALL data
-    # Skip pre-calibration for multiclass (calibrators are binary-only)
+    # Skip pre-calibration for multiclass and regression
     final_pre_cals: dict[str, Any] = {}
-    if not is_multiclass:
+    if not skip_calibration:
         for model_name in model_names:
             if model_name in pre_cal_config:
                 method = pre_cal_config[model_name]
@@ -321,7 +339,7 @@ def train_meta_learner_loso(
             preds = final_pre_cals[model_name].transform(preds)
         all_preds_cal[model_name] = preds
 
-    final_meta = StackedEnsemble(model_names, n_classes=n_classes)
+    final_meta = StackedEnsemble(model_names, n_classes=n_classes, task_type=task_type)
     final_meta.fit(
         all_preds_cal,
         prior_diffs,
