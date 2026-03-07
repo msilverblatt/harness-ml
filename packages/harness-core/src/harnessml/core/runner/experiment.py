@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from harnessml.core.config.merge import resolve_feature_mutations
 
 logger = logging.getLogger(__name__)
