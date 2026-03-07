@@ -10,8 +10,60 @@ from harnessml.studio.broadcaster import EventBroadcaster
 from harnessml.studio.routes import events, experiments, project, runs, ws
 
 
+async def _poll_events(app: FastAPI, interval: float = 1.0):
+    """Background task: poll SQLite for new events and broadcast via WebSocket."""
+    import asyncio
+    import json as _json
+    from datetime import datetime, timezone
+
+    last_id = 0
+    store = app.state.event_store
+    broadcaster = app.state.broadcaster
+    if store is None:
+        return
+
+    # Get current max ID so we only stream new events
+    try:
+        conn = store._get_conn()
+        row = conn.execute("SELECT MAX(id) FROM events").fetchone()
+        if row and row[0]:
+            last_id = row[0]
+    except Exception:
+        pass
+
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            conn = store._get_conn()
+            rows = conn.execute(
+                "SELECT id, timestamp, tool, action, params, result, duration_ms, status "
+                "FROM events WHERE id > ? ORDER BY id ASC",
+                (last_id,),
+            ).fetchall()
+            for r in rows:
+                ts = r[1]
+                if isinstance(ts, (int, float)):
+                    ts = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+                event = {
+                    "id": r[0],
+                    "timestamp": ts,
+                    "tool": r[2],
+                    "action": r[3],
+                    "params": r[4] if isinstance(r[4], dict) else _json.loads(r[4]) if isinstance(r[4], str) else {},
+                    "result": r[5],
+                    "duration_ms": r[6],
+                    "status": r[7],
+                }
+                broadcaster.notify(event)
+                last_id = r[0]
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    import asyncio
+
     project_dir = getattr(application.state, "project_dir", ".")
     db_path = Path(project_dir) / ".studio" / "events.db"
     try:
@@ -23,7 +75,17 @@ async def lifespan(application: FastAPI):
     except Exception:
         application.state.event_store = None
     application.state.broadcaster = EventBroadcaster()
-    yield
+
+    # Start background poller for live event streaming
+    poll_task = asyncio.create_task(_poll_events(application))
+    try:
+        yield
+    finally:
+        poll_task.cancel()
+        try:
+            await poll_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Harness Studio", lifespan=lifespan)
@@ -50,5 +112,18 @@ async def health():
 # Serve pre-built frontend static files (must be AFTER API routes)
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():
+    from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
-    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
+
+    # Serve static assets (JS, CSS, images) at /assets/*
+    _assets_dir = _static_dir / "assets"
+    if _assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
+    # SPA catch-all: any non-API route returns index.html for client-side routing
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        file_path = _static_dir / full_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(_static_dir / "index.html"))

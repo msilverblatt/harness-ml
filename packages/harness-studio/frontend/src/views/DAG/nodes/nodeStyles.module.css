@@ -123,6 +123,11 @@
     animation: nodePulse 1.5s ease-in-out infinite;
 }
 
+.nodeSelected {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 4px 12px rgba(88, 166, 255, 0.3);
+}
+
 .runningIndicator {
     display: inline-block;
     font-size: 0.5625rem;

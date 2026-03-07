@@ -11,7 +11,7 @@ async def list_events(request: Request, tool: str | None = None, limit: int = 50
     store = request.app.state.event_store
     if store is None:
         return []
-    return store.query(tool=tool, limit=limit, before_id=before_id)
+    return store.query(tool=tool, limit=limit, before_id=before_id, exclude_transient=True)
 
 
 @router.get("/events/stats")

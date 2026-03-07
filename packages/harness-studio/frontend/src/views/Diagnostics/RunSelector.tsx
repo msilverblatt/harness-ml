@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { useApi } from '../../hooks/useApi';
+import { useMemo } from 'react';
 import styles from './Diagnostics.module.css';
 
 interface RunSummary {

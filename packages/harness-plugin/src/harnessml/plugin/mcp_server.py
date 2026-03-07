@@ -19,13 +19,16 @@ mcp = FastMCP("harnessml")
 _DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
 
 _emitter = None
+_emitter_project_dir = None
 
 
-def _get_emitter():
-    global _emitter
-    if _emitter is None:
+def _get_emitter(project_dir: str | None = None):
+    global _emitter, _emitter_project_dir
+    # Re-create emitter if project_dir changes or first call
+    if _emitter is None or (project_dir and project_dir != _emitter_project_dir):
         from harnessml.plugin.event_emitter import create_emitter
-        _emitter = create_emitter()
+        _emitter = create_emitter(project_dir=project_dir)
+        _emitter_project_dir = project_dir
     return _emitter
 
 
@@ -43,47 +46,56 @@ def _safe_tool(fn):
     async def wrapper(*args, **kwargs):
         tool_name = fn.__name__
         action = kwargs.get("action", "")
+        proj_dir = kwargs.get("project_dir") or os.getcwd()
+        clean_params = {k: v for k, v in kwargs.items() if k != "ctx"}
+
+        # Emit "running" event immediately so Studio shows the call in-progress
+        emitter = _get_emitter(project_dir=proj_dir)
+        emitter.set_current(tool_name, action)
+        emitter.emit(
+            tool=tool_name, action=action, params=clean_params,
+            result="", duration_ms=0, status="running",
+        )
+
+        # Set the active emitter so handlers can access it via _common.get_active_emitter()
+        from harnessml.plugin.handlers._common import set_active_emitter
+        set_active_emitter(emitter)
+
         start = _time.monotonic()
         try:
             result = fn(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
             elapsed = int((_time.monotonic() - start) * 1000)
-            _get_emitter().emit(
-                tool=tool_name, action=action,
-                params={k: v for k, v in kwargs.items() if k != "ctx"},
-                result=result[:2000] if isinstance(result, str) else str(result)[:2000],
+            emitter.clear_current()
+            emitter.emit(
+                tool=tool_name, action=action, params=clean_params,
+                result=result[:20000] if isinstance(result, str) else str(result)[:20000],
                 duration_ms=elapsed, status="success",
             )
             return result
         except json.JSONDecodeError as e:
             error_result = f"**Error**: Invalid JSON input: {e}"
             elapsed = int((_time.monotonic() - start) * 1000)
-            _get_emitter().emit(
-                tool=tool_name, action=action,
-                params={k: v for k, v in kwargs.items() if k != "ctx"},
-                result=error_result[:2000],
-                duration_ms=elapsed, status="error",
+            emitter.emit(
+                tool=tool_name, action=action, params=clean_params,
+                result=error_result[:20000], duration_ms=elapsed, status="error",
             )
             return error_result
         except ValueError as e:
             error_result = f"**Error**: {e}"
             elapsed = int((_time.monotonic() - start) * 1000)
-            _get_emitter().emit(
-                tool=tool_name, action=action,
-                params={k: v for k, v in kwargs.items() if k != "ctx"},
-                result=error_result[:2000],
-                duration_ms=elapsed, status="error",
+            emitter.emit(
+                tool=tool_name, action=action, params=clean_params,
+                result=error_result[:20000], duration_ms=elapsed, status="error",
             )
             return error_result
         except Exception as e:
             error_result = f"**Error**: Unexpected error in `{fn.__name__}`: {e}"
             elapsed = int((_time.monotonic() - start) * 1000)
-            _get_emitter().emit(
-                tool=tool_name, action=action,
-                params={k: v for k, v in kwargs.items() if k != "ctx"},
-                result=error_result[:2000],
-                duration_ms=elapsed, status="error",
+            emitter.emit(
+                tool=tool_name, action=action, params=clean_params,
+                result=error_result[:20000], duration_ms=elapsed, status="error",
             )
             return error_result
     return wrapper

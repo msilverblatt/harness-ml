@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { NodeShell } from './NodeShell';
 import styles from './nodeStyles.module.css';
 
 interface CalibrationNodeData {
@@ -9,13 +10,13 @@ interface CalibrationNodeData {
 
 export function CalibrationNode({ data }: { data: CalibrationNodeData }) {
     return (
-        <div className={`${styles.node} ${styles.calibrationNode}`}>
+        <NodeShell typeClass={styles.calibrationNode} data={data}>
             <div className={styles.nodeLabel}>{data.label}</div>
             {data.type && (
                 <div className={styles.nodeSubtext}>{data.type}</div>
             )}
             <Handle type="target" position={Position.Left} className={styles.handle} />
             <Handle type="source" position={Position.Right} className={styles.handle} />
-        </div>
+        </NodeShell>
     );
 }

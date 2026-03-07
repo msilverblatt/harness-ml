@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { NodeShell } from './NodeShell';
 import styles from './nodeStyles.module.css';
 
 interface EnsembleNodeData {
@@ -13,9 +14,9 @@ interface EnsembleNodeData {
 
 export function EnsembleNode({ data }: { data: EnsembleNodeData }) {
     const metrics = data.metrics ?? [];
-    const isRunning = !!(data as Record<string, unknown>)._running;
+    const isRunning = !!data._running;
     return (
-        <div className={`${styles.node} ${styles.ensembleNode}${isRunning ? ` ${styles.nodeRunning}` : ''}`}>
+        <NodeShell typeClass={styles.ensembleNode} data={data}>
             <div className={styles.nodeLabel}>
                 {data.label}
                 {isRunning && <span className={styles.runningIndicator}>running</span>}
@@ -52,6 +53,6 @@ export function EnsembleNode({ data }: { data: EnsembleNodeData }) {
             )}
             <Handle type="target" position={Position.Left} className={styles.handle} />
             <Handle type="source" position={Position.Right} className={styles.handle} />
-        </div>
+        </NodeShell>
     );
 }

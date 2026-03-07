@@ -1,7 +1,7 @@
 """Handler for pipeline tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import resolve_project_dir
+from harnessml.plugin.handlers._common import make_progress_callback, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
     collect_hints,
     format_response_with_hints,
@@ -16,16 +16,7 @@ async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_k
     from harnessml.core.runner import config_writer as cw
 
     loop = asyncio.get_running_loop()
-
-    def _progress_callback(current, total, message):
-        """Sync callback running in thread — schedules async progress on event loop."""
-        import logging
-        logging.getLogger(__name__).info("Backtest progress: %s", message)
-        if ctx is not None:
-            asyncio.run_coroutine_threadsafe(
-                ctx.report_progress(progress=current, total=total, message=message),
-                loop,
-            )
+    _progress_callback = make_progress_callback(ctx, loop)
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=1, message="Starting backtest...")
@@ -247,12 +238,9 @@ async def _handle_compare_targets(*, ctx, project_dir, **_kwargs):
 
         # Run backtest
         try:
-            def _progress_callback(current, total, message):
-                if ctx is not None:
-                    asyncio.run_coroutine_threadsafe(
-                        ctx.report_progress(progress=current, total=total, message=f"[{target_name}] {message}"),
-                        loop,
-                    )
+            _base_cb = make_progress_callback(ctx, loop)
+            def _progress_callback(current, total, message, _tn=target_name):
+                _base_cb(current, total, f"[{_tn}] {message}")
 
             result = await loop.run_in_executor(
                 None,

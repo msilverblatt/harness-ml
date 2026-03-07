@@ -70,15 +70,22 @@ function parseContent(content: string): string {
             continue;
         }
 
-        // Table detection: line starts with | and next line is separator
-        if (line.startsWith('|') && i + 1 < lines.length && lines[i + 1].match(/^\|[\s-:|]+\|$/)) {
-            const tableLines: string[] = [];
-            while (i < lines.length && lines[i].startsWith('|')) {
-                tableLines.push(lines[i]);
-                i++;
+        // Table detection: line starts with | and within next 2 lines there's a separator
+        if (line.startsWith('|')) {
+            // Look ahead for separator (could be this line or next)
+            let hasSeparator = false;
+            for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+                if (lines[j].match(/^\|[\s-:|]+\|$/)) { hasSeparator = true; break; }
             }
-            output.push(parseTable(tableLines));
-            continue;
+            if (hasSeparator) {
+                const tableLines: string[] = [];
+                while (i < lines.length && lines[i].startsWith('|')) {
+                    tableLines.push(lines[i]);
+                    i++;
+                }
+                output.push(parseTable(tableLines));
+                continue;
+            }
         }
 
         // Horizontal rule
@@ -136,9 +143,12 @@ function parseContent(content: string): string {
             continue;
         }
 
-        // Empty line
+        // Empty line — skip consecutive blanks
         if (line.trim() === '') {
-            output.push('<br/>');
+            const lastOutput = output[output.length - 1];
+            if (lastOutput !== '<br/>') {
+                output.push('<br/>');
+            }
             i++;
             continue;
         }

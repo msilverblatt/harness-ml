@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { NodeShell } from './NodeShell';
 import styles from './nodeStyles.module.css';
 
 interface EngineeredFeature {
@@ -22,7 +23,7 @@ export function FeatureNode({ data }: { data: FeatureNodeData }) {
     const engineered = data.engineered_features ?? [];
 
     return (
-        <div className={`${styles.node} ${styles.featuresNode}`}>
+        <NodeShell typeClass={styles.featuresNode} data={data}>
             <div className={styles.nodeLabel}>{data.label}</div>
             <div className={styles.nodeSubtext}>
                 {data.count ?? 0} features
@@ -66,6 +67,6 @@ export function FeatureNode({ data }: { data: FeatureNodeData }) {
             )}
             <Handle type="target" position={Position.Left} className={styles.handle} />
             <Handle type="source" position={Position.Right} className={styles.handle} />
-        </div>
+        </NodeShell>
     );
 }

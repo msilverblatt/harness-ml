@@ -74,7 +74,8 @@
     border-radius: var(--radius-md);
     padding: var(--space-3);
     margin: var(--space-2) 0;
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 200px;
 }
 
 .markdown pre code {
@@ -87,13 +88,17 @@
 
 .markdown ul,
 .markdown ol {
-    padding-left: var(--space-5);
-    margin: var(--space-2) 0;
+    padding-left: var(--space-4);
+    margin: var(--space-1) 0;
+    columns: 2;
+    column-gap: var(--space-4);
 }
 
 .markdown li {
-    margin-bottom: var(--space-1);
+    margin-bottom: 0;
     color: var(--color-text-primary);
+    break-inside: avoid;
+    font-size: var(--font-size-xs);
 }
 
 .markdown hr {

@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { NodeShell } from './NodeShell';
 import styles from './nodeStyles.module.css';
 
 interface SourceNodeData {
@@ -13,7 +14,7 @@ interface SourceNodeData {
 export function SourceNode({ data }: { data: SourceNodeData }) {
     const columns = data.columns ?? [];
     return (
-        <div className={`${styles.node} ${styles.sourceNode}`}>
+        <NodeShell typeClass={styles.sourceNode} data={data}>
             <div className={styles.nodeLabel}>{data.label}</div>
             {data.path && (
                 <div className={styles.nodeDetail}>{data.path}</div>
@@ -36,6 +37,6 @@ export function SourceNode({ data }: { data: SourceNodeData }) {
                 </>
             )}
             <Handle type="source" position={Position.Right} className={styles.handle} />
-        </div>
+        </NodeShell>
     );
 }
