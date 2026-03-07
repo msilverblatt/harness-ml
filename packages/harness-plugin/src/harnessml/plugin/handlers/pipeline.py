@@ -321,7 +321,29 @@ def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs)
     return f"Notebook generated: `{nb_path}`"
 
 
+def _handle_progress(*, project_dir, **_kwargs):
+    from harnessml.core.runner.workflow_tracker import WorkflowTracker
+    import yaml
+
+    proj = resolve_project_dir(project_dir)
+    config_dir = proj / "config"
+    pipeline_path = config_dir / "pipeline.yaml"
+
+    workflow_config = {}
+    if pipeline_path.exists():
+        try:
+            data = yaml.safe_load(pipeline_path.read_text()) or {}
+            workflow_config = data.get("workflow", {})
+        except yaml.YAMLError:
+            pass
+
+    tracker = WorkflowTracker(proj, workflow_config=workflow_config)
+    status = tracker.get_status()
+    return status.format_markdown()
+
+
 ACTIONS = {
+    "progress": _handle_progress,
     "run_backtest": _handle_run_backtest,
     "predict": _handle_predict,
     "diagnostics": _handle_diagnostics,

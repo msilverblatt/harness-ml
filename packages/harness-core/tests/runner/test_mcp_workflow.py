@@ -925,6 +925,7 @@ class TestQuickRunAction:
             project_dir,
             description="test quick run",
             overlay='{"models": {"lr_test": {"params": {"C": 0.5}}}}',
+            hypothesis="Lower C should regularize better with small data",
         )
 
         # Should contain experiment info and either results or an attempt

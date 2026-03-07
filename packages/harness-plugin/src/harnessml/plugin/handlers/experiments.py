@@ -141,6 +141,30 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
         return err
     parsed = parse_json_param(search_space)
 
+    # Workflow phase gate: check if exploration is premature
+    try:
+        from harnessml.core.runner.workflow_tracker import WorkflowGateError, WorkflowTracker
+        import yaml
+
+        proj = resolve_project_dir(project_dir)
+        config_dir = proj / "config"
+        pipeline_path = config_dir / "pipeline.yaml"
+        workflow_config = {}
+        if pipeline_path.exists():
+            try:
+                data = yaml.safe_load(pipeline_path.read_text()) or {}
+                workflow_config = data.get("workflow", {})
+            except yaml.YAMLError:
+                pass
+
+        tracker = WorkflowTracker(proj, workflow_config=workflow_config)
+        enforce = workflow_config.get("enforce_phases", False)
+        warning = tracker.check_ready_for_tuning(enforce=enforce)
+    except Exception as exc:
+        if type(exc).__name__ == "WorkflowGateError":
+            return f"**Blocked**: {exc}"
+        warning = None
+
     loop = asyncio.get_running_loop()
 
     def _progress_callback(current, total, message):
@@ -169,7 +193,11 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
         await ctx.report_progress(progress=1, total=1, message="Exploration complete.")
 
     if detail == "summary":
-        return _summarize_exploration(result)
+        result = _summarize_exploration(result)
+
+    if warning:
+        result = f"{warning}\n\n---\n\n{result}"
+
     return result
 
 
@@ -261,7 +289,7 @@ def _handle_journal(*, last_n, project_dir, **_kwargs):
     return cw.show_journal(resolve_project_dir(project_dir), last_n=last_n or 20)
 
 
-def _handle_log_result(*, experiment_id, description, hypothesis, verdict, project_dir, **_kwargs):
+def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, verdict, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
     err = validate_required(experiment_id, "experiment_id")
     if err:
@@ -271,6 +299,7 @@ def _handle_log_result(*, experiment_id, description, hypothesis, verdict, proje
         experiment_id,
         description=description or "",
         hypothesis=hypothesis or "",
+        conclusion=conclusion or "",
         verdict=verdict or "",
     )
 

@@ -100,6 +100,23 @@ uv run pytest packages/harness-core/tests/runner/  # runner subsystem
 uv run pytest -v                                 # verbose
 ```
 
+## Experiment Discipline
+
+- **Hypothesis is required** when creating experiments (via MCP or config_writer)
+- **Conclusion** should be logged after every experiment explaining what was learned
+- **Exhaust strategies** — try 3-5 meaningfully different configs before abandoning a strategy
+- **Workflow phases**: EDA → Feature Discovery → Model Diversity → Feature Engineering → Tuning → Ensemble
+- Use `pipeline(action="progress")` to check workflow phase completion
+- Optional hard gates: set `workflow.enforce_phases: true` in pipeline.yaml to block premature tuning
+
+## Skills (docs/skills/)
+
+| Skill | Purpose |
+|-------|---------|
+| `harness-run-experiment` | Disciplined experiment execution with required hypothesis/conclusion |
+| `harness-explore-space` | Phased workflow preventing premature tuning |
+| `harness-domain-research` | Hypothesis-driven domain research for feature engineering |
+
 ## What NOT to Do
 
 - Do not bypass guardrails — non-overridable ones exist for safety (leakage, temporal, critical path)

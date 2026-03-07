@@ -400,6 +400,7 @@ async def experiments(
     experiment_ids: list[str] | None = None,
     description: str = "",
     hypothesis: str = "",
+    conclusion: str = "",
     overlay: str | dict | None = None,
     primary_metric: str = "brier",
     variant: str | None = None,
@@ -413,8 +414,8 @@ async def experiments(
     """Manage ML experiments.
 
     Actions:
-      - "create": Create a new experiment. Requires description.
-        Optional: hypothesis.
+      - "create": Create a new experiment. Requires description and
+        hypothesis (what you expect and why).
       - "write_overlay": Write overlay YAML to an experiment. Requires
         experiment_id, overlay (JSON string of config changes).
         Keys support dot-notation ("models.xgb.params.lr": 0.01) or
@@ -424,8 +425,8 @@ async def experiments(
       - "promote": Promote experiment config to production. Requires
         experiment_id. Optional: primary_metric.
       - "quick_run": Create, configure, and run an experiment in one call.
-        Requires description, overlay (JSON string). Optional: hypothesis,
-        primary_metric.
+        Requires description, overlay (JSON string), hypothesis.
+        Optional: primary_metric.
       - "explore": Run Bayesian exploration over a search space. Requires
         search_space (JSON with axes, budget, primary_metric). Runs
         Optuna-driven trials, returns full report with best config,
@@ -440,7 +441,7 @@ async def experiments(
       - "journal": Show the experiment journal — a history of experiments
         with descriptions, metrics, and verdicts. Optional: last_n (default 20).
       - "log_result": Manually log an experiment result. Requires experiment_id.
-        Optional: description, hypothesis, verdict.
+        Optional: description, hypothesis, conclusion (what was learned), verdict.
     """
     return await _load_handler("experiments").dispatch(
         action,
@@ -449,6 +450,7 @@ async def experiments(
         experiment_ids=experiment_ids,
         description=description,
         hypothesis=hypothesis,
+        conclusion=conclusion,
         overlay=overlay,
         primary_metric=primary_metric,
         variant=variant,
@@ -696,6 +698,9 @@ async def pipeline(
         closest to 0.5), top_n (default 10).
       - "export_notebook": Generate a Jupyter notebook from the project config.
         Requires destination ("colab", "kaggle", or "local"). Optional: output_path.
+      - "progress": Show workflow phase completion status — which exploration
+        phases are done (feature discovery, model diversity, tuning readiness).
+        No parameters required.
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(

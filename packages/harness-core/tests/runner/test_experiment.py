@@ -415,6 +415,38 @@ class TestAutoLogResult:
         content = log_path.read_text()
         assert "| - |" in content
 
+    def test_conclusion_in_log(self, tmp_path):
+        """Conclusion field appears in the log row."""
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test hypothesis", "changed lr",
+            {"accuracy": 0.76}, {"accuracy": 0.75},
+            "improved",
+            conclusion="LR improvement confirms learning rate was too high",
+        )
+        content = log_path.read_text()
+        assert "LR improvement confirms" in content
+
+    def test_conclusion_column_in_header(self, tmp_path):
+        """Log header includes Conclusion column."""
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test", "changes",
+            {}, {}, "neutral",
+        )
+        content = log_path.read_text()
+        assert "| Conclusion |" in content
+
+    def test_empty_conclusion_still_valid(self, tmp_path):
+        """Empty conclusion produces empty cell in table."""
+        log_path = tmp_path / "EXPERIMENT_LOG.md"
+        auto_log_result(
+            log_path, "exp-001", "test", "changes",
+            {}, {}, "neutral", conclusion="",
+        )
+        content = log_path.read_text()
+        assert "exp-001" in content
+
 
 # -----------------------------------------------------------------------
 # save_frozen_config

@@ -354,7 +354,10 @@ class TestExperimentCreate:
 
     def test_creates_experiment(self, tmp_path):
         project = _setup_project(tmp_path)
-        result = experiment_create(project, "Test hypothesis about coaching data")
+        result = experiment_create(
+            project, "Test hypothesis about coaching data",
+            hypothesis="Coaching features improve predictions",
+        )
         assert "Created experiment" in result
         assert "exp-" in result
 
@@ -376,6 +379,18 @@ class TestExperimentCreate:
         exp_dir = exp_dirs[0]
         assert (exp_dir / "hypothesis.txt").exists()
         assert "coaching" in (exp_dir / "hypothesis.txt").read_text()
+
+    def test_requires_hypothesis(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = experiment_create(project, "Test something")
+        assert "Error" in result
+        assert "hypothesis" in result.lower()
+
+    def test_rejects_empty_hypothesis(self, tmp_path):
+        project = _setup_project(tmp_path)
+        result = experiment_create(project, "Test something", hypothesis="   ")
+        assert "Error" in result
+        assert "hypothesis" in result.lower()
 
 
 class TestWriteOverlay:

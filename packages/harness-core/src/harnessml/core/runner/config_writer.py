@@ -1485,6 +1485,9 @@ def experiment_create(
 
     exp_id = auto_next_id(experiments_dir)
 
+    if not hypothesis or not hypothesis.strip():
+        return "**Error**: 'hypothesis' is required when creating an experiment. State what you expect and why."
+
     exp_dir = experiments_dir / exp_id
     exp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1494,9 +1497,8 @@ def experiment_create(
         yaml.dump({"description": description}, default_flow_style=False)
     )
 
-    # Write hypothesis if provided
-    if hypothesis:
-        (exp_dir / "hypothesis.txt").write_text(hypothesis)
+    # Write hypothesis
+    (exp_dir / "hypothesis.txt").write_text(hypothesis)
 
     return (
         f"**Created experiment**: `{exp_id}`\n"
@@ -2207,6 +2209,8 @@ def quick_run_experiment(
     """
     if not description:
         return "**Error**: 'description' is required for quick_run."
+    if not hypothesis or not hypothesis.strip():
+        return "**Error**: 'hypothesis' is required for quick_run. State what you expect and why."
 
     project_dir = Path(project_dir)
 
@@ -3072,6 +3076,7 @@ def log_experiment_result(
     *,
     description: str = "",
     hypothesis: str = "",
+    conclusion: str = "",
     metrics: dict | None = None,
     overlay: dict | None = None,
     verdict: str = "",
@@ -3080,6 +3085,13 @@ def log_experiment_result(
     from datetime import datetime
 
     project_dir = Path(project_dir)
+
+    # Save conclusion.txt alongside hypothesis.txt
+    if conclusion:
+        exp_dir = project_dir / "experiments" / experiment_id
+        if exp_dir.exists():
+            (exp_dir / "conclusion.txt").write_text(conclusion)
+
     journal_path = project_dir / "experiments" / "journal.jsonl"
     journal_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -3088,6 +3100,7 @@ def log_experiment_result(
         "experiment_id": experiment_id,
         "description": description,
         "hypothesis": hypothesis,
+        "conclusion": conclusion,
         "metrics": metrics or {},
         "verdict": verdict,
     }
