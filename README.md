@@ -42,6 +42,10 @@ pipeline(action="compare_latest")
 
 https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
+## Tuned model 5 minutes later
+
+<img width="815" height="766" alt="Screenshot 2026-03-07 at 2 48 37 AM" src="https://github.com/user-attachments/assets/684fb4e1-ae8a-41a5-85fe-a8e8a2882897" />
+
 <sub>[examples/titanic](examples/titanic/)</sub>
 
 <br>
