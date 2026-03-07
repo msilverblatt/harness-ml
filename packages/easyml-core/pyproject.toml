@@ -24,8 +24,11 @@ explore = ["optuna>=3.0"]
 shap = ["shap>=0.42"]
 viz = ["matplotlib>=3.7"]
 quality = ["pandera>=0.17"]
+notebook = ["nbformat>=5.9"]
+drive = ["google-api-python-client>=2.100", "google-auth-oauthlib>=1.0"]
+kaggle = ["kaggle>=1.6"]
 all = [
-    "easyml-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality]",
+    "easyml-core[xgboost,catboost,lightgbm,neural,explore,shap,viz,quality,notebook,drive,kaggle]",
 ]
 
 [build-system]

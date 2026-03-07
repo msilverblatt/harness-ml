@@ -160,6 +160,12 @@ async def data(
     # Batch parameters:
     sources: str | list | None = None,
     views: str | list | None = None,
+    # Upload parameters:
+    files: list[str] | str | None = None,
+    folder_id: str | None = None,
+    folder_name: str | None = None,
+    dataset_slug: str | None = None,
+    title: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage data in the project's feature store.
@@ -250,6 +256,12 @@ async def data(
       - "fetch_url": Download a file from a URL to the raw data directory.
         Requires data_path (the URL). Optional: name (filename to save as,
         auto-detected from URL if omitted).
+      - "upload_drive": Upload file(s) to Google Drive. Requires files (list of
+        paths). Optional: folder_id, folder_name (creates new folder), name.
+        Returns file IDs and Colab URLs for notebooks.
+      - "upload_kaggle": Upload file(s) as a Kaggle dataset. Requires files
+        (list of paths), dataset_slug (e.g. "username/dataset-name").
+        Optional: title.
     """
     return _load_handler("data").dispatch(
         action,
@@ -279,6 +291,11 @@ async def data(
         seed=seed,
         sources=sources,
         views=views,
+        files=files,
+        folder_id=folder_id,
+        folder_name=folder_name,
+        dataset_slug=dataset_slug,
+        title=title,
         project_dir=project_dir,
     )
 
@@ -630,6 +647,8 @@ async def pipeline(
     name: str | None = None,
     top_n: int | None = None,
     mode: str | None = None,
+    destination: str | None = None,
+    output_path: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -661,6 +680,8 @@ async def pipeline(
         Optional: run_id (defaults to most recent), mode ("worst" for most
         confident wrong, "best" for most confident correct, "uncertain" for
         closest to 0.5), top_n (default 10).
+      - "export_notebook": Generate a Jupyter notebook from the project config.
+        Requires destination ("colab", "kaggle", or "local"). Optional: output_path.
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(
@@ -675,6 +696,8 @@ async def pipeline(
         name=name,
         top_n=top_n,
         mode=mode,
+        destination=destination,
+        output_path=output_path,
         project_dir=project_dir,
     )
     if asyncio.iscoroutine(result):

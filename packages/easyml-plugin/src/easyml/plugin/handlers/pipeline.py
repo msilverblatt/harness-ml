@@ -296,6 +296,25 @@ def _handle_inspect_predictions(*, run_id, mode, top_n, project_dir, **_kwargs):
     )
 
 
+def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs):
+    err = validate_required(destination, "destination")
+    if err:
+        return err
+    err = validate_enum(destination, {"colab", "kaggle", "local"}, "destination")
+    if err:
+        return err
+    from easyml.core.runner.notebook import generate_notebook
+
+    pdir = resolve_project_dir(project_dir)
+    out = None
+    if output_path:
+        from pathlib import Path
+        out = Path(output_path)
+
+    nb_path = generate_notebook(pdir, destination=destination, output_path=out)
+    return f"Notebook generated: `{nb_path}`"
+
+
 ACTIONS = {
     "run_backtest": _handle_run_backtest,
     "predict": _handle_predict,
@@ -306,6 +325,7 @@ ACTIONS = {
     "compare_targets": _handle_compare_targets,
     "explain": _handle_explain,
     "inspect_predictions": _handle_inspect_predictions,
+    "export_notebook": _handle_export_notebook,
 }
 
 

@@ -358,6 +358,63 @@ def _handle_fetch_url(*, data_path, name, project_dir, **_kwargs):
     )
 
 
+def _handle_upload_drive(*, files, folder_id, folder_name, name, project_dir, **_kwargs):
+    if not files:
+        return "**Error**: `files` (list of file paths) is required for upload_drive."
+    parsed = parse_json_param(files) if isinstance(files, str) else files
+    from pathlib import Path
+    from easyml.core.runner.drives.drive import upload_file, create_folder
+
+    pdir = resolve_project_dir(project_dir)
+    credentials_dir = pdir / ".easyml"
+
+    target_folder_id = folder_id
+    if folder_name and not folder_id:
+        folder_result = create_folder(folder_name, credentials_dir=credentials_dir)
+        target_folder_id = folder_result["id"]
+
+    results = []
+    for f in parsed:
+        fp = Path(f)
+        if not fp.is_absolute():
+            fp = pdir / fp
+        r = upload_file(fp, folder_id=target_folder_id, credentials_dir=credentials_dir)
+        results.append(r)
+
+    lines = [f"Uploaded {len(results)} file(s) to Google Drive:"]
+    for r in results:
+        line = f"- **{r['name']}** (ID: `{r['id']}`)"
+        if "colab_url" in r:
+            line += f"\n  Colab: {r['colab_url']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_kwargs):
+    if not dataset_slug:
+        return "**Error**: `dataset_slug` (e.g. 'username/dataset-name') is required."
+    if not files:
+        return "**Error**: `files` (list of file paths) is required for upload_kaggle."
+    parsed = parse_json_param(files) if isinstance(files, str) else files
+    from pathlib import Path
+    from easyml.core.runner.drives.kaggle import upload_dataset
+
+    pdir = resolve_project_dir(project_dir)
+    resolved_files = []
+    for f in parsed:
+        fp = Path(f)
+        if not fp.is_absolute():
+            fp = pdir / fp
+        resolved_files.append(fp)
+
+    result = upload_dataset(
+        files=resolved_files,
+        dataset_slug=dataset_slug,
+        title=title or dataset_slug.split("/")[-1],
+    )
+    return f"Uploaded {result['files']} file(s) to Kaggle dataset `{result['slug']}`."
+
+
 ACTIONS = {
     "add": _handle_add,
     "validate": _handle_validate,
@@ -389,6 +446,8 @@ ACTIONS = {
     "refresh_all": _handle_refresh_all,
     "validate_source": _handle_validate_source,
     "fetch_url": _handle_fetch_url,
+    "upload_drive": _handle_upload_drive,
+    "upload_kaggle": _handle_upload_kaggle,
 }
 
 
