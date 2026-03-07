@@ -16,7 +16,9 @@
 
 ### From raw CSV to stacked ensemble in under a minute
 
-<video src="docs/assets/titanic-demo.mp4" controls width="100%"></video>
+
+https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
+
 
 <sub>Full example: [examples/titanic](examples/titanic/)</sub>
 
