@@ -18,13 +18,23 @@ from easyml.core.runner.calibration import build_calibrator
 class StackedEnsemble:
     """Logistic regression meta-learner over base model predictions.
 
-    Feature matrix consists of: [model_pred_1, ..., model_pred_N,
-    prior_diff, extra_feature_1, ...].
+    For binary (n_classes <= 2): Feature matrix is
+    [model_pred_1, ..., model_pred_N, prior_diff, extra_1, ...].
+
+    For multiclass (n_classes > 2): Feature matrix flattens per-class
+    probabilities from each model:
+    [model_1_c0, model_1_c1, ..., model_N_cK, prior_diff, extra_1, ...].
+    Uses multinomial logistic regression and returns full probability matrix.
     """
 
-    def __init__(self, model_names: list[str]) -> None:
+    def __init__(self, model_names: list[str], n_classes: int = 2) -> None:
         self.model_names = list(model_names)
+        self.n_classes = n_classes
         self._model: LogisticRegression | None = None
+
+    @property
+    def _is_multiclass(self) -> bool:
+        return self.n_classes > 2
 
     def _build_feature_matrix(
         self,
@@ -32,10 +42,23 @@ class StackedEnsemble:
         prior_diffs: np.ndarray,
         extra_features: dict[str, np.ndarray] | None = None,
     ) -> np.ndarray:
-        """Build the feature matrix for the meta-learner."""
+        """Build the feature matrix for the meta-learner.
+
+        Missing model predictions are filled with 0.5 (uninformative prior).
+        """
+        n = len(prior_diffs)
         cols = []
         for name in self.model_names:
-            cols.append(np.asarray(model_preds[name], dtype=float))
+            if name in model_preds:
+                arr = np.asarray(model_preds[name], dtype=float)
+            else:
+                arr = np.full(n, 0.5)
+            if self._is_multiclass and arr.ndim == 2:
+                # Flatten per-class probabilities into separate columns
+                for cls_idx in range(arr.shape[1]):
+                    cols.append(arr[:, cls_idx])
+            else:
+                cols.append(arr)
         cols.append(np.asarray(prior_diffs, dtype=float))
         if extra_features:
             for feat_name in sorted(extra_features.keys()):
@@ -46,7 +69,14 @@ class StackedEnsemble:
         self, extra_features: dict[str, np.ndarray] | None = None
     ) -> list[str]:
         """Return ordered list of feature names matching the feature matrix columns."""
-        names = list(self.model_names) + ["prior_diff"]
+        names = []
+        if self._is_multiclass:
+            for model_name in self.model_names:
+                for cls_idx in range(self.n_classes):
+                    names.append(f"{model_name}_c{cls_idx}")
+        else:
+            names = list(self.model_names)
+        names.append("prior_diff")
         if extra_features:
             names.extend(sorted(extra_features.keys()))
         return names
@@ -64,8 +94,9 @@ class StackedEnsemble:
         Parameters
         ----------
         model_preds : dict mapping model_name -> prediction array
+            For binary: 1D arrays. For multiclass: 2D (n_samples, n_classes).
         prior_diffs : prior difference array (e.g. higher_prior - lower_prior)
-        y_true : binary outcome array
+        y_true : outcome array (binary labels or integer class labels)
         C : regularization strength for LogisticRegression
         extra_features : optional dict of additional feature arrays
         """
@@ -80,22 +111,37 @@ class StackedEnsemble:
         prior_diffs: np.ndarray,
         extra_features: dict[str, np.ndarray] | None = None,
     ) -> np.ndarray:
-        """Return probability array from meta-learner."""
+        """Return probability array from meta-learner.
+
+        For binary: returns 1D array of P(class=1).
+        For multiclass: returns 2D array (n_samples, n_classes).
+        """
         if self._model is None:
             raise RuntimeError("StackedEnsemble has not been fitted yet.")
         X = self._build_feature_matrix(model_preds, prior_diffs, extra_features)
+        if self._is_multiclass:
+            return self._model.predict_proba(X)
         return self._model.predict_proba(X)[:, 1]
 
     def get_coefficients(
         self, extra_features: dict[str, np.ndarray] | None = None
-    ) -> dict[str, float]:
-        """Return model_name -> coefficient mapping.
+    ) -> dict[str, float] | dict[str, dict[str, float]]:
+        """Return coefficient mapping.
 
-        Also includes 'prior_diff' and any extra feature names.
+        For binary: returns {feature_name: coefficient}.
+        For multiclass: returns {class_i: {feature_name: coefficient}}.
         """
         if self._model is None:
             raise RuntimeError("StackedEnsemble has not been fitted yet.")
         names = self._feature_names(extra_features)
+        if self._is_multiclass:
+            result = {}
+            for cls_idx in range(self._model.coef_.shape[0]):
+                coeffs = self._model.coef_[cls_idx]
+                result[f"class_{cls_idx}"] = {
+                    name: float(c) for name, c in zip(names, coeffs)
+                }
+            return result
         coeffs = self._model.coef_[0]
         return {name: float(c) for name, c in zip(names, coeffs)}
 
@@ -106,6 +152,7 @@ class StackedEnsemble:
         path = Path(path)
         state = {
             "model_names": self.model_names,
+            "n_classes": self.n_classes,
             "coef": self._model.coef_.tolist(),
             "intercept": self._model.intercept_.tolist(),
             "classes": self._model.classes_.tolist(),
@@ -118,6 +165,7 @@ class StackedEnsemble:
         path = Path(path)
         state = json.loads(path.read_text())
         self.model_names = state["model_names"]
+        self.n_classes = state.get("n_classes", 2)
         self._model = LogisticRegression(
             C=state["C"], max_iter=1000, solver="lbfgs"
         )
@@ -135,35 +183,40 @@ def train_meta_learner_loso(
     model_names: list[str],
     ensemble_config: dict,
     extra_features: dict[str, np.ndarray] | None = None,
+    n_classes: int = 2,
 ) -> tuple[StackedEnsemble, Any, dict]:
     """Train stacked meta-learner with LOSO + nested calibrator CV.
 
     Algorithm:
     1. For each training fold (nested CV):
        a. Hold out that fold
-       b. Fit per-model pre-calibration on remaining folds ONLY
-       c. Pre-calibrate both train and val predictions
+       b. Fit per-model pre-calibration on remaining folds ONLY (binary only)
+       c. Pre-calibrate both train and val predictions (binary only)
        d. Train meta-learner on pre-calibrated train predictions
        e. Predict on held-out fold -> OOF meta-learner predictions
-    2. Fit post-calibrator on nested OOF meta-learner predictions (min 20 samples)
-    3. Fit final pre-calibrators on ALL data
+    2. Fit post-calibrator on nested OOF predictions (binary only, min 20 samples)
+    3. Fit final pre-calibrators on ALL data (binary only)
     4. Fit final meta-learner on ALL pre-calibrated data
 
     Parameters
     ----------
-    y_true : array of binary labels
+    y_true : array of labels (binary or integer class labels)
     model_preds : dict mapping model_name -> prediction array
+        For binary: 1D arrays. For multiclass: 2D (n_samples, n_classes).
     prior_diffs : prior difference array
     fold_labels : array of fold identifiers (same length as y_true)
     model_names : list of model names to include
     ensemble_config : dict with keys like meta_learner.C, calibration,
         pre_calibration, spline_prob_max, spline_n_bins
     extra_features : optional dict of extra feature arrays
+    n_classes : number of classes (default 2 for binary)
 
     Returns
     -------
     tuple of (meta_learner, post_calibrator, pre_calibrators_dict)
     """
+    is_multiclass = n_classes > 2
+
     y_true = np.asarray(y_true, dtype=float)
     prior_diffs = np.asarray(prior_diffs, dtype=float)
     fold_labels = np.asarray(fold_labels)
@@ -176,7 +229,11 @@ def train_meta_learner_loso(
     unique_folds = sorted(set(fold_labels))
 
     # Step 1: Nested LOSO for OOF predictions
-    oof_preds = np.full(len(y_true), np.nan)
+    # For multiclass, OOF predictions are 2D; for binary, 1D
+    if is_multiclass:
+        oof_preds = np.full((len(y_true), n_classes), np.nan)
+    else:
+        oof_preds = np.full(len(y_true), np.nan)
 
     for held_out_fold in unique_folds:
         val_mask = fold_labels == held_out_fold
@@ -188,14 +245,16 @@ def train_meta_learner_loso(
             continue
 
         # Step 1b: Fit per-model pre-calibrators on train fold only
+        # Skip pre-calibration for multiclass (calibrators are binary-only)
         fold_pre_cals = {}
-        for model_name in model_names:
-            if model_name in pre_cal_config:
-                method = pre_cal_config[model_name]
-                cal = build_calibrator(method, ensemble_config)
-                if cal is not None and n_train >= 20:
-                    cal.fit(y_true[train_mask], model_preds[model_name][train_mask])
-                    fold_pre_cals[model_name] = cal
+        if not is_multiclass:
+            for model_name in model_names:
+                if model_name in pre_cal_config:
+                    method = pre_cal_config[model_name]
+                    cal = build_calibrator(method, ensemble_config)
+                    if cal is not None and n_train >= 20:
+                        cal.fit(y_true[train_mask], model_preds[model_name][train_mask])
+                        fold_pre_cals[model_name] = cal
 
         # Step 1c: Pre-calibrate train and val predictions
         train_preds = {}
@@ -217,7 +276,7 @@ def train_meta_learner_loso(
             val_extra = {k: v[val_mask] for k, v in extra_features.items()}
 
         # Step 1d: Train meta-learner on train fold
-        fold_meta = StackedEnsemble(model_names)
+        fold_meta = StackedEnsemble(model_names, n_classes=n_classes)
         fold_meta.fit(
             train_preds,
             prior_diffs[train_mask],
@@ -234,22 +293,26 @@ def train_meta_learner_loso(
         )
 
     # Step 2: Fit post-calibrator on nested OOF predictions
-    valid_mask = ~np.isnan(oof_preds)
+    # Skip post-calibration for multiclass (calibrators are binary-only)
     post_calibrator = None
-    if valid_mask.sum() >= 20:
-        post_calibrator = build_calibrator(cal_method, ensemble_config)
-        if post_calibrator is not None:
-            post_calibrator.fit(y_true[valid_mask], oof_preds[valid_mask])
+    if not is_multiclass:
+        valid_mask = ~np.isnan(oof_preds)
+        if valid_mask.sum() >= 20:
+            post_calibrator = build_calibrator(cal_method, ensemble_config)
+            if post_calibrator is not None:
+                post_calibrator.fit(y_true[valid_mask], oof_preds[valid_mask])
 
     # Step 3: Fit final pre-calibrators on ALL data
+    # Skip pre-calibration for multiclass (calibrators are binary-only)
     final_pre_cals: dict[str, Any] = {}
-    for model_name in model_names:
-        if model_name in pre_cal_config:
-            method = pre_cal_config[model_name]
-            cal = build_calibrator(method, ensemble_config)
-            if cal is not None and len(y_true) >= 20:
-                cal.fit(y_true, model_preds[model_name])
-                final_pre_cals[model_name] = cal
+    if not is_multiclass:
+        for model_name in model_names:
+            if model_name in pre_cal_config:
+                method = pre_cal_config[model_name]
+                cal = build_calibrator(method, ensemble_config)
+                if cal is not None and len(y_true) >= 20:
+                    cal.fit(y_true, model_preds[model_name])
+                    final_pre_cals[model_name] = cal
 
     # Step 4: Fit final meta-learner on ALL pre-calibrated data
     all_preds_cal = {}
@@ -259,7 +322,7 @@ def train_meta_learner_loso(
             preds = final_pre_cals[model_name].transform(preds)
         all_preds_cal[model_name] = preds
 
-    final_meta = StackedEnsemble(model_names)
+    final_meta = StackedEnsemble(model_names, n_classes=n_classes)
     final_meta.fit(
         all_preds_cal,
         prior_diffs,

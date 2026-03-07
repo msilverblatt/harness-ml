@@ -37,6 +37,7 @@ from easyml.core.runner.postprocessing import apply_ensemble_postprocessing
 from easyml.core.runner.schema import ModelDef, ProjectConfig
 from easyml.core.runner.stage_guards import PipelineGuards
 from easyml.core.runner.training import (
+    compute_feature_medians,
     predict_single_model,
     train_single_model,
 )
@@ -504,12 +505,14 @@ class PipelineRunner:
                     # If this model provides features, predict on full
                     # data and store for downstream consumers
                     if model_def.provides and model_def.provides_level == "instance":
+                        medians = compute_feature_medians(model_train_df, feature_cols)
                         train_preds = predict_single_model(
                             model=model,
                             model_def=model_def,
                             test_df=model_train_df,
                             feature_columns=feature_cols,
                             cdf_scale=metrics.get("cdf_scale"),
+                            feature_medians=medians,
                         )
                         context.store_instance(
                             model_name, model_def.provides,
@@ -641,12 +644,14 @@ class PipelineRunner:
                     )
 
                     cdf_scale = metrics.get("cdf_scale")
+                    medians = compute_feature_medians(model_train_df, feature_cols)
                     probs = predict_single_model(
                         model=model,
                         model_def=model_def,
                         test_df=model_test_df,
                         feature_columns=feature_cols,
                         cdf_scale=cdf_scale,
+                        feature_medians=medians,
                     )
 
                     # Store provider outputs for downstream consumers
@@ -657,6 +662,7 @@ class PipelineRunner:
                             test_df=model_train_df,
                             feature_columns=feature_cols,
                             cdf_scale=cdf_scale,
+                            feature_medians=medians,
                         )
                         context.store_instance(
                             model_name, model_def.provides,
@@ -900,7 +906,7 @@ class PipelineRunner:
 
         # Pass 2: meta-learner + post-processing
         meta_coefficients = None
-        if ensemble_config["method"] == "stacked" and not self._is_multiclass():
+        if ensemble_config["method"] == "stacked":
             meta_coefficients = self._apply_stacked_ensemble(fold_data, ensemble_config, active_model_names)
         else:
             # Simple average (also used as multiclass fallback)
@@ -1101,6 +1107,13 @@ class PipelineRunner:
                 if col in test_df.columns and col not in preds_df.columns:
                     preds_df[col] = test_df[col].values
 
+        # Pass through columns referenced in eval_filter
+        eval_filter = self.config.backtest.eval_filter
+        if eval_filter:
+            for col in test_df.columns:
+                if col in eval_filter and col not in preds_df.columns:
+                    preds_df[col] = test_df[col].values
+
         # Resolve feature_sets if feature declarations are configured
         resolved_models = dict(active_models)
         if self.config.features:
@@ -1191,12 +1204,15 @@ class PipelineRunner:
                     cdf_scale = metrics.get("cdf_scale")
                     if cdf_scale is not None:
                         self._model_cdf_scales.setdefault(model_name, []).append(cdf_scale)
+                    # Compute training-data medians for NaN imputation
+                    medians = compute_feature_medians(model_train_df, feature_cols)
                     probs = predict_single_model(
                         model=model,
                         model_def=model_def,
                         test_df=model_test_df,
                         feature_columns=feature_cols,
                         cdf_scale=cdf_scale,
+                        feature_medians=medians,
                     )
 
                     # If this model provides features, predict on train
@@ -1209,6 +1225,7 @@ class PipelineRunner:
                                 test_df=model_train_df,
                                 feature_columns=feature_cols,
                                 cdf_scale=cdf_scale,
+                                feature_medians=medians,
                             )
                             context.store_instance(
                                 model_name,
@@ -1273,7 +1290,7 @@ class PipelineRunner:
         fold_data: dict[int, pd.DataFrame],
         ensemble_config: dict,
         active_model_names: list[str],
-    ) -> dict[str, float] | None:
+    ) -> dict[str, float] | dict[str, dict[str, float]] | None:
         """Apply stacked meta-learner via LOSO to all holdout folds.
 
         For each holdout fold, train the meta-learner on all OTHER
@@ -1282,6 +1299,7 @@ class PipelineRunner:
         Returns the meta-learner coefficients from the last fold,
         or None if no meta-learner was trained.
         """
+        is_multiclass = self._is_multiclass()
         holdout_folds = sorted(fold_data.keys())
         last_meta = None
 
@@ -1290,16 +1308,26 @@ class PipelineRunner:
             train_folds = [s for s in holdout_folds if s != holdout]
 
             if not train_folds:
-                # Only one fold — fall back to simple average
-                prob_cols = [
-                    c for c in fold_data[holdout].columns
-                    if c.startswith("prob_")
-                ]
-                if prob_cols:
-                    fold_data[holdout] = fold_data[holdout].copy()
-                    fold_data[holdout]["prob_ensemble"] = (
-                        fold_data[holdout][prob_cols].mean(axis=1)
-                    )
+                # Only one fold -- fall back to simple average
+                fold_data[holdout] = fold_data[holdout].copy()
+                if is_multiclass:
+                    all_class_cols = [c for c in fold_data[holdout].columns if "_c" in c and c.startswith("prob_")]
+                    if all_class_cols:
+                        class_indices = sorted(set(c.split("_c")[-1] for c in all_class_cols))
+                        for cls_idx in class_indices:
+                            model_cols = [c for c in all_class_cols if c.endswith(f"_c{cls_idx}")]
+                            fold_data[holdout][f"prob_ensemble_c{cls_idx}"] = fold_data[holdout][model_cols].mean(axis=1)
+                        ensemble_class_cols = [f"prob_ensemble_c{ci}" for ci in class_indices]
+                        fold_data[holdout]["prob_ensemble"] = fold_data[holdout][ensemble_class_cols].values.argmax(axis=1).astype(float)
+                else:
+                    prob_cols = [
+                        c for c in fold_data[holdout].columns
+                        if c.startswith("prob_")
+                    ]
+                    if prob_cols:
+                        fold_data[holdout]["prob_ensemble"] = (
+                            fold_data[holdout][prob_cols].mean(axis=1)
+                        )
                 continue
 
             meta, cal, pre_cals = self._train_meta_for_fold(
@@ -1308,13 +1336,19 @@ class PipelineRunner:
             )
             last_meta = meta
 
-            fold_data[holdout] = apply_ensemble_postprocessing(
-                fold_data[holdout],
-                meta,
-                cal,
-                ensemble_config,
-                pre_calibrators=pre_cals,
-            )
+            if is_multiclass:
+                # For multiclass, apply meta-learner directly (skip binary postprocessing)
+                fold_data[holdout] = self._apply_multiclass_meta(
+                    fold_data[holdout], meta, active_model_names,
+                )
+            else:
+                fold_data[holdout] = apply_ensemble_postprocessing(
+                    fold_data[holdout],
+                    meta,
+                    cal,
+                    ensemble_config,
+                    pre_calibrators=pre_cals,
+                )
 
         # Extract coefficients from the last trained meta-learner
         if last_meta is not None:
@@ -1323,6 +1357,36 @@ class PipelineRunner:
             except Exception:
                 return None
         return None
+
+    def _apply_multiclass_meta(
+        self,
+        df: pd.DataFrame,
+        meta: "StackedEnsemble",
+        active_model_names: list[str],
+    ) -> pd.DataFrame:
+        """Apply multiclass meta-learner predictions to a fold DataFrame.
+
+        Builds the per-class model_preds dict, runs meta.predict(),
+        and stores prob_ensemble_c{i} and prob_ensemble columns.
+        """
+        n_classes = meta.n_classes
+        model_preds = {}
+        for name in active_model_names:
+            class_cols = [f"prob_{name}_c{i}" for i in range(n_classes)]
+            if all(c in df.columns for c in class_cols):
+                model_preds[name] = df[class_cols].values
+
+        if not model_preds:
+            return df
+
+        prior_diffs = df["diff_prior"].values.astype(float) if "diff_prior" in df.columns else np.zeros(len(df))
+
+        probs = meta.predict(model_preds, prior_diffs)
+        df = df.copy()
+        for cls_idx in range(n_classes):
+            df[f"prob_ensemble_c{cls_idx}"] = probs[:, cls_idx]
+        df["prob_ensemble"] = probs.argmax(axis=1).astype(float)
+        return df
 
     def _train_meta_for_fold(
         self,
@@ -1339,30 +1403,57 @@ class PipelineRunner:
 
         Returns (meta_learner, calibrator, pre_calibrators).
         """
+        is_multiclass = self._is_multiclass()
         fold_col = self.config.backtest.fold_column
 
         # Collect training data from non-holdout folds
         train_dfs = [fold_data[s] for s in train_folds]
         train_combined = pd.concat(train_dfs, ignore_index=True)
 
-        # Determine which model columns are actually present
-        available_models = [
-            name for name in active_model_names
-            if f"prob_{name}" in train_combined.columns
-        ]
+        if is_multiclass:
+            # Detect n_classes from per-class columns
+            all_class_cols = [c for c in train_combined.columns if "_c" in c and c.startswith("prob_")]
+            class_indices = sorted(set(c.split("_c")[-1] for c in all_class_cols))
+            n_classes = len(class_indices)
 
-        if not available_models:
-            raise ValueError("No model predictions available for meta-learner training")
+            # Determine which models have all class columns
+            available_models = [
+                name for name in active_model_names
+                if all(f"prob_{name}_c{i}" in train_combined.columns for i in range(n_classes))
+            ]
 
-        # Build model_preds dict
-        model_preds = {
-            name: train_combined[f"prob_{name}"].values
-            for name in available_models
-        }
+            if not available_models:
+                raise ValueError("No model predictions available for meta-learner training")
+
+            # Build model_preds dict with 2D arrays (n_samples, n_classes)
+            model_preds = {}
+            for name in available_models:
+                class_cols = [f"prob_{name}_c{i}" for i in range(n_classes)]
+                model_preds[name] = train_combined[class_cols].values
+        else:
+            n_classes = 2
+            # Determine which model columns are actually present
+            available_models = [
+                name for name in active_model_names
+                if f"prob_{name}" in train_combined.columns
+            ]
+
+            if not available_models:
+                raise ValueError("No model predictions available for meta-learner training")
+
+            # Build model_preds dict
+            model_preds = {
+                name: train_combined[f"prob_{name}"].values
+                for name in available_models
+            }
 
         target_col = self.config.data.target_column
         y_true = train_combined[target_col].values.astype(float)
-        prior_diffs = train_combined["diff_prior"].values.astype(float)
+        prior_diffs = (
+            train_combined["diff_prior"].values.astype(float)
+            if "diff_prior" in train_combined.columns
+            else np.zeros(len(train_combined))
+        )
         fold_labels = train_combined[fold_col].values
 
         # Extra features
@@ -1382,6 +1473,7 @@ class PipelineRunner:
             model_names=available_models,
             ensemble_config=ensemble_config,
             extra_features=extra_features if extra_features else None,
+            n_classes=n_classes,
         )
 
         return meta, cal, pre_cals
@@ -1404,15 +1496,22 @@ class PipelineRunner:
             return self._compute_multiclass_metrics(fold_data, active_model_names)
 
         bt_config = self.config.backtest
+        eval_filter = bt_config.eval_filter
 
         per_fold_data: dict[int, dict] = {}
         for fold_id, df in sorted(fold_data.items()):
             if "prob_ensemble" not in df.columns:
                 continue
 
+            eval_df = df
+            if eval_filter:
+                eval_df = df.query(eval_filter)
+                if len(eval_df) == 0:
+                    continue
+
             per_fold_data[fold_id] = {
-                "preds": {"ensemble": df["prob_ensemble"].values},
-                "y": df[self.config.data.target_column].values.astype(float),
+                "preds": {"ensemble": eval_df["prob_ensemble"].values},
+                "y": eval_df[self.config.data.target_column].values.astype(float),
             }
 
         if not per_fold_data:
