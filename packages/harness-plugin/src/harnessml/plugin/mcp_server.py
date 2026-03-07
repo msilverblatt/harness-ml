@@ -11,11 +11,22 @@ import functools
 import importlib
 import json
 import os
+import time as _time
 
 from mcp.server.fastmcp import Context, FastMCP
 
 mcp = FastMCP("harnessml")
 _DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
+
+_emitter = None
+
+
+def _get_emitter():
+    global _emitter
+    if _emitter is None:
+        from harnessml.plugin.event_emitter import create_emitter
+        _emitter = create_emitter()
+    return _emitter
 
 
 def _load_handler(module_name: str):
@@ -30,17 +41,51 @@ def _safe_tool(fn):
     """Wrap a tool function so unhandled exceptions become markdown errors."""
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
+        tool_name = fn.__name__
+        action = kwargs.get("action", "")
+        start = _time.monotonic()
         try:
             result = fn(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
+            elapsed = int((_time.monotonic() - start) * 1000)
+            _get_emitter().emit(
+                tool=tool_name, action=action,
+                params={k: v for k, v in kwargs.items() if k != "ctx"},
+                result=result[:2000] if isinstance(result, str) else str(result)[:2000],
+                duration_ms=elapsed, status="success",
+            )
             return result
         except json.JSONDecodeError as e:
-            return f"**Error**: Invalid JSON input: {e}"
+            error_result = f"**Error**: Invalid JSON input: {e}"
+            elapsed = int((_time.monotonic() - start) * 1000)
+            _get_emitter().emit(
+                tool=tool_name, action=action,
+                params={k: v for k, v in kwargs.items() if k != "ctx"},
+                result=error_result[:2000],
+                duration_ms=elapsed, status="error",
+            )
+            return error_result
         except ValueError as e:
-            return f"**Error**: {e}"
+            error_result = f"**Error**: {e}"
+            elapsed = int((_time.monotonic() - start) * 1000)
+            _get_emitter().emit(
+                tool=tool_name, action=action,
+                params={k: v for k, v in kwargs.items() if k != "ctx"},
+                result=error_result[:2000],
+                duration_ms=elapsed, status="error",
+            )
+            return error_result
         except Exception as e:
-            return f"**Error**: Unexpected error in `{fn.__name__}`: {e}"
+            error_result = f"**Error**: Unexpected error in `{fn.__name__}`: {e}"
+            elapsed = int((_time.monotonic() - start) * 1000)
+            _get_emitter().emit(
+                tool=tool_name, action=action,
+                params={k: v for k, v in kwargs.items() if k != "ctx"},
+                result=error_result[:2000],
+                duration_ms=elapsed, status="error",
+            )
+            return error_result
     return wrapper
 
 
