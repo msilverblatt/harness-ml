@@ -15,7 +15,7 @@ class BaseModel(ABC):
         self._fitted = False
 
     @abstractmethod
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
         """Train on data."""
         ...
 

@@ -56,11 +56,13 @@ class XGBoostModel(BaseModel):
 
             self._model = XGBRegressor(**clean_params)
 
-    def fit(self, X: np.ndarray, y: np.ndarray, **kwargs) -> None:
+    def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
         if "eval_set" in kwargs and self._early_stopping:
             # Caller provided eval_set — re-enable early stopping via constructor param
             self._model.set_params(early_stopping_rounds=self._early_stopping)
             kwargs.setdefault("verbose", False)
+        if sample_weight is not None:
+            kwargs["sample_weight"] = sample_weight
         self._model.fit(X, y, **kwargs)
         self._fitted = True
 
