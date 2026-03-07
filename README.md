@@ -73,13 +73,18 @@ uv run pytest  # 1983 tests
 │    harness-plugin      │       harness-sports           │
 │    MCP server          │       domain plugin            │
 │    hot-reload handlers │       matchup prediction       │
-└────────────────────────┴────────────────────────────────┘
+├────────────────────────┴────────────────────────────────┤
+│                    harness-studio                       │
+│    companion dashboard · real-time observability        │
+│    FastAPI + React · Activity · DAG · Experiments       │
+└─────────────────────────────────────────────────────────┘
 ```
 
 | Package | What it does |
 |---------|-------------|
 | **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, metrics, data sources |
 | **harness-plugin** | MCP server with hot-reloadable handlers — change handler code, no restart needed |
+| **harness-studio** | Companion web dashboard — live activity log, pipeline DAG, experiment history, diagnostics |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
 
 <br>
@@ -155,6 +160,23 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 - **Feature diversity** — overlap matrix, diversity score, redundant detection
 - **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
 - **Workflow tracking** — phased gates ensure feature discovery and model diversity before tuning
+</details>
+
+<details>
+<summary><b>Studio Dashboard</b></summary>
+<br>
+
+Companion web UI providing real-time observability while the agent works:
+
+- **Activity** — live event log with stat boxes (project, experiments, tool calls, errors)
+- **DAG** — interactive pipeline topology (React Flow) with custom nodes per stage
+- **Experiments** — sortable table, metric trend charts, side-by-side comparison
+- **Diagnostics** — all 45 metrics grouped by category, calibration plots, model correlation heatmap
+
+```bash
+uv run harness-studio --project-dir examples/titanic
+# → http://localhost:8421
+```
 </details>
 
 <details>
@@ -277,10 +299,20 @@ pipeline(action="progress")
 uv sync                                          # install workspace
 uv run pytest packages/harness-core/tests/ -q    # core tests
 uv run pytest packages/harness-sports/tests/ -q  # sports plugin tests
+uv run pytest packages/harness-studio/tests/ -q  # studio tests
 uv run pytest -v                                 # verbose, all tests
 ```
 
-Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv).
+### Studio Frontend Development
+
+```bash
+cd packages/harness-studio/frontend
+bun install
+bun run dev                                      # Vite dev server on :5173
+bash ../scripts/build_frontend.sh                # build + copy to Python package
+```
+
+Requires Python 3.11+. Managed by [uv](https://github.com/astral-sh/uv). Studio frontend uses [bun](https://bun.sh/).
 
 ## License
 
