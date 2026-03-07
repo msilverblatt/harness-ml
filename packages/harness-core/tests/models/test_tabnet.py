@@ -172,10 +172,10 @@ class TestScheduler:
 
             model.fit(X, y)
 
-            call_kwargs = mock_instance.fit.call_args[1]
-            assert "scheduler_params" in call_kwargs
-            assert call_kwargs["scheduler_params"]["step_size"] == 10
-            assert call_kwargs["scheduler_params"]["gamma"] == 0.9
+            init_kwargs = MockCls.call_args[1]
+            assert "scheduler_params" in init_kwargs
+            assert init_kwargs["scheduler_params"]["step_size"] == 10
+            assert init_kwargs["scheduler_params"]["gamma"] == 0.9
 
     def test_scheduler_not_set_by_default(self, tabnet_data):
         """Without scheduler params, scheduler_params should not be passed."""
