@@ -1536,6 +1536,24 @@ def check_guardrails(project_dir: Path) -> str:
     else:
         results.append(("Feature Leakage", "SKIP", "No denylist configured"))
 
+    # 1b. Auto-detect leaky features (name patterns + correlation)
+    try:
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        from easyml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+
+        config = load_data_config(project_dir)
+        df = get_features_df(project_dir, config)
+        feature_cols = get_feature_columns(df, config)
+        leaky = detect_leaky_columns(
+            feature_cols, target_column=config.target_column, df=df, corr_threshold=0.90
+        )
+        if leaky:
+            results.append(("Auto-Leakage Detection", "WARN", f"Suspicious columns: {leaky}"))
+        else:
+            results.append(("Auto-Leakage Detection", "PASS", "No suspicious patterns or high correlations"))
+    except Exception:
+        results.append(("Auto-Leakage Detection", "SKIP", "Could not load features for analysis"))
+
     # 2. Naming convention check
     naming_pattern = guardrail_config.get("naming_pattern")
     if naming_pattern:

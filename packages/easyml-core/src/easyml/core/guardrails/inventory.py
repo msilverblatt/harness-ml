@@ -19,6 +19,53 @@ from typing import Any
 
 from easyml.core.guardrails.base import Guardrail, GuardrailError
 
+_LEAKY_PATTERNS = [
+    re.compile(r"^future_"),
+    re.compile(r"^target_"),
+    re.compile(r"^label_"),
+    re.compile(r"^result_"),
+    re.compile(r"^outcome_"),
+]
+
+
+def detect_leaky_columns(
+    columns: list[str],
+    target_column: str,
+    *,
+    df=None,
+    corr_threshold: float = 0.90,
+) -> list[str]:
+    """Detect potentially leaky feature columns.
+
+    1. Name-based: columns matching suspicious patterns (future_*, result_*, etc.)
+    2. Correlation-based: columns with |corr| > threshold with target (if df provided)
+    """
+    flagged = []
+    for col in columns:
+        if col == target_column:
+            continue
+        for pat in _LEAKY_PATTERNS:
+            if pat.search(col):
+                flagged.append(col)
+                break
+
+    if df is not None and target_column in df.columns:
+        for col in columns:
+            if col in flagged or col == target_column:
+                continue
+            if col not in df.columns:
+                continue
+            if df[col].dtype.kind not in ("f", "i", "u"):
+                continue
+            try:
+                corr = abs(df[target_column].corr(df[col]))
+                if corr > corr_threshold:
+                    flagged.append(col)
+            except Exception:
+                pass
+
+    return flagged
+
 
 # ---------------------------------------------------------------------------
 # 1. SanityCheckGuardrail (overridable)

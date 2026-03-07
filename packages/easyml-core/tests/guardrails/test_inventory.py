@@ -478,3 +478,55 @@ class TestFeatureDiversityGuardrail:
         }
         with pytest.raises(GuardrailError, match="manage_features.*diversity"):
             g.check(context=ctx)
+
+
+# ---------------------------------------------------------------------------
+# 13. Auto-Leakage Detection (detect_leaky_columns)
+# ---------------------------------------------------------------------------
+
+
+class TestAutoLeakageDetection:
+    def test_name_pattern_detection(self):
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        columns = ["feat_a", "future_return_5d", "result_20d", "target_spread", "rsi_14"]
+        target = "result"
+        flagged = detect_leaky_columns(columns, target_column=target)
+        assert "future_return_5d" in flagged
+        assert "result_20d" in flagged
+        assert "rsi_14" not in flagged
+
+    def test_target_prefix_detection(self):
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        columns = ["target_spread", "target_total", "clean_feature"]
+        flagged = detect_leaky_columns(columns, target_column="result")
+        assert "target_spread" in flagged
+        assert "target_total" in flagged
+        assert "clean_feature" not in flagged
+
+    def test_correlation_detection(self):
+        import pandas as pd
+        import numpy as np
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        rng = np.random.default_rng(42)
+        target = rng.integers(0, 2, size=1000)
+        df = pd.DataFrame({
+            "target": target,
+            "leaky": target + rng.normal(0, 0.01, size=1000),
+            "clean": rng.normal(size=1000),
+        })
+        flagged = detect_leaky_columns(
+            ["leaky", "clean"], target_column="target", df=df, corr_threshold=0.9
+        )
+        assert "leaky" in flagged
+        assert "clean" not in flagged
+
+    def test_skips_target_column_itself(self):
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        columns = ["result", "feat_a"]
+        flagged = detect_leaky_columns(columns, target_column="result")
+        assert "result" not in flagged
+
+    def test_no_df_skips_correlation(self):
+        from easyml.core.guardrails.inventory import detect_leaky_columns
+        flagged = detect_leaky_columns(["feat_a", "feat_b"], target_column="result")
+        assert flagged == []
