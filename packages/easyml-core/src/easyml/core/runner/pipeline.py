@@ -252,6 +252,10 @@ class PipelineRunner:
         """Return a copy of the cache hit/miss stats."""
         return dict(self._cache_stats)
 
+    def _is_multiclass(self) -> bool:
+        """Return True if the configured task type is multiclass."""
+        return self.config is not None and self.config.data.task == "multiclass"
+
     def load(self) -> None:
         """Validate config and set up ModelRegistry.
 
@@ -660,7 +664,11 @@ class PipelineRunner:
                         )
 
                     if model_def.include_in_ensemble:
-                        preds_df[f"prob_{model_name}"] = probs
+                        if self._is_multiclass() and hasattr(probs, 'ndim') and probs.ndim == 2:
+                            for cls_idx in range(probs.shape[1]):
+                                preds_df[f"prob_{model_name}_c{cls_idx}"] = probs[:, cls_idx]
+                        else:
+                            preds_df[f"prob_{model_name}"] = probs
 
                     trained_count += 1
 
@@ -681,32 +689,49 @@ class PipelineRunner:
 
         # Train meta-learner on backtest data and apply ensemble
         ensemble_config = self.config.ensemble.model_dump()
-        active_model_names = [
-            name for name in active_models
-            if f"prob_{name}" in preds_df.columns
-        ]
 
-        if ensemble_config["method"] == "stacked" and self.config.data.target_column in self._df.columns:
-            try:
-                # Generate backtest predictions for meta-learner training
-                bt_data = self._generate_backtest_for_meta(fold_value, active_models)
-                if bt_data:
-                    meta, cal, pre_cals = self._train_production_meta(
-                        bt_data, ensemble_config, active_model_names,
-                    )
-                    preds_df = apply_ensemble_postprocessing(
-                        preds_df, meta, cal, ensemble_config,
-                        pre_calibrators=pre_cals,
-                    )
-                else:
-                    # Fall back to simple average
-                    preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
-            except Exception:
-                logger.exception("Meta-learner training failed, falling back to average")
-                preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+        if self._is_multiclass():
+            # Multiclass: find models that have per-class columns
+            active_model_names = [
+                name for name in active_models
+                if any(c.startswith(f"prob_{name}_c") for c in preds_df.columns)
+            ]
+            # Average across models per class
+            all_class_cols = [c for c in preds_df.columns if "_c" in c and c.startswith("prob_")]
+            if all_class_cols:
+                class_indices = sorted(set(c.split("_c")[-1] for c in all_class_cols))
+                for cls_idx in class_indices:
+                    model_cols = [c for c in all_class_cols if c.endswith(f"_c{cls_idx}")]
+                    preds_df[f"prob_ensemble_c{cls_idx}"] = preds_df[model_cols].mean(axis=1)
+                ensemble_class_cols = [f"prob_ensemble_c{ci}" for ci in class_indices]
+                preds_df["prob_ensemble"] = preds_df[ensemble_class_cols].values.argmax(axis=1).astype(float)
         else:
-            # Simple average
-            preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+            active_model_names = [
+                name for name in active_models
+                if f"prob_{name}" in preds_df.columns
+            ]
+
+            if ensemble_config["method"] == "stacked" and self.config.data.target_column in self._df.columns:
+                try:
+                    # Generate backtest predictions for meta-learner training
+                    bt_data = self._generate_backtest_for_meta(fold_value, active_models)
+                    if bt_data:
+                        meta, cal, pre_cals = self._train_production_meta(
+                            bt_data, ensemble_config, active_model_names,
+                        )
+                        preds_df = apply_ensemble_postprocessing(
+                            preds_df, meta, cal, ensemble_config,
+                            pre_calibrators=pre_cals,
+                        )
+                    else:
+                        # Fall back to simple average
+                        preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+                except Exception:
+                    logger.exception("Meta-learner training failed, falling back to average")
+                    preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
+            else:
+                # Simple average
+                preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
 
         return preds_df
 
@@ -875,20 +900,29 @@ class PipelineRunner:
 
         # Pass 2: meta-learner + post-processing
         meta_coefficients = None
-        if ensemble_config["method"] == "stacked":
+        if ensemble_config["method"] == "stacked" and not self._is_multiclass():
             meta_coefficients = self._apply_stacked_ensemble(fold_data, ensemble_config, active_model_names)
         else:
-            # Simple average
+            # Simple average (also used as multiclass fallback)
             for holdout in fold_data:
-                prob_cols = [
-                    c for c in fold_data[holdout].columns
-                    if c.startswith("prob_")
-                ]
-                if prob_cols:
-                    fold_data[holdout] = fold_data[holdout].copy()
-                    fold_data[holdout]["prob_ensemble"] = (
-                        fold_data[holdout][prob_cols].mean(axis=1)
-                    )
+                fold_data[holdout] = fold_data[holdout].copy()
+                if self._is_multiclass():
+                    # Find all per-class columns and average across models
+                    all_class_cols = [c for c in fold_data[holdout].columns if "_c" in c and c.startswith("prob_")]
+                    if all_class_cols:
+                        class_indices = sorted(set(c.split("_c")[-1] for c in all_class_cols))
+                        for cls_idx in class_indices:
+                            model_cols = [c for c in all_class_cols if c.endswith(f"_c{cls_idx}")]
+                            fold_data[holdout][f"prob_ensemble_c{cls_idx}"] = fold_data[holdout][model_cols].mean(axis=1)
+                        # Argmax for ensemble class prediction
+                        ensemble_class_cols = [f"prob_ensemble_c{ci}" for ci in class_indices]
+                        fold_data[holdout]["prob_ensemble"] = fold_data[holdout][ensemble_class_cols].values.argmax(axis=1).astype(float)
+                else:
+                    prob_cols = [c for c in fold_data[holdout].columns if c.startswith("prob_")]
+                    if prob_cols:
+                        fold_data[holdout]["prob_ensemble"] = (
+                            fold_data[holdout][prob_cols].mean(axis=1)
+                        )
 
         result = self._compute_backtest_metrics(fold_data, active_model_names)
 
@@ -930,14 +964,18 @@ class PipelineRunner:
             generate_markdown_report,
         )
 
-        # Build per-fold diagnostics
-        diagnostics_df = build_diagnostics_report(fold_data)
+        # Build per-fold diagnostics (binary-only; multiclass uses its own metrics)
+        if not self._is_multiclass():
+            diagnostics_df = build_diagnostics_report(fold_data)
+        else:
+            diagnostics_df = pd.DataFrame()
 
-        # Build combined pick log across folds
+        # Build combined pick log across folds (binary-only)
         pick_logs = []
-        for fold_id, df in sorted(fold_data.items()):
-            if "prob_ensemble" in df.columns:
-                pick_logs.append(build_pick_log(df, fold_id))
+        if not self._is_multiclass():
+            for fold_id, df in sorted(fold_data.items()):
+                if "prob_ensemble" in df.columns:
+                    pick_logs.append(build_pick_log(df, fold_id))
         pick_log = pd.concat(pick_logs, ignore_index=True) if pick_logs else pd.DataFrame()
 
         # Wrap pooled metrics for generate_markdown_report
@@ -1112,13 +1150,24 @@ class PipelineRunner:
                     cached = self._pred_cache.lookup(
                         model_name, test_fold, fp,
                     )
-                    if cached is not None and "prediction" in cached.columns:
-                        self._cache_stats["hits"] += 1
-                        if model_def.include_in_ensemble:
-                            preds_df[f"prob_{model_name}"] = (
-                                cached["prediction"].values
-                            )
-                        continue
+                    if cached is not None:
+                        if "prediction" in cached.columns:
+                            # Binary cached prediction
+                            self._cache_stats["hits"] += 1
+                            if model_def.include_in_ensemble:
+                                preds_df[f"prob_{model_name}"] = (
+                                    cached["prediction"].values
+                                )
+                            continue
+                        elif any(c.startswith("prediction_c") for c in cached.columns):
+                            # Multiclass cached prediction
+                            self._cache_stats["hits"] += 1
+                            if model_def.include_in_ensemble:
+                                pred_cols = sorted([c for c in cached.columns if c.startswith("prediction_c")])
+                                for pc in pred_cols:
+                                    cls_idx = pc.replace("prediction_c", "")
+                                    preds_df[f"prob_{model_name}_c{cls_idx}"] = cached[pc].values
+                            continue
 
                 # Inject provider features from upstream models
                 model_train_df = context.inject(
@@ -1181,7 +1230,11 @@ class PipelineRunner:
                         self._pred_cache is not None
                         and not model_def.provides
                     ):
-                        cache_df = pd.DataFrame({"prediction": probs})
+                        if self._is_multiclass() and hasattr(probs, 'ndim') and probs.ndim == 2:
+                            cache_data = {f"prediction_c{i}": probs[:, i] for i in range(probs.shape[1])}
+                            cache_df = pd.DataFrame(cache_data)
+                        else:
+                            cache_df = pd.DataFrame({"prediction": probs})
                         self._pred_cache.store(
                             model_name, test_fold, fp, cache_df,
                         )
@@ -1189,7 +1242,11 @@ class PipelineRunner:
 
                     # Only add to ensemble predictions if included
                     if model_def.include_in_ensemble:
-                        preds_df[f"prob_{model_name}"] = probs
+                        if self._is_multiclass() and hasattr(probs, 'ndim') and probs.ndim == 2:
+                            for cls_idx in range(probs.shape[1]):
+                                preds_df[f"prob_{model_name}_c{cls_idx}"] = probs[:, cls_idx]
+                        else:
+                            preds_df[f"prob_{model_name}"] = probs
 
                 except Exception as exc:
                     logger.exception(
@@ -1340,8 +1397,12 @@ class PipelineRunner:
     ) -> dict[str, Any]:
         """Compute pooled and per-fold metrics from fold_data.
 
-        Uses BacktestRunner from easyml-models.
+        Uses BacktestRunner from easyml-models for binary tasks,
+        and sklearn metrics directly for multiclass tasks.
         """
+        if self._is_multiclass():
+            return self._compute_multiclass_metrics(fold_data, active_model_names)
+
         bt_config = self.config.backtest
 
         per_fold_data: dict[int, dict] = {}
@@ -1372,6 +1433,62 @@ class PipelineRunner:
                 fold_id: metrics
                 for fold_id, metrics in bt_result.per_fold_metrics.items()
             },
+            "models_trained": active_model_names,
+        }
+
+    def _compute_multiclass_metrics(
+        self,
+        fold_data: dict[int, pd.DataFrame],
+        active_model_names: list[str],
+    ) -> dict[str, Any]:
+        """Compute multiclass metrics directly using sklearn."""
+        from sklearn.metrics import accuracy_score, log_loss as sklearn_log_loss, f1_score
+
+        target_col = self.config.data.target_column
+        combined = pd.concat(list(fold_data.values()), ignore_index=True)
+        y_true = combined[target_col].values.astype(int)
+
+        # Get ensemble class probabilities
+        ensemble_class_cols = sorted([c for c in combined.columns if c.startswith("prob_ensemble_c")])
+
+        metrics = {}
+        if ensemble_class_cols:
+            y_prob = combined[ensemble_class_cols].values
+            y_pred = y_prob.argmax(axis=1)
+            metrics["accuracy"] = float(accuracy_score(y_true, y_pred))
+            try:
+                metrics["log_loss"] = float(sklearn_log_loss(y_true, y_prob))
+            except Exception:
+                pass
+            try:
+                metrics["f1_macro"] = float(f1_score(y_true, y_pred, average="macro"))
+            except Exception:
+                pass
+            try:
+                metrics["f1_weighted"] = float(f1_score(y_true, y_pred, average="weighted"))
+            except Exception:
+                pass
+
+        # Per-fold metrics
+        per_fold = {}
+        for fold_id, df in sorted(fold_data.items()):
+            fold_y = df[target_col].values.astype(int)
+            fold_class_cols = sorted([c for c in df.columns if c.startswith("prob_ensemble_c")])
+            if fold_class_cols:
+                fold_prob = df[fold_class_cols].values
+                fold_pred = fold_prob.argmax(axis=1)
+                per_fold[fold_id] = {
+                    "accuracy": float(accuracy_score(fold_y, fold_pred)),
+                }
+                try:
+                    per_fold[fold_id]["log_loss"] = float(sklearn_log_loss(fold_y, fold_prob))
+                except Exception:
+                    pass
+
+        return {
+            "status": "success",
+            "metrics": metrics,
+            "per_fold": per_fold,
             "models_trained": active_model_names,
         }
 
