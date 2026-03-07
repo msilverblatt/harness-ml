@@ -2379,14 +2379,14 @@ def compare_runs(
         if not rd.exists():
             return f"**Error**: Run '{rd.name}' not found."
 
-    metrics_a = _load_run_metrics(run_dir_a)
-    metrics_b = _load_run_metrics(run_dir_b)
+    metrics_a = _load_run_metrics_raw(run_dir_a)
+    metrics_b = _load_run_metrics_raw(run_dir_b)
 
     return _format_comparison_table(run_dir_a.name, metrics_a, run_dir_b.name, metrics_b)
 
 
-def _load_run_metrics(run_dir: Path) -> dict[str, float]:
-    """Load numeric metrics from a run directory."""
+def _load_run_metrics_raw(run_dir: Path) -> dict[str, float]:
+    """Load numeric metrics from a run directory (raw float values)."""
     metrics_path = run_dir / "pooled_metrics.json"
     if metrics_path.exists():
         raw = json.loads(metrics_path.read_text())
