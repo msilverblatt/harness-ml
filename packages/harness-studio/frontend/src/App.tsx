@@ -5,10 +5,7 @@ import { Layout } from './components/Layout/Layout';
 import { Activity } from './views/Activity/Activity';
 import { DAG } from './views/DAG/DAG';
 import { Experiments } from './views/Experiments/Experiments';
-
-function Placeholder({ name }: { name: string }) {
-    return <div style={{ padding: 'var(--space-4)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)' }}>{name}</div>;
-}
+import { Diagnostics } from './views/Diagnostics/Diagnostics';
 
 function App() {
     return (
@@ -18,7 +15,7 @@ function App() {
                     <Route index element={<Activity />} />
                     <Route path="dag" element={<DAG />} />
                     <Route path="experiments" element={<Experiments />} />
-                    <Route path="diagnostics" element={<Placeholder name="Diagnostics" />} />
+                    <Route path="diagnostics" element={<Diagnostics />} />
                 </Route>
             </Routes>
         </BrowserRouter>
