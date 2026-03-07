@@ -12,7 +12,7 @@ instead of relying solely on column-name heuristics.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd

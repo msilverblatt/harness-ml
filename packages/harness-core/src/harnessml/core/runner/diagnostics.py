@@ -333,6 +333,7 @@ def evaluate_fold_predictions_multiclass(
         Each dict has: model, fold, accuracy, log_loss, f1_macro.
     """
     import re
+
     from sklearn.metrics import accuracy_score, f1_score
     from sklearn.metrics import log_loss as sklearn_log_loss
 
@@ -409,6 +410,7 @@ def compute_pooled_metrics_multiclass(
         Each metric dict has: accuracy, log_loss, f1_macro, n_samples.
     """
     import re
+
     from sklearn.metrics import accuracy_score, f1_score
     from sklearn.metrics import log_loss as sklearn_log_loss
 

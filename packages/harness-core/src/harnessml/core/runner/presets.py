@@ -8,7 +8,6 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-
 _PRESETS: dict[str, dict[str, Any]] = {
     "xgboost_classifier": {
         "type": "xgboost",

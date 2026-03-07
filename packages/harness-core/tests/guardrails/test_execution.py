@@ -2,8 +2,6 @@
 
 import sys
 
-import pytest
-
 from harnessml.core.guardrails.execution import run_pipeline_command
 
 

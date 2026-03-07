@@ -2,13 +2,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 import yaml
-
 from harnessml.core.runner.workflow_tracker import WorkflowGateError, WorkflowStatus, WorkflowTracker
-
 
 # ---------------------------------------------------------------------------
 # WorkflowStatus unit tests

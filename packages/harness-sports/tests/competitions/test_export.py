@@ -6,7 +6,6 @@ import json
 
 import pandas as pd
 import pytest
-
 from harnessml.sports.competitions.export import (
     export_analysis_report,
     export_bracket_markdown,
@@ -22,7 +21,6 @@ from harnessml.sports.competitions.schemas import (
     MatchupContext,
     StandingsEntry,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

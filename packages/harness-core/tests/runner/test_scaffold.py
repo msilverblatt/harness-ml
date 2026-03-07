@@ -1,15 +1,11 @@
 """Tests for project scaffolding (harnessml init)."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from click.testing import CliRunner
-
 from harnessml.core.runner.cli import main
 from harnessml.core.runner.scaffold import scaffold_project
 from harnessml.core.runner.validator import validate_project
-
 
 # -----------------------------------------------------------------------
 # Tests: scaffold_project

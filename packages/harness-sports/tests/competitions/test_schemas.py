@@ -1,8 +1,6 @@
 """Tests for competition engine schemas."""
 
 import pytest
-from pydantic import ValidationError
-
 from harnessml.sports.competitions.schemas import (
     AdjustmentConfig,
     CompetitionConfig,
@@ -17,7 +15,7 @@ from harnessml.sports.competitions.schemas import (
     SeedingMode,
     StandingsEntry,
 )
-
+from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -346,18 +344,8 @@ class TestAdjustmentConfig:
 class TestReExports:
     def test_all_importable_from_init(self):
         from harnessml.sports.competitions import (
-            AdjustmentConfig,
-            CompetitionConfig,
             CompetitionFormat,
-            CompetitionResult,
-            CompetitionStructure,
-            GroupConfig,
-            KnockoutConfig,
-            MatchupContext,
-            ScoreResult,
-            ScoringConfig,
             SeedingMode,
-            StandingsEntry,
         )
 
         assert CompetitionFormat.single_elimination == "single_elimination"

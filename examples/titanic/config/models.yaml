@@ -9,27 +9,88 @@ models:
       subsample: 0.8
       colsample_bytree: 0.8
     features:
-    - age
-    - fare
-    - sibsp
-    - parch
+    - Age
+    - Fare
+    - SibSp
+    - Parch
     - sex_male
+    - pclass
+    - family_size
+    - is_alone
+    - fare_per_person
+    - is_child
+    - embarked_c
+    - embarked_q
+    - has_cabin
+    - age_known
+    - title_mr
+    - title_mrs
+    - title_miss
+    - title_master
+    - age_pclass
+    - cabin_deck_abc
+    - name_len
+    - male_adult
+    - large_family
+    - ticket_freq
+    - cabin_count
+    - small_family
+    - first_class
+    - woman_upper_class
+    - fare_bin
+    - age_bin
+    - is_mother
+    - fare_per_ticket
+    - third_class_male
+    - cabin_deck_ord
     active: true
     include_in_ensemble: true
   lgb_main:
     type: lightgbm
     mode: classifier
     params:
+      learning_rate: 0.005349319115885771
       max_depth: 5
-      learning_rate: 0.01
-      n_estimators: 1000
-      verbose: -1
+      n_estimators: 1035
+      num_leaves: 51
+      min_child_samples: 28
+      subsample: 0.7621685341038414
+      colsample_bytree: 0.888362206456006
     features:
-    - age
-    - fare
-    - sibsp
-    - parch
+    - Age
+    - Fare
+    - SibSp
+    - Parch
     - sex_male
+    - pclass
+    - family_size
+    - is_alone
+    - fare_per_person
+    - is_child
+    - embarked_c
+    - embarked_q
+    - has_cabin
+    - age_known
+    - title_mr
+    - title_mrs
+    - title_miss
+    - title_master
+    - age_pclass
+    - cabin_deck_abc
+    - name_len
+    - male_adult
+    - large_family
+    - ticket_freq
+    - cabin_count
+    - small_family
+    - first_class
+    - woman_upper_class
+    - fare_bin
+    - age_bin
+    - is_mother
+    - fare_per_ticket
+    - third_class_male
+    - cabin_deck_ord
     active: true
     include_in_ensemble: true
   lr_baseline:
@@ -39,10 +100,39 @@ models:
       C: 1.0
       max_iter: 1000
     features:
-    - age
-    - fare
-    - sibsp
-    - parch
+    - Age
+    - Fare
+    - SibSp
+    - Parch
     - sex_male
+    - pclass
+    - family_size
+    - is_alone
+    - fare_per_person
+    - is_child
+    - embarked_c
+    - embarked_q
+    - has_cabin
+    - age_known
+    - title_mr
+    - title_mrs
+    - title_miss
+    - title_master
+    - age_pclass
+    - cabin_deck_abc
+    - name_len
+    - male_adult
+    - large_family
+    - ticket_freq
+    - cabin_count
+    - small_family
+    - first_class
+    - woman_upper_class
+    - fare_bin
+    - age_bin
+    - is_mother
+    - fare_per_ticket
+    - third_class_male
+    - cabin_deck_ord
     active: true
     include_in_ensemble: true

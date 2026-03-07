@@ -7,9 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-
 from harnessml.core.schemas.metrics import MetricRegistry
-
 
 # ---------------------------------------------------------------------------
 # Metric lookup — delegates to MetricRegistry (binary task type)

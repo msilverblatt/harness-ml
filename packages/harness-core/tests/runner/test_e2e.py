@@ -4,19 +4,15 @@ Tests the full workflow: scaffold -> validate -> inspect -> pipeline -> experime
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
 import yaml
 from click.testing import CliRunner
-
 from harnessml.core.runner.cli import main
 from harnessml.core.runner.pipeline import PipelineRunner
 from harnessml.core.runner.scaffold import scaffold_project
 from harnessml.core.runner.validator import validate_project
-
 
 # -----------------------------------------------------------------------
 # Fixtures

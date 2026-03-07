@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from harnessml.sports.competitions.adjustments import apply_adjustments
 from harnessml.sports.competitions.schemas import AdjustmentConfig
 

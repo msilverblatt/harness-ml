@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 
 import numpy as np
-
 from harnessml.core.models.base import BaseModel
 
 logger = logging.getLogger(__name__)

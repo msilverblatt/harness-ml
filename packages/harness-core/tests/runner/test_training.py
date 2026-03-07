@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.schema import ModelDef
 from harnessml.core.runner.training import (
@@ -18,7 +17,6 @@ from harnessml.core.runner.training import (
     predict_single_model,
     train_single_model,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers

@@ -1,7 +1,6 @@
 """Tests for RunManager."""
-import pytest
-from pathlib import Path
 
+import pytest
 from harnessml.core.models.run_manager import RunManager
 
 

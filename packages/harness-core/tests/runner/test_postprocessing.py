@@ -3,16 +3,13 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
-
 from harnessml.core.runner.calibration import SplineCalibrator
 from harnessml.core.runner.meta_learner import StackedEnsemble
 from harnessml.core.runner.postprocessing import (
-    apply_logit_adjustments,
     apply_ensemble_postprocessing,
+    apply_logit_adjustments,
     apply_prior_compression,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers

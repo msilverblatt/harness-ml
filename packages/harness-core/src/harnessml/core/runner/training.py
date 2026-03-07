@@ -11,10 +11,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.data_utils import get_feature_columns
 from harnessml.core.runner.schema import DataConfig, ModelDef
+from scipy.optimize import minimize_scalar
 
 logger = logging.getLogger(__name__)
 

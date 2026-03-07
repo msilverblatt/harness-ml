@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from harnessml.core.runner.calibration import (
     BetaCalibrator,
     bootstrap_ci,
@@ -12,7 +11,6 @@ from harnessml.core.runner.calibration import (
     hosmer_lemeshow_test,
     reliability_diagram_data,
 )
-
 
 # -----------------------------------------------------------------------
 # Helpers

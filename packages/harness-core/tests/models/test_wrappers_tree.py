@@ -1,6 +1,6 @@
 """Tests for CatBoost, LightGBM, and RandomForest model wrappers."""
-import pytest
 import numpy as np
+import pytest
 
 try:
     import catboost

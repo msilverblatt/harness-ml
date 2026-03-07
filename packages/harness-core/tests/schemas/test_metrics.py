@@ -1,8 +1,17 @@
 import numpy as np
 from harnessml.core.schemas.metrics import (
-    brier_score, log_loss, ece, calibration_table, accuracy,
-    rmse, mae, r_squared, auc_roc, f1,
-    model_correlations, model_audit,
+    accuracy,
+    auc_roc,
+    brier_score,
+    calibration_table,
+    ece,
+    f1,
+    log_loss,
+    mae,
+    model_audit,
+    model_correlations,
+    r_squared,
+    rmse,
 )
 
 
@@ -111,7 +120,7 @@ def test_model_audit():
 
 
 def test_package_exports():
-    from harnessml.core.schemas import FeatureMeta, ModelConfig, brier_score, ece, model_audit
+    from harnessml.core.schemas import FeatureMeta, brier_score, ece, model_audit
     assert FeatureMeta is not None
     assert callable(brier_score)
     assert callable(ece)

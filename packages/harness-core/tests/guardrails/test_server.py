@@ -1,11 +1,9 @@
 """Tests for PipelineServer — tool registry, guardrails, and inspection tools."""
 
 import pytest
-
 from harnessml.core.guardrails.base import GuardrailError
 from harnessml.core.guardrails.inventory import NamingConventionGuardrail
 from harnessml.core.guardrails.server import PipelineServer
-
 
 # ---------------------------------------------------------------------------
 # Tool registration

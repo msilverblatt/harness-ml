@@ -20,20 +20,22 @@ if platform.system() == "Darwin":
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from harnessml.core.runner.meta_learner import StackedEnsemble
 
 import numpy as np
 import pandas as pd
-
 from harnessml.core.models.backtest import BacktestRunner
-from harnessml.core.models.orchestrator import TrainOrchestrator
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.dag import build_provider_map, infer_dependencies, topological_waves
 from harnessml.core.runner.fingerprint import compute_fingerprint
-from harnessml.core.runner.prediction_cache import PredictionCache
+from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
 from harnessml.core.runner.meta_learner import train_meta_learner_loso
 from harnessml.core.runner.postprocessing import apply_ensemble_postprocessing
+from harnessml.core.runner.prediction_cache import PredictionCache
 from harnessml.core.runner.schema import ModelDef, ProjectConfig
 from harnessml.core.runner.stage_guards import PipelineGuards
 from harnessml.core.runner.training import (
@@ -41,7 +43,6 @@ from harnessml.core.runner.training import (
     predict_single_model,
     train_single_model,
 )
-from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
 from harnessml.core.runner.validator import validate_project
 
 logger = logging.getLogger(__name__)
@@ -1651,7 +1652,8 @@ class PipelineRunner:
         active_model_names: list[str],
     ) -> dict[str, Any]:
         """Compute multiclass metrics directly using sklearn."""
-        from sklearn.metrics import accuracy_score, log_loss as sklearn_log_loss, f1_score
+        from sklearn.metrics import accuracy_score, f1_score
+        from sklearn.metrics import log_loss as sklearn_log_loss
 
         target_col = self.config.data.target_column
         combined = pd.concat(list(fold_data.values()), ignore_index=True)

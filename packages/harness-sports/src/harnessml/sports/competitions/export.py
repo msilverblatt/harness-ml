@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-
 from harnessml.sports.competitions.schemas import (
     CompetitionResult,
     CompetitionStructure,

@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from harnessml.core.runner.sources.registry import SourceDef
-from harnessml.core.runner.sources.validation import validate_source, ValidationViolation
+from harnessml.core.runner.sources.validation import ValidationViolation, validate_source
 
 
 def _make_source(schema: dict) -> SourceDef:

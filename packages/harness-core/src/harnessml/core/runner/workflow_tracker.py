@@ -8,13 +8,11 @@ phases have been completed.  Supports soft warnings (default) and hard gates
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 from harnessml.core.schemas.contracts import GuardrailViolation
 
 

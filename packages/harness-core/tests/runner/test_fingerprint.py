@@ -1,10 +1,6 @@
 """Tests for fingerprint caching."""
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from harnessml.core.runner.fingerprint import (
     compute_feature_schema,
     compute_fingerprint,
@@ -14,7 +10,6 @@ from harnessml.core.runner.fingerprint import (
     save_fingerprint,
     save_meta_cache,
 )
-
 
 # -----------------------------------------------------------------------
 # Tests: compute_fingerprint

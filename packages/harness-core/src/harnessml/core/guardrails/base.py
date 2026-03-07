@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 
 from harnessml.core.schemas.contracts import GuardrailViolation
 
-
 # ---------------------------------------------------------------------------
 # Exception wrapper
 # ---------------------------------------------------------------------------

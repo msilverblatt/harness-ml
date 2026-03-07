@@ -13,7 +13,8 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776ab.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/tests-1983%20passing-22c55e.svg?style=flat-square)]()
+[![CI](https://img.shields.io/github/actions/workflow/status/msilverblatt/harness-ml/tests.yml?style=flat-square&label=CI)](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=PyPI)](https://pypi.org/project/harness-core/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b.svg?style=flat-square)](LICENSE)
 
 </div>

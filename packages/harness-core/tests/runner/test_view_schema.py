@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
-
 from harnessml.core.runner.schema import (
     CastStep,
     DataConfig,
@@ -19,6 +17,7 @@ from harnessml.core.runner.schema import (
     UnpivotStep,
     ViewDef,
 )
+from pydantic import TypeAdapter, ValidationError
 
 # Reusable adapter for parsing TransformStep discriminated unions from dicts
 _step_adapter = TypeAdapter(TransformStep)
