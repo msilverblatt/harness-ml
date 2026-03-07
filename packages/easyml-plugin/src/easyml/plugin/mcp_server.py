@@ -362,6 +362,8 @@ async def manage_experiments(
     search_space: str | dict | None = None,
     trial: int | None = None,
     detail: str | None = None,
+    last_n: int | None = None,
+    verdict: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage ML experiments.
@@ -391,6 +393,10 @@ async def manage_experiments(
         Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
       - "compare": Compare two experiments side by side. Requires
         experiment_ids (list of 2 experiment IDs).
+      - "journal": Show the experiment journal — a history of experiments
+        with descriptions, metrics, and verdicts. Optional: last_n (default 20).
+      - "log_result": Manually log an experiment result. Requires experiment_id.
+        Optional: description, hypothesis, verdict.
     """
     return await _load_handler("experiments").dispatch(
         action,
@@ -405,6 +411,8 @@ async def manage_experiments(
         search_space=search_space,
         trial=trial,
         detail=detail,
+        last_n=last_n,
+        verdict=verdict,
         project_dir=project_dir,
     )
 

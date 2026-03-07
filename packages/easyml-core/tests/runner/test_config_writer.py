@@ -23,9 +23,11 @@ from easyml.core.runner.config_writer import (
     inspect_data,
     list_runs,
     list_targets,
+    log_experiment_result,
     remove_model,
     set_active_target,
     show_config,
+    show_journal,
     show_model,
     show_models,
     show_presets,
@@ -1068,3 +1070,55 @@ class TestShowModel:
         result = show_model(tmp_path, "lgb_test")
         assert "cdf_scale" in result
         assert "1.5" in result
+
+
+class TestExperimentJournal:
+    def test_log_experiment_result(self, tmp_path):
+        import json
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "pipeline.yaml").write_text("data:\n  target_column: result\n")
+
+        log_experiment_result(
+            tmp_path,
+            experiment_id="exp-001",
+            description="Test longer horizon",
+            hypothesis="20-day target will have more signal",
+            metrics={"brier": 0.2481, "accuracy": 0.5308, "auc_roc": 0.5132},
+            verdict="improved",
+        )
+
+        journal_path = tmp_path / "experiments" / "journal.jsonl"
+        assert journal_path.exists()
+        entry = json.loads(journal_path.read_text().strip())
+        assert entry["experiment_id"] == "exp-001"
+        assert entry["metrics"]["brier"] == 0.2481
+        assert entry["verdict"] == "improved"
+
+    def test_show_journal(self, tmp_path):
+        (tmp_path / "experiments").mkdir(parents=True, exist_ok=True)
+
+        log_experiment_result(tmp_path, experiment_id="exp-001",
+            description="Baseline", metrics={"brier": 0.25, "accuracy": 0.53}, verdict="baseline")
+        log_experiment_result(tmp_path, experiment_id="exp-002",
+            description="Add macro features", metrics={"brier": 0.24, "accuracy": 0.55}, verdict="improved")
+
+        result = show_journal(tmp_path)
+        assert "exp-001" in result
+        assert "exp-002" in result
+        assert "improved" in result
+
+    def test_show_journal_empty(self, tmp_path):
+        result = show_journal(tmp_path)
+        assert "No experiment journal" in result
+
+    def test_show_journal_last_n(self, tmp_path):
+        for i in range(5):
+            log_experiment_result(tmp_path, experiment_id=f"exp-{i:03d}",
+                description=f"Test {i}", metrics={"brier": 0.25 - i * 0.01})
+
+        result = show_journal(tmp_path, last_n=2)
+        assert "exp-003" in result
+        assert "exp-004" in result
+        assert "exp-000" not in result

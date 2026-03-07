@@ -2599,6 +2599,88 @@ def promote_exploration_trial(
 
 
 # -----------------------------------------------------------------------
+# Experiment journal
+# -----------------------------------------------------------------------
+
+
+def log_experiment_result(
+    project_dir: Path,
+    experiment_id: str,
+    *,
+    description: str = "",
+    hypothesis: str = "",
+    metrics: dict | None = None,
+    overlay: dict | None = None,
+    verdict: str = "",
+) -> str:
+    """Append an experiment result to the journal (JSONL format)."""
+    from datetime import datetime
+
+    project_dir = Path(project_dir)
+    journal_path = project_dir / "experiments" / "journal.jsonl"
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "experiment_id": experiment_id,
+        "description": description,
+        "hypothesis": hypothesis,
+        "metrics": metrics or {},
+        "verdict": verdict,
+    }
+    if overlay:
+        entry["overlay_summary"] = str(overlay)[:200]
+
+    with open(journal_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    return f"Logged experiment `{experiment_id}` to journal."
+
+
+def show_journal(project_dir: Path, *, last_n: int = 20) -> str:
+    """Show the experiment journal as a markdown table."""
+    project_dir = Path(project_dir)
+    journal_path = project_dir / "experiments" / "journal.jsonl"
+
+    if not journal_path.exists():
+        return "No experiment journal found. Run experiments to build history."
+
+    entries = []
+    for line in journal_path.read_text().strip().split("\n"):
+        if line.strip():
+            entries.append(json.loads(line))
+
+    if not entries:
+        return "Journal is empty."
+
+    entries = entries[-last_n:]
+
+    # Detect all metric keys across entries
+    metric_keys = []
+    for e in entries:
+        for k in e.get("metrics", {}):
+            if k not in metric_keys:
+                metric_keys.append(k)
+
+    lines = ["## Experiment Journal\n"]
+    header = "| # | ID | Description | " + " | ".join(metric_keys) + " | Verdict |"
+    sep = "|---|----|-----------| " + " | ".join("------" for _ in metric_keys) + " |---------|"
+    lines.extend([header, sep])
+
+    for i, e in enumerate(entries, 1):
+        metrics = e.get("metrics", {})
+        vals = " | ".join(
+            f"{metrics.get(k, '—'):.4f}" if isinstance(metrics.get(k), (int, float)) else str(metrics.get(k, "—"))
+            for k in metric_keys
+        )
+        verdict = e.get("verdict", "")
+        desc = e.get("description", "")[:40]
+        lines.append(f"| {i} | {e['experiment_id']} | {desc} | {vals} | {verdict} |")
+
+    return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------
 # View / source management tools
 # -----------------------------------------------------------------------
 

@@ -256,6 +256,25 @@ def _format_experiment_comparison(id_a: str, result_a: str, id_b: str, result_b:
     return "\n".join(lines)
 
 
+def _handle_journal(*, last_n, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    return cw.show_journal(resolve_project_dir(project_dir), last_n=last_n or 20)
+
+
+def _handle_log_result(*, experiment_id, description, hypothesis, verdict, project_dir, **_kwargs):
+    from easyml.core.runner import config_writer as cw
+    err = validate_required(experiment_id, "experiment_id")
+    if err:
+        return err
+    return cw.log_experiment_result(
+        resolve_project_dir(project_dir),
+        experiment_id,
+        description=description or "",
+        hypothesis=hypothesis or "",
+        verdict=verdict or "",
+    )
+
+
 ACTIONS = {
     "create": _handle_create,
     "write_overlay": _handle_write_overlay,
@@ -265,6 +284,8 @@ ACTIONS = {
     "explore": _handle_explore,
     "promote_trial": _handle_promote_trial,
     "compare": _handle_compare,
+    "journal": _handle_journal,
+    "log_result": _handle_log_result,
 }
 
 
