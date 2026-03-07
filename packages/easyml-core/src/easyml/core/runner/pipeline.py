@@ -982,7 +982,7 @@ class PipelineRunner:
         if not self._is_multiclass():
             for fold_id, df in sorted(fold_data.items()):
                 if "prob_ensemble" in df.columns:
-                    pick_logs.append(build_pick_log(df, fold_id))
+                    pick_logs.append(build_pick_log(df, fold_id, target_column=target_col))
         pick_log = pd.concat(pick_logs, ignore_index=True) if pick_logs else pd.DataFrame()
 
         # Wrap pooled metrics for generate_markdown_report

@@ -18,7 +18,7 @@ thin async dispatcher with hot-reloadable handlers) + **easyml-sports**
 - OmegaConf for config deep merge
 - FastMCP for async MCP server with hot-reload
 - scikit-learn, XGBoost, CatBoost, LightGBM, PyTorch (MLP, TabNet)
-- Optional: shap, matplotlib, pandera, optuna
+- Optional: shap, matplotlib, pandera, optuna, nbformat, google-api-python-client, kaggle
 - Namespace packages: no `__init__.py` at `src/easyml/` level
 
 ## Package Map
@@ -39,6 +39,8 @@ thin async dispatcher with hot-reloadable handlers) + **easyml-sports**
 | `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet) + registry |
 | `core.runner` | Pipeline, training, meta-learner, calibration (Spline/Isotonic/Platt/Beta), feature store, views, config writer, diagnostics, exploration, sources |
 | `core.runner.sources` | Source registry, freshness tracking, schema validation, adapters (file/url/api/computed) |
+| `core.runner.drives` | Cloud adapters: Google Drive (OAuth upload/folders), Kaggle (dataset/notebook upload) |
+| `core.runner.notebook` | Jupyter notebook generation from project config (colab/kaggle/local destinations) |
 | `core.feature_eng` | Feature engineering registry + transforms |
 
 ## Key Conventions
