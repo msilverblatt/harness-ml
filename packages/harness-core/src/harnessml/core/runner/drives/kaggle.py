@@ -16,8 +16,8 @@ def _check_deps() -> None:
         raise ImportError(
             "The 'kaggle' package is required. Install it with: pip install kaggle"
         )
-    except OSError:
-        # kaggle raises OSError if ~/.kaggle/kaggle.json is not found on import
+    except (OSError, SystemExit):
+        # kaggle raises OSError or calls exit(1) if ~/.kaggle/kaggle.json is missing
         pass
 
 
