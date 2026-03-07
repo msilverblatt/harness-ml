@@ -68,6 +68,19 @@ def train_single_model(
     # Filter by train_folds setting
     df = _filter_train_folds(train_df, model_def.train_folds, target_fold, fold_column)
 
+    # Apply training_filter (non-destructive row exclusion)
+    if model_def.training_filter:
+        exclude_expr = model_def.training_filter.get("exclude")
+        if exclude_expr:
+            mask = ~df.eval(exclude_expr)
+            df = df.loc[mask].copy()
+            logger.info(
+                "training_filter excluded %d rows for model %s (kept %d)",
+                int((~mask).sum()),
+                model_name,
+                len(df),
+            )
+
     if len(df) == 0:
         raise ValueError(
             f"No training data for model {model_name} after filtering "
@@ -169,6 +182,7 @@ def train_single_model(
     model_type = _resolve_model_type(model_def)
 
     metrics: dict[str, Any] = {}
+    metrics["n_train_rows"] = len(df)
 
     # Multi-seed training
     n_seeds = model_def.n_seeds
