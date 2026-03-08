@@ -41,6 +41,9 @@ projects/
 **/experiments/
 !**/src/views/Experiments/
 
+# Jekyll
+docs/_site/
+
 # Harness Studio
 packages/harness-studio/frontend/node_modules/
 packages/harness-studio/frontend/dist/
