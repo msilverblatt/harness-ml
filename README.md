@@ -31,11 +31,11 @@ That changes now. Claude is no longer a software engineer working on machine lea
 
 **HarnessML is a complete ML framework, built for agents-first.** Claude Code calls `models(action="add")` or `pipeline(action="run_backtest")` instead of writing training loops — data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through structured tool calls with deterministic results back.
 
-No code. Just data science.
+_No code. Just data science.
+_
 
 
-
-https://github.com/user-attachments/assets/f41ac4ab-4b91-4164-bf6f-f28bd9e2f0df
+https://github.com/user-attachments/assets/b5205517-c9c2-403b-8bbb-d0b15a79e807
 
 
 ## Harness Studio
@@ -71,26 +71,8 @@ Every experiment with its hypothesis, verdict, and metric deltas. Trend chart tr
 
 Per-run deep dive: headline metrics, meta-learner coefficients, model correlation heatmap, calibration curves, residual plots, per-fold breakdown, and the full markdown report.
 
-```bash
-uv run harness-studio --project-dir examples/ames-housing
-# → http://localhost:8421
-```
-
 <br>
 
-## See It Work In Claude Code
-
-### Raw CSV to stacked ensemble, under a minute
-
-https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
-
-### Tuned model 5 minutes later
-
-<img width="815" height="766" alt="Tuned model diagnostics" src="https://github.com/user-attachments/assets/684fb4e1-ae8a-41a5-85fe-a8e8a2882897" />
-
-<sub>[examples/titanic](examples/titanic/) · [examples/ames-housing](examples/ames-housing/) · [examples/wine-quality](examples/wine-quality/)</sub>
-
-<br>
 
 ## Quick Start
 
@@ -144,6 +126,20 @@ pipeline(action="run_backtest")
 ```
 
 Every experiment requires a hypothesis. Every run is fingerprinted and logged. Experiments survive session boundaries.
+
+<br>
+
+## See It Work In Claude Code
+
+### Raw CSV to stacked ensemble, under a minute
+
+https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
+
+### Tuned model 5 minutes later
+
+<img width="815" height="766" alt="Tuned model diagnostics" src="https://github.com/user-attachments/assets/684fb4e1-ae8a-41a5-85fe-a8e8a2882897" />
+
+<sub>[examples/titanic](examples/titanic/) · [examples/ames-housing](examples/ames-housing/) · [examples/wine-quality](examples/wine-quality/)</sub>
 
 <br>
 
