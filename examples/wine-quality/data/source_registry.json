@@ -1,0 +1,24 @@
+{
+  "sources": [
+    {
+      "name": "winequality-red",
+      "path": "/Users/msilverblatt/easyml/examples/wine-quality/data/raw/winequality-red.csv",
+      "columns_added": [
+        "fixed acidity",
+        "volatile acidity",
+        "citric acid",
+        "residual sugar",
+        "chlorides",
+        "free sulfur dioxide",
+        "total sulfur dioxide",
+        "density",
+        "pH",
+        "sulphates",
+        "alcohol",
+        "quality"
+      ],
+      "rows": 1599,
+      "is_bootstrap": true
+    }
+  ]
+}

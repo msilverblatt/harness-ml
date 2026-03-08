@@ -1,0 +1,77 @@
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+  features_file: features.parquet
+  outputs_dir: outputs
+  task: regression
+  target_column: quality
+  views: {}
+  features_view: null
+  feature_defs:
+    alcohol_minus_va:
+      name: alcohol_minus_va
+      type: pairwise
+      source: null
+      column: null
+      formula: alcohol - volatile_acidity
+      condition: null
+      pairwise_mode: diff
+      description: Balance of alcohol strength vs acetic acid off-flavor. Highest
+        correlation interaction found (0.52).
+      nan_strategy: median
+      category: general
+      enabled: true
+    va_sulphate_ratio:
+      name: va_sulphate_ratio
+      type: pairwise
+      source: null
+      column: null
+      formula: volatile_acidity / sulphates
+      condition: null
+      pairwise_mode: diff
+      description: Off-flavor (acetic acid) vs preservation (potassium sulphate) ratio.
+        Higher = worse quality.
+      nan_strategy: median
+      category: general
+      enabled: true
+    free_so2_ratio:
+      name: free_so2_ratio
+      type: pairwise
+      source: null
+      column: null
+      formula: free_sulfur_dioxide / total_sulfur_dioxide
+      condition: null
+      pairwise_mode: diff
+      description: Proportion of free (active) SO2 vs total. Higher means more effective
+        preservation.
+      nan_strategy: median
+      category: general
+      enabled: true
+    acid_balance:
+      name: acid_balance
+      type: pairwise
+      source: null
+      column: null
+      formula: fixed_acidity - volatile_acidity
+      condition: null
+      pairwise_mode: diff
+      description: Tartaric (good) minus acetic (bad) acid. Measures overall acid
+        health of the wine.
+      nan_strategy: median
+      category: general
+      enabled: true
+backtest:
+  cv_strategy: leave_one_out
+  fold_values:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  metrics:
+  - rmse
+  - mae
+  - r2
+  min_train_folds: 1
+  fold_column: fold

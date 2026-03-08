@@ -1,0 +1,100 @@
+models:
+  xgb_base:
+    type: xgboost_regression
+    params:
+      n_estimators: 400
+      max_depth: 3
+      learning_rate: 0.1
+      gamma: 0.1
+    features:
+    - OverallQual
+    - GrLivArea
+    - GarageCars
+    - GarageArea
+    - TotalBsmtSF
+    - YearBuilt
+    - 1stFlrSF
+    - FullBath
+    - YearRemodAdd
+    - TotRmsAbvGrd
+    - Fireplaces
+    - LotArea
+    - MasVnrArea
+    - BsmtFinSF1
+    - 2ndFlrSF
+    - total_sf
+    - total_bath
+    - OverallCond
+    - GarageYrBlt
+    active: true
+    include_in_ensemble: true
+  rf_base:
+    type: random_forest
+    mode: regressor
+    params:
+      n_estimators: 300
+      max_depth: 10
+      min_samples_leaf: 5
+    features:
+    - OverallQual
+    - GrLivArea
+    - GarageCars
+    - TotalBsmtSF
+    - YearBuilt
+    - 1stFlrSF
+    - FullBath
+    - TotRmsAbvGrd
+    - Fireplaces
+    - LotArea
+    - total_sf
+    - total_bath
+    - house_age
+    - remodel_age
+    - qual_x_area
+    - OverallCond
+    - LotFrontage
+    - WoodDeckSF
+    - OpenPorchSF
+    - BsmtUnfSF
+    - GarageYrBlt
+    - MSSubClass
+    - garage_age
+    - total_porch
+    - total_qual
+    - BedroomAbvGr
+    - KitchenAbvGr
+    - EnclosedPorch
+    - ScreenPorch
+    active: true
+    include_in_ensemble: true
+  lgbm_base:
+    type: lightgbm
+    mode: regressor
+    params:
+      n_estimators: 100
+      max_depth: 5
+      learning_rate: 0.1
+      num_leaves: 50
+      reg_alpha: 0.1
+    features:
+    - OverallQual
+    - GrLivArea
+    - GarageCars
+    - GarageArea
+    - TotalBsmtSF
+    - 1stFlrSF
+    - FullBath
+    - TotRmsAbvGrd
+    - YearBuilt
+    - YearRemodAdd
+    - MasVnrArea
+    - Fireplaces
+    - BsmtFinSF1
+    - LotArea
+    - 2ndFlrSF
+    - total_sf
+    - total_bath
+    - OverallCond
+    - GarageYrBlt
+    active: true
+    include_in_ensemble: true
