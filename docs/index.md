@@ -25,7 +25,7 @@ title: Harness ML
   <div class="hero-badge reveal">An Agent-Computer Interface for Machine Learning</div>
   <h1 class="reveal delay-1">Data Science doesn't need a better model.<br>It needs a better <em>Harness</em>.</h1>
   <p class="reveal delay-2">An MCP server that turns Claude into a disciplined data scientist. Structured tools, enforced methodology, real-time observability.</p>
-  <a href="#studio" class="hero-cta reveal delay-3">See it in action</a>
+  <a href="#" class="hero-cta reveal delay-3" onclick="event.preventDefault(); document.getElementById('video-modal').classList.add('active'); document.getElementById('demo-video').play();">See it in action</a>
   <div class="scroll-hint">&#8595;</div>
 </section>
 
