@@ -7,16 +7,31 @@ router = APIRouter(tags=["events"])
 
 
 @router.get("/events")
-async def list_events(request: Request, tool: str | None = None, limit: int = 500, before_id: int | None = None):
+async def list_events(
+    request: Request,
+    tool: str | None = None,
+    project: str | None = None,
+    limit: int = 500,
+    before_id: int | None = None,
+):
     store = request.app.state.event_store
     if store is None:
         return []
-    return store.query(tool=tool, limit=limit, before_id=before_id, exclude_transient=True)
+    return store.query(tool=tool, project=project, limit=limit,
+                       before_id=before_id, exclude_transient=True)
 
 
 @router.get("/events/stats")
-async def event_stats(request: Request):
+async def event_stats(request: Request, project: str | None = None):
     store = request.app.state.event_store
     if store is None:
         return {"total_calls": 0, "errors": 0, "by_tool": {}}
-    return store.session_stats()
+    return store.session_stats(project=project)
+
+
+@router.get("/events/projects")
+async def list_projects(request: Request):
+    store = request.app.state.event_store
+    if store is None:
+        return []
+    return store.list_projects()

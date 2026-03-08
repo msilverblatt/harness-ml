@@ -5,7 +5,6 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-
 from harnessml.studio.server import app
 
 
@@ -100,8 +99,9 @@ class TestRunEndpoints:
 
     def test_list_with_runs(self, client, project_dir):
         run_dir = project_dir / "outputs" / "20260307_120000"
-        run_dir.mkdir(parents=True)
-        (run_dir / "pooled_metrics.json").write_text(json.dumps({"brier": 0.14, "accuracy": 0.82}))
+        diag_dir = run_dir / "diagnostics"
+        diag_dir.mkdir(parents=True)
+        (diag_dir / "pooled_metrics.json").write_text(json.dumps({"brier": 0.14, "accuracy": 0.82}))
         r = client.get("/api/runs")
         data = r.json()
         assert len(data) == 1
@@ -110,7 +110,8 @@ class TestRunEndpoints:
 
     def test_run_metrics(self, client, project_dir):
         run_dir = project_dir / "outputs" / "run1"
-        run_dir.mkdir(parents=True)
-        (run_dir / "pooled_metrics.json").write_text(json.dumps({"brier": 0.13}))
+        diag_dir = run_dir / "diagnostics"
+        diag_dir.mkdir(parents=True)
+        (diag_dir / "pooled_metrics.json").write_text(json.dumps({"brier": 0.13}))
         r = client.get("/api/runs/run1/metrics")
-        assert r.json()["brier"] == 0.13
+        assert r.json()["metrics"]["brier"] == 0.13

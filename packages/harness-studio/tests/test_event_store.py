@@ -5,7 +5,6 @@ import json
 import time
 
 import pytest
-
 from harnessml.studio.event_store import EventStore
 
 
@@ -65,6 +64,6 @@ class TestEventStore:
         store.init()
         store.record(tool="models", action="add", params={"name": "xgb_1", "features": ["a", "b"]}, result="ok", duration_ms=5, status="success")
         events = store.query(limit=1)
-        params = json.loads(events[0]["params"])
+        params = events[0]["params"]
         assert params["name"] == "xgb_1"
         assert params["features"] == ["a", "b"]

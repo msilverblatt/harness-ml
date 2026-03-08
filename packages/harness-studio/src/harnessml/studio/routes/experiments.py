@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from fastapi import APIRouter, Request
+from harnessml.studio.routes.project import resolve_project_dir_from_request
+from harnessml.studio.routes.runs import _compute_fold_std
 
 router = APIRouter(tags=["experiments"])
 
 
 @router.get("/experiments")
-async def list_experiments(request: Request):
-    project_dir = Path(request.app.state.project_dir)
+async def list_experiments(request: Request, project: str | None = None):
+    project_dir = resolve_project_dir_from_request(request, project)
     experiments_dir = project_dir / "experiments"
     journal_path = experiments_dir / "journal.jsonl"
     if not journal_path.exists():
@@ -61,12 +62,42 @@ async def list_experiments(request: Request):
         experiments.append(entry)
 
     experiments.reverse()  # newest first
+
+    # Enrich experiments with fold-level std from matched runs
+    outputs_dir = project_dir / "outputs"
+    if outputs_dir.exists():
+        run_dirs = sorted(outputs_dir.iterdir(), reverse=True)
+        for exp in experiments:
+            exp_metrics = exp.get("metrics")
+            if not exp_metrics:
+                continue
+            for d in run_dirs:
+                if not d.is_dir():
+                    continue
+                metrics_path = d / "diagnostics" / "pooled_metrics.json"
+                if not metrics_path.exists():
+                    continue
+                try:
+                    raw = json.loads(metrics_path.read_text())
+                    run_metrics = raw.get("ensemble", raw) if isinstance(raw.get("ensemble"), dict) else raw
+                except (json.JSONDecodeError, Exception):
+                    continue
+                shared = set(run_metrics.keys()) & set(exp_metrics.keys())
+                if shared and all(
+                    abs(run_metrics[k] - exp_metrics[k]) < 1e-9
+                    for k in shared
+                    if isinstance(run_metrics.get(k), (int, float))
+                    and isinstance(exp_metrics.get(k), (int, float))
+                ):
+                    exp["metric_std"] = _compute_fold_std(d)
+                    break
+
     return experiments
 
 
 @router.get("/experiments/{experiment_id}")
-async def get_experiment(request: Request, experiment_id: str):
-    project_dir = Path(request.app.state.project_dir)
+async def get_experiment(request: Request, experiment_id: str, project: str | None = None):
+    project_dir = resolve_project_dir_from_request(request, project)
     exp_dir = project_dir / "experiments" / experiment_id
     if not exp_dir.exists():
         return {"error": f"Experiment {experiment_id} not found"}

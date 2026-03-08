@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Request
+from harnessml.studio.routes.project import resolve_project_dir_from_request
 
 router = APIRouter(tags=["runs"])
 
@@ -124,9 +125,24 @@ def _match_experiment(run_metrics: dict, experiments: list[dict]) -> str | None:
     return None
 
 
+def _compute_fold_std(run_dir: Path) -> dict[str, float]:
+    """Compute per-metric standard deviation from per-fold diagnostics."""
+    diag_path = run_dir / "diagnostics" / "diagnostics.parquet"
+    if not diag_path.exists():
+        return {}
+    try:
+        df = pd.read_parquet(diag_path)
+        if df.empty or len(df) < 2:
+            return {}
+        metric_cols = [c for c in df.columns if c not in ("fold", "n_samples")]
+        return {col: float(df[col].std()) for col in metric_cols if df[col].dtype.kind == "f"}
+    except Exception:
+        return {}
+
+
 @router.get("/runs")
-async def list_runs(request: Request):
-    project_dir = Path(request.app.state.project_dir)
+async def list_runs(request: Request, project: str | None = None):
+    project_dir = resolve_project_dir_from_request(request, project)
     outputs_dir = project_dir / "outputs"
     if not outputs_dir.exists():
         return []
@@ -150,9 +166,11 @@ async def list_runs(request: Request):
                     pass
             has_report = (d / "diagnostics" / "report.md").exists()
             experiment_id = _match_experiment(metrics, experiments)
+            metric_std = _compute_fold_std(d)
             runs.append({
                 "id": d.name,
                 "metrics": metrics,
+                "metric_std": metric_std,
                 "meta_coefficients": meta_coefficients,
                 "has_report": has_report,
                 "experiment_id": experiment_id,
@@ -161,8 +179,8 @@ async def list_runs(request: Request):
 
 
 @router.get("/runs/{run_id}/metrics")
-async def run_metrics(request: Request, run_id: str):
-    project_dir = Path(request.app.state.project_dir)
+async def run_metrics(request: Request, run_id: str, project: str | None = None):
+    project_dir = resolve_project_dir_from_request(request, project)
     metrics_path = project_dir / "outputs" / run_id / "diagnostics" / "pooled_metrics.json"
     if not metrics_path.exists():
         return {"error": f"Metrics not found for run {run_id}"}
@@ -179,9 +197,9 @@ async def run_metrics(request: Request, run_id: str):
 
 
 @router.get("/runs/{run_id}/folds")
-async def run_folds(request: Request, run_id: str):
+async def run_folds(request: Request, run_id: str, project: str | None = None):
     """Return per-fold breakdown from diagnostics.parquet."""
-    project_dir = Path(request.app.state.project_dir)
+    project_dir = resolve_project_dir_from_request(request, project)
     diag_path = project_dir / "outputs" / run_id / "diagnostics" / "diagnostics.parquet"
     if not diag_path.exists():
         return {"error": "No fold diagnostics found"}
@@ -196,9 +214,9 @@ async def run_folds(request: Request, run_id: str):
 
 
 @router.get("/runs/{run_id}/correlations")
-async def run_correlations(request: Request, run_id: str):
+async def run_correlations(request: Request, run_id: str, project: str | None = None):
     """Compute model prediction correlation matrix from predictions parquet."""
-    project_dir = Path(request.app.state.project_dir)
+    project_dir = resolve_project_dir_from_request(request, project)
     run_dir = project_dir / "outputs" / run_id
 
     df = _load_predictions(run_dir)
@@ -218,11 +236,11 @@ async def run_correlations(request: Request, run_id: str):
 
 
 @router.get("/runs/{run_id}/calibration")
-async def run_calibration(request: Request, run_id: str, bins: int = 10):
+async def run_calibration(request: Request, run_id: str, bins: int = 10, project: str | None = None):
     """Compute calibration curve data from predictions."""
     import numpy as np
 
-    project_dir = Path(request.app.state.project_dir)
+    project_dir = resolve_project_dir_from_request(request, project)
     run_dir = project_dir / "outputs" / run_id
 
     df = _load_predictions(run_dir)
@@ -268,11 +286,11 @@ async def run_calibration(request: Request, run_id: str, bins: int = 10):
 
 
 @router.get("/runs/{run_id}/residuals")
-async def run_residuals(request: Request, run_id: str):
+async def run_residuals(request: Request, run_id: str, project: str | None = None):
     """Compute residual analysis for regression tasks."""
     import numpy as np
 
-    project_dir = Path(request.app.state.project_dir)
+    project_dir = resolve_project_dir_from_request(request, project)
     run_dir = project_dir / "outputs" / run_id
 
     df = _load_predictions(run_dir)
@@ -317,10 +335,46 @@ async def run_residuals(request: Request, run_id: str):
 
 
 @router.get("/runs/{run_id}/report")
-async def run_report(request: Request, run_id: str):
+async def run_report(request: Request, run_id: str, project: str | None = None):
     """Return the markdown report."""
-    project_dir = Path(request.app.state.project_dir)
+    project_dir = resolve_project_dir_from_request(request, project)
     report_path = project_dir / "outputs" / run_id / "diagnostics" / "report.md"
     if not report_path.exists():
         return {"error": "No report found"}
     return {"markdown": report_path.read_text()}
+
+
+@router.get("/runs/{run_id}/picks")
+async def run_picks(request: Request, run_id: str, project: str | None = None):
+    """Return pick analysis stats from pick_log.parquet."""
+
+    project_dir = resolve_project_dir_from_request(request, project)
+    pick_path = project_dir / "outputs" / run_id / "diagnostics" / "pick_log.parquet"
+    if not pick_path.exists():
+        return {"error": "No pick log found"}
+
+    df = pd.read_parquet(pick_path)
+    if df.empty:
+        return {"error": "Empty pick log"}
+
+    n_total = len(df)
+    n_correct = int(df["correct"].sum())
+    accuracy = n_correct / n_total if n_total > 0 else 0.0
+    avg_confidence = float(df["confidence"].mean())
+    avg_agreement = float(df["model_agreement_pct"].mean()) if "model_agreement_pct" in df.columns else None
+
+    result: dict = {
+        "total": n_total,
+        "correct": n_correct,
+        "accuracy": accuracy,
+        "avg_confidence": avg_confidence,
+        "avg_agreement": avg_agreement,
+    }
+
+    correct_mask = df["correct"].astype(bool)
+    if correct_mask.any():
+        result["avg_confidence_correct"] = float(df.loc[correct_mask, "confidence"].mean())
+    if (~correct_mask).any():
+        result["avg_confidence_incorrect"] = float(df.loc[~correct_mask, "confidence"].mean())
+
+    return result

@@ -19,14 +19,66 @@ mcp = FastMCP("harnessml")
 _DEV_MODE = os.environ.get("HARNESS_DEV", "0") == "1"
 
 _emitter = None
+_studio_started = False
+_STUDIO_PORT = int(os.environ.get("HARNESS_STUDIO_PORT", "8421"))
+
+
+def _is_studio_running() -> bool:
+    """Check if Studio is already listening on the fixed port."""
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.connect(("127.0.0.1", _STUDIO_PORT))
+        sock.close()
+        return True
+    except OSError:
+        return False
+
+
+def _start_studio():
+    """Launch Studio as a detached subprocess (survives MCP shutdown)."""
+    global _studio_started
+    if _studio_started:
+        return
+    _studio_started = True
+
+    import logging
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    logger = logging.getLogger("harnessml.studio")
+
+    if _is_studio_running():
+        logger.debug("Studio already running on port %d", _STUDIO_PORT)
+        return
+
+    pid_path = Path.home() / ".harnessml" / "studio.pid"
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "harnessml.studio.cli", "--port", str(_STUDIO_PORT)],
+            start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        pid_path.write_text(str(proc.pid))
+        logger.debug("Started Studio (pid=%d) on port %d", proc.pid, _STUDIO_PORT)
+    except Exception:
+        logger.debug("Failed to launch Studio subprocess (non-fatal)", exc_info=True)
 
 
 def _get_emitter(project_dir: str | None = None):
     global _emitter
-    # Initialize once — all events go to the same DB regardless of project_dir
     if _emitter is None:
         from harnessml.plugin.event_emitter import create_emitter
-        _emitter = create_emitter(project_dir=project_dir)
+        _emitter = create_emitter()
+
+        # Auto-start Studio as detached subprocess
+        if _emitter.enabled:
+            _start_studio()
+
     return _emitter
 
 
@@ -38,10 +90,18 @@ def _load_handler(module_name: str):
     return mod
 
 
+_studio_url_logged = False
+
+
 def _safe_tool(fn):
     """Wrap a tool function so unhandled exceptions become markdown errors."""
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
+        global _studio_url_logged
+        if not _studio_url_logged:
+            _studio_url_logged = True
+            import sys
+            print(f"Harness Studio → http://localhost:{_STUDIO_PORT}", file=sys.stderr)
         tool_name = fn.__name__
         action = kwargs.get("action", "")
         proj_dir = kwargs.get("project_dir") or os.getcwd()
@@ -49,6 +109,7 @@ def _safe_tool(fn):
 
         # Emit "running" event immediately so Studio shows the call in-progress
         emitter = _get_emitter(project_dir=proj_dir)
+        emitter.set_project(proj_dir)
         emitter.set_current(tool_name, action)
         emitter.emit(
             tool=tool_name, action=action, params=clean_params,
@@ -592,6 +653,8 @@ async def configure(
       - "set_target": Set a named target profile as the active target.
         Requires: name. Updates data.target_column, data.task, and
         backtest.metrics (if the profile defines metrics).
+      - "studio": Get the Harness Studio dashboard URL for this session.
+        Studio auto-starts with the MCP server — no setup needed.
     """
     return _load_handler("config").dispatch(
         action,
@@ -783,6 +846,10 @@ async def pipeline(
 # -----------------------------------------------------------------------
 # Entry point
 # -----------------------------------------------------------------------
+
+# Start Studio immediately at import time so it's available before
+# any tool call. Uses cwd as default project_dir.
+_get_emitter(project_dir=os.getcwd())
 
 if __name__ == "__main__":
     mcp.run()

@@ -30,11 +30,27 @@ class EventStore:
                 params TEXT NOT NULL DEFAULT '{}',
                 result TEXT NOT NULL DEFAULT '',
                 duration_ms INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'success'
+                status TEXT NOT NULL DEFAULT 'success',
+                project TEXT NOT NULL DEFAULT ''
             )
         """)
+        # Add columns to existing tables that lack them
+        for col, default in [("project", "''"), ("caller", "''")]:
+            try:
+                self._conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tool ON events(tool)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_project ON events(project)")
+        # Project registry table
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                name TEXT PRIMARY KEY,
+                project_dir TEXT NOT NULL,
+                last_seen REAL NOT NULL
+            )
+        """)
         self._conn.commit()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -42,18 +58,24 @@ class EventStore:
             self.init()
         return self._conn  # type: ignore[return-value]
 
-    def record(self, *, tool: str, action: str, params: dict, result: str, duration_ms: int, status: str) -> int:
+    def record(self, *, tool: str, action: str, params: dict, result: str,
+               duration_ms: int, status: str, project: str = "",
+               caller: str = "") -> int:
         """Record a tool call event. Returns the event ID."""
         with self._lock:
             conn = self._get_conn()
             cur = conn.execute(
-                "INSERT INTO events (timestamp, tool, action, params, result, duration_ms, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (time.time(), tool, action, json.dumps(params, default=str), result, duration_ms, status),
+                "INSERT INTO events (timestamp, tool, action, params, result, duration_ms, status, project, caller) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (time.time(), tool, action, json.dumps(params, default=str),
+                 result, duration_ms, status, project, caller),
             )
             conn.commit()
             return cur.lastrowid  # type: ignore[return-value]
 
-    def query(self, *, tool: str | None = None, limit: int = 500, before_id: int | None = None, exclude_transient: bool = False) -> list[dict]:
+    def query(self, *, tool: str | None = None, project: str | None = None,
+              limit: int = 500, before_id: int | None = None,
+              exclude_transient: bool = False) -> list[dict]:
         """Query events, newest first."""
         with self._lock:
             conn = self._get_conn()
@@ -64,12 +86,16 @@ class EventStore:
             if tool:
                 clauses.append("tool = ?")
                 values.append(tool)
+            if project:
+                clauses.append("project = ?")
+                values.append(project)
             if before_id is not None:
                 clauses.append("id < ?")
                 values.append(before_id)
             where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
             rows = conn.execute(
-                f"SELECT id, timestamp, tool, action, params, result, duration_ms, status FROM events {where} ORDER BY timestamp DESC LIMIT ?",
+                f"SELECT id, timestamp, tool, action, params, result, duration_ms, status, project, caller "
+                f"FROM events {where} ORDER BY timestamp DESC LIMIT ?",
                 [*values, limit],
             ).fetchall()
 
@@ -86,15 +112,69 @@ class EventStore:
                     params = {}
             results.append({
                 "id": r[0], "timestamp": ts, "tool": r[2], "action": r[3],
-                "params": params, "result": r[5], "duration_ms": r[6], "status": r[7],
+                "params": params, "result": r[5], "duration_ms": r[6],
+                "status": r[7], "project": r[8],
+                "caller": r[9] if len(r) > 9 else "",
             })
         return results
 
-    def session_stats(self) -> dict:
+    def register_project(self, name: str, project_dir: str) -> None:
+        """Upsert a project in the registry."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute(
+                "INSERT INTO projects (name, project_dir, last_seen) VALUES (?, ?, ?) "
+                "ON CONFLICT(name) DO UPDATE SET project_dir = excluded.project_dir, last_seen = excluded.last_seen",
+                (name, project_dir, time.time()),
+            )
+            conn.commit()
+
+    def get_project_dir(self, name: str) -> str | None:
+        """Look up a project's directory by name."""
+        with self._lock:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT project_dir FROM projects WHERE name = ?", (name,)
+            ).fetchone()
+        return row[0] if row else None
+
+    def list_projects(self) -> list[str]:
+        """Return distinct project names that have events."""
+        with self._lock:
+            conn = self._get_conn()
+            rows = conn.execute(
+                "SELECT DISTINCT project FROM events WHERE project != '' ORDER BY project"
+            ).fetchall()
+        return [r[0] for r in rows]
+
+    def list_projects_with_dirs(self) -> list[dict]:
+        """Return all registered projects with name, dir, and last_seen."""
+        with self._lock:
+            conn = self._get_conn()
+            rows = conn.execute(
+                "SELECT name, project_dir, last_seen FROM projects ORDER BY last_seen DESC"
+            ).fetchall()
+        return [
+            {"name": r[0], "project_dir": r[1], "last_seen": r[2]}
+            for r in rows
+        ]
+
+    def session_stats(self, project: str | None = None) -> dict:
         """Aggregate stats for the current session."""
         with self._lock:
             conn = self._get_conn()
-            total = conn.execute("SELECT COUNT(*) FROM events WHERE status NOT IN ('running', 'progress')").fetchone()[0]
-            errors = conn.execute("SELECT COUNT(*) FROM events WHERE status = 'error'").fetchone()[0]
-            by_tool_rows = conn.execute("SELECT tool, COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') GROUP BY tool").fetchall()
+            proj_clause = "AND project = ?" if project else ""
+            proj_vals = [project] if project else []
+            total = conn.execute(
+                f"SELECT COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause}",
+                proj_vals,
+            ).fetchone()[0]
+            errors = conn.execute(
+                f"SELECT COUNT(*) FROM events WHERE status = 'error' {proj_clause}",
+                proj_vals,
+            ).fetchone()[0]
+            by_tool_rows = conn.execute(
+                f"SELECT tool, COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause} GROUP BY tool",
+                proj_vals,
+            ).fetchall()
         return {"total_calls": total, "errors": errors, "by_tool": {r[0]: r[1] for r in by_tool_rows}}

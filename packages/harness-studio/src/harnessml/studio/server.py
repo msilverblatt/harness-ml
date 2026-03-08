@@ -8,7 +8,19 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from harnessml.studio.broadcaster import EventBroadcaster
-from harnessml.studio.routes import events, experiments, project, runs, ws
+from harnessml.studio.routes import (
+    config,
+    data,
+    ensemble,
+    events,
+    experiments,
+    features,
+    models,
+    predictions,
+    project,
+    runs,
+    ws,
+)
 
 
 async def _poll_events(app: FastAPI, interval: float = 1.0):
@@ -37,7 +49,7 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
         try:
             conn = store._get_conn()
             rows = conn.execute(
-                "SELECT id, timestamp, tool, action, params, result, duration_ms, status "
+                "SELECT id, timestamp, tool, action, params, result, duration_ms, status, project, caller "
                 "FROM events WHERE id > ? ORDER BY id ASC",
                 (last_id,),
             ).fetchall()
@@ -54,6 +66,8 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
                     "result": r[5],
                     "duration_ms": r[6],
                     "status": r[7],
+                    "project": r[8] if len(r) > 8 else "",
+                    "caller": r[9] if len(r) > 9 else "",
                 }
                 broadcaster.notify(event)
                 last_id = r[0]
@@ -65,13 +79,12 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
 async def lifespan(application: FastAPI):
     import asyncio
 
-    project_dir = Path(getattr(application.state, "project_dir", ".")).resolve()
-    # Explicit DB path via state (from CLI --db) or env var, else per-project default
-    db_path_str = getattr(application.state, "db_path", None) or os.environ.get("HARNESS_STUDIO_DB")
-    if db_path_str:
-        db_path = Path(db_path_str)
-    else:
-        db_path = project_dir / ".studio" / "events.db"
+    db_path_str = (
+        getattr(application.state, "db_path", None)
+        or os.environ.get("HARNESS_STUDIO_DB")
+        or str(Path.home() / ".harnessml" / "events.db")
+    )
+    db_path = Path(db_path_str)
     try:
         from harnessml.studio.event_store import EventStore
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +120,12 @@ app.include_router(events.router, prefix="/api")
 app.include_router(project.router, prefix="/api")
 app.include_router(experiments.router, prefix="/api")
 app.include_router(runs.router, prefix="/api")
+app.include_router(data.router, prefix="/api")
+app.include_router(features.router, prefix="/api")
+app.include_router(models.router, prefix="/api")
+app.include_router(ensemble.router, prefix="/api")
+app.include_router(predictions.router, prefix="/api")
+app.include_router(config.router, prefix="/api")
 app.include_router(ws.router)
 
 
