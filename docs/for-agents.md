@@ -1,6 +1,7 @@
 ---
 layout: plain
 title: For Agents
+permalink: /for-agents
 ---
 
 [← Back]({{ site.baseurl }}/)
