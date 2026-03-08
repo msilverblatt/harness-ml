@@ -9,6 +9,7 @@ members = [
     "packages/harness-core",
     "packages/harness-plugin",
     "packages/harness-sports",
+    "packages/harness-studio",
 ]
 
 [tool.pytest.ini_options]
@@ -26,12 +27,14 @@ all = [
 harness-core = { workspace = true }
 harness-plugin = { workspace = true }
 harness-sports = { workspace = true }
+harness-studio = { workspace = true }
 
 [dependency-groups]
 dev = [
     "harness-core[all]",
     "harness-plugin",
     "harness-sports",
+    "harness-studio",
     "catboost>=1.2.10",
     "click>=8.0",
     "lightgbm>=4.6.0",

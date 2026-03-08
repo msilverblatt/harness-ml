@@ -2,27 +2,7 @@
   "sources": [
     {
       "name": "titanic",
-      "path": "examples/titanic/data/raw/titanic.csv",
-      "columns_added": [
-        "PassengerId",
-        "Survived",
-        "Pclass",
-        "Name",
-        "Sex",
-        "Age",
-        "SibSp",
-        "Parch",
-        "Ticket",
-        "Fare",
-        "Cabin",
-        "Embarked"
-      ],
-      "rows": 891,
-      "is_bootstrap": true
-    },
-    {
-      "name": "titanic",
-      "path": "data/raw/titanic.csv",
+      "path": "/Users/msilverblatt/easyml/examples/titanic/data/raw/titanic.csv",
       "columns_added": [
         "PassengerId",
         "Survived",

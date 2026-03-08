@@ -1,0 +1,480 @@
+.dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+.overviewWidget {
+    grid-column: 1;
+    grid-row: 1;
+    overflow: visible;
+}
+
+.overviewWidget .widgetBody {
+    overflow: visible;
+}
+
+.experimentsWidget {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    overflow: visible;
+}
+
+.experimentsWidget .widgetBody {
+    overflow: visible;
+}
+
+.widget {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.widgetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+.widgetTitle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.widgetLink {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.widgetLink:hover {
+    text-decoration: underline;
+}
+
+.widgetBody {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.emptyState {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    padding: var(--space-4);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: var(--space-2);
+}
+
+.emptyPulse {
+    color: var(--color-accent);
+    animation: dashPulse 2s ease-in-out infinite;
+}
+
+.emptyPulseText {
+    animation: dashPulse 2s ease-in-out infinite;
+    margin-top: var(--space-2);
+}
+
+@keyframes dashPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+}
+
+.mcpBadge {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    background: var(--color-accent-a10);
+    border: 1px solid var(--color-accent-a25);
+    border-radius: 2px;
+    padding: 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+    margin-left: var(--space-1);
+}
+
+/* ===== Project Overview Widget ===== */
+
+.overviewGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.overviewStat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg-secondary);
+}
+
+.overviewValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.overviewLabel {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+.verdictSection {
+    padding: var(--space-3) var(--space-4);
+}
+
+.verdictBarLabel {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.verdictBar {
+    display: flex;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    gap: 2px;
+}
+
+.verdictSegment {
+    min-width: 4px;
+    border-radius: 2px;
+    transition: flex 0.3s ease;
+}
+
+.verdictLegend {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.verdictLegendItem {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+}
+
+.verdictDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.sectionLabel {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* ===== Performance Widget ===== */
+
+.latestMetrics {
+    display: flex;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.latestMetricItem {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border-right: 1px solid var(--color-border);
+}
+
+.latestMetricItem:last-child {
+    border-right: none;
+}
+
+.latestMetricValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.latestMetricName {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+.trendChart {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.trendLabel {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+    padding-left: var(--space-2);
+}
+
+/* ===== Activity Widget ===== */
+
+.activityWidget {
+    min-height: 180px;
+}
+
+.activityWidget .widgetBody {
+    font-size: var(--font-size-xs);
+}
+
+.miniEventRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+}
+
+.miniEventRow:last-child {
+    border-bottom: none;
+}
+
+.miniEventTime {
+    color: var(--color-text-muted);
+    min-width: 30px;
+}
+
+.miniEventTool {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 1px var(--space-1);
+    border-radius: 2px;
+    color: var(--color-bg-primary);
+    min-width: 55px;
+    text-align: center;
+}
+
+.miniEventAction {
+    color: var(--color-text-primary);
+}
+
+.miniEventCaller {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    background: var(--color-accent-a10);
+    border: 1px solid var(--color-accent-a25);
+    border-radius: 2px;
+    padding: 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.miniEventRunning {
+    background: var(--color-accent-a06);
+}
+
+.miniEventDuration {
+    color: var(--color-text-muted);
+    min-width: 40px;
+    text-align: right;
+    margin-left: auto;
+}
+
+/* ===== Experiments Widget ===== */
+
+.experimentsWidget table {
+    font-size: var(--font-size-xs);
+}
+
+.miniExpList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.miniExpRow {
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.miniExpRow:last-child {
+    border-bottom: none;
+}
+
+.miniExpLink {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+}
+
+.miniExpLink:hover {
+    background: var(--color-bg-hover);
+}
+
+.miniExpId {
+    color: var(--color-accent);
+    min-width: 90px;
+}
+
+.miniExpHypothesis {
+    color: var(--color-text-secondary);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.miniExpVerdict {
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+.verdictKeep {
+    color: var(--color-success);
+}
+
+.verdictPartial {
+    color: var(--color-warning);
+}
+
+.verdictRevert {
+    color: var(--color-error);
+}
+
+/* ===== DAG Widget ===== */
+
+.dagWidget {
+    grid-column: 1 / -1;
+}
+
+.dagWidget :global(.react-flow__node) {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.dagWidget :global(.react-flow__background) {
+    background-color: var(--color-bg-primary);
+}
+
+.dagBody {
+    flex: 1;
+    min-height: 280px;
+}
+
+/* Mini DAG nodes */
+.miniNode {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    text-align: center;
+}
+
+.miniNodeTooltip {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    margin-top: -8px;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: var(--shadow-md);
+    line-height: 1.6;
+}
+
+.miniNodeTooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--color-border);
+}
+
+.miniNodeSource { border-color: var(--color-node-source); }
+.miniNodeFeatures { border-color: var(--color-node-features); }
+.miniNodeModel { border-color: var(--color-node-model); }
+.miniNodeEnsemble { border-color: var(--color-node-ensemble); }
+.miniNodeCalibration { border-color: var(--color-node-calibration); }
+.miniNodeOutput { border-color: var(--color-node-output); }
+.miniNodeView { border-color: var(--color-accent); }
+
+.miniNodeExperiment {
+    border-color: var(--color-tool-experiments);
+    border-style: dashed;
+    border-width: 2px;
+}
+
+.miniExpBadge {
+    font-size: 0.45rem;
+    font-weight: 700;
+    color: var(--color-tool-experiments);
+    margin-left: 3px;
+    text-transform: uppercase;
+}

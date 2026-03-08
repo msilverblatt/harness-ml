@@ -1,0 +1,96 @@
+:root {
+    /* Colors — dark mode default */
+    --color-bg-primary: #0d1117;
+    --color-bg-secondary: #161b22;
+    --color-bg-tertiary: #21262d;
+    --color-bg-hover: #30363d;
+    --color-border: #30363d;
+    --color-border-subtle: #21262d;
+
+    --color-text-primary: #e6edf3;
+    --color-text-secondary: #8b949e;
+    --color-text-muted: #6e7681;
+
+    --color-accent: #58a6ff;
+    --color-success: #3fb950;
+    --color-warning: #d29922;
+    --color-error: #f85149;
+    --color-orange: #f0883e;
+
+    /* Alpha variants — accent */
+    --color-accent-a06: rgba(88, 166, 255, 0.06);
+    --color-accent-a08: rgba(88, 166, 255, 0.08);
+    --color-accent-a10: rgba(88, 166, 255, 0.1);
+    --color-accent-a12: rgba(88, 166, 255, 0.12);
+    --color-accent-a25: rgba(88, 166, 255, 0.25);
+    --color-accent-a30: rgba(88, 166, 255, 0.3);
+
+    /* Alpha variants — success */
+    --color-success-a15: rgba(63, 185, 80, 0.15);
+    --color-success-a30: rgba(63, 185, 80, 0.3);
+
+    /* Alpha variants — warning */
+    --color-warning-a15: rgba(210, 153, 34, 0.15);
+    --color-warning-a40: rgba(210, 153, 34, 0.4);
+
+    /* Alpha variants — error */
+    --color-error-a40: rgba(248, 81, 73, 0.4);
+
+    /* Alpha variants — orange */
+    --color-orange-a15: rgba(240, 136, 62, 0.15);
+    --color-orange-a30: rgba(240, 136, 62, 0.3);
+
+    /* Alpha variants — muted */
+    --color-muted-a15: rgba(110, 118, 129, 0.15);
+
+    /* Status colors for DAG nodes */
+    --color-status-pending: #6e7681;
+    --color-status-running: #58a6ff;
+    --color-status-complete: #3fb950;
+    --color-status-error: #f85149;
+
+    /* Node type colors */
+    --color-node-source: #d2a8ff;
+    --color-node-features: #79c0ff;
+    --color-node-model: #58a6ff;
+    --color-node-ensemble: #3fb950;
+    --color-node-calibration: #d29922;
+    --color-node-output: #f0883e;
+
+    /* Tool badge colors */
+    --color-tool-models: #58a6ff;
+    --color-tool-pipeline: #3fb950;
+    --color-tool-data: #d2a8ff;
+    --color-tool-features: #79c0ff;
+    --color-tool-experiments: #f0883e;
+    --color-tool-config: #d29922;
+
+    /* Typography */
+    --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.8125rem;
+    --font-size-base: 0.875rem;
+    --font-size-lg: 1rem;
+    --font-size-xl: 1.25rem;
+
+    /* Spacing */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-8: 3rem;
+
+    /* Borders */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-glow-accent: 0 0 12px var(--color-accent-a25), inset 0 0 0 1px var(--color-accent-a10);
+}

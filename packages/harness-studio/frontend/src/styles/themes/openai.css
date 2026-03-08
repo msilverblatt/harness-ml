@@ -1,0 +1,60 @@
+[data-theme="openai"] {
+    /* ChatGPT dark mode — essentially monochrome, no colored accent */
+    --color-bg-primary: #171717;
+    --color-bg-secondary: #212121;
+    --color-bg-tertiary: #2f2f2f;
+    --color-bg-hover: #3a3a3a;
+    --color-border: #3a3a3a;
+    --color-border-subtle: #2f2f2f;
+
+    --color-text-primary: #ececec;
+    --color-text-secondary: #b4b4b4;
+    --color-text-muted: #747474;
+
+    /* ChatGPT keeps it nearly colorless — accent is just bright white */
+    --color-accent: #ececec;
+    --color-success: #55b685;
+    --color-warning: #e0a535;
+    --color-error: #ef5350;
+    --color-orange: #e8894a;
+
+    --color-accent-a06: rgba(236, 236, 236, 0.06);
+    --color-accent-a08: rgba(236, 236, 236, 0.08);
+    --color-accent-a10: rgba(236, 236, 236, 0.1);
+    --color-accent-a12: rgba(236, 236, 236, 0.12);
+    --color-accent-a25: rgba(236, 236, 236, 0.25);
+    --color-accent-a30: rgba(236, 236, 236, 0.3);
+
+    --color-success-a15: rgba(85, 182, 133, 0.15);
+    --color-success-a30: rgba(85, 182, 133, 0.3);
+    --color-warning-a15: rgba(224, 165, 53, 0.15);
+    --color-warning-a40: rgba(224, 165, 53, 0.4);
+    --color-error-a40: rgba(239, 83, 80, 0.4);
+    --color-orange-a15: rgba(232, 137, 74, 0.15);
+    --color-orange-a30: rgba(232, 137, 74, 0.3);
+    --color-muted-a15: rgba(116, 116, 116, 0.15);
+
+    --color-status-pending: #747474;
+    --color-status-running: #ececec;
+    --color-status-complete: #55b685;
+    --color-status-error: #ef5350;
+
+    --color-node-source: #b4b4b4;
+    --color-node-features: #9a9a9a;
+    --color-node-model: #ececec;
+    --color-node-ensemble: #55b685;
+    --color-node-calibration: #e0a535;
+    --color-node-output: #e8894a;
+
+    --color-tool-models: #ececec;
+    --color-tool-pipeline: #55b685;
+    --color-tool-data: #b4b4b4;
+    --color-tool-features: #9a9a9a;
+    --color-tool-experiments: #e8894a;
+    --color-tool-config: #e0a535;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.6);
+    --shadow-glow-accent: 0 0 8px rgba(236, 236, 236, 0.1), inset 0 0 0 1px rgba(236, 236, 236, 0.08);
+}

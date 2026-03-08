@@ -1,0 +1,33 @@
+.row {
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.summary {
+    padding: var(--space-2) var(--space-3);
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.summary:hover {
+    background: var(--color-bg-hover);
+}
+
+.chevron {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-right: var(--space-2);
+    transition: transform 0.15s;
+}
+
+.chevronOpen {
+    transform: rotate(90deg);
+}
+
+.detail {
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border-subtle);
+}

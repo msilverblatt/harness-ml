@@ -2,13 +2,14 @@
 
 ## What This Is
 
-HarnessML is a general-purpose agentic ML framework with 3 packages in a uv
+HarnessML is a general-purpose agentic ML framework with 4 packages in a uv
 workspace monorepo. It supports any ML task type (binary classification,
 multiclass, regression, ranking, survival, probabilistic forecasting).
 
 Architecture: **harness-core** (schemas, config, guardrails, models, runner,
 feature engineering, metrics, data sources) + **harness-plugin** (MCP server,
-thin async dispatcher with hot-reloadable handlers) + **harness-sports**
+thin async dispatcher with hot-reloadable handlers) + **harness-studio**
+(companion web dashboard for real-time observability) + **harness-sports**
 (optional domain plugin for matchup prediction).
 
 ## Tech Stack
@@ -19,6 +20,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-sports**
 - FastMCP for async MCP server with hot-reload
 - scikit-learn, XGBoost, CatBoost, LightGBM, PyTorch (MLP, TabNet)
 - Optional: shap, matplotlib, pandera, optuna, nbformat, google-api-python-client, kaggle
+- Studio: FastAPI, uvicorn, sqlite3 (stdlib), React 19, Vite, bun
 - Namespace packages: no `__init__.py` at `src/harnessml/` level
 
 ## Package Map
@@ -27,6 +29,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-sports**
 |---------|---------|-------------|
 | `harness-core` | All core engine code | `schemas/`, `config/`, `guardrails/`, `models/`, `runner/`, `feature_eng/` |
 | `harness-plugin` | MCP server (thin dispatcher) | `mcp_server.py`, `handlers/` (models, data, features, experiments, config, pipeline) |
+| `harness-studio` | Companion web dashboard | `server.py`, `event_store.py`, `routes/`, `frontend/` (React/Vite) |
 | `harness-sports` | Optional sports domain plugin | `matchups.py`, `hooks.py` (registers into core extension points) |
 
 ### harness-core submodules
@@ -90,12 +93,34 @@ Use the MCP tool or config_writer:
 - Changes to handler code: no restart needed (hot-reload)
 - Changes to tool signatures/docstrings: restart required
 
+## Harness Studio
+
+Companion web dashboard providing real-time observability. Reads existing project
+artifacts (config YAMLs, journal JSONL, run outputs) + SQLite event log. Zero
+changes to harness-core.
+
+- **Event layer**: MCP server emits events to SQLite via fail-safe emitter
+- **Backend**: FastAPI serves REST + WebSocket, reads project artifacts directly
+- **Frontend**: React/Vite with 4 tabs (Activity, DAG, Experiments, Diagnostics)
+- **Build**: `bash packages/harness-studio/scripts/build_frontend.sh` copies Vite output to Python package
+- **Run**: `uv run harness-studio --project-dir <path>` serves on port 8421
+- **Frontend dev**: `cd packages/harness-studio/frontend && bun run dev`
+
+### Studio Architecture
+
+- `event_store.py` — SQLite WAL-mode event store (record, query, session_stats)
+- `broadcaster.py` — asyncio.Queue fan-out for WebSocket live streaming
+- `routes/` — events, project (config + DAG), experiments (journal), runs (metrics, calibration, correlations)
+- `frontend/` — React 19 + TypeScript + CSS Modules + design tokens
+- Event emission in `harness-plugin/mcp_server.py` — fail-safe, swallows exceptions
+
 ## Testing
 
 ```bash
 uv run pytest                                    # all tests
 uv run pytest packages/harness-core/tests/        # core tests
 uv run pytest packages/harness-sports/tests/      # sports plugin tests
+uv run pytest packages/harness-studio/tests/      # studio tests
 uv run pytest packages/harness-core/tests/runner/  # runner subsystem
 uv run pytest -v                                 # verbose
 ```

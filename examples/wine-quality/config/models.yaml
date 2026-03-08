@@ -1,0 +1,45 @@
+models:
+  xgb_base:
+    type: xgboost_regression
+    params:
+      n_estimators: 300
+      max_depth: 6
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+    features:
+    - fixed_acidity
+    - volatile_acidity
+    - citric_acid
+    - residual_sugar
+    - chlorides
+    - free_sulfur_dioxide
+    - total_sulfur_dioxide
+    - density
+    - pH
+    - sulphates
+    - alcohol
+    active: true
+    include_in_ensemble: true
+  rf_base:
+    type: random_forest
+    mode: regressor
+    params:
+      n_estimators: 300
+      max_depth: 10
+      min_samples_leaf: 5
+    features:
+    - fixed_acidity
+    - citric_acid
+    - residual_sugar
+    - chlorides
+    - free_sulfur_dioxide
+    - total_sulfur_dioxide
+    - density
+    - pH
+    - alcohol_minus_va
+    - va_sulphate_ratio
+    - free_so2_ratio
+    - acid_balance
+    active: true
+    include_in_ensemble: true

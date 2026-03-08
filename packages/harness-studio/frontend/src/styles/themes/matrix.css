@@ -1,0 +1,60 @@
+[data-theme="matrix"] {
+    --color-bg-primary: #000a00;
+    --color-bg-secondary: #001200;
+    --color-bg-tertiary: #001a00;
+    --color-bg-hover: #002800;
+    --color-border: #003300;
+    --color-border-subtle: #001a00;
+
+    --color-text-primary: #00ff41;
+    --color-text-secondary: #00bb30;
+    --color-text-muted: #007720;
+
+    --color-accent: #00ff41;
+    --color-success: #00ff41;
+    --color-warning: #ccff00;
+    --color-error: #ff3333;
+    --color-orange: #ffaa00;
+
+    --color-accent-a06: rgba(0, 255, 65, 0.06);
+    --color-accent-a08: rgba(0, 255, 65, 0.08);
+    --color-accent-a10: rgba(0, 255, 65, 0.1);
+    --color-accent-a12: rgba(0, 255, 65, 0.12);
+    --color-accent-a25: rgba(0, 255, 65, 0.25);
+    --color-accent-a30: rgba(0, 255, 65, 0.3);
+
+    --color-success-a15: rgba(0, 255, 65, 0.15);
+    --color-success-a30: rgba(0, 255, 65, 0.3);
+    --color-warning-a15: rgba(204, 255, 0, 0.15);
+    --color-warning-a40: rgba(204, 255, 0, 0.4);
+    --color-error-a40: rgba(255, 51, 51, 0.4);
+    --color-orange-a15: rgba(255, 170, 0, 0.15);
+    --color-orange-a30: rgba(255, 170, 0, 0.3);
+    --color-muted-a15: rgba(0, 119, 32, 0.15);
+
+    --color-status-pending: #007720;
+    --color-status-running: #00ff41;
+    --color-status-complete: #00ff41;
+    --color-status-error: #ff3333;
+
+    --color-node-source: #00cc33;
+    --color-node-features: #00dd38;
+    --color-node-model: #00ff41;
+    --color-node-ensemble: #66ff88;
+    --color-node-calibration: #ccff00;
+    --color-node-output: #ffaa00;
+
+    --color-tool-models: #00ff41;
+    --color-tool-pipeline: #66ff88;
+    --color-tool-data: #00cc33;
+    --color-tool-features: #00dd38;
+    --color-tool-experiments: #ffaa00;
+    --color-tool-config: #ccff00;
+
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+
+    --shadow-sm: 0 0 2px rgba(0, 255, 65, 0.2);
+    --shadow-md: 0 0 8px rgba(0, 255, 65, 0.15);
+    --shadow-lg: 0 0 12px rgba(0, 255, 65, 0.2);
+    --shadow-glow-accent: 0 0 12px rgba(0, 255, 65, 0.3), inset 0 0 0 1px rgba(0, 255, 65, 0.15);
+}

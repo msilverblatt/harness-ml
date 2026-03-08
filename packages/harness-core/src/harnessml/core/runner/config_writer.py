@@ -2598,6 +2598,56 @@ def show_diagnostics(
                     cells.append(f"{acc:.4f}" if acc is not None else "N/A")
                 lines.append("| " + " | ".join(cells) + " |")
 
+    elif task == "regression":
+        # Regression diagnostics
+        from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
+
+        y_true_float = y_true.astype(float)
+
+        model_metrics = []
+        for col in sorted(prob_cols):
+            model_name = col.replace("prob_", "", 1)
+            y_pred = preds_df[col].values.astype(float)
+
+            valid = ~np.isnan(y_pred) & ~np.isnan(y_true_float)
+            if valid.sum() == 0:
+                continue
+
+            y_t = y_true_float[valid]
+            y_p = y_pred[valid]
+
+            model_metrics.append({
+                "model": model_name,
+                "rmse": float(root_mean_squared_error(y_t, y_p)),
+                "mae": float(mean_absolute_error(y_t, y_p)),
+                "r_squared": float(r2_score(y_t, y_p)),
+                "n_samples": int(valid.sum()),
+            })
+
+        lines.append(f"- Models: {len(model_metrics)}\n")
+
+        lines.append("### Per-Model Metrics\n")
+        lines.append("| Model | RMSE | MAE | R² | N |")
+        lines.append("|-------|------|-----|-----|---|")
+        for m in sorted(model_metrics, key=lambda x: x["rmse"]):
+            lines.append(
+                f"| {m['model']} | {m['rmse']:.4f} | {m['mae']:.4f} "
+                f"| {m['r_squared']:.4f} | {m['n_samples']} |"
+            )
+
+        # Residual summary for ensemble
+        ensemble_col = "prob_ensemble" if "prob_ensemble" in preds_df.columns else prob_cols[0]
+        y_ens = preds_df[ensemble_col].values.astype(float)
+        valid_ens = ~np.isnan(y_ens) & ~np.isnan(y_true_float)
+        if valid_ens.sum() > 0:
+            residuals = y_true_float[valid_ens] - y_ens[valid_ens]
+            ens_name = ensemble_col.replace("prob_", "", 1)
+            lines.append(f"\n### Residual Summary (`{ens_name}`)\n")
+            lines.append(f"- Mean residual: {float(np.mean(residuals)):.4f}")
+            lines.append(f"- Std residual: {float(np.std(residuals)):.4f}")
+            lines.append(f"- Median residual: {float(np.median(residuals)):.4f}")
+            lines.append(f"- Max |residual|: {float(np.max(np.abs(residuals))):.4f}")
+
     else:
         # Binary diagnostics
         from harnessml.core.runner.diagnostics import (

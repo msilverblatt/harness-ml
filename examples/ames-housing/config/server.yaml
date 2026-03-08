@@ -1,0 +1,25 @@
+server:
+  name: ames-housing
+  tools:
+    train:
+      command: uv run python -m harnessml.runner train
+      description: Train all active models
+      timeout: 300
+    backtest:
+      command: uv run python -m harnessml.runner backtest
+      description: Run backtesting across configured folds
+      timeout: 600
+    pipeline:
+      command: uv run python -m harnessml.runner pipeline
+      description: Run the full pipeline
+      timeout: 900
+  inspection:
+  - show_config
+  - list_models
+  - list_features
+  - list_experiments
+  - profile_data
+  - available_features
+  - list_runs
+  - list_presets
+  - discover_features

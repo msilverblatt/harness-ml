@@ -1,0 +1,581 @@
+.diagnostics {
+    padding: var(--space-4);
+    overflow-y: auto;
+    height: 100%;
+}
+
+/* --- Compact Selector Bar --- */
+
+.selectorBar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    position: relative;
+    flex-wrap: wrap;
+}
+
+.selectorLeft {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex: 1;
+    min-width: 0;
+}
+
+.selectorRight {
+    flex-shrink: 0;
+}
+
+.selectorTrigger {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    min-width: 240px;
+    transition: border-color 0.15s;
+}
+
+.selectorTrigger:hover {
+    border-color: var(--color-accent);
+}
+
+.selectorRunLabel {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+}
+
+.selectorTimestamp {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.selectorChevron {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+/* Tags */
+
+.tagBaseline {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-a12);
+    color: var(--color-accent);
+    border: 1px solid var(--color-accent-a25);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tagExperiment {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-orange-a15);
+    color: var(--color-tool-experiments);
+    border: 1px solid var(--color-orange-a30);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tagBest {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-success-a15);
+    color: var(--color-success);
+    border: 1px solid var(--color-success-a30);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Filter chips */
+
+.filterChips {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.filterChip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.filterChip:hover {
+    color: var(--color-text-secondary);
+    border-color: var(--color-accent);
+}
+
+.filterChipActive {
+    background: var(--color-accent);
+    color: var(--color-bg-primary);
+    border-color: var(--color-accent);
+}
+
+/* Compare button */
+
+.compareBtn {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.compareBtn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+}
+
+.compareBtnActive {
+    background: var(--color-accent);
+    color: var(--color-bg-primary);
+    border-color: var(--color-accent);
+}
+
+/* Dropdown */
+
+.dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: var(--space-1);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdownItem {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+    transition: background 0.1s;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.dropdownItem:last-child {
+    border-bottom: none;
+}
+
+.dropdownItem:hover {
+    background: var(--color-bg-hover);
+}
+
+.dropdownItemSelected {
+    background: var(--color-accent-a08);
+    border-left: 3px solid var(--color-accent);
+    padding-left: calc(var(--space-3) - 3px);
+}
+
+.dropdownTimestamp {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.dropdownMetric {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+}
+
+.dropdownEmpty {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.runCheckbox {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+/* --- Content --- */
+
+.content {
+    margin-top: var(--space-4);
+}
+
+.section {
+    margin-bottom: var(--space-4);
+}
+
+.sectionTitle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin: 0 0 var(--space-3) 0;
+}
+
+/* --- Metric Cards (matches Dashboard overviewStat pattern) --- */
+
+.metricsGrid {
+    display: grid;
+    grid-template-columns: repeat(var(--metric-count), 1fr);
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.metricCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-bg-secondary);
+}
+
+.metricName {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+.metricValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+/* --- Widget containers (matches Dashboard widget pattern) --- */
+
+.widget {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.widgetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.widgetTitle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.widgetBody {
+    padding: var(--space-4);
+}
+
+.twoColumn {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    align-items: start;
+    position: relative;
+    z-index: 0;
+}
+
+.twoColumn > * {
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.twoColumn > * > .chartContainer {
+    height: 100%;
+}
+
+.chartContainer {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.categoryHeader {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-3);
+}
+
+/* --- Correlation Matrix --- */
+
+.corrTable {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+}
+
+.corrColHeader {
+    vertical-align: bottom;
+    text-align: center;
+    padding: var(--space-2) var(--space-1);
+    font-weight: 400;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.corrRowHeader {
+    font-weight: 400;
+    color: var(--color-text-secondary);
+    padding: var(--space-2) var(--space-2) var(--space-2) 0;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.corrCell {
+    text-align: center;
+    padding: var(--space-2);
+    border: 1px solid var(--color-bg-primary);
+}
+
+.emptyState {
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+}
+
+/* --- Fold Table --- */
+
+.foldTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.foldTable th {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.foldTable td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+}
+
+/* --- Meta-Learner Coefficients --- */
+
+.coeffSubtitle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.coeffList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.coeffRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.coeffName {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    min-width: 120px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.coeffBarTrack {
+    flex: 1;
+    height: 20px;
+    background: var(--color-bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 240px;
+}
+
+.coeffBarFill {
+    height: 100%;
+    border-radius: 2px;
+    min-width: 2px;
+    transition: width 0.3s ease;
+}
+
+.coeffValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    min-width: 60px;
+    font-weight: 600;
+}
+
+/* --- Comparison Table --- */
+
+.compareMetricName {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.compareValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.compareDelta {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.expBadgeSmall {
+    display: inline-block;
+    font-size: 9px;
+    padding: 0 4px;
+    margin-left: var(--space-1);
+    border-radius: 2px;
+    background: var(--color-orange-a15);
+    color: var(--color-tool-experiments);
+    vertical-align: middle;
+}
+
+/* --- Pick Analysis --- */
+
+.pickStatsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1px;
+    background: var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.pickStat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-bg-secondary);
+}
+
+.pickStatValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.pickStatLabel {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+/* --- Stats List (vertical key-value pairs) --- */
+
+.statsList {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.statsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.statsRow:last-child {
+    border-bottom: none;
+}
+
+.statsLabel {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.statsValue {
+    color: var(--color-text-primary);
+    font-weight: 700;
+}
+
+/* --- Report --- */
+
+.reportContainer {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+}

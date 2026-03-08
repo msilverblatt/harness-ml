@@ -1,0 +1,219 @@
+.models {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--space-4);
+    gap: var(--space-4);
+}
+
+/* ── Stat bar ── */
+
+.statBar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.statBar > * {
+    min-width: 0;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-bg-secondary);
+}
+
+.statValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.statLabel {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+}
+
+/* ── Table ── */
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.table th {
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border);
+    user-select: none;
+}
+
+.table td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border-subtle);
+    color: var(--color-text-primary);
+}
+
+.clickableRow {
+    cursor: pointer;
+}
+
+.clickableRow:hover td {
+    background: var(--color-bg-tertiary);
+}
+
+/* ── Row content ── */
+
+.chevron {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    transition: transform 0.15s;
+    display: inline-block;
+    margin-right: var(--space-2);
+}
+
+.chevronOpen {
+    transform: rotate(90deg);
+}
+
+.modelName {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.typeBadge {
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-node-model);
+    color: var(--color-node-model);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.statusBadge {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.statusActive {
+    background: var(--color-success-a15);
+    color: var(--color-success);
+}
+
+.statusInactive {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-muted);
+}
+
+.statusExperimental {
+    background: var(--color-warning-a15);
+    color: var(--color-warning);
+}
+
+.muted {
+    color: var(--color-text-muted);
+}
+
+/* ── Expanded detail row ── */
+
+.detailRow td {
+    padding: 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detailBody {
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    background: var(--color-bg-primary);
+    border-top: 1px solid var(--color-border-subtle);
+}
+
+.sectionLabel {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-1);
+}
+
+.featureTag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
+    border-radius: 3px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    margin-right: 3px;
+    margin-bottom: 3px;
+}
+
+.paramRow {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: 2px 0;
+}
+
+.paramKey {
+    color: var(--color-text-secondary);
+}
+
+.paramValue {
+    color: var(--color-text-primary);
+}
+
+.metricsRow {
+    display: flex;
+    gap: var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+}
+
+.metricLabel {
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+}
+
+.metricValue {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+}

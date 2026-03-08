@@ -13,14 +13,21 @@ from harnessml.plugin.handlers._validation import (
 def _handle_init(*, project_name, task, target_column, key_columns, time_column, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
-    return cw.scaffold_init(
-        resolve_project_dir(project_dir, allow_missing=True),
+    resolved = resolve_project_dir(project_dir, allow_missing=True)
+    result = cw.scaffold_init(
+        resolved,
         project_name,
         task=task or "classification",
         target_column=target_column or "result",
         key_columns=key_columns,
         time_column=time_column,
     )
+    # Register project in the global registry so Studio can find it
+    from harnessml.plugin.handlers._common import get_active_emitter
+    emitter = get_active_emitter()
+    if emitter is not None:
+        emitter.set_project(str(resolved))
+    return result
 
 
 def _handle_ensemble(*, method, temperature, exclude_models, calibration, pre_calibration, prior_feature, spline_prob_max, spline_n_bins, project_dir, **_kwargs):
@@ -277,6 +284,18 @@ def _handle_set_target(*, name, project_dir, **_kwargs):
     return cw.set_active_target(resolve_project_dir(project_dir), name)
 
 
+def _handle_studio(*, project_dir, **_kwargs):
+    """Return the Studio dashboard URL."""
+    import harnessml.plugin.mcp_server as _mcp
+    port = _mcp._STUDIO_PORT
+    base_url = f"http://localhost:{port}"
+    if project_dir:
+        from pathlib import Path
+        project_name = Path(project_dir).resolve().name
+        return f"**Harness Studio** → {base_url}/{project_name}/dashboard"
+    return f"**Harness Studio** → {base_url}"
+
+
 ACTIONS = {
     "init": _handle_init,
     "update_data": _handle_update_data,
@@ -289,6 +308,7 @@ ACTIONS = {
     "add_target": _handle_add_target,
     "list_targets": _handle_list_targets,
     "set_target": _handle_set_target,
+    "studio": _handle_studio,
 }
 
 

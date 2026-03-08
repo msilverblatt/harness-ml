@@ -1,7 +1,7 @@
 """Handler for manage_experiments tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
+from harnessml.plugin.handlers._common import make_progress_callback, parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
     collect_hints,
     format_response_with_hints,
@@ -50,15 +50,7 @@ async def _handle_run(*, experiment_id, primary_metric, variant, ctx, project_di
         return err
 
     loop = asyncio.get_running_loop()
-
-    def _progress_callback(current, total, message):
-        import logging
-        logging.getLogger(__name__).info("Experiment progress: %s", message)
-        if ctx is not None:
-            asyncio.run_coroutine_threadsafe(
-                ctx.report_progress(progress=current, total=total, message=message),
-                loop,
-            )
+    _progress_callback = make_progress_callback(ctx, loop)
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=1, message=f"Running experiment {experiment_id}...")
@@ -106,15 +98,7 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
         return err
 
     loop = asyncio.get_running_loop()
-
-    def _progress_callback(current, total, message):
-        import logging
-        logging.getLogger(__name__).info("Experiment progress: %s", message)
-        if ctx is not None:
-            asyncio.run_coroutine_threadsafe(
-                ctx.report_progress(progress=current, total=total, message=message),
-                loop,
-            )
+    _progress_callback = make_progress_callback(ctx, loop)
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=1, message="Starting experiment...")
@@ -172,16 +156,7 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
         warning = None
 
     loop = asyncio.get_running_loop()
-
-    def _progress_callback(current, total, message):
-        """Sync callback running in thread — schedules async progress on event loop."""
-        import logging
-        logging.getLogger(__name__).info("Exploration progress: %s", message)
-        if ctx is not None:
-            asyncio.run_coroutine_threadsafe(
-                ctx.report_progress(progress=current, total=total, message=message),
-                loop,
-            )
+    _progress_callback = make_progress_callback(ctx, loop)
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=1, message="Starting exploration...")

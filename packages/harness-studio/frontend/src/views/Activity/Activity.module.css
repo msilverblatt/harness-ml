@@ -1,0 +1,362 @@
+.activity {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.statBar {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.statGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1px;
+    background: var(--color-border);
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-bg-primary);
+}
+
+.statValue {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.statLabel {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.eventLog {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.filterBar {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+}
+
+.filterInput,
+.filterSelect {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+.filterInput:focus,
+.filterSelect:focus {
+    border-color: var(--color-accent);
+}
+
+.filterInput {
+    flex: 1;
+    min-width: 120px;
+}
+
+.toolBadge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    color: var(--color-bg-primary);
+}
+
+.eventSummary {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    flex: 1;
+}
+
+.timestamp {
+    color: var(--color-text-muted);
+    min-width: 60px;
+}
+
+.action {
+    color: var(--color-text-primary);
+}
+
+.duration {
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
+.params {
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.eventList {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.newEvent {
+    animation: fadeSlideIn 200ms ease-out;
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.runningEvent {
+    border-left: 3px solid var(--color-accent);
+    background: var(--color-accent-a06);
+    padding: var(--space-3) var(--space-4);
+    box-shadow: var(--shadow-glow-accent);
+    border-radius: var(--radius-sm);
+    margin: var(--space-1) 0;
+    position: relative;
+}
+
+.runningBadge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    background: var(--color-accent);
+    color: var(--color-bg-primary);
+    animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.foldProgress {
+    margin-top: var(--space-2);
+}
+
+.foldTrack {
+    position: relative;
+    height: 12px;
+    background: var(--color-bg-tertiary);
+    border-radius: 3px;
+}
+
+.foldFillDone {
+    position: absolute;
+    border-radius: 3px;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 3px 0 0 3px;
+    transition: width 0.4s ease;
+    z-index: 1;
+}
+
+
+.foldTick {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: calc(100% + 6px);
+    background: var(--color-text-secondary);
+    z-index: 3;
+}
+
+.modelTick {
+    position: absolute;
+    top: 3px;
+    width: 1px;
+    height: 6px;
+    background: var(--color-bg-primary);
+    z-index: 2;
+}
+
+.phaseTick {
+    position: absolute;
+    top: -4px;
+    width: 3px;
+    height: calc(100% + 8px);
+    background: var(--color-text-primary);
+    z-index: 4;
+}
+
+.foldFillBaseline {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: var(--color-success);
+    border-radius: 0 3px 3px 0;
+    transition: width 0.4s ease;
+    z-index: 1;
+}
+
+.phaseLabels {
+    display: flex;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    margin-top: 2px;
+}
+
+.phaseLabelExp {
+    flex: 1;
+    color: var(--color-accent);
+    text-align: center;
+}
+
+.phaseLabelBase {
+    flex: 1;
+    color: var(--color-success);
+    text-align: center;
+}
+
+.foldMeta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--space-1);
+}
+
+.foldCount {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.progressMessage {
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+}
+
+.statusError {
+    border-left: 3px solid var(--color-error);
+}
+
+.elapsedLive {
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.filterCount {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    align-self: center;
+}
+
+.clearButton {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.clearButton:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8) var(--space-4);
+    gap: var(--space-3);
+    flex: 1;
+}
+
+.emptyIcon {
+    color: var(--color-border);
+    opacity: 0.6;
+}
+
+.emptyIconPulse {
+    color: var(--color-accent);
+    opacity: 0.5;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+.emptyTitle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.emptyDesc {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.5;
+}
+
+.callerBadge {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    background: var(--color-accent-a10);
+    border: 1px solid var(--color-accent-a25);
+    border-radius: 2px;
+    padding: 0 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}

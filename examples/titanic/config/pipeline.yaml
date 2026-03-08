@@ -4,476 +4,53 @@ data:
   features_dir: data/features
   features_file: features.parquet
   outputs_dir: outputs
-  task: classification
+  task: binary
   target_column: Survived
   views: {}
   features_view: null
+  exclude_columns:
+  - PassengerId
+  - Name
+  - Ticket
+  - Cabin
+  - Sex
+  - Embarked
   feature_defs:
-    age:
-      name: age
-      type: instance
-      source: null
-      column: null
-      formula: Age
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    fare:
-      name: fare
-      type: instance
-      source: null
-      column: null
-      formula: Fare
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    sibsp:
-      name: sibsp
-      type: instance
-      source: null
-      column: null
-      formula: SibSp
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    parch:
-      name: parch
-      type: instance
-      source: null
-      column: null
-      formula: Parch
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    sex_male:
-      name: sex_male
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    pclass:
-      name: pclass
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
     family_size:
       name: family_size
-      type: instance
+      type: pairwise
       source: null
       column: null
-      formula: null
+      formula: SibSp + Parch + 1
       condition: null
       pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    is_alone:
-      name: is_alone
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: ''
+      description: Total family size aboard (self + siblings/spouses + parents/children)
       nan_strategy: median
       category: general
       enabled: true
     fare_per_person:
       name: fare_per_person
-      type: instance
+      type: pairwise
       source: null
       column: null
-      formula: null
+      formula: Fare / (SibSp + Parch + 1)
       condition: null
       pairwise_mode: diff
-      description: ''
+      description: "Fare divided by family size \u2014 proxy for individual wealth\
+        \ since tickets were often shared"
       nan_strategy: median
       category: general
       enabled: true
-    is_child:
-      name: is_child
-      type: instance
+    age_class_interact:
+      name: age_class_interact
+      type: pairwise
       source: null
       column: null
-      formula: null
+      formula: Age * Pclass
       condition: null
       pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    embarked_c:
-      name: embarked_c
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    embarked_q:
-      name: embarked_q
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: ''
-      nan_strategy: median
-      category: general
-      enabled: true
-    pclass_x_sex:
-      name: pclass_x_sex
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: pclass * sex_male interaction
-      nan_strategy: median
-      category: general
-      enabled: true
-    pclass_div_famsize:
-      name: pclass_div_famsize
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: pclass / family_size interaction
-      nan_strategy: median
-      category: general
-      enabled: true
-    famsize_x_sex:
-      name: famsize_x_sex
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: family_size * sex_male interaction
-      nan_strategy: median
-      category: general
-      enabled: true
-    has_cabin:
-      name: has_cabin
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Whether cabin number was recorded (proxy for wealth/status)
-      nan_strategy: median
-      category: general
-      enabled: true
-    age_known:
-      name: age_known
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Whether age was recorded (missing age correlates with lower class)
-      nan_strategy: median
-      category: general
-      enabled: true
-    title_mr:
-      name: title_mr
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Passenger title is Mr
-      nan_strategy: median
-      category: general
-      enabled: true
-    title_mrs:
-      name: title_mrs
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Passenger title is Mrs
-      nan_strategy: median
-      category: general
-      enabled: true
-    title_miss:
-      name: title_miss
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Passenger title is Miss
-      nan_strategy: median
-      category: general
-      enabled: true
-    title_master:
-      name: title_master
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Passenger title is Master (young boy)
-      nan_strategy: median
-      category: general
-      enabled: true
-    ticket_freq:
-      name: ticket_freq
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Number of passengers sharing the same ticket
-      nan_strategy: median
-      category: general
-      enabled: true
-    ticket_is_numeric:
-      name: ticket_is_numeric
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Whether ticket number is purely numeric (no prefix)
-      nan_strategy: median
-      category: general
-      enabled: true
-    cabin_deck_abc:
-      name: cabin_deck_abc
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Cabin on upper decks A/B/C (closest to lifeboats)
-      nan_strategy: median
-      category: general
-      enabled: true
-    title_rare:
-      name: title_rare
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Has rare/noble title (Dr, Rev, military, etc)
-      nan_strategy: median
-      category: general
-      enabled: true
-    large_family:
-      name: large_family
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Family size > 4 (very low survival rate)
-      nan_strategy: median
-      category: general
-      enabled: true
-    female_low_class:
-      name: female_low_class
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Female in 3rd class (much lower survival than 1st/2nd class women)
-      nan_strategy: median
-      category: general
-      enabled: true
-    male_adult:
-      name: male_adult
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Adult male (lowest survival group)
-      nan_strategy: median
-      category: general
-      enabled: true
-    name_len:
-      name: name_len
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Length of full name (proxy for social status)
-      nan_strategy: median
-      category: general
-      enabled: true
-    cabin_count:
-      name: cabin_count
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Number of cabins assigned (multi-cabin = wealthier)
-      nan_strategy: median
-      category: general
-      enabled: true
-    small_family:
-      name: small_family
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Family size 2-4 (sweet spot for evacuation)
-      nan_strategy: median
-      category: general
-      enabled: true
-    first_class:
-      name: first_class
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Binary first class indicator
-      nan_strategy: median
-      category: general
-      enabled: true
-    woman_upper_class:
-      name: woman_upper_class
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Woman in 1st or 2nd class (highest survival group)
-      nan_strategy: median
-      category: general
-      enabled: true
-    fare_bin:
-      name: fare_bin
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: 'Fare tier: 0=cheap, 1=mid, 2=expensive'
-      nan_strategy: median
-      category: general
-      enabled: true
-    age_bin:
-      name: age_bin
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: 'Age group: 0=child, 1=young, 2=middle, 3=elderly'
-      nan_strategy: median
-      category: general
-      enabled: true
-    is_mother:
-      name: is_mother
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Adult woman with children (Mrs + Parch > 0)
-      nan_strategy: median
-      category: general
-      enabled: true
-    fare_per_ticket:
-      name: fare_per_ticket
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Fare / ticket_freq (actual per-ticket cost)
-      nan_strategy: median
-      category: general
-      enabled: true
-    third_class_male:
-      name: third_class_male
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Male in 3rd class (lowest survival group)
-      nan_strategy: median
-      category: general
-      enabled: true
-    cabin_deck_ord:
-      name: cabin_deck_ord
-      type: instance
-      source: null
-      column: null
-      formula: null
-      condition: null
-      pairwise_mode: diff
-      description: Cabin deck as ordinal 1-7 (A nearest boat deck), 0=no cabin
+      description: "Age times class \u2014 older 3rd class passengers faced the worst\
+        \ survival odds"
       nan_strategy: median
       category: general
       enabled: true
@@ -488,7 +65,7 @@ backtest:
   metrics:
   - brier
   - accuracy
-  - ece
   - log_loss
+  - auc
   min_train_folds: 1
   fold_column: fold
