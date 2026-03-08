@@ -2,56 +2,59 @@
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
+    padding: var(--space-3) var(--space-4);
     font-family: var(--font-mono);
-    min-width: 160px;
-    max-width: 280px;
+    min-width: 180px;
+    max-width: 360px;
+    overflow: hidden;
 }
 
 .nodeLabel {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xl);
     color: var(--color-text-primary);
     font-weight: 600;
 }
 
 .nodeSubtext {
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-lg);
     color: var(--color-text-secondary);
     margin-top: var(--space-1);
+    word-break: break-all;
+    overflow-wrap: anywhere;
 }
 
 .nodeDetail {
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-lg);
     color: var(--color-text-muted);
     margin-top: var(--space-1);
 }
 
 .nodeDetailList {
-    font-size: 0.6875rem;
+    font-size: var(--font-size-base);
     color: var(--color-text-muted);
     margin-top: var(--space-1);
-    line-height: 1.4;
-    max-height: 80px;
+    line-height: 1.5;
+    max-height: 120px;
     overflow-y: auto;
 }
 
 .nodeTag {
     display: inline-block;
-    font-size: 0.625rem;
-    padding: 1px var(--space-1);
+    font-size: var(--font-size-sm);
+    padding: 2px var(--space-2);
     border-radius: 3px;
     background: var(--color-bg-tertiary);
     color: var(--color-text-secondary);
-    margin-right: 2px;
-    margin-bottom: 2px;
+    margin-right: 3px;
+    margin-bottom: 3px;
 }
 
 .nodeParamRow {
     display: flex;
     justify-content: space-between;
-    font-size: 0.625rem;
+    font-size: var(--font-size-sm);
     color: var(--color-text-muted);
-    padding: 1px 0;
+    padding: 2px 0;
 }
 
 .nodeParamKey {
@@ -104,7 +107,7 @@
 }
 
 .node:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-lg);
     border-color: var(--color-accent);
     transition: box-shadow 200ms ease, border-color 200ms ease;
 }
@@ -123,18 +126,39 @@
     animation: nodePulse 1.5s ease-in-out infinite;
 }
 
-.nodeSelected {
+.nodeSelected,
+.nodeSelected:hover {
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 2px var(--color-accent), 0 4px 12px rgba(88, 166, 255, 0.3);
+    box-shadow: 0 0 0 2px var(--color-accent), 0 4px 12px var(--color-accent-a30);
+    transition: none;
 }
 
 .runningIndicator {
     display: inline-block;
-    font-size: 0.5625rem;
-    padding: 1px var(--space-1);
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
     border-radius: 3px;
     background: var(--color-status-running);
     color: var(--color-bg-primary);
+    margin-left: var(--space-1);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.experimentNode {
+    border-color: var(--color-tool-experiments);
+    border-width: 2px;
+    border-style: dashed;
+}
+
+.experimentBadge {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    padding: 1px var(--space-2);
+    border-radius: 3px;
+    background: var(--color-orange-a15);
+    color: var(--color-tool-experiments);
     margin-left: var(--space-1);
     font-weight: 700;
     text-transform: uppercase;

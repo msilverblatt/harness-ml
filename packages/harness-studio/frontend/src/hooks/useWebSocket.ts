@@ -9,6 +9,7 @@ export interface Event {
     result: string;
     duration_ms: number;
     status: string;
+    caller?: string;
 }
 
 interface UseWebSocketResult {

@@ -1,4 +1,5 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
 import { MarkdownRenderer } from '../../components/MarkdownRenderer/MarkdownRenderer';
 import styles from './Diagnostics.module.css';
 
@@ -12,7 +13,8 @@ interface ReportViewProps {
 }
 
 export function ReportView({ runId }: ReportViewProps) {
-    const { data, loading, error } = useApi<ReportResponse>(`/api/runs/${runId}/report`);
+    const project = useProject();
+    const { data, loading, error } = useApi<ReportResponse>(`/api/runs/${runId}/report`, undefined, project);
 
     if (loading) {
         return <div className={styles.emptyState}>Loading report...</div>;

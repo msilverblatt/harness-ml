@@ -1,4 +1,6 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
+import { Tooltip } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface MetricsResponse {
@@ -12,7 +14,8 @@ interface MetaCoefficientsProps {
 }
 
 export function MetaCoefficients({ runId }: MetaCoefficientsProps) {
-    const { data, loading, error } = useApi<MetricsResponse>(`/api/runs/${runId}/metrics`);
+    const project = useProject();
+    const { data, loading, error } = useApi<MetricsResponse>(`/api/runs/${runId}/metrics`, undefined, project);
 
     if (loading) {
         return <div className={styles.emptyState}>Loading...</div>;
@@ -37,7 +40,7 @@ export function MetaCoefficients({ runId }: MetaCoefficientsProps) {
     return (
         <div className={styles.chartContainer}>
             <div className={styles.categoryHeader}>
-                Meta-Learner Coefficients
+                <Tooltip term="meta_coefficients" label="Meta-Learner Coefficients" />
             </div>
             <div className={styles.coeffSubtitle}>
                 Higher absolute value = more influence in ensemble

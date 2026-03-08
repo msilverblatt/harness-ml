@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
 import { useLayoutContext } from '../../components/Layout/Layout';
+import { useProject } from '../../hooks/useProject';
 import { ExperimentTable } from './ExperimentTable';
 import { MetricChart } from './MetricChart';
 import { ComparePanel } from './ComparePanel';
@@ -10,8 +12,11 @@ import styles from './Experiments.module.css';
 
 export function Experiments() {
     const { events } = useLayoutContext();
+    const project = useProject();
+    const location = useLocation();
+    const initialExpandedId = (location.state as { expandedId?: string } | null)?.expandedId ?? null;
     const expKey = useRefreshKey(events, ['experiments', 'pipeline']);
-    const { data: experiments, loading, error } = useApi<Experiment[]>('/api/experiments', expKey);
+    const { data: experiments, loading, error } = useApi<Experiment[]>('/api/experiments', expKey, project);
     const [compareIds, setCompareIds] = useState<string[]>([]);
     const [chartMetric, setChartMetric] = useState<string | null>(null);
 
@@ -85,6 +90,7 @@ export function Experiments() {
                     experiments={exps}
                     selectedIds={compareIds}
                     onToggleCompare={handleToggleCompare}
+                    initialExpandedId={initialExpandedId}
                 />
             </div>
             {compareIds.length >= 2 && (

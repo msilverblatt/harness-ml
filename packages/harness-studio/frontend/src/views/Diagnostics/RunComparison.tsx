@@ -1,12 +1,16 @@
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-    CartesianGrid, Legend,
+    CartesianGrid, ErrorBar, Cell,
 } from 'recharts';
+import { useTheme } from '../../hooks/useTheme';
+import type { ThemeColors } from '../../styles/colors';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface RunSummary {
     id: string;
     metrics: Record<string, number>;
+    metric_std?: Record<string, number>;
     experiment_id?: string | null;
 }
 
@@ -24,7 +28,9 @@ const LOWER_IS_BETTER: Record<string, boolean> = {
     ece: true,
 };
 
-const RUN_COLORS = ['#58a6ff', '#3fb950', '#f0883e'];
+function getRunColors(colors: ThemeColors): string[] {
+    return [colors.accent, colors.success, colors.orange];
+}
 
 function formatTimestampShort(id: string): string {
     const match = id.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/);
@@ -56,7 +62,7 @@ function ComparisonRow({ metricName, values, baselineIdx }: {
 
     return (
         <tr>
-            <td className={styles.compareMetricName}>{metricName}</td>
+            <td className={styles.compareMetricName}><MetricLabel name={metricName} /></td>
             {values.map((val, i) => (
                 <td key={i} className={styles.compareValue}>
                     {val !== undefined ? formatValue(val) : '--'}
@@ -105,23 +111,40 @@ function MetricBarChart({ metricName, orderedRunIds, runData, runs }: {
     runData: Record<string, Record<string, number>>;
     runs: RunSummary[];
 }) {
+    const { colors } = useTheme();
+    const RUN_COLORS = getRunColors(colors);
+    const stdData: Record<string, Record<string, number>> = {};
+    for (const run of runs) {
+        if (orderedRunIds.includes(run.id) && run.metric_std) {
+            stdData[run.id] = run.metric_std;
+        }
+    }
     const chartData = orderedRunIds.map((id, i) => ({
         name: runLabel(id, runs),
         value: runData[id]?.[metricName] ?? 0,
+        errorX: stdData[id]?.[metricName] ?? 0,
         fill: RUN_COLORS[i % RUN_COLORS.length],
     }));
+    const hasErrorBars = chartData.some(d => d.errorX > 0);
 
     const values = chartData.map(d => d.value).filter(v => v !== 0);
     if (values.length === 0) return null;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    const valuesWithError = [...values];
+    if (hasErrorBars) {
+        for (const d of chartData) {
+            valuesWithError.push(d.value + d.errorX);
+            valuesWithError.push(d.value - d.errorX);
+        }
+    }
+    const min = Math.min(...valuesWithError);
+    const max = Math.max(...valuesWithError);
     const range = max - min || max * 0.1 || 0.01;
     const domainMin = Math.max(0, min - range * 0.5);
     const domainMax = max + range * 0.2;
 
     return (
         <div className={styles.chartContainer} style={{ marginTop: 'var(--space-3)' }}>
-            <div className={styles.categoryHeader}>{metricName}</div>
+            <div className={styles.categoryHeader}><MetricLabel name={metricName} /></div>
             <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" horizontal={false} />
@@ -149,8 +172,17 @@ function MetricBarChart({ metricName, orderedRunIds, runData, runs }: {
                     />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                         {chartData.map((entry, i) => (
-                            <rect key={i} fill={entry.fill} />
+                            <Cell key={i} fill={entry.fill} />
                         ))}
+                        {hasErrorBars && (
+                            <ErrorBar
+                                dataKey="errorX"
+                                direction="x"
+                                width={4}
+                                stroke="var(--color-text-muted)"
+                                strokeWidth={1}
+                            />
+                        )}
                     </Bar>
                 </BarChart>
             </ResponsiveContainer>

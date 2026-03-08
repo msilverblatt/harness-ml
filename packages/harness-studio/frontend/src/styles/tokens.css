@@ -15,6 +15,33 @@
     --color-success: #3fb950;
     --color-warning: #d29922;
     --color-error: #f85149;
+    --color-orange: #f0883e;
+
+    /* Alpha variants — accent */
+    --color-accent-a06: rgba(88, 166, 255, 0.06);
+    --color-accent-a08: rgba(88, 166, 255, 0.08);
+    --color-accent-a10: rgba(88, 166, 255, 0.1);
+    --color-accent-a12: rgba(88, 166, 255, 0.12);
+    --color-accent-a25: rgba(88, 166, 255, 0.25);
+    --color-accent-a30: rgba(88, 166, 255, 0.3);
+
+    /* Alpha variants — success */
+    --color-success-a15: rgba(63, 185, 80, 0.15);
+    --color-success-a30: rgba(63, 185, 80, 0.3);
+
+    /* Alpha variants — warning */
+    --color-warning-a15: rgba(210, 153, 34, 0.15);
+    --color-warning-a40: rgba(210, 153, 34, 0.4);
+
+    /* Alpha variants — error */
+    --color-error-a40: rgba(248, 81, 73, 0.4);
+
+    /* Alpha variants — orange */
+    --color-orange-a15: rgba(240, 136, 62, 0.15);
+    --color-orange-a30: rgba(240, 136, 62, 0.3);
+
+    /* Alpha variants — muted */
+    --color-muted-a15: rgba(110, 118, 129, 0.15);
 
     /* Status colors for DAG nodes */
     --color-status-pending: #6e7681;
@@ -63,4 +90,7 @@
 
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-glow-accent: 0 0 12px var(--color-accent-a25), inset 0 0 0 1px var(--color-accent-a10);
 }

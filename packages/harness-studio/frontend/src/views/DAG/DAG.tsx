@@ -12,6 +12,7 @@ import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
+import { useProject } from '../../hooks/useProject';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { SourceNode } from './nodes/SourceNode';
 import { FeatureNode } from './nodes/FeatureNode';
@@ -20,6 +21,8 @@ import { EnsembleNode } from './nodes/EnsembleNode';
 import { CalibrationNode } from './nodes/CalibrationNode';
 import { OutputNode } from './nodes/OutputNode';
 import { ViewNode } from './nodes/ViewNode';
+import { useTheme } from '../../hooks/useTheme';
+import type { ThemeColors } from '../../styles/colors';
 import styles from './DAG.module.css';
 
 interface ApiNode {
@@ -49,7 +52,7 @@ const nodeTypes = {
     view: ViewNode,
 };
 
-const NODE_WIDTH = 260;
+const NODE_WIDTH = 340;
 
 function estimateNodeHeight(node: ApiNode): number {
     const d = node.data;
@@ -101,7 +104,7 @@ function estimateNodeHeight(node: ApiNode): number {
     }
 }
 
-function layoutWithDagre(apiNodes: ApiNode[], apiEdges: ApiEdge[]): { nodes: Node[]; edges: Edge[] } {
+function layoutWithDagre(apiNodes: ApiNode[], apiEdges: ApiEdge[], borderColor: string): { nodes: Node[]; edges: Edge[] } {
     const g = new dagre.graphlib.Graph();
     g.setDefaultEdgeLabel(() => ({}));
     g.setGraph({ rankdir: 'LR', nodesep: 80, ranksep: 160 });
@@ -129,25 +132,133 @@ function layoutWithDagre(apiNodes: ApiNode[], apiEdges: ApiEdge[]): { nodes: Nod
         source: e.source,
         target: e.target,
         type: 'smoothstep',
-        style: { stroke: '#484f58', strokeWidth: 1.5 },
+        style: { stroke: borderColor, strokeWidth: 1.5 },
         animated: false,
     }));
 
     return { nodes, edges };
 }
 
-const MINIMAP_NODE_COLOR: Record<string, string> = {
-    source: '#d2a8ff',
-    features: '#79c0ff',
-    model: '#58a6ff',
-    ensemble: '#3fb950',
-    calibration: '#d29922',
-    output: '#f0883e',
-    view: '#58a6ff',
-};
+function getMiniMapNodeColor(colors: ThemeColors): Record<string, string> {
+    return {
+        source: colors.nodeSource,
+        features: colors.nodeFeatures,
+        model: colors.nodeModel,
+        ensemble: colors.nodeEnsemble,
+        calibration: colors.nodeCalibration,
+        output: colors.nodeOutput,
+        view: colors.nodeModel,
+    };
+}
 
-function miniMapNodeColor(node: Node): string {
-    return MINIMAP_NODE_COLOR[node.type ?? ''] ?? '#30363d';
+function getPipelineStages(colors: ThemeColors): { type: string; label: string; color: string }[] {
+    return [
+        { type: 'source', label: 'Sources', color: colors.nodeSource },
+        { type: 'features', label: 'Feature Store', color: colors.nodeFeatures },
+        { type: 'view', label: 'Views', color: colors.nodeModel },
+        { type: 'model', label: 'Models', color: colors.nodeModel },
+        { type: 'ensemble', label: 'Ensemble', color: colors.nodeEnsemble },
+        { type: 'calibration', label: 'Calibration', color: colors.nodeCalibration },
+        { type: 'output', label: 'Output', color: colors.nodeOutput },
+    ];
+}
+
+function StatsPanel({ nodes }: { nodes: ApiNode[] }) {
+    const { colors } = useTheme();
+    const PIPELINE_STAGES = useMemo(() => getPipelineStages(colors), [colors]);
+    const [collapsed, setCollapsed] = useState(false);
+
+    const counts = useMemo(() => {
+        const map: Record<string, number> = {};
+        for (const n of nodes) {
+            map[n.type] = (map[n.type] ?? 0) + 1;
+        }
+        return map;
+    }, [nodes]);
+
+    // Extract notable details from nodes
+    const details = useMemo(() => {
+        const modelNames = nodes.filter(n => n.type === 'model').map(n => n.label);
+        const sourceNode = nodes.find(n => n.type === 'source');
+        const featNode = nodes.find(n => n.type === 'features');
+        const ensNode = nodes.find(n => n.type === 'ensemble');
+        return {
+            modelNames,
+            sourceRows: sourceNode?.data?.rows as number | undefined,
+            sourceCols: (sourceNode?.data?.columns as string[])?.length,
+            featureCount: featNode?.data?.count as number | undefined,
+            target: featNode?.data?.target_column as string | undefined,
+            ensembleMethod: ensNode?.data?.method as string | undefined,
+        };
+    }, [nodes]);
+
+    if (collapsed) {
+        return (
+            <div className={styles.statsPanel}>
+                <button className={styles.statsToggle} onClick={() => setCollapsed(false)}>
+                    Pipeline
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className={styles.statsPanel}>
+            <div className={styles.statsPanelHeader}>
+                <span className={styles.statsPanelTitle}>Pipeline</span>
+                <button className={styles.statsToggle} onClick={() => setCollapsed(true)}>
+                    &minus;
+                </button>
+            </div>
+            <div className={styles.statsList}>
+                {PIPELINE_STAGES.map(stage =>
+                    counts[stage.type] ? (
+                        <div key={stage.type} className={styles.statsRow}>
+                            <span className={styles.statsKey}>
+                                <span className={styles.stageDot} style={{ background: stage.color }} />
+                                {stage.label}
+                            </span>
+                            <span className={styles.statsValue}>{counts[stage.type]}</span>
+                        </div>
+                    ) : null,
+                )}
+            </div>
+            {(details.target || details.sourceRows || details.featureCount) && (
+                <div className={styles.statsDetails}>
+                    {details.target && (
+                        <div className={styles.statsDetailRow}>
+                            <span className={styles.statsDetailLabel}>Target</span>
+                            <span className={styles.statsDetailValue}>{details.target}</span>
+                        </div>
+                    )}
+                    {details.sourceRows != null && (
+                        <div className={styles.statsDetailRow}>
+                            <span className={styles.statsDetailLabel}>Rows</span>
+                            <span className={styles.statsDetailValue}>{details.sourceRows.toLocaleString()}</span>
+                        </div>
+                    )}
+                    {details.sourceCols != null && (
+                        <div className={styles.statsDetailRow}>
+                            <span className={styles.statsDetailLabel}>Columns</span>
+                            <span className={styles.statsDetailValue}>{details.sourceCols}</span>
+                        </div>
+                    )}
+                    {details.featureCount != null && (
+                        <div className={styles.statsDetailRow}>
+                            <span className={styles.statsDetailLabel}>Features</span>
+                            <span className={styles.statsDetailValue}>{details.featureCount}</span>
+                        </div>
+                    )}
+                    {details.ensembleMethod && (
+                        <div className={styles.statsDetailRow}>
+                            <span className={styles.statsDetailLabel}>Method</span>
+                            <span className={styles.statsDetailValue}>{details.ensembleMethod}</span>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }
 
 function DetailPanel({
@@ -413,9 +524,11 @@ function DetailPanel({
 }
 
 export function DAG() {
+    const { colors } = useTheme();
     const { events } = useWebSocket();
+    const project = useProject();
     const dagRefreshKey = useRefreshKey(events, ['models', 'features', 'config', 'pipeline']);
-    const { data, loading, error } = useApi<DagResponse>('/api/project/dag', dagRefreshKey);
+    const { data, loading, error } = useApi<DagResponse>('/api/project/dag', dagRefreshKey, project);
     const [selectedNode, setSelectedNode] = useState<Node | null>(null);
     const [runningNodeIds, setRunningNodeIds] = useState<Set<string>>(new Set());
     const processedEventCountRef = useRef(0);
@@ -442,7 +555,14 @@ export function DAG() {
 
     const { nodes: layoutNodes, edges } = useMemo(() => {
         if (!data) return { nodes: [], edges: [] };
-        return layoutWithDagre(data.nodes, data.edges);
+        return layoutWithDagre(data.nodes, data.edges, colors.border);
+    }, [data, colors.border]);
+
+    // Re-fit when DAG data changes (new nodes/edges from backend)
+    useEffect(() => {
+        if (data) {
+            setResizeKey(k => k + 1);
+        }
     }, [data]);
 
     useEffect(() => {
@@ -508,6 +628,9 @@ export function DAG() {
 
     return (
         <div className={styles.dagContainer}>
+            {data && (
+                <StatsPanel nodes={data.nodes} />
+            )}
             <div className={styles.dagCanvas} ref={canvasRef}>
                 <ReactFlow
                     key={resizeKey}
@@ -519,15 +642,18 @@ export function DAG() {
                     fitView
                     proOptions={{ hideAttribution: true }}
                 >
-                    <Background color="#30363d" gap={20} size={1} />
+                    <Background color={colors.border} gap={20} size={1} />
                     <Controls />
                     <MiniMap
-                        nodeColor={miniMapNodeColor}
+                        nodeColor={(node: Node) => {
+                            const colorMap = getMiniMapNodeColor(colors);
+                            return colorMap[node.type ?? ''] ?? colors.border;
+                        }}
                         nodeStrokeWidth={3}
                         pannable
                         zoomable
                         style={{
-                            backgroundColor: '#161b22',
+                            backgroundColor: colors.bgSecondary,
                         }}
                     />
                 </ReactFlow>

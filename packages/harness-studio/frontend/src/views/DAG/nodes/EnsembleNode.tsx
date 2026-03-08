@@ -1,5 +1,6 @@
 import { Handle, Position } from '@xyflow/react';
 import { NodeShell } from './NodeShell';
+import { Tooltip, MetricLabel } from '../../../components/Tooltip/Tooltip';
 import styles from './nodeStyles.module.css';
 
 interface EnsembleNodeData {
@@ -22,14 +23,14 @@ export function EnsembleNode({ data }: { data: EnsembleNodeData }) {
                 {isRunning && <span className={styles.runningIndicator}>running</span>}
             </div>
             <div className={styles.nodeSubtext}>
-                {data.method ?? 'stacking'}
+                <Tooltip term={data.method ?? 'stacking'} label={data.method ?? 'stacking'} />
                 {data.model_count != null ? ` · ${data.model_count} models` : ''}
             </div>
             {data.cv_strategy && (
                 <>
                     <hr className={styles.nodeDivider} />
                     <div className={styles.nodeParamRow}>
-                        <span className={styles.nodeParamKey}>cv</span>
+                        <span className={styles.nodeParamKey}><Tooltip term="cv_strategy" label="cv" /></span>
                         <span className={styles.nodeParamValue}>{data.cv_strategy}</span>
                     </div>
                     {data.fold_column && (
@@ -46,7 +47,7 @@ export function EnsembleNode({ data }: { data: EnsembleNodeData }) {
                     <div className={styles.nodeDetail}>metrics</div>
                     <div className={styles.nodeDetailList}>
                         {metrics.map(m => (
-                            <span key={m} className={styles.nodeTag}>{m}</span>
+                            <span key={m} className={styles.nodeTag}><MetricLabel name={m} /></span>
                         ))}
                     </div>
                 </>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
 import type { Event } from '../../hooks/useWebSocket';
 import { EventRow } from './EventRow';
 import styles from './Activity.module.css';
@@ -76,7 +77,8 @@ function mergeEvents(events: Event[]): Event[] {
 }
 
 export function EventLog({ wsEvents }: EventLogProps) {
-    const { data: historicalEvents } = useApi<Event[]>('/api/events');
+    const project = useProject();
+    const { data: historicalEvents } = useApi<Event[]>(`/api/events?project=${encodeURIComponent(project)}`);
     const [toolFilter, setToolFilter] = useState('');
     const [textFilter, setTextFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
@@ -169,14 +171,35 @@ export function EventLog({ wsEvents }: EventLogProps) {
                 )}
             </div>
             <div className={styles.eventList}>
-                {filtered.map(event => (
-                    <div
-                        key={event.id}
-                        className={newEventIds.current.has(event.id) ? styles.newEvent : undefined}
-                    >
-                        <EventRow event={event} />
+                {allEvents.length === 0 ? (
+                    <div className={styles.emptyState}>
+                        <div className={styles.emptyIconPulse}>
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                            </svg>
+                        </div>
+                        <div className={styles.emptyTitle}>Listening for tool calls...</div>
+                        <div className={styles.emptyDesc}>
+                            Activity will appear here in real time as you interact with the MCP server.
+                        </div>
                     </div>
-                ))}
+                ) : filtered.length === 0 ? (
+                    <div className={styles.emptyState}>
+                        <div className={styles.emptyTitle}>No matching events</div>
+                        <div className={styles.emptyDesc}>
+                            Try adjusting your filters.
+                        </div>
+                    </div>
+                ) : (
+                    filtered.map(event => (
+                        <div
+                            key={event.id}
+                            className={newEventIds.current.has(event.id) ? styles.newEvent : undefined}
+                        >
+                            <EventRow event={event} />
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

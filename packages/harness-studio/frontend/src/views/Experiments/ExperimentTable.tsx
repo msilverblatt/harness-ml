@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MetricLabel, Tooltip } from '../../components/Tooltip/Tooltip';
 import styles from './Experiments.module.css';
 
 export interface Experiment {
@@ -9,6 +10,7 @@ export interface Experiment {
     conclusion?: string;
     verdict?: string;
     metrics?: Record<string, number>;
+    metric_std?: Record<string, number>;
     baseline_metrics?: Record<string, number>;
     primary_delta?: number;
     primary_metric?: string;
@@ -22,6 +24,7 @@ interface ExperimentTableProps {
     experiments: Experiment[];
     selectedIds: string[];
     onToggleCompare: (id: string) => void;
+    initialExpandedId?: string | null;
 }
 
 interface ExperimentDetail {
@@ -49,14 +52,21 @@ function truncate(s: string | undefined, max: number): string {
     return s.length > max ? s.slice(0, max) + '...' : s;
 }
 
+function normalizeVerdict(v: string | undefined): string {
+    if (!v) return 'pending';
+    const lower = v.toLowerCase();
+    if (['keep', 'improved', 'positive'].includes(lower)) return 'positive';
+    if (['revert', 'regressed', 'negative', 'failed'].includes(lower)) return 'negative';
+    if (['partial', 'neutral', 'baseline'].includes(lower)) return 'neutral';
+    return 'pending';
+}
+
 function verdictClass(verdict?: string): string {
-    switch (verdict) {
-        case 'keep':
-        case 'improved': return styles.verdictKeep;
-        case 'partial':
+    const normalized = normalizeVerdict(verdict);
+    switch (normalized) {
+        case 'positive': return styles.verdictKeep;
         case 'neutral': return styles.verdictPartial;
-        case 'revert':
-        case 'regressed': return styles.verdictRevert;
+        case 'negative': return styles.verdictRevert;
         default: return '';
     }
 }
@@ -144,81 +154,70 @@ function DetailPanel({ experiment }: { experiment: Experiment }) {
                         <div className={styles.detailBlock}>
                             <div className={styles.detailLabel}>Hypothesis</div>
                             <div className={styles.detailText}>{experiment.hypothesis || '--'}</div>
+                            {loading && <div className={styles.detailLoading}>Loading overlay...</div>}
+                            {!loading && overlaySummary.length > 0 && (
+                                <div className={styles.overlayInline}>
+                                    <div className={styles.detailLabel}>What Changed</div>
+                                    <pre className={styles.overlayCode}>{overlaySummary.join('\n')}</pre>
+                                </div>
+                            )}
+                            {!loading && overlay && overlaySummary.length === 0 && (
+                                <div className={styles.overlayInline}>
+                                    <div className={styles.detailLabel}>Overlay</div>
+                                    <pre className={styles.overlayCode}>{JSON.stringify(overlay, null, 2)}</pre>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.detailBlock}>
-                            <div className={styles.detailLabel}>Conclusion</div>
+                            <div className={styles.detailConclusionHeader}>
+                                <div className={styles.detailLabel}>Conclusion</div>
+                                <span className={`${styles.verdictBadge} ${verdictClass(experiment.verdict)}`}>
+                                    {experiment.verdict ?? '--'}
+                                </span>
+                            </div>
                             <div className={styles.detailText}>{experiment.conclusion || '--'}</div>
+                            {metricKeys.length > 0 && (
+                                <table className={styles.detailMetricTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Metric</th>
+                                            <th>Value</th>
+                                            <th>Baseline</th>
+                                            <th>Delta</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {metricKeys.map(key => {
+                                            const val = experiment.metrics?.[key];
+                                            const base = experiment.baseline_metrics?.[key];
+                                            const delta = val != null && base != null ? val - base : undefined;
+                                            const sign = delta != null && delta > 0 ? '+' : '';
+                                            return (
+                                                <tr key={key}>
+                                                    <td><MetricLabel name={key} /></td>
+                                                    <td>{val != null ? val.toFixed(4) : '--'}</td>
+                                                    <td>{base != null ? base.toFixed(4) : '--'}</td>
+                                                    <td className={delta != null ? metricDeltaClass(key, delta) : ''}>
+                                                        {delta != null ? `${sign}${delta.toFixed(4)}` : '--'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
-
-                    <div className={styles.detailRow2}>
-                        <div className={styles.detailBlock}>
-                            <div className={styles.detailLabel}>Verdict</div>
-                            <span className={`${styles.verdictBadge} ${verdictClass(experiment.verdict)}`}>
-                                {experiment.verdict ?? '--'}
-                            </span>
-                        </div>
-                    </div>
-
-                    {metricKeys.length > 0 && (
-                        <div className={styles.detailBlock}>
-                            <div className={styles.detailLabel}>Metrics</div>
-                            <table className={styles.detailMetricTable}>
-                                <thead>
-                                    <tr>
-                                        <th>Metric</th>
-                                        <th>Value</th>
-                                        <th>Baseline</th>
-                                        <th>Delta</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {metricKeys.map(key => {
-                                        const val = experiment.metrics?.[key];
-                                        const base = experiment.baseline_metrics?.[key];
-                                        const delta = val != null && base != null ? val - base : undefined;
-                                        const sign = delta != null && delta > 0 ? '+' : '';
-                                        return (
-                                            <tr key={key}>
-                                                <td>{key}</td>
-                                                <td>{val != null ? val.toFixed(4) : '--'}</td>
-                                                <td>{base != null ? base.toFixed(4) : '--'}</td>
-                                                <td className={delta != null ? metricDeltaClass(key, delta) : ''}>
-                                                    {delta != null ? `${sign}${delta.toFixed(4)}` : '--'}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {loading && <div className={styles.detailLoading}>Loading overlay...</div>}
-
-                    {!loading && overlaySummary.length > 0 && (
-                        <div className={styles.detailBlock}>
-                            <div className={styles.detailLabel}>Overlay Changes</div>
-                            <pre className={styles.overlayCode}>{overlaySummary.join('\n')}</pre>
-                        </div>
-                    )}
-
-                    {!loading && overlay && overlaySummary.length === 0 && (
-                        <div className={styles.detailBlock}>
-                            <div className={styles.detailLabel}>Overlay</div>
-                            <pre className={styles.overlayCode}>{JSON.stringify(overlay, null, 2)}</pre>
-                        </div>
-                    )}
                 </div>
             </td>
         </tr>
     );
 }
 
-export function ExperimentTable({ experiments, selectedIds, onToggleCompare }: ExperimentTableProps) {
+export function ExperimentTable({ experiments, selectedIds, onToggleCompare, initialExpandedId }: ExperimentTableProps) {
     const [sortKey, setSortKey] = useState<SortKey>('timestamp');
     const [sortAsc, setSortAsc] = useState(false);
-    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId ?? null);
 
     function handleSort(key: SortKey) {
         if (sortKey === key) {
@@ -335,7 +334,9 @@ function ExperimentRow({
                 <td className={styles.td}>{formatDate(experiment.timestamp)}</td>
                 <td className={styles.td} title={experiment.hypothesis}>{truncate(experiment.hypothesis, 50)}</td>
                 <td className={styles.td}>
-                    <span className={verdictClass(experiment.verdict)}>{experiment.verdict ?? '--'}</span>
+                    <span className={verdictClass(experiment.verdict)}>
+                        {experiment.verdict ? <Tooltip term={experiment.verdict} label={experiment.verdict} /> : '--'}
+                    </span>
                 </td>
                 <td className={`${styles.td} ${delta.className}`}>{delta.text}</td>
             </tr>

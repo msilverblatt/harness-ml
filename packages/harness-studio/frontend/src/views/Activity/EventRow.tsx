@@ -262,6 +262,9 @@ export function EventRow({ event }: EventRowProps) {
                     return p.total ? ` (${p.current}/${p.total})` : '';
                 })()}
             </span>
+            {event.caller && (
+                <span className={styles.callerBadge}>{event.caller}</span>
+            )}
             {hasProgressData ? (
                 <span className={styles.params}>{event.result}</span>
             ) : isProgress ? (

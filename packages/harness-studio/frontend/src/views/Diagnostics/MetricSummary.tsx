@@ -1,4 +1,6 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface MetricsResponse {
@@ -21,7 +23,8 @@ function formatValue(value: unknown): string {
 }
 
 export function MetricSummary({ runId }: MetricSummaryProps) {
-    const { data, loading, error } = useApi<MetricsResponse>(`/api/runs/${runId}/metrics`);
+    const project = useProject();
+    const { data, loading, error } = useApi<MetricsResponse>(`/api/runs/${runId}/metrics`, undefined, project);
 
     if (loading) {
         return <div className={styles.emptyState}>Loading metrics...</div>;
@@ -37,14 +40,19 @@ export function MetricSummary({ runId }: MetricSummaryProps) {
 
     const metrics = data.metrics;
 
+    const count = Object.keys(metrics).length;
+
     return (
-        <div className={styles.metricsGrid}>
+        <div
+            className={styles.metricsGrid}
+            style={{ '--metric-count': count } as React.CSSProperties}
+        >
             {Object.entries(metrics).map(([name, value]) => (
                 <div key={name} className={styles.metricCard} title={name}>
-                    <div className={styles.metricName}>{name}</div>
-                    <div className={styles.metricValue}>
+                    <span className={styles.metricValue}>
                         {formatValue(value)}
-                    </div>
+                    </span>
+                    <span className={styles.metricName}><MetricLabel name={name} /></span>
                 </div>
             ))}
         </div>

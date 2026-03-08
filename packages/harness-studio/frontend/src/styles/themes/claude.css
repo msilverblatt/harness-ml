@@ -1,0 +1,60 @@
+[data-theme="claude"] {
+    --color-bg-primary: #faf6f1;
+    --color-bg-secondary: #ffffff;
+    --color-bg-tertiary: #f0ebe4;
+    --color-bg-hover: #e5ddd3;
+    --color-border: #d4c9ba;
+    --color-border-subtle: #ede7df;
+
+    --color-text-primary: #2d2518;
+    --color-text-secondary: #6b5d4d;
+    --color-text-muted: #9a8c7c;
+
+    --color-accent: #da7b28;
+    --color-success: #2e8540;
+    --color-warning: #b8860b;
+    --color-error: #c53030;
+    --color-orange: #da7b28;
+
+    --color-accent-a06: rgba(218, 123, 40, 0.06);
+    --color-accent-a08: rgba(218, 123, 40, 0.08);
+    --color-accent-a10: rgba(218, 123, 40, 0.1);
+    --color-accent-a12: rgba(218, 123, 40, 0.12);
+    --color-accent-a25: rgba(218, 123, 40, 0.25);
+    --color-accent-a30: rgba(218, 123, 40, 0.3);
+
+    --color-success-a15: rgba(46, 133, 64, 0.15);
+    --color-success-a30: rgba(46, 133, 64, 0.3);
+    --color-warning-a15: rgba(184, 134, 11, 0.15);
+    --color-warning-a40: rgba(184, 134, 11, 0.4);
+    --color-error-a40: rgba(197, 48, 48, 0.4);
+    --color-orange-a15: rgba(218, 123, 40, 0.15);
+    --color-orange-a30: rgba(218, 123, 40, 0.3);
+    --color-muted-a15: rgba(154, 140, 124, 0.15);
+
+    --color-status-pending: #9a8c7c;
+    --color-status-running: #da7b28;
+    --color-status-complete: #2e8540;
+    --color-status-error: #c53030;
+
+    --color-node-source: #8b6914;
+    --color-node-features: #a0522d;
+    --color-node-model: #da7b28;
+    --color-node-ensemble: #2e8540;
+    --color-node-calibration: #b8860b;
+    --color-node-output: #c25a00;
+
+    --color-tool-models: #da7b28;
+    --color-tool-pipeline: #2e8540;
+    --color-tool-data: #8b6914;
+    --color-tool-features: #a0522d;
+    --color-tool-experiments: #c25a00;
+    --color-tool-config: #b8860b;
+
+    --font-sans: 'Inter', Georgia, serif;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --shadow-glow-accent: 0 0 12px var(--color-accent-a25), inset 0 0 0 1px var(--color-accent-a10);
+}

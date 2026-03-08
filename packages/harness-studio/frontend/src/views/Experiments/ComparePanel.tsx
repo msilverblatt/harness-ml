@@ -1,4 +1,5 @@
 import type { Experiment } from './ExperimentTable';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Experiments.module.css';
 
 interface ComparePanelProps {
@@ -70,7 +71,7 @@ export function ComparePanel({ experiments, selectedIds }: ComparePanelProps) {
                             const baseVal = firstExp.metrics?.[key];
                             return (
                                 <tr key={key}>
-                                    <td>{key}</td>
+                                    <td><MetricLabel name={key} /></td>
                                     {selected.map(exp => (
                                         <td key={exp.experiment_id}>
                                             {formatValue(exp.metrics?.[key])}

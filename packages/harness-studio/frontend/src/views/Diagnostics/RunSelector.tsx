@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface RunSummary {
@@ -16,6 +17,8 @@ interface RunSelectorProps {
     compareMode: boolean;
     onToggleCompare: () => void;
 }
+
+type FilterType = 'all' | 'baseline' | 'experiment';
 
 const LOWER_IS_BETTER: Record<string, boolean> = {
     brier: true,
@@ -35,10 +38,15 @@ function formatTimestamp(id: string): string {
         parseInt(hour), parseInt(minute)
     );
     return date.toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
+        month: 'short', day: 'numeric',
     }) + ' ' + date.toLocaleTimeString('en-US', {
         hour: 'numeric', minute: '2-digit', hour12: true,
     });
+}
+
+function getRunLabel(run: RunSummary): string {
+    if (run.experiment_id) return run.experiment_id;
+    return 'Baseline';
 }
 
 function getPrimaryMetric(metrics: Record<string, number>): { name: string; value: number } | null {
@@ -76,8 +84,28 @@ function findBestRunId(runs: RunSummary[]): string | null {
 }
 
 export function RunSelector({ runs, selectedRunIds, onSelect, compareMode, onToggleCompare }: RunSelectorProps) {
+    const [filter, setFilter] = useState<FilterType>('all');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const bestRunId = useMemo(() => findBestRunId(runs), [runs]);
-    const latestRunId = runs.length > 0 ? runs[0].id : null;
+
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const filteredRuns = useMemo(() => {
+        if (filter === 'baseline') return runs.filter(r => !r.experiment_id);
+        if (filter === 'experiment') return runs.filter(r => !!r.experiment_id);
+        return runs;
+    }, [runs, filter]);
+
+    const primaryRun = runs.find(r => r.id === selectedRunIds[0]);
 
     const handleRunClick = (runId: string) => {
         if (compareMode) {
@@ -89,78 +117,97 @@ export function RunSelector({ runs, selectedRunIds, onSelect, compareMode, onTog
             }
         } else {
             onSelect([runId]);
+            setDropdownOpen(false);
         }
     };
 
     return (
-        <div className={styles.runSelector}>
-            <div className={styles.runSelectorHeader}>
-                <span className={styles.selectorLabel}>Runs</span>
-                <div className={styles.runQuickActions}>
-                    <button
-                        className={`${styles.quickBtn} ${latestRunId && selectedRunIds.includes(latestRunId) ? styles.quickBtnActive : ''}`}
-                        onClick={() => latestRunId && onSelect([latestRunId])}
-                        disabled={!latestRunId}
-                    >
-                        Latest
-                    </button>
-                    <button
-                        className={`${styles.quickBtn} ${bestRunId && selectedRunIds.includes(bestRunId) ? styles.quickBtnActive : ''}`}
-                        onClick={() => bestRunId && onSelect([bestRunId])}
-                        disabled={!bestRunId}
-                    >
-                        Best
-                    </button>
-                    <button
-                        className={`${styles.quickBtn} ${compareMode ? styles.quickBtnActive : ''}`}
-                        onClick={onToggleCompare}
-                    >
-                        Compare
-                    </button>
+        <div className={styles.selectorBar} ref={dropdownRef}>
+            <div className={styles.selectorLeft}>
+                <button
+                    className={styles.selectorTrigger}
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                >
+                    <span className={styles.selectorRunLabel}>
+                        {primaryRun ? (
+                            <>
+                                <span className={primaryRun.experiment_id ? styles.tagExperiment : styles.tagBaseline}>
+                                    {getRunLabel(primaryRun)}
+                                </span>
+                                <span className={styles.selectorTimestamp}>{formatTimestamp(primaryRun.id)}</span>
+                                {primaryRun.id === bestRunId && (
+                                    <span className={styles.tagBest}>best</span>
+                                )}
+                            </>
+                        ) : (
+                            'Select a run...'
+                        )}
+                    </span>
+                    <span className={styles.selectorChevron}>{dropdownOpen ? '\u25B2' : '\u25BC'}</span>
+                </button>
+
+                <div className={styles.filterChips}>
+                    {(['all', 'baseline', 'experiment'] as FilterType[]).map(f => (
+                        <button
+                            key={f}
+                            className={`${styles.filterChip} ${filter === f ? styles.filterChipActive : ''}`}
+                            onClick={() => setFilter(f)}
+                        >
+                            {f === 'all' ? 'All' : f === 'baseline' ? 'Baseline' : 'Experiments'}
+                        </button>
+                    ))}
                 </div>
             </div>
-            <div className={styles.runList}>
-                {runs.map(run => {
-                    const isSelected = selectedRunIds.includes(run.id);
-                    const primary = getPrimaryMetric(run.metrics);
-                    const isBest = run.id === bestRunId;
-                    const hasMetrics = Object.keys(run.metrics).length > 0;
-                    return (
-                        <div
-                            key={run.id}
-                            className={`${styles.runItem} ${isSelected ? styles.runItemSelected : ''}`}
-                            onClick={() => handleRunClick(run.id)}
-                        >
-                            {compareMode && (
-                                <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    readOnly
-                                    className={styles.runCheckbox}
-                                />
-                            )}
-                            <div className={styles.runItemContent}>
-                                <span className={styles.runTimestamp}>
+
+            <div className={styles.selectorRight}>
+                <button
+                    className={`${styles.compareBtn} ${compareMode ? styles.compareBtnActive : ''}`}
+                    onClick={onToggleCompare}
+                >
+                    Compare{compareMode && selectedRunIds.length > 1 ? ` (${selectedRunIds.length})` : ''}
+                </button>
+            </div>
+
+            {dropdownOpen && (
+                <div className={styles.dropdown}>
+                    {filteredRuns.length === 0 && (
+                        <div className={styles.dropdownEmpty}>No matching runs</div>
+                    )}
+                    {filteredRuns.map(run => {
+                        const isSelected = selectedRunIds.includes(run.id);
+                        const primary = getPrimaryMetric(run.metrics);
+                        const isBest = run.id === bestRunId;
+                        return (
+                            <div
+                                key={run.id}
+                                className={`${styles.dropdownItem} ${isSelected ? styles.dropdownItemSelected : ''}`}
+                                onClick={() => handleRunClick(run.id)}
+                            >
+                                {compareMode && (
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        readOnly
+                                        className={styles.runCheckbox}
+                                    />
+                                )}
+                                <span className={run.experiment_id ? styles.tagExperiment : styles.tagBaseline}>
+                                    {getRunLabel(run)}
+                                </span>
+                                <span className={styles.dropdownTimestamp}>
                                     {formatTimestamp(run.id)}
                                 </span>
-                                <div className={styles.runBadges}>
-                                    {run.experiment_id && (
-                                        <span className={styles.expBadge}>{run.experiment_id}</span>
-                                    )}
-                                    {isBest && hasMetrics && (
-                                        <span className={styles.bestBadge}>best</span>
-                                    )}
-                                </div>
+                                {isBest && <span className={styles.tagBest}>best</span>}
+                                {primary && (
+                                    <span className={styles.dropdownMetric}>
+                                        <MetricLabel name={primary.name} />: {primary.value.toFixed(4)}
+                                    </span>
+                                )}
                             </div>
-                            {primary && (
-                                <span className={styles.runMetricInline}>
-                                    {primary.name}: {primary.value.toFixed(4)}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

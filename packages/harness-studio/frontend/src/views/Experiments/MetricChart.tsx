@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, CartesianGrid, ErrorBar } from 'recharts';
 import type { Experiment } from './ExperimentTable';
+import { useTheme } from '../../hooks/useTheme';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Experiments.module.css';
 
 interface MetricChartProps {
@@ -13,6 +15,7 @@ interface MetricChartProps {
 const LOWER_IS_BETTER = new Set(['brier', 'ece', 'log_loss', 'mae', 'mse', 'rmse']);
 
 export function MetricChart({ experiments, metricKey, availableMetrics, onMetricChange }: MetricChartProps) {
+    const { colors } = useTheme();
     const chronological = [...experiments].reverse();
 
     const isLowerBetter = LOWER_IS_BETTER.has(metricKey);
@@ -23,6 +26,7 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
             .map(exp => ({
                 id: exp.experiment_id,
                 value: exp.metrics![metricKey],
+                errorY: exp.metric_std?.[metricKey] ?? 0,
             }));
 
         let runningBest: number | null = null;
@@ -39,6 +43,8 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
         });
     }, [chronological, metricKey, isLowerBetter]);
 
+    const hasErrorBars = data.some(d => d.errorY > 0);
+
     if (data.length === 0) {
         return null;
     }
@@ -53,6 +59,13 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
 
     if (baselineValue != null) allValues.push(baselineValue);
     allValues.push(bestValue);
+    // Expand range for error bars
+    if (hasErrorBars) {
+        for (const d of data) {
+            allValues.push(d.value + d.errorY);
+            allValues.push(d.value - d.errorY);
+        }
+    }
     const yMin = Math.min(...allValues);
     const yMax = Math.max(...allValues);
     const padding = (yMax - yMin) * 0.15 || 0.01;
@@ -66,7 +79,7 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
                         className={`${styles.metricTab} ${m === metricKey ? styles.metricTabActive : ''}`}
                         onClick={() => onMetricChange(m)}
                     >
-                        {m}
+                        <MetricLabel name={m} />
                     </button>
                 ))}
             </div>
@@ -143,8 +156,8 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
                                             cx={cx}
                                             cy={cy}
                                             r={5}
-                                            fill="#d29922"
-                                            stroke="#d29922"
+                                            fill={colors.warning}
+                                            stroke={colors.warning}
                                             strokeWidth={2}
                                         />
                                     );
@@ -162,7 +175,17 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
                                 );
                             }}
                             activeDot={{ r: 5 }}
-                        />
+                        >
+                            {hasErrorBars && (
+                                <ErrorBar
+                                    dataKey="errorY"
+                                    direction="y"
+                                    width={4}
+                                    stroke="var(--color-text-muted)"
+                                    strokeWidth={1}
+                                />
+                            )}
+                        </Line>
                     </LineChart>
                 </ResponsiveContainer>
             </div>

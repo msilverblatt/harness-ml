@@ -1,4 +1,6 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
+import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface FoldBreakdownProps {
@@ -27,7 +29,8 @@ function formatCell(value: unknown): string {
 }
 
 export function FoldBreakdown({ runId }: FoldBreakdownProps) {
-    const { data, loading, error } = useApi<FoldsResponse>(`/api/runs/${runId}/folds`);
+    const project = useProject();
+    const { data, loading, error } = useApi<FoldsResponse>(`/api/runs/${runId}/folds`, undefined, project);
 
     if (loading) {
         return <div className={styles.emptyState}>Loading fold breakdown...</div>;
@@ -45,29 +48,31 @@ export function FoldBreakdown({ runId }: FoldBreakdownProps) {
     const cols = metric_names ?? [];
 
     return (
-        <div className={styles.chartContainer}>
-            <table className={styles.foldTable}>
-                <thead>
-                    <tr>
-                        <th>Fold</th>
-                        <th>Samples</th>
-                        {cols.map(col => (
-                            <th key={col}>{col}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {folds.map((fold) => (
-                        <tr key={fold.fold}>
-                            <td>{fold.fold}</td>
-                            <td>{fold.n_samples}</td>
+        <div className={styles.widget}>
+            <div style={{ overflow: 'auto' }}>
+                <table className={styles.foldTable}>
+                    <thead>
+                        <tr>
+                            <th>Fold</th>
+                            <th>Samples</th>
                             {cols.map(col => (
-                                <td key={col}>{formatCell(fold[col])}</td>
+                                <th key={col}><MetricLabel name={col} /></th>
                             ))}
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {folds.map((fold) => (
+                            <tr key={fold.fold}>
+                                <td>{fold.fold}</td>
+                                <td>{fold.n_samples}</td>
+                                {cols.map(col => (
+                                    <td key={col}>{formatCell(fold[col])}</td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

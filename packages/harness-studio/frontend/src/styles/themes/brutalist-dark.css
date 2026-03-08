@@ -1,0 +1,62 @@
+[data-theme="brutalist-dark"] {
+    --color-bg-primary: #000000;
+    --color-bg-secondary: #0a0a0a;
+    --color-bg-tertiary: #141414;
+    --color-bg-hover: #1e1e1e;
+    --color-border: #333333;
+    --color-border-subtle: #1a1a1a;
+
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #999999;
+    --color-text-muted: #666666;
+
+    --color-accent: #ffffff;
+    --color-success: #00ff00;
+    --color-warning: #ffff00;
+    --color-error: #ff0000;
+    --color-orange: #ff8800;
+
+    --color-accent-a06: rgba(255, 255, 255, 0.06);
+    --color-accent-a08: rgba(255, 255, 255, 0.08);
+    --color-accent-a10: rgba(255, 255, 255, 0.1);
+    --color-accent-a12: rgba(255, 255, 255, 0.12);
+    --color-accent-a25: rgba(255, 255, 255, 0.25);
+    --color-accent-a30: rgba(255, 255, 255, 0.3);
+
+    --color-success-a15: rgba(0, 255, 0, 0.15);
+    --color-success-a30: rgba(0, 255, 0, 0.3);
+    --color-warning-a15: rgba(255, 255, 0, 0.15);
+    --color-warning-a40: rgba(255, 255, 0, 0.4);
+    --color-error-a40: rgba(255, 0, 0, 0.4);
+    --color-orange-a15: rgba(255, 136, 0, 0.15);
+    --color-orange-a30: rgba(255, 136, 0, 0.3);
+    --color-muted-a15: rgba(102, 102, 102, 0.15);
+
+    --color-status-pending: #666666;
+    --color-status-running: #ffffff;
+    --color-status-complete: #00ff00;
+    --color-status-error: #ff0000;
+
+    --color-node-source: #cccccc;
+    --color-node-features: #aaaaaa;
+    --color-node-model: #ffffff;
+    --color-node-ensemble: #00ff00;
+    --color-node-calibration: #ffff00;
+    --color-node-output: #ff8800;
+
+    --color-tool-models: #ffffff;
+    --color-tool-pipeline: #00ff00;
+    --color-tool-data: #cccccc;
+    --color-tool-features: #aaaaaa;
+    --color-tool-experiments: #ff8800;
+    --color-tool-config: #ffff00;
+
+    --radius-sm: 0px;
+    --radius-md: 0px;
+    --radius-lg: 0px;
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-glow-accent: inset 0 0 0 2px var(--color-accent);
+}

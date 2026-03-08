@@ -1,4 +1,5 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
 import {
     ComposedChart,
     Scatter,
@@ -9,6 +10,7 @@ import {
     CartesianGrid,
     ReferenceLine,
 } from 'recharts';
+import { Tooltip as GlossaryTip } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface CalibrationPoint {
@@ -29,7 +31,8 @@ interface CalibrationPlotProps {
 }
 
 export function CalibrationPlot({ runId }: CalibrationPlotProps) {
-    const { data, loading, error } = useApi<CalibrationResponse>(`/api/runs/${runId}/calibration`);
+    const project = useProject();
+    const { data, loading, error } = useApi<CalibrationResponse>(`/api/runs/${runId}/calibration`, undefined, project);
 
     if (loading) {
         return (
@@ -57,7 +60,7 @@ export function CalibrationPlot({ runId }: CalibrationPlotProps) {
     return (
         <div className={styles.chartContainer}>
             <div className={styles.categoryHeader}>
-                Calibration Curve ({data.prob_column ?? 'ensemble'})
+                <GlossaryTip term="calibration" label="Calibration Curve" /> ({data.prob_column ?? 'ensemble'})
             </div>
             <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart margin={{ top: 10, right: 20, bottom: 20, left: 20 }}>

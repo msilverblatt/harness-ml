@@ -1,0 +1,58 @@
+[data-theme="catppuccin"] {
+    --color-bg-primary: #1e1e2e;
+    --color-bg-secondary: #24243e;
+    --color-bg-tertiary: #313244;
+    --color-bg-hover: #45475a;
+    --color-border: #585b70;
+    --color-border-subtle: #313244;
+
+    --color-text-primary: #cdd6f4;
+    --color-text-secondary: #a6adc8;
+    --color-text-muted: #6c7086;
+
+    --color-accent: #cba6f7;
+    --color-success: #a6e3a1;
+    --color-warning: #f9e2af;
+    --color-error: #f38ba8;
+    --color-orange: #fab387;
+
+    --color-accent-a06: rgba(203, 166, 247, 0.06);
+    --color-accent-a08: rgba(203, 166, 247, 0.08);
+    --color-accent-a10: rgba(203, 166, 247, 0.1);
+    --color-accent-a12: rgba(203, 166, 247, 0.12);
+    --color-accent-a25: rgba(203, 166, 247, 0.25);
+    --color-accent-a30: rgba(203, 166, 247, 0.3);
+
+    --color-success-a15: rgba(166, 227, 161, 0.15);
+    --color-success-a30: rgba(166, 227, 161, 0.3);
+    --color-warning-a15: rgba(249, 226, 175, 0.15);
+    --color-warning-a40: rgba(249, 226, 175, 0.4);
+    --color-error-a40: rgba(243, 139, 168, 0.4);
+    --color-orange-a15: rgba(250, 179, 135, 0.15);
+    --color-orange-a30: rgba(250, 179, 135, 0.3);
+    --color-muted-a15: rgba(108, 112, 134, 0.15);
+
+    --color-status-pending: #6c7086;
+    --color-status-running: #89b4fa;
+    --color-status-complete: #a6e3a1;
+    --color-status-error: #f38ba8;
+
+    --color-node-source: #cba6f7;
+    --color-node-features: #89dceb;
+    --color-node-model: #89b4fa;
+    --color-node-ensemble: #a6e3a1;
+    --color-node-calibration: #f9e2af;
+    --color-node-output: #fab387;
+
+    --color-tool-models: #89b4fa;
+    --color-tool-pipeline: #a6e3a1;
+    --color-tool-data: #cba6f7;
+    --color-tool-features: #89dceb;
+    --color-tool-experiments: #fab387;
+    --color-tool-config: #f9e2af;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.45);
+    --shadow-glow-accent: 0 0 12px var(--color-accent-a25), inset 0 0 0 1px var(--color-accent-a10);
+}

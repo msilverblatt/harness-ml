@@ -1,4 +1,8 @@
 import { useApi } from '../../hooks/useApi';
+import { useProject } from '../../hooks/useProject';
+import { useTheme } from '../../hooks/useTheme';
+import type { ThemeColors } from '../../styles/colors';
+import { Tooltip } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
 interface CorrelationResponse {
@@ -11,15 +15,17 @@ interface CorrelationMatrixProps {
     runId: string;
 }
 
-function getCorrelationColor(value: number): string {
+function getCorrelationColor(value: number, colors: ThemeColors): string {
     if (value >= 0.99) return 'var(--color-text-muted)';
-    if (value > 0.8) return '#f8514966';
-    if (value > 0.6) return '#d2992266';
-    return '#3fb95066';
+    if (value > 0.8) return colors.error + '66';
+    if (value > 0.6) return colors.warning + '66';
+    return colors.success + '66';
 }
 
 export function CorrelationMatrix({ runId }: CorrelationMatrixProps) {
-    const { data, loading, error } = useApi<CorrelationResponse>(`/api/runs/${runId}/correlations`);
+    const { colors } = useTheme();
+    const project = useProject();
+    const { data, loading, error } = useApi<CorrelationResponse>(`/api/runs/${runId}/correlations`, undefined, project);
 
     if (loading) {
         return (
@@ -50,38 +56,39 @@ export function CorrelationMatrix({ runId }: CorrelationMatrixProps) {
 
     return (
         <div className={styles.chartContainer}>
-            <div className={styles.categoryHeader}>Prediction Correlations</div>
-            <div
-                className={styles.correlationGrid}
-                style={{ gridTemplateColumns: `auto repeat(${models.length}, 1fr)` }}
-            >
-                <div />
-                {models.map(name => (
-                    <div key={`col-${name}`} className={styles.correlationHeader}>
-                        {name}
-                    </div>
-                ))}
-                {models.map((rowName, rowIdx) => (
-                    <div key={`row-group-${rowName}`} style={{ display: 'contents' }}>
-                        <div className={styles.rowHeader}>
-                            {rowName}
-                        </div>
-                        {models.map((colName, colIdx) => {
-                            const value = matrix[rowIdx][colIdx];
-                            return (
-                                <div
-                                    key={`${rowName}-${colName}`}
-                                    className={styles.correlationCell}
-                                    style={{ background: getCorrelationColor(value) }}
-                                    title={`${rowName} vs ${colName}: ${value.toFixed(4)}`}
-                                >
-                                    {value.toFixed(2)}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
+            <div className={styles.categoryHeader}><Tooltip term="correlation" label="Prediction Correlations" /></div>
+            <table className={styles.corrTable}>
+                <thead>
+                    <tr>
+                        <th />
+                        {models.map(name => (
+                            <th key={`col-${name}`} className={styles.corrColHeader}>
+                                {name}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {models.map((rowName, rowIdx) => (
+                        <tr key={rowName}>
+                            <td className={styles.corrRowHeader}>{rowName}</td>
+                            {models.map((colName, colIdx) => {
+                                const value = matrix[rowIdx][colIdx];
+                                return (
+                                    <td
+                                        key={`${rowName}-${colName}`}
+                                        className={styles.corrCell}
+                                        style={{ background: getCorrelationColor(value, colors) }}
+                                        title={`${rowName} vs ${colName}: ${value.toFixed(4)}`}
+                                    >
+                                        {value.toFixed(2)}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }

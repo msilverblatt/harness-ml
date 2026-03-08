@@ -1,0 +1,58 @@
+[data-theme="github-light"] {
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f6f8fa;
+    --color-bg-tertiary: #eef1f5;
+    --color-bg-hover: #e2e6eb;
+    --color-border: #d1d9e0;
+    --color-border-subtle: #eef1f5;
+
+    --color-text-primary: #1f2328;
+    --color-text-secondary: #59636e;
+    --color-text-muted: #818b98;
+
+    --color-accent: #0969da;
+    --color-success: #1a7f37;
+    --color-warning: #9a6700;
+    --color-error: #d1242f;
+    --color-orange: #bc4c00;
+
+    --color-accent-a06: rgba(9, 105, 218, 0.06);
+    --color-accent-a08: rgba(9, 105, 218, 0.08);
+    --color-accent-a10: rgba(9, 105, 218, 0.1);
+    --color-accent-a12: rgba(9, 105, 218, 0.12);
+    --color-accent-a25: rgba(9, 105, 218, 0.25);
+    --color-accent-a30: rgba(9, 105, 218, 0.3);
+
+    --color-success-a15: rgba(26, 127, 55, 0.15);
+    --color-success-a30: rgba(26, 127, 55, 0.3);
+    --color-warning-a15: rgba(154, 103, 0, 0.15);
+    --color-warning-a40: rgba(154, 103, 0, 0.4);
+    --color-error-a40: rgba(209, 36, 47, 0.4);
+    --color-orange-a15: rgba(188, 76, 0, 0.15);
+    --color-orange-a30: rgba(188, 76, 0, 0.3);
+    --color-muted-a15: rgba(129, 139, 152, 0.15);
+
+    --color-status-pending: #818b98;
+    --color-status-running: #0969da;
+    --color-status-complete: #1a7f37;
+    --color-status-error: #d1242f;
+
+    --color-node-source: #8250df;
+    --color-node-features: #0550ae;
+    --color-node-model: #0969da;
+    --color-node-ensemble: #1a7f37;
+    --color-node-calibration: #9a6700;
+    --color-node-output: #bc4c00;
+
+    --color-tool-models: #0969da;
+    --color-tool-pipeline: #1a7f37;
+    --color-tool-data: #8250df;
+    --color-tool-features: #0550ae;
+    --color-tool-experiments: #bc4c00;
+    --color-tool-config: #9a6700;
+
+    --shadow-sm: 0 1px 2px rgba(27, 31, 36, 0.06);
+    --shadow-md: 0 4px 12px rgba(27, 31, 36, 0.1);
+    --shadow-lg: 0 4px 12px rgba(27, 31, 36, 0.15);
+    --shadow-glow-accent: 0 0 12px var(--color-accent-a25), inset 0 0 0 1px var(--color-accent-a10);
+}

@@ -17,9 +17,9 @@ function getBaseUrl(): string {
 /**
  * Fetch data from an API endpoint.
  * Pass a `refreshKey` to trigger automatic refetches — when it changes, data is re-fetched.
- * Useful for live-updating when WebSocket events arrive.
+ * Pass `project` to append ?project=X to the request URL.
  */
-export function useApi<T>(path: string, refreshKey?: unknown): UseApiResult<T> {
+export function useApi<T>(path: string | null, refreshKey?: unknown, project?: string): UseApiResult<T> {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -30,6 +30,11 @@ export function useApi<T>(path: string, refreshKey?: unknown): UseApiResult<T> {
     }, []);
 
     useEffect(() => {
+        if (path === null) {
+            setLoading(false);
+            return;
+        }
+
         let cancelled = false;
         const controller = new AbortController();
 
@@ -38,7 +43,11 @@ export function useApi<T>(path: string, refreshKey?: unknown): UseApiResult<T> {
             setError(null);
 
             try {
-                const url = `${getBaseUrl()}${path}`;
+                let url = `${getBaseUrl()}${path}`;
+                if (project) {
+                    const sep = url.includes('?') ? '&' : '?';
+                    url += `${sep}project=${encodeURIComponent(project)}`;
+                }
                 const response = await fetch(url, { signal: controller.signal });
 
                 if (!response.ok) {
@@ -67,7 +76,7 @@ export function useApi<T>(path: string, refreshKey?: unknown): UseApiResult<T> {
             controller.abort();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [path, tick, refreshKey]);
+    }, [path, tick, refreshKey, project]);
 
     return { data, loading, error, refetch };
 }
