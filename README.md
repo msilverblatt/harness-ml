@@ -21,11 +21,17 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ## Claude Code for Machine Learning
 
-Large language models are great at many things, but they struggle with machine learning. They are fantastic at generating endless boilerplate, and even better at wasting tokens debugging it. They are great at setting up your experiment, but terrible at writing down the results or even remembering why they were doing it in the first place. Coding agents will always want to do what they do best: write code. Building a model is an engineering project for every experiment you want to run.
+Training machine learning models with coding agents is a frustrating experience. 
+- They are fantastic at generating endless boilerplate, and even better at wasting tokens debugging it.
+- They are great at setting up your experiment, but terrible at writing down the results (or even remembering why they were doing it in the first place).
+
+Coding agents will always want to do what they do best: write code. So building a model becomes an engineering project for every experiment you want to run. And keeping them focused on the task? They are simply not built for the rigor of the scientific method.
 
 That changes now. Claude is no longer a software engineer working on machine learning. _Claude is now a data scientist._
 
 **HarnessML is a complete ML framework, built for agents-first.** Claude Code calls `models(action="add")` or `pipeline(action="run_backtest")` instead of writing training loops — data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through structured tool calls with deterministic results back.
+
+No code. Just data science.
 
 
 
@@ -47,6 +53,11 @@ Project vitals, experiment verdict breakdown, primary metric trend with error ba
 <img width="1555" height="944" alt="Screenshot 2026-03-07 at 11 48 34 PM" src="https://github.com/user-attachments/assets/78580e3a-a1de-481d-b6af-886457533df9" />
 
 Interactive pipeline topology. Click any node for full config details. Models added by experiments show with dashed borders and EXP badges. Running nodes pulse during training.
+
+## Activity Monitor
+<img width="1429" height="944" alt="Screenshot 2026-03-08 at 12 32 15 AM" src="https://github.com/user-attachments/assets/d502e121-3850-4681-872a-603ac4113c06" />
+
+Track experiments as they run with MCP progress messages for all long-running tool calls.
 
 ### Experiments
 <!-- TODO: Add screenshot — Experiments table with trend chart -->
