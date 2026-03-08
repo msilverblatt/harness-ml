@@ -19,36 +19,62 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 </div>
 
-## Why HarnessML?
+## Claude Code for Machine Learning
 
-Agents writing Python for ML hit a death spiral: boilerplate → error → stack trace → context exhaustion → hallucinated results. Existing frameworks weren't built for this — they're libraries for humans in notebooks.
+Large language models are great at many things, but they struggle with machine learning. They are fantastic at generating endless boilerplate, and even better at wasting tokens debugging it. They are great at setting up your experiment, but terrible at writing down the results or even remembering why they were doing it in the first place. Coding agents will always want to do what they do best: write code. Building a model is an engineering project for every experiment you want to run.
 
-HarnessML is an **Agent-Computer Interface**. One tool call per operation. Deterministic execution. Structured results back — no tracebacks, no codegen, no state management.
+That changes now. Claude is no longer a software engineer working on machine learning. Claude is a data scientist.
 
-| | |
-|---|---|
-| **Zero boilerplate** | The agent declares a hypothesis, not a training loop |
-| **Guardrailed** | 12 constraints block data leakage and temporal contamination before training starts |
-| **Structured I/O** | Deterministic results back — not stack traces that burn context |
-| **Persistent** | Every run fingerprinted and logged. Experiments survive session boundaries |
-| **Disciplined** | Required hypothesis/conclusion, phased workflow gates, exhaustive exploration before tuning |
+HarnessML is a complete ML framework exposed as MCP tools. Claude Code calls `models(action="add")` or `pipeline(action="run_backtest")` instead of writing training loops — data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through structured tool calls with deterministic results back.
 
+**Harness Studio** is the companion dashboard that gives you real-time observability into what the agent is doing:
+
+<!-- TODO: Add screenshot — Dashboard with overview stats, experiment trend chart, mini DAG, and activity feed -->
+
+<br>
+
+## Harness Studio
+
+A companion web dashboard that runs alongside the agent, giving you full observability into what it's doing and how the model is performing.
+
+### Dashboard
+<!-- TODO: Add screenshot — Dashboard overview -->
+
+Project vitals, experiment verdict breakdown, primary metric trend with error bars, live MCP activity feed, and a mini pipeline DAG — all updating in real time as the agent works.
+
+### Pipeline DAG
+<!-- TODO: Add screenshot — Full DAG view -->
+
+Interactive pipeline topology. Click any node for full config details. Models added by experiments show with dashed borders and EXP badges. Running nodes pulse during training.
+
+### Experiments
+<!-- TODO: Add screenshot — Experiments table with trend chart -->
+
+Every experiment with its hypothesis, verdict, and metric deltas. Trend chart tracks the primary metric across iterations with error bars from cross-validation folds. Side-by-side comparison for any two runs.
+
+### Diagnostics
+<!-- TODO: Add screenshot — Diagnostics page -->
+
+Per-run deep dive: headline metrics, meta-learner coefficients, model correlation heatmap, calibration curves, residual plots, per-fold breakdown, and the full markdown report.
+
+```bash
+uv run harness-studio --project-dir examples/ames-housing
+# → http://localhost:8421
 ```
-models(action="add", name="xgb_main", features=[...])
-pipeline(action="run_backtest")
-  → CV splits, training, calibration, ensemble, metrics, logging
-pipeline(action="compare_latest")
-  → "Brier: 0.182 → 0.179 (↑ +0.003)"
-```
+
+<br>
+
+## See It Work
+
 ### Raw CSV to stacked ensemble, under a minute
 
 https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
-## Tuned model 5 minutes later
+### Tuned model 5 minutes later
 
-<img width="815" height="766" alt="Screenshot 2026-03-07 at 2 48 37 AM" src="https://github.com/user-attachments/assets/684fb4e1-ae8a-41a5-85fe-a8e8a2882897" />
+<img width="815" height="766" alt="Tuned model diagnostics" src="https://github.com/user-attachments/assets/684fb4e1-ae8a-41a5-85fe-a8e8a2882897" />
 
-<sub>[examples/titanic](examples/titanic/)</sub>
+<sub>[examples/titanic](examples/titanic/) · [examples/ames-housing](examples/ames-housing/) · [examples/wine-quality](examples/wine-quality/)</sub>
 
 <br>
 
@@ -57,8 +83,53 @@ https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 ```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
-uv run pytest  # 1983 tests
+uv run pytest  # 2300+ tests
 ```
+
+Add to your Claude Code MCP config (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "harness-ml": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"]
+    }
+  }
+}
+```
+
+Then tell Claude what you want to predict.
+
+<br>
+
+## How It Works
+
+The agent never writes training loops. It declares intent through MCP tool calls:
+
+```python
+# Ingest data
+data(action="ingest", path="data/raw/housing.csv")
+
+# Add models
+models(action="add", name="xgb_main", type="xgboost", features=[...])
+models(action="add", name="lgb_main", type="lightgbm", features=[...])
+
+# Train and evaluate
+pipeline(action="run_backtest")
+# → CV splits, training, calibration, ensemble, metrics, logging — all automatic
+
+# Compare to previous
+pipeline(action="compare_latest")
+# → "RMSE: 24,312 → 22,847 (improved)"
+
+# Iterate with discipline
+experiments(action="create", hypothesis="Adding neighborhood features captures location premium")
+pipeline(action="run_backtest")
+# → Isolated overlay — production config untouched until promoted
+```
+
+Every experiment requires a hypothesis. Every run is fingerprinted and logged. Experiments survive session boundaries.
 
 <br>
 
@@ -76,16 +147,30 @@ uv run pytest  # 1983 tests
 ├────────────────────────┴────────────────────────────────┤
 │                    harness-studio                       │
 │    companion dashboard · real-time observability        │
-│    FastAPI + React · Activity · DAG · Experiments       │
+│    FastAPI + React · SQLite events · WebSocket live     │
 └─────────────────────────────────────────────────────────┘
 ```
 
 | Package | What it does |
 |---------|-------------|
-| **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, metrics, data sources |
+| **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources |
 | **harness-plugin** | MCP server with hot-reloadable handlers — change handler code, no restart needed |
-| **harness-studio** | Companion web dashboard — live activity log, pipeline DAG, experiment history, diagnostics |
+| **harness-studio** | Companion dashboard — live activity, pipeline DAG, experiments, diagnostics. FastAPI + React + SQLite |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
+
+<br>
+
+## MCP Tools
+
+| Tool | What the agent can do |
+|------|----------------------|
+| `data` | Ingest sources, validate, fill nulls, rename, derive columns, manage views, upload to Drive/Kaggle |
+| `features` | Register features, test transforms, discover correlations, analyze diversity, auto-search interactions |
+| `models` | Add/update/clone models, batch operations, class weighting, append/remove features |
+| `configure` | Init projects, set backtest/ensemble config, run guardrail checks |
+| `pipeline` | Run backtests, predict, diagnostics, compare runs, explain models, workflow progress, export notebooks |
+| `experiments` | Create/run/promote experiments with config overlays, required hypothesis, Bayesian exploration |
+| `competitions` | Simulations, brackets, scoring for tournament events |
 
 <br>
 
@@ -112,16 +197,6 @@ All configurable via YAML with eval_set/early stopping, normalization, class wei
 | Ranking | ndcg, mrr, map |
 | Survival | concordance_index, brier_survival |
 | Probabilistic | crps, calibration, sharpness |
-</details>
-
-<details>
-<summary><b>Features</b> — 4 types</summary>
-<br>
-
-- **entity** — per-entity stats, auto-generates pairwise diffs
-- **pairwise** — formula features across entity pairs
-- **instance** — context columns passed through
-- **regime** — boolean flags that gate feature sets
 </details>
 
 <details>
@@ -163,23 +238,6 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 </details>
 
 <details>
-<summary><b>Studio Dashboard</b></summary>
-<br>
-
-Companion web UI providing real-time observability while the agent works:
-
-- **Activity** — live event log with stat boxes (project, experiments, tool calls, errors)
-- **DAG** — interactive pipeline topology (React Flow) with custom nodes per stage
-- **Experiments** — sortable table, metric trend charts, side-by-side comparison
-- **Diagnostics** — all 45 metrics grouped by category, calibration plots, model correlation heatmap
-
-```bash
-uv run harness-studio --project-dir examples/titanic
-# → http://localhost:8421
-```
-</details>
-
-<details>
 <summary><b>Experiment Discipline</b></summary>
 <br>
 
@@ -187,109 +245,7 @@ uv run harness-studio --project-dir examples/titanic
 - **Required conclusion** — document what was learned, not just pass/fail
 - **Phased workflow** — EDA → model diversity → feature engineering → tuning → ensemble
 - **Workflow gates** — soft warnings by default, hard blocks with `workflow.enforce_phases: true`
-- **Skills** — `docs/skills/` ships 3 agent skills for experiment execution, space exploration, and domain research
 </details>
-
-<br>
-
-## MCP Tools
-
-| Tool | Actions |
-|------|---------|
-| `data` | ingest sources, validate, fill nulls, rename, derive columns, manage views, upload to Drive/Kaggle |
-| `features` | register features, test transforms, discover correlations, analyze diversity |
-| `models` | add/update/clone models, batch operations, class weighting, append/remove features |
-| `configure` | init projects, set backtest/ensemble config, run guardrail checks |
-| `pipeline` | run backtests, predict, diagnostics, compare runs, compare latest, explain models, workflow progress, export notebooks |
-| `experiments` | create/run/promote experiments with config overlays, required hypothesis, Bayesian exploration with workflow gates |
-| `competitions` | simulations, brackets, scoring for tournament events |
-
-<br>
-
-## Usage
-
-<details>
-<summary><b>Python API</b></summary>
-<br>
-
-```python
-from harnessml.core.config import resolve_config
-from harnessml.core.models import ModelRegistry, TrainOrchestrator
-from harnessml.core.schemas.metrics import MetricRegistry
-
-config = resolve_config("config/", file_map={"models": "models.yaml"})
-
-model_registry = ModelRegistry.with_defaults()
-orchestrator = TrainOrchestrator(model_registry, config["models"], output_dir="models/")
-trained = orchestrator.train_all(X, y, feature_columns=cols)
-
-metrics = MetricRegistry()
-print(f"Brier: {metrics.get('binary', 'brier')(y_true, y_prob):.4f}")
-```
-</details>
-
-<details>
-<summary><b>YAML-Driven Pipeline</b></summary>
-<br>
-
-```yaml
-# config/pipeline.yaml
-data:
-  target_column: result
-  fold_column: season
-  entity_columns: [home, away]
-
-models:
-  xgb_main:
-    type: xgboost
-    preset: binary_default
-    features: [elo_diff, win_pct_diff, scoring_margin_diff]
-    params:
-      max_depth: 4
-      learning_rate: 0.05
-
-ensemble:
-  method: stacked
-  calibration: spline
-```
-</details>
-
-<details open>
-<summary><b>Agent Workflow</b></summary>
-<br>
-
-```python
-# The agent never writes pipeline code. It declares intent:
-
-models(action="add", name="lgb_tempo", preset="binary_default",
-       features=["tempo_diff", "adj_efficiency_diff"])
-
-pipeline(action="run_backtest")
-# → Automatic: CV, training, calibration, ensemble, metrics, logging
-
-pipeline(action="diagnostics")
-# → Per-model breakdown, ensemble weights, calibration curves
-
-experiments(action="create", description="test tempo features",
-           hypothesis="Tempo differential captures pace mismatch advantage")
-# → Isolated overlay — production config untouched
-
-pipeline(action="progress")
-# → Workflow checklist: feature discovery ✓, model diversity (2/4), tuning: NOT ready
-```
-</details>
-
-<br>
-
-## Design Philosophy
-
-- **Agent UX over human UX** — designed for the cognitive profile and context limitations of an LLM, not for a human in a Jupyter notebook. Tools return structured summaries, not massive tracebacks
-- **Declarative over imperative** — YAML config and registries, not boilerplate code
-- **Defaults over decision fatigue** — sensible presets for models, CV, metrics
-- **Automatic over manual** — caching, logging, fingerprinting, guardrails happen without intervention
-- **Single source of truth** — config is the contract; overlays enable isolated testing
-- **Deterministic** — fingerprinting ensures identical configs produce identical results
-- **Everything configurable** — no hardcoded thresholds, metric lists, or domain assumptions
 
 <br>
 
@@ -303,7 +259,7 @@ uv run pytest packages/harness-studio/tests/ -q  # studio tests
 uv run pytest -v                                 # verbose, all tests
 ```
 
-### Studio Frontend Development
+### Studio Frontend
 
 ```bash
 cd packages/harness-studio/frontend
