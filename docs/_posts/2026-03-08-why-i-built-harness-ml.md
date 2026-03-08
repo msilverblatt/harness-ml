@@ -4,9 +4,10 @@ title: "Training real ML models with Claude with a single prompt"
 subtitle: "And what I learned about building software when agents <strong style='font-weight:600'>are</strong> your user"
 date: 2026-03-08
 author: M. Silverblatt
+permalink: /2026/03/08/why-i-built-harness-ml.html
 ---
 <div style="max-width: 80%; margin: 0 auto;">
-<img src="/assets/hero.png" alt="Harness ML" width="100%">
+<img src="{{ site.baseurl }}/assets/hero.png" alt="Harness ML" width="100%">
 </div>
 <p style="text-align: center; font-size: 0.95em; color: #666; margin: 0.5em 0 1em;">Harness ML: An Agent-Computer Interface for Machine Learning.</p>
 
@@ -38,7 +39,7 @@ I learned from my past mistakes and did all this before training a single model 
 
 ## The Plateau
 
-![Tensor error](/assets/tensor-error.png)
+![Tensor error]({{ site.baseurl }}/assets/tensor-error.png)
 
 The pipeline code had grown unwieldy with 10 versions of features being merged together in various places, and models wrappers strewn about. My strict prompting about data science fundamentals had the side-effect of reducing the cognitive load the agents spent on writing clean reusable code.
 
@@ -70,7 +71,7 @@ The solution was to wrap my pipeline's CLI commands in a thin MCP wrapper with s
 
 The results honestly blew my mind a little. My agent went from being an engineering intern following my strict directions into a full blown data scientist. Instead of refactoring code we were now having conversations about ensemble diversity and disjoint feature sets. Instead of random and repetitive experiments, each hypothesis followed the last and built upon it. It became less of a slow, expensive, bespoke AutoML system and turned into something very different.
 
-![Basketball experiments](/assets/basketball-experiments.png)
+![Basketball experiments]({{ site.baseurl }}/assets/basketball-experiments.png)
 
 I watched it fly through 10 experiments autonomously with zero intervention. Each one had a brief write up in my EXPERIMENT_LOG.md like my Skill required. It still hadn't run out of context. And my scores were finally improving again!
 
@@ -83,7 +84,7 @@ So Harness ML was born (at first it was EasyML, but that felt too much like yet 
 The extraction process was initially pretty brutal. It turned out that my basketball pipeline was a LOT of code to rewrite. And Claude had to be frequently reminded that this new version had to be domain agnostic (that is how the harness-sports plugin was born). But once I had the basics in place, Claude did something that truly blew my mind: **it built a 3-model ensemble for the classic Titanic dataset in *under 60 seconds*.**
 
 <video width="100%" controls>
-  <source src="/assets/titanic-demo-web.mp4" type="video/mp4">
+  <source src="{{ site.baseurl }}/assets/titanic-demo-web.mp4" type="video/mp4">
 </video>
 
 ---
@@ -98,7 +99,7 @@ I have built software for humans for a decade now. I've become very familiar wit
 
 I pulled demo datasets for classic ML problems from GitHub and had Claude use Harness to build and tune a model. After a few iterations I told it to pause and asked what it wished the tools could do and where it had issues. The feedback was phenomenal. Each round revealed a variety of new feature requests from batch editing, to error messages with hints when it gets an option wrong, to missing model wrappers it wanted to experiment with.
 
-![MCP Quality-Of-Life Plan](/assets/mcp-qol.png)
+![MCP Quality-Of-Life Plan]({{ site.baseurl }}/assets/mcp-qol.png)
 
 Most other Product Managers would agree with me that if you had a magic wand at work to instantly know or do one thing it would be a complete understanding of what your users truly want. If building software is hard, getting consistent actionable user feedback is Sisyphean. Agents on the other hand are different and more than happy to share!
 
@@ -112,7 +113,7 @@ I was running into a new problem: I had to stop the agent and ask it questions j
 
 I desperately didn't want to get bogged down by building a traditional UI to control my pipeline. Too much time and complexity, and totally divergent from the core value prop: an ML interface for agents.
 
-![Remotion UI](/assets/remotion.png)
+![Remotion UI]({{ site.baseurl }}/assets/remotion.png)
 
 I was reminded of a tool I have been testing at work, the /remotion skill which uses React components to build a functional promo video you can export. What is unique about the UX is that it is entirely read-only for humans. It looks like a video editor, but only the agent (or the code) can actually make changes. It is less of an interface and more of a grafana-style activity monitor for a highly specific agentic workflow.
 
@@ -126,27 +127,27 @@ It started as a simple activity monitor. Then a DAG viewer. Then experiment hist
 
 <div class="screenshot-gallery">
   <figure>
-    <img src="/assets/experiment-progress.png" alt="Activity monitor">
+    <img src="{{ site.baseurl }}/assets/experiment-progress.png" alt="Activity monitor">
     <figcaption>Live activity feed with experiment progress</figcaption>
   </figure>
   <figure>
-    <img src="/assets/dag.png" alt="DAG visualization">
+    <img src="{{ site.baseurl }}/assets/dag.png" alt="DAG visualization">
     <figcaption>Interactive pipeline DAG</figcaption>
   </figure>
   <figure>
-    <img src="/assets/experiments.png" alt="Experiments">
+    <img src="{{ site.baseurl }}/assets/experiments.png" alt="Experiments">
     <figcaption>Experiment history with verdicts</figcaption>
   </figure>
   <figure>
-    <img src="/assets/diagnostics.png" alt="Diagnostics">
+    <img src="{{ site.baseurl }}/assets/diagnostics.png" alt="Diagnostics">
     <figcaption>Per-run diagnostics and metrics</figcaption>
   </figure>
   <figure>
-    <img src="/assets/sources.png" alt="Sources">
+    <img src="{{ site.baseurl }}/assets/sources.png" alt="Sources">
     <figcaption>Data sources and features</figcaption>
   </figure>
   <figure>
-    <img src="/assets/dashboard.png" alt="Dashboard">
+    <img src="{{ site.baseurl }}/assets/dashboard.png" alt="Dashboard">
     <figcaption>Dashboard overview</figcaption>
   </figure>
 </div>
@@ -154,7 +155,7 @@ It started as a simple activity monitor. Then a DAG viewer. Then experiment hist
 **If seeing a basic model from scratch in 60 seconds was the "wow" moment that convinced me I was doing something right, watching the full system grind through nearly 50 consecutive experiments to systematically improve a regression classifier all while learning from past projects is what made me feel like I was watching the next generation of software:**
 
 <video width="100%" controls>
-  <source src="/assets/demo.mp4" type="video/mp4">
+  <source src="{{ site.baseurl }}/assets/demo.mp4" type="video/mp4">
 </video>
 <p style="text-align: center; font-size: 0.85em; color: #999; font-style: italic; margin-top: -1em;">Sped up for dramatic effect</p>
 
