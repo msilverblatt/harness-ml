@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 
-
 from harnessml.studio.broadcaster import EventBroadcaster
 
 
