@@ -849,12 +849,14 @@ name = "harness-plugin"
 version = "0.1.0"
 source = { editable = "packages/harness-plugin" }
 dependencies = [
+    { name = "click" },
     { name = "harness-core" },
     { name = "mcp" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.0" },
     { name = "harness-core", editable = "packages/harness-core" },
     { name = "mcp", specifier = ">=1.0" },
 ]

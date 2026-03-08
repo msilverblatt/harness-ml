@@ -17,7 +17,12 @@ classifiers = [
 dependencies = [
     "harness-core>=0.1.0,<1.0",
     "mcp>=1.0",
+    "click>=8.0",
 ]
+
+[project.scripts]
+harness-ml = "harnessml.plugin.mcp_server:main"
+harness-setup = "harnessml.plugin.setup:main"
 
 [project.urls]
 Homepage = "https://github.com/msilverblatt/harness-ml"

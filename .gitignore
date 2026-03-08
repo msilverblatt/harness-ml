@@ -33,6 +33,7 @@ docs/plans/
 .claude/
 .worktrees/
 .mcp.json
+harness-demo/
 projects/
 
 # HarnessML generated artifacts
@@ -47,5 +48,5 @@ docs/_site/
 # Harness Studio
 packages/harness-studio/frontend/node_modules/
 packages/harness-studio/frontend/dist/
-packages/harness-studio/src/harnessml/studio/static/
+packages/harness-studio/frontend/.vite/
 .studio/
