@@ -1,0 +1,31 @@
+---
+layout: default
+---
+<article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">{{ page.title | escape }}</h1>
+    {%- if page.subtitle -%}
+      <p class="post-subtitle">{{ page.subtitle }}</p>
+    {%- endif -%}
+    <p class="post-meta">
+      <time class="dt-published" datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
+        {%- assign date_format = site.minima.date_format | default: "%b %-d, %Y" -%}
+        {{ page.date | date: date_format }}
+      </time>
+      {%- if page.author -%}
+        • <span itemprop="author" itemscope itemtype="http://schema.org/Person"><span class="p-author h-card" itemprop="name">{{ page.author }}</span></span>
+      {%- endif -%}
+      <span class="byline-tag">Written by a <svg class="byline-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg> human, styled by <svg class="byline-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M21 10.5h-1.5V9h-2v1.5H16V9h-2v1.5h-1.5V9H11v3h10v-1.5zM22 6H2v14h20V6zm-2 12H4V8h16v10zM9 10.5H7.5V9h-2v1.5H4V9H2v3h7v-1.5zM7 17c.83 0 1.5-.67 1.5-1.5S7.83 14 7 14s-1.5.67-1.5 1.5S6.17 17 7 17zm10 0c.83 0 1.5-.67 1.5-1.5S17.83 14 17 14s-1.5.67-1.5 1.5.67 1.5 1.5 1.5z"/></svg> Claude</span></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    {{ content }}
+  </div>
+
+  {%- if site.disqus.shortname -%}
+    {%- include disqus_comments.html -%}
+  {%- endif -%}
+
+  <a class="u-url" href="{{ page.url | relative_url }}" hidden></a>
+</article>

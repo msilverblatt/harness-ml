@@ -1,0 +1,16 @@
+title: Harness ML
+description: An Agent-Computer Interface for Machine Learning
+url: "https://msilverblatt.github.io"
+baseurl: "/harness-ml"
+theme: minima
+header_pages: []
+
+author:
+  name: M. Silverblatt
+
+defaults:
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"
