@@ -23,15 +23,14 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 Large language models are great at many things, but they struggle with machine learning. They are fantastic at generating endless boilerplate, and even better at wasting tokens debugging it. They are great at setting up your experiment, but terrible at writing down the results or even remembering why they were doing it in the first place. Coding agents will always want to do what they do best: write code. Building a model is an engineering project for every experiment you want to run.
 
-That changes now. Claude is no longer a software engineer working on machine learning. Claude is a data scientist.
+That changes now. Claude is no longer a software engineer working on machine learning. _Claude is now a data scientist._
 
-HarnessML is a complete ML framework exposed as MCP tools. Claude Code calls `models(action="add")` or `pipeline(action="run_backtest")` instead of writing training loops — data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through structured tool calls with deterministic results back.
+**HarnessML is a complete ML framework, built for agents-first.** Claude Code calls `models(action="add")` or `pipeline(action="run_backtest")` instead of writing training loops — data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through structured tool calls with deterministic results back.
 
-**Harness Studio** is the companion dashboard that gives you real-time observability into what the agent is doing:
 
-<!-- TODO: Add screenshot — Dashboard with overview stats, experiment trend chart, mini DAG, and activity feed -->
 
-<br>
+https://github.com/user-attachments/assets/f41ac4ab-4b91-4164-bf6f-f28bd9e2f0df
+
 
 ## Harness Studio
 
@@ -39,21 +38,25 @@ A companion web dashboard that runs alongside the agent, giving you full observa
 
 ### Dashboard
 <!-- TODO: Add screenshot — Dashboard overview -->
+<img width="1292" height="948" alt="Screenshot 2026-03-08 at 12 06 19 AM" src="https://github.com/user-attachments/assets/4184f4d4-c5aa-4de6-8b2e-6c77b299c8df" />
 
 Project vitals, experiment verdict breakdown, primary metric trend with error bars, live MCP activity feed, and a mini pipeline DAG — all updating in real time as the agent works.
 
 ### Pipeline DAG
 <!-- TODO: Add screenshot — Full DAG view -->
+<img width="1555" height="944" alt="Screenshot 2026-03-07 at 11 48 34 PM" src="https://github.com/user-attachments/assets/78580e3a-a1de-481d-b6af-886457533df9" />
 
 Interactive pipeline topology. Click any node for full config details. Models added by experiments show with dashed borders and EXP badges. Running nodes pulse during training.
 
 ### Experiments
 <!-- TODO: Add screenshot — Experiments table with trend chart -->
+<img width="1561" height="936" alt="Screenshot 2026-03-07 at 11 45 24 PM" src="https://github.com/user-attachments/assets/223a5f69-70b8-46ef-a807-9243507432e7" />
 
 Every experiment with its hypothesis, verdict, and metric deltas. Trend chart tracks the primary metric across iterations with error bars from cross-validation folds. Side-by-side comparison for any two runs.
 
 ### Diagnostics
 <!-- TODO: Add screenshot — Diagnostics page -->
+<img width="1559" height="944" alt="Screenshot 2026-03-07 at 11 47 32 PM" src="https://github.com/user-attachments/assets/e80a321e-96fd-4b22-b374-408a8da11102" />
 
 Per-run deep dive: headline metrics, meta-learner coefficients, model correlation heatmap, calibration curves, residual plots, per-fold breakdown, and the full markdown report.
 
@@ -64,7 +67,7 @@ uv run harness-studio --project-dir examples/ames-housing
 
 <br>
 
-## See It Work
+## See It Work In Claude Code
 
 ### Raw CSV to stacked ensemble, under a minute
 
