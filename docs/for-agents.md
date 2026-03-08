@@ -3,7 +3,7 @@ layout: plain
 title: For Agents
 ---
 
-[← Back](/)
+[← Back]({{ site.baseurl }}/)
 
 ## What This Is
 

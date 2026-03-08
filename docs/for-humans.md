@@ -45,37 +45,37 @@ uv run harness-studio --project-dir examples/ames-housing
 
 Project vitals, experiment verdict breakdown, primary metric trend with error bars, live MCP activity feed, and a mini pipeline DAG — all updating in real time as the agent works.
 
-![Dashboard](/assets/dashboard.png)
+![Dashboard]({{ site.baseurl }}/assets/dashboard.png)
 
 ### Activity Feed
 
 Live stream of every MCP tool call with full parameters and results. Watch the agent work in real time.
 
-![Activity](/assets/experiment-progress.png)
+![Activity]({{ site.baseurl }}/assets/experiment-progress.png)
 
 ### Pipeline DAG
 
 Interactive pipeline topology. Click any node for full config details. Models added by experiments show with dashed borders and EXP badges.
 
-![DAG](/assets/dag.png)
+![DAG]({{ site.baseurl }}/assets/dag.png)
 
 ### Experiments
 
 Every experiment with its hypothesis, verdict, and metric deltas. Trend chart tracks the primary metric across iterations.
 
-![Experiments](/assets/experiments.png)
+![Experiments]({{ site.baseurl }}/assets/experiments.png)
 
 ### Diagnostics
 
 Per-run deep dive: headline metrics, meta-learner coefficients, model correlation heatmap, calibration curves, and per-fold breakdown.
 
-![Diagnostics](/assets/diagnostics.png)
+![Diagnostics]({{ site.baseurl }}/assets/diagnostics.png)
 
 ### Data Sources
 
 Overview of ingested data, registered features, and view definitions.
 
-![Sources](/assets/sources.png)
+![Sources]({{ site.baseurl }}/assets/sources.png)
 
 ---
 
