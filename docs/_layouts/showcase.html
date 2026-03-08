@@ -187,7 +187,7 @@
     .scroll-hint {
       margin-top: 4em;
       color: var(--text-muted);
-      font-size: 0.85em;
+      font-size: 2.5em;
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
@@ -502,6 +502,52 @@
       cursor: zoom-in;
     }
 
+    /* ─── Video modal ─── */
+    .video-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1001;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .video-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    .video-modal video {
+      max-width: 85vw;
+      max-height: 85vh;
+      border-radius: 12px;
+      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+      transform: scale(0.95);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .video-modal.active video {
+      transform: scale(1);
+    }
+    .video-modal-close {
+      position: absolute;
+      top: 1.5em;
+      right: 1.5em;
+      color: white;
+      font-size: 2em;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      background: none;
+      border: none;
+      line-height: 1;
+    }
+    .video-modal-close:hover {
+      opacity: 1;
+    }
+
     /* ─── Responsive ─── */
     @media (max-width: 900px) {
       .feature-row {
@@ -530,6 +576,13 @@
   <img src="" alt="">
 </div>
 
+<div class="video-modal" id="video-modal">
+  <button class="video-modal-close">&times;</button>
+  <video id="demo-video">
+    <source src="{{ site.baseurl }}/assets/demo.mp4" type="video/mp4">
+  </video>
+</div>
+
 <script>
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -552,7 +605,7 @@
     // Starting positions (from CSS, in % of viewport)
     const starts = [
       { x: 0, y: 45, rot: 3, w: 340, anchor: 'left' },    // activity — left
-      { x: -2.5, y: 50, rot: 4, w: 320, anchor: 'right' }, // experiments — right
+      { x: -1.5, y: 50, rot: 4, w: 320, anchor: 'right' }, // experiments — right
       { x: -3, y: 72, rot: -6, w: 360, anchor: 'left' },   // pipeline — left
     ];
 
@@ -647,7 +700,23 @@
     lightbox.classList.remove('active');
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') lightbox.classList.remove('active');
+    if (e.key === 'Escape') {
+      lightbox.classList.remove('active');
+      closeVideoModal();
+    }
+  });
+
+  // Video modal
+  const videoModal = document.getElementById('video-modal');
+  const demoVideo = document.getElementById('demo-video');
+  function closeVideoModal() {
+    videoModal.classList.remove('active');
+    demoVideo.pause();
+  }
+  videoModal.addEventListener('click', (e) => {
+    if (e.target === videoModal || e.target.classList.contains('video-modal-close')) {
+      closeVideoModal();
+    }
   });
 
   // Parallax decorations
