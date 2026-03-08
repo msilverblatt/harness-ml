@@ -3,6 +3,7 @@ description: An Agent-Computer Interface for Machine Learning
 url: "https://msilverblatt.github.io"
 baseurl: "/harness-ml"
 theme: minima
+future: true
 header_pages: []
 
 author:
