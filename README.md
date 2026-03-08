@@ -79,23 +79,12 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 ```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
-uv run pytest  # 2300+ tests
+uv run harness-setup
 ```
 
-Add to your Claude Code MCP config (`.mcp.json`):
+That's it. The setup command configures the MCP server, installs experiment discipline skills, creates a demo project with sample data, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
 
-```json
-{
-  "mcpServers": {
-    "harness-ml": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"]
-    }
-  }
-}
-```
-
-Then tell Claude what you want to predict.
+To set up manually instead, see [For Humans](https://msilverblatt.github.io/harness-ml/for-humans).
 
 <br>
 

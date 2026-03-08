@@ -851,5 +851,10 @@ async def pipeline(
 # any tool call. Uses cwd as default project_dir.
 _get_emitter(project_dir=os.getcwd())
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the harness-ml MCP server."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

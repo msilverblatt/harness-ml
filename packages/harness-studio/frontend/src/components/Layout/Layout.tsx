@@ -210,7 +210,7 @@ function IconPredictions() {
 }
 
 export function Layout() {
-    const { project, '*': rest } = useParams<{ project: string; '*': string }>();
+    const { project, '*': _rest } = useParams<{ project: string; '*': string }>();
     const projectName = project ?? '';
     const navigate = useNavigate();
     const location = useLocation();

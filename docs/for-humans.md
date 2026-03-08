@@ -13,10 +13,14 @@ Setup, Studio, architecture, and how to work alongside the agent.
 ```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
-uv run pytest  # 2300+ tests
+uv run harness-setup
 ```
 
-Add to your Claude Code MCP config (`.mcp.json`):
+The setup command handles everything: writes `.mcp.json` with the MCP server config, installs 3 experiment discipline skills, creates a demo project with the California Housing dataset, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
+
+### Manual Setup
+
+If you prefer to configure things yourself, add to your Claude Code MCP config (`.mcp.json`):
 
 ```json
 {
@@ -29,7 +33,7 @@ Add to your Claude Code MCP config (`.mcp.json`):
 }
 ```
 
-Then tell Claude what you want to predict. It handles the rest.
+Then tell Claude what you want to predict.
 
 ---
 

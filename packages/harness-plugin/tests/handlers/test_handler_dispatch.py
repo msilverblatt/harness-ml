@@ -266,7 +266,7 @@ class TestConfigDispatch:
         expected = {
             "init", "update_data", "ensemble", "backtest", "show",
             "check_guardrails", "exclude_columns", "set_denylist",
-            "add_target", "list_targets", "set_target",
+            "add_target", "list_targets", "set_target", "studio",
         }
         assert set(ACTIONS.keys()) == expected
 

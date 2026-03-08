@@ -42,7 +42,7 @@ export function PredictionsView() {
     const { data: dist } = useApi<DistResponse>(
         '/api/predictions/distribution', undefined, project
     );
-    const { data: preds, loading: predsLoading } = useApi<PredPage>(
+    const { data: preds } = useApi<PredPage>(
         `/api/predictions?page=${page}&page_size=50`, page, project
     );
 

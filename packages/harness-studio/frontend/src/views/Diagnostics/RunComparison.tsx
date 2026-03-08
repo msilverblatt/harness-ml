@@ -168,7 +168,7 @@ function MetricBarChart({ metricName, orderedRunIds, runData, runs }: {
                             fontFamily: 'var(--font-mono)',
                             fontSize: '12px',
                         }}
-                        formatter={(value: number) => [formatValue(value), metricName]}
+                        formatter={(value) => [formatValue(value as number), metricName]}
                     />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                         {chartData.map((entry, i) => (
