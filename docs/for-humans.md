@@ -1,6 +1,7 @@
 ---
 layout: page
 title: For Humans
+permalink: /for-humans
 ---
 
 Setup, Studio, architecture, and how to work alongside the agent.
