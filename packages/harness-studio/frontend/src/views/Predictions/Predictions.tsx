@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { useApi } from '../../hooks/useApi';
 import { useProject } from '../../hooks/useProject';
 import { useTheme } from '../../hooks/useTheme';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
 import styles from './Predictions.module.css';
 
 interface PredSummary {
@@ -184,7 +185,10 @@ export function PredictionsView() {
             )}
 
             {!summary && !summaryLoading && (
-                <div className={styles.emptyState}>No predictions available.</div>
+                <EmptyState
+                    title="No predictions available"
+                    description="Run a backtest to generate predictions. Distribution charts and data export will be available here."
+                />
             )}
         </div>
     );

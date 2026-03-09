@@ -4,6 +4,7 @@ import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
 import { useLayoutContext } from '../../components/Layout/Layout';
 import { useProject } from '../../hooks/useProject';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { ExperimentTable } from './ExperimentTable';
 import { MetricChart } from './MetricChart';
 import { ComparePanel } from './ComparePanel';
@@ -68,7 +69,10 @@ export function Experiments() {
     if (exps.length === 0) {
         return (
             <div className={styles.experiments}>
-                <div className={styles.emptyState}>No experiments recorded yet. Run an experiment to see results here.</div>
+                <EmptyState
+                    title="No experiments recorded"
+                    description="Create an experiment to start tracking hypotheses, metrics, and conclusions."
+                />
             </div>
         );
     }

@@ -14,6 +14,7 @@ import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
 import { useProject } from '../../hooks/useProject';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { SourceNode } from './nodes/SourceNode';
 import { FeatureNode } from './nodes/FeatureNode';
 import { ModelNode } from './nodes/ModelNode';
@@ -623,7 +624,14 @@ export function DAG() {
     }
 
     if (error) {
-        return <div className={styles.loading}>Error: {error}</div>;
+        return (
+            <div className={styles.dagContainer}>
+                <EmptyState
+                    title="Could not load pipeline"
+                    description="Check that your project has a valid pipeline.yaml and models.yaml configuration."
+                />
+            </div>
+        );
     }
 
     return (
