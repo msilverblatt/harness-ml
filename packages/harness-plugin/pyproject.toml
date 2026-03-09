@@ -24,6 +24,9 @@ dependencies = [
 harness-ml = "harnessml.plugin.mcp_server:main"
 harness-setup = "harnessml.plugin.setup:main"
 
+[project.entry-points."harnessml.plugins"]
+sports = "harnessml.sports.hooks:register"
+
 [project.urls]
 Homepage = "https://github.com/msilverblatt/harness-ml"
 Repository = "https://github.com/msilverblatt/harness-ml"

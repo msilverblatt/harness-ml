@@ -197,3 +197,52 @@ class IsotonicCalibrator(BaseCalibrator):
             raise RuntimeError("Calibrator not fitted")
         y_pred = np.asarray(y_pred, dtype=float)
         return self._iso.predict(y_pred)
+
+
+# ---------------------------------------------------------------------------
+# Beta Calibrator
+# ---------------------------------------------------------------------------
+
+class BetaCalibrator(BaseCalibrator):
+    """Beta calibration — fits a 3-parameter beta model.
+
+    calibrated(p) = 1 / (1 + 1 / (exp(c) * p^a / (1-p)^b))
+
+    Equivalently, in log-odds form:
+        logit(calibrated) = c + a*log(p) - b*log(1-p)
+
+    Parameters a, b, c are fit via maximum likelihood (minimizing log loss).
+    """
+
+    def __init__(self) -> None:
+        self._a: float = 1.0
+        self._b: float = 1.0
+        self._c: float = 0.0
+        self._is_fitted = False
+
+    def fit(self, y_true: np.ndarray, y_pred: np.ndarray) -> None:
+        """Fit beta calibration by minimizing negative log-likelihood."""
+        from scipy.optimize import minimize
+
+        y_true = np.asarray(y_true, dtype=float)
+        y_pred = np.asarray(y_pred, dtype=float).clip(1e-7, 1 - 1e-7)
+
+        def neg_log_likelihood(params):
+            a, b, c = params
+            # calibrated = sigmoid(c + a*log(p) - b*log(1-p))
+            logit = c + a * np.log(y_pred) - b * np.log(1 - y_pred)
+            cal = 1 / (1 + np.exp(-logit))
+            cal = np.clip(cal, 1e-7, 1 - 1e-7)
+            return -np.mean(y_true * np.log(cal) + (1 - y_true) * np.log(1 - cal))
+
+        result = minimize(neg_log_likelihood, x0=[1.0, 1.0, 0.0], method="Nelder-Mead")
+        self._a, self._b, self._c = result.x
+        self._is_fitted = True
+
+    def transform(self, y_pred: np.ndarray) -> np.ndarray:
+        """Apply beta calibration to raw predictions."""
+        if not self._is_fitted:
+            raise RuntimeError("BetaCalibrator is not fitted")
+        y_pred = np.asarray(y_pred, dtype=float).clip(1e-7, 1 - 1e-7)
+        logit = self._c + self._a * np.log(y_pred) - self._b * np.log(1 - y_pred)
+        return 1 / (1 + np.exp(-logit))
