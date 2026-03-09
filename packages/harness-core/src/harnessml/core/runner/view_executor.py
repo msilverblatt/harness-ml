@@ -1,7 +1,19 @@
-"""View step execution engine -- pure functions mapping TransformStep to pandas operations."""
+"""View step execution engine -- pure functions mapping TransformStep to pandas operations.
+
+Supports two backends:
+- **polars** (default): Converts steps to Polars LazyFrame operations for
+  query optimisation and zero-copy execution.  Falls back to pandas
+  automatically for operations the Polars executor does not yet support
+  (e.g. target_loo encoding, kmeans binning, complex cast expressions).
+- **pandas**: Original pandas-only path, used as fallback or when
+  ``HARNESS_VIEW_BACKEND=pandas`` is set.
+
+The backend is selected via the ``HARNESS_VIEW_BACKEND`` environment variable.
+"""
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import TYPE_CHECKING, Callable
 
@@ -39,6 +51,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Backend selection
+# ---------------------------------------------------------------------------
+_BACKEND = os.environ.get("HARNESS_VIEW_BACKEND", "polars")
+
+# ---------------------------------------------------------------------------
 # Type-name to Python type mapping for CastStep
 # ---------------------------------------------------------------------------
 _TYPE_MAP: dict[str, type] = {
@@ -68,6 +85,51 @@ def execute_step(
     resolver : Callable that resolves a source/view name to a DataFrame.
                Required for join and union steps.
     """
+    # Try Polars backend first if enabled
+    if _BACKEND == "polars":
+        try:
+            return _execute_step_polars(df, step, resolver)
+        except Exception:
+            # Fall back to pandas on any Polars error
+            logger.debug(
+                "Polars executor failed for step %r, falling back to pandas",
+                step.op,
+            )
+
+    return _execute_step_pandas(df, step, resolver)
+
+
+def _execute_step_polars(
+    df: pd.DataFrame,
+    step: TransformStep,
+    resolver: Callable[[str], pd.DataFrame] | None = None,
+) -> pd.DataFrame:
+    """Execute a step using the Polars backend."""
+    from harnessml.core.runner.polars_compat import to_lazy, to_pandas
+    from harnessml.core.runner.view_executor_polars import execute_step as polars_execute
+
+    step_dict = step.model_dump()
+
+    # Build context for join/union by resolving referenced tables to LazyFrames
+    context = None
+    if step.op in ("join", "union"):
+        if resolver is None:
+            raise ValueError(f"A resolver is required for {step.op!r} steps")
+        other_name = step.other
+        other_df = resolver(other_name)
+        context = {other_name: to_lazy(other_df)}
+
+    lf = to_lazy(df)
+    result_lf = polars_execute(lf, step_dict, context)
+    return to_pandas(result_lf)
+
+
+def _execute_step_pandas(
+    df: pd.DataFrame,
+    step: TransformStep,
+    resolver: Callable[[str], pd.DataFrame] | None = None,
+) -> pd.DataFrame:
+    """Execute a step using the pandas backend (original implementation)."""
     _dispatch = {
         "filter": _execute_filter,
         "select": _execute_select,
