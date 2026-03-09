@@ -6,17 +6,17 @@ and matchup symmetry augmentation.
 """
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from harnessml.core.logging import get_logger
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.data_utils import get_feature_columns
 from harnessml.core.runner.schema import DataConfig, ModelDef
 from scipy.optimize import minimize_scalar
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def train_single_model(
@@ -76,10 +76,10 @@ def train_single_model(
             mask = ~df.eval(exclude_expr)
             df = df.loc[mask].copy()
             logger.info(
-                "training_filter excluded %d rows for model %s (kept %d)",
-                int((~mask).sum()),
-                model_name,
-                len(df),
+                "training_filter_applied",
+                excluded=int((~mask).sum()),
+                model=model_name,
+                kept=len(df),
             )
 
     if len(df) == 0:
@@ -117,7 +117,10 @@ def train_single_model(
                 df[col] = df[col].fillna(0.0)
 
     # Drop rows with NaN in any feature column
+    before_drop = len(df)
     df = df.dropna(subset=feature_cols)
+    if len(df) < before_drop:
+        logger.info("nan_rows_dropped", before=before_drop, after=len(df), columns=feature_cols)
 
     if len(df) == 0:
         raise ValueError(
@@ -158,9 +161,8 @@ def train_single_model(
     if model_def.class_weight is not None:
         if is_regressor:
             logger.warning(
-                "class_weight is set for regressor model %s; ignoring "
-                "(class weighting only applies to classifiers).",
-                model_name,
+                "class_weight ignored for regressor model",
+                model=model_name,
             )
         else:
             from sklearn.utils.class_weight import compute_sample_weight
@@ -168,7 +170,9 @@ def train_single_model(
 
     # Augment symmetry if requested
     if augment_symmetry:
+        original_len = len(X)
         X, y = _augment_matchup_symmetry(X, y, feature_cols)
+        logger.info("symmetry_augmented", original=original_len, augmented=len(X))
         # Re-compute sample weights for augmented data
         if sample_weight is not None:
             sample_weight = compute_sample_weight(model_def.class_weight, y)

@@ -360,11 +360,15 @@ def ingest_dataset(
 
     # Read the new data
     new_df = _read_file(data_file)
+    logger.info("data_loaded", rows=len(new_df), columns=len(new_df.columns), path=str(data_file))
 
     # Auto-clean the incoming data if requested
     cleaning_actions: list[str] = []
     if auto_clean:
+        before_clean = len(new_df)
         new_df, cleaning_actions = _auto_clean(new_df)
+        if len(new_df) < before_clean:
+            logger.info("rows_filtered", before=before_clean, after=len(new_df), reason="auto_clean")
 
     # ---------------------------------------------------------------
     # Bootstrap: if no existing features file, save directly
@@ -382,7 +386,7 @@ def ingest_dataset(
         null_rates = _compute_null_rates(new_df, columns_added)
 
         new_df.to_parquet(parquet_path, index=False)
-        logger.info("Bootstrap: saved %d rows, %d columns to %s", rows_total, len(columns_added), parquet_path)
+        logger.info("bootstrap saved", rows=rows_total, columns=len(columns_added), path=str(parquet_path))
 
         source_registered = _register_source(
             project_dir, name, data_path, columns_added, rows_total, is_bootstrap=True,
@@ -428,7 +432,7 @@ def ingest_dataset(
                 f"Existing columns: {list(existing_df.columns)[:20]}... "
                 "Specify join_on explicitly."
             )
-        logger.info("Auto-detected join keys: %s", join_on)
+        logger.info("auto-detected join keys", keys=join_on)
 
     # Validate join keys exist in both DataFrames
     for key in join_on:
@@ -467,10 +471,16 @@ def ingest_dataset(
     merge_cols = join_on + new_columns
     merge_df = new_df[merge_cols].copy()
 
+    # Log columns that already exist and were excluded
+    existing_only = [c for c in new_df.columns if c not in join_on and c in existing_cols]
+    if existing_only:
+        logger.info("columns_dropped", columns=existing_only)
+
     # Drop duplicates on join keys (keep first)
     n_before = len(merge_df)
     merge_df = merge_df.drop_duplicates(subset=join_on, keep="first")
     if len(merge_df) < n_before:
+        logger.info("rows_filtered", before=n_before, after=len(merge_df), reason="duplicate_join_keys")
         warnings.append(
             f"Dropped {n_before - len(merge_df)} duplicate rows on join keys."
         )
@@ -498,8 +508,11 @@ def ingest_dataset(
     # Save updated parquet
     merged.to_parquet(parquet_path, index=False)
     logger.info(
-        "Updated %s: added %d columns, %d/%d rows matched",
-        parquet_path, len(new_columns), rows_matched, rows_total,
+        "features updated",
+        path=str(parquet_path),
+        columns_added=len(new_columns),
+        rows_matched=rows_matched,
+        rows_total=rows_total,
     )
 
     source_registered = _register_source(
@@ -902,6 +915,7 @@ def drop_rows(
     if n_dropped == 0:
         return f"No rows matched condition — nothing dropped. {len(df)} rows remain."
 
+    logger.info("rows_filtered", before=n_before, after=len(df), reason=condition)
     df.to_parquet(parquet_path, index=False)
     return f"Dropped {n_dropped} rows ({condition}). {len(df)} rows remaining."
 
