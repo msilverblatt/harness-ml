@@ -10,7 +10,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Discriminator, Tag, field_validator
+from pydantic import BaseModel, Discriminator, Tag, field_validator, model_validator
 
 # -----------------------------------------------------------------------
 # Feature & source declarations
@@ -405,32 +405,53 @@ class TargetProfile(BaseModel):
 
 
 # -----------------------------------------------------------------------
+# Data sub-configs
+# -----------------------------------------------------------------------
+
+class DataPathsConfig(BaseModel):
+    """Path-related data configuration."""
+    raw_dir: str = "data/raw"
+    processed_dir: str = "data/processed"
+    features_dir: str = "data/features"
+    features_file: str = "features.parquet"
+    outputs_dir: str | None = None
+    entity_features_path: str | None = None
+
+
+class MLProblemConfig(BaseModel):
+    """ML problem definition."""
+    task: str = "classification"
+    target_column: str = "result"
+    key_columns: list[str] = []
+    time_column: str | None = None
+    exclude_columns: list[str] = []
+
+
+class DataCleaningConfig(BaseModel):
+    """Column rename / cleaning configuration."""
+    column_renames: dict[str, str] = {}
+
+
+# -----------------------------------------------------------------------
 # Data config
 # -----------------------------------------------------------------------
+
+# Fields belonging to each sub-config, used for routing flat kwargs
+_PATHS_FIELDS = set(DataPathsConfig.model_fields.keys())
+_ML_PROBLEM_FIELDS = set(MLProblemConfig.model_fields.keys())
+_CLEANING_FIELDS = set(DataCleaningConfig.model_fields.keys())
+
 
 class DataConfig(BaseModel):
     """Data configuration — paths + ML problem definition."""
 
-    # Paths
-    raw_dir: str = "data/raw"
-    processed_dir: str = "data/processed"
-    features_dir: str = "data/features"
-    features_file: str = "features.parquet"     # relative to features_dir
-    outputs_dir: str | None = None
-
-    # ML problem definition
-    task: str = "classification"                # classification, regression, ranking
-    target_column: str = "result"
-    key_columns: list[str] = []                 # row identifiers (game_id, customer_id, etc.)
-    time_column: str | None = None              # for temporal CV splits
-    exclude_columns: list[str] = []             # columns to never use as features
-    entity_features_path: str | None = None      # path to entity-level features parquet
+    # Composed sub-configs
+    paths: DataPathsConfig = DataPathsConfig()
+    ml_problem: MLProblemConfig = MLProblemConfig()
+    cleaning: DataCleaningConfig = DataCleaningConfig()
 
     # Named target profiles
     targets: dict[str, TargetProfile] = {}
-
-    # Column name normalization
-    column_renames: dict[str, str] = {}  # {old_name: new_name}
 
     # Data pipeline
     sources: dict[str, SourceConfig] = {}
@@ -443,6 +464,144 @@ class DataConfig(BaseModel):
     # Declarative views (ETL)
     views: dict[str, ViewDef] = {}
     features_view: str | None = None  # which view becomes the prediction table
+
+    @model_validator(mode="before")
+    @classmethod
+    def _route_flat_kwargs(cls, data: Any) -> Any:
+        """Route flat kwargs to sub-configs for backward compatibility."""
+        if not isinstance(data, dict):
+            return data
+        paths_vals: dict[str, Any] = {}
+        ml_vals: dict[str, Any] = {}
+        clean_vals: dict[str, Any] = {}
+        for field_name in list(data.keys()):
+            if field_name in _PATHS_FIELDS and field_name not in ("paths",):
+                paths_vals[field_name] = data.pop(field_name)
+            elif field_name in _ML_PROBLEM_FIELDS and field_name not in ("ml_problem",):
+                ml_vals[field_name] = data.pop(field_name)
+            elif field_name in _CLEANING_FIELDS and field_name not in ("cleaning",):
+                clean_vals[field_name] = data.pop(field_name)
+        if paths_vals:
+            existing = data.get("paths", {})
+            if isinstance(existing, dict):
+                existing.update(paths_vals)
+                data["paths"] = existing
+            else:
+                data["paths"] = paths_vals
+        if ml_vals:
+            existing = data.get("ml_problem", {})
+            if isinstance(existing, dict):
+                existing.update(ml_vals)
+                data["ml_problem"] = existing
+            else:
+                data["ml_problem"] = ml_vals
+        if clean_vals:
+            existing = data.get("cleaning", {})
+            if isinstance(existing, dict):
+                existing.update(clean_vals)
+                data["cleaning"] = existing
+            else:
+                data["cleaning"] = clean_vals
+        return data
+
+    # --- Backward-compat property accessors for DataPathsConfig fields ---
+    @property
+    def raw_dir(self) -> str:
+        return self.paths.raw_dir
+
+    @raw_dir.setter
+    def raw_dir(self, value: str) -> None:
+        self.paths.raw_dir = value
+
+    @property
+    def processed_dir(self) -> str:
+        return self.paths.processed_dir
+
+    @processed_dir.setter
+    def processed_dir(self, value: str) -> None:
+        self.paths.processed_dir = value
+
+    @property
+    def features_dir(self) -> str:
+        return self.paths.features_dir
+
+    @features_dir.setter
+    def features_dir(self, value: str) -> None:
+        self.paths.features_dir = value
+
+    @property
+    def features_file(self) -> str:
+        return self.paths.features_file
+
+    @features_file.setter
+    def features_file(self, value: str) -> None:
+        self.paths.features_file = value
+
+    @property
+    def outputs_dir(self) -> str | None:
+        return self.paths.outputs_dir
+
+    @outputs_dir.setter
+    def outputs_dir(self, value: str | None) -> None:
+        self.paths.outputs_dir = value
+
+    @property
+    def entity_features_path(self) -> str | None:
+        return self.paths.entity_features_path
+
+    @entity_features_path.setter
+    def entity_features_path(self, value: str | None) -> None:
+        self.paths.entity_features_path = value
+
+    # --- Backward-compat property accessors for MLProblemConfig fields ---
+    @property
+    def task(self) -> str:
+        return self.ml_problem.task
+
+    @task.setter
+    def task(self, value: str) -> None:
+        self.ml_problem.task = value
+
+    @property
+    def target_column(self) -> str:
+        return self.ml_problem.target_column
+
+    @target_column.setter
+    def target_column(self, value: str) -> None:
+        self.ml_problem.target_column = value
+
+    @property
+    def key_columns(self) -> list[str]:
+        return self.ml_problem.key_columns
+
+    @key_columns.setter
+    def key_columns(self, value: list[str]) -> None:
+        self.ml_problem.key_columns = value
+
+    @property
+    def time_column(self) -> str | None:
+        return self.ml_problem.time_column
+
+    @time_column.setter
+    def time_column(self, value: str | None) -> None:
+        self.ml_problem.time_column = value
+
+    @property
+    def exclude_columns(self) -> list[str]:
+        return self.ml_problem.exclude_columns
+
+    @exclude_columns.setter
+    def exclude_columns(self, value: list[str]) -> None:
+        self.ml_problem.exclude_columns = value
+
+    # --- Backward-compat property accessors for DataCleaningConfig fields ---
+    @property
+    def column_renames(self) -> dict[str, str]:
+        return self.cleaning.column_renames
+
+    @column_renames.setter
+    def column_renames(self, value: dict[str, str]) -> None:
+        self.cleaning.column_renames = value
 
     def resolve_target(self, name: str | None = None) -> tuple[str, str, list[str]]:
         """Resolve a target profile by name. Returns (column, task, metrics)."""
