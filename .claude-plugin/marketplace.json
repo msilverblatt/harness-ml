@@ -1,0 +1,22 @@
+{
+  "name": "harness-ml",
+  "owner": {
+    "name": "msilverblatt"
+  },
+  "metadata": {
+    "description": "AI-driven ML experimentation framework for Claude Code",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "harnessml",
+      "source": ".",
+      "description": "MCP server + experiment discipline skills for agentic ML",
+      "version": "0.1.0",
+      "author": { "name": "msilverblatt" },
+      "repository": "https://github.com/msilverblatt/harness-ml",
+      "license": "MIT",
+      "keywords": ["ml", "machine-learning", "mcp", "experiments"]
+    }
+  ]
+}
