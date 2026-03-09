@@ -16,17 +16,6 @@ from pydantic import BaseModel, Discriminator, Tag, field_validator, model_valid
 # Feature & source declarations
 # -----------------------------------------------------------------------
 
-class FeatureDecl(BaseModel):
-    """Declares a feature pointing to a Python module."""
-
-    module: str
-    function: str
-    category: str
-    level: str  # free-form: "entity", "interaction", "regime", "query", etc.
-    columns: list[str]
-    nan_strategy: str = "median"
-
-
 class FeatureType(str, Enum):
     """Semantic type of a declarative feature."""
     ENTITY = "entity"
@@ -51,9 +40,12 @@ class FeatureDef(BaseModel):
     - pairwise: Per-instance (A vs B). Derived from entity or custom formula.
     - instance: Per-instance context property (column or formula).
     - regime: Temporal/contextual boolean flag.
+
+    Also supports legacy FeatureDecl fields (module, function, columns, level)
+    for backward compatibility.
     """
-    name: str
-    type: FeatureType
+    name: str = ""
+    type: FeatureType = FeatureType.ENTITY
     source: str | None = None
     column: str | None = None
     formula: str | None = None
@@ -63,6 +55,16 @@ class FeatureDef(BaseModel):
     nan_strategy: str = "median"
     category: str = "general"
     enabled: bool = True
+
+    # Legacy FeatureDecl fields (optional for backward compat)
+    module: str | None = None
+    function: str | None = None
+    columns: list[str] | None = None
+    level: str | None = None
+
+
+# Backward-compatible alias
+FeatureDecl = FeatureDef
 
 
 class FeatureStoreConfig(BaseModel):
