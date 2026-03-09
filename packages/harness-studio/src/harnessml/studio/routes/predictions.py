@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Request
+from harnessml.studio.errors import error_response
 from harnessml.studio.routes.project import resolve_project_dir_from_request
 from harnessml.studio.routes.runs import _detect_target_col, _load_predictions
 
@@ -76,32 +77,35 @@ async def list_predictions(
     page_size: int = 50,
     project: str | None = None,
 ):
-    project_dir = resolve_project_dir_from_request(request, project)
-    run_dir = _resolve_run_dir(project_dir, run_id)
-    if not run_dir:
-        return {"error": "No runs found"}
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = _resolve_run_dir(project_dir, run_id)
+        if not run_dir:
+            return {"error": "No runs found"}
 
-    df = _load_predictions(run_dir)
-    if df is None:
-        return {"error": "No predictions found"}
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
 
-    total = len(df)
-    start = page * page_size
-    end = min(start + page_size, total)
-    page_df = df.iloc[start:end].copy()
+        total = len(df)
+        start = page * page_size
+        end = min(start + page_size, total)
+        page_df = df.iloc[start:end].copy()
 
-    # Round floats for display
-    for col in page_df.select_dtypes(include=["float64", "float32"]).columns:
-        page_df[col] = page_df[col].round(4)
+        # Round floats for display
+        for col in page_df.select_dtypes(include=["float64", "float32"]).columns:
+            page_df[col] = page_df[col].round(4)
 
-    return {
-        "run_id": run_dir.name,
-        "columns": list(df.columns),
-        "rows": page_df.fillna("").to_dict(orient="records"),
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+        return {
+            "run_id": run_dir.name,
+            "columns": list(df.columns),
+            "rows": page_df.fillna("").to_dict(orient="records"),
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/predictions/distribution")

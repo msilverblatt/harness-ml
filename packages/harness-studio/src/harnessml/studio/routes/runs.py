@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import APIRouter, Request
 from harnessml.core.logging import get_logger
+from harnessml.studio.errors import error_response
 from harnessml.studio.routes.project import resolve_project_dir_from_request
 
 logger = get_logger(__name__)
@@ -184,20 +185,23 @@ async def list_runs(request: Request, project: str | None = None):
 
 @router.get("/runs/{run_id}/metrics")
 async def run_metrics(request: Request, run_id: str, project: str | None = None):
-    project_dir = resolve_project_dir_from_request(request, project)
-    metrics_path = project_dir / "outputs" / run_id / "diagnostics" / "pooled_metrics.json"
-    if not metrics_path.exists():
-        return {"error": f"Metrics not found for run {run_id}"}
-    raw = json.loads(metrics_path.read_text())
-    # Flatten ensemble metrics + include meta_coefficients separately
-    result = {}
-    if "ensemble" in raw and isinstance(raw["ensemble"], dict):
-        result["metrics"] = raw["ensemble"]
-    else:
-        result["metrics"] = raw
-    if "meta_coefficients" in raw:
-        result["meta_coefficients"] = raw["meta_coefficients"]
-    return result
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        metrics_path = project_dir / "outputs" / run_id / "diagnostics" / "pooled_metrics.json"
+        if not metrics_path.exists():
+            return {"error": f"Metrics not found for run {run_id}"}
+        raw = json.loads(metrics_path.read_text())
+        # Flatten ensemble metrics + include meta_coefficients separately
+        result = {}
+        if "ensemble" in raw and isinstance(raw["ensemble"], dict):
+            result["metrics"] = raw["ensemble"]
+        else:
+            result["metrics"] = raw
+        if "meta_coefficients" in raw:
+            result["meta_coefficients"] = raw["meta_coefficients"]
+        return result
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/runs/{run_id}/folds")
@@ -220,122 +224,131 @@ async def run_folds(request: Request, run_id: str, project: str | None = None):
 @router.get("/runs/{run_id}/correlations")
 async def run_correlations(request: Request, run_id: str, project: str | None = None):
     """Compute model prediction correlation matrix from predictions parquet."""
-    project_dir = resolve_project_dir_from_request(request, project)
-    run_dir = project_dir / "outputs" / run_id
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = project_dir / "outputs" / run_id
 
-    df = _load_predictions(run_dir)
-    if df is None:
-        return {"error": "No prediction files found"}
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No prediction files found"}
 
-    prob_cols = [c for c in df.columns if c.startswith("prob_") and c != "prob_ensemble"]
-    if len(prob_cols) < 2:
-        return {"models": [], "matrix": []}
+        prob_cols = [c for c in df.columns if c.startswith("prob_") and c != "prob_ensemble"]
+        if len(prob_cols) < 2:
+            return {"models": [], "matrix": []}
 
-    corr = df[prob_cols].corr()
-    model_names = [c.replace("prob_", "") for c in prob_cols]
-    return {
-        "models": model_names,
-        "matrix": corr.values.tolist(),
-    }
+        corr = df[prob_cols].corr()
+        model_names = [c.replace("prob_", "") for c in prob_cols]
+        return {
+            "models": model_names,
+            "matrix": corr.values.tolist(),
+        }
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/runs/{run_id}/calibration")
 async def run_calibration(request: Request, run_id: str, bins: int = 10, project: str | None = None):
     """Compute calibration curve data from predictions."""
-    import numpy as np
+    try:
+        import numpy as np
 
-    project_dir = resolve_project_dir_from_request(request, project)
-    run_dir = project_dir / "outputs" / run_id
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = project_dir / "outputs" / run_id
 
-    df = _load_predictions(run_dir)
-    if df is None:
-        return {"error": "No predictions found"}
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
 
-    target_col = _detect_target_col(df)
-    if target_col is None:
-        return {"error": "Could not identify target column"}
+        target_col = _detect_target_col(df)
+        if target_col is None:
+            return {"error": "Could not identify target column"}
 
-    prob_col = "prob_ensemble"
-    if prob_col not in df.columns:
-        prob_cols = [c for c in df.columns if c.startswith("prob_")]
-        if prob_cols:
-            prob_col = prob_cols[0]
-        else:
-            return {"error": "No probability columns found"}
+        prob_col = "prob_ensemble"
+        if prob_col not in df.columns:
+            prob_cols = [c for c in df.columns if c.startswith("prob_")]
+            if prob_cols:
+                prob_col = prob_cols[0]
+            else:
+                return {"error": "No probability columns found"}
 
-    y_true = df[target_col].values.astype(float)
-    y_prob = df[prob_col].values.astype(float)
+        y_true = df[target_col].values.astype(float)
+        y_prob = df[prob_col].values.astype(float)
 
-    # For regression tasks, calibration doesn't apply
-    unique_targets = set(y_true)
-    if len(unique_targets) > 2 or not unique_targets.issubset({0.0, 1.0}):
-        return {"error": "Calibration only applies to binary classification tasks"}
+        # For regression tasks, calibration doesn't apply
+        unique_targets = set(y_true)
+        if len(unique_targets) > 2 or not unique_targets.issubset({0.0, 1.0}):
+            return {"error": "Calibration only applies to binary classification tasks"}
 
-    bin_edges = np.linspace(0, 1, bins + 1)
-    curve = []
-    for i in range(bins):
-        if i == bins - 1:
-            mask = (y_prob >= bin_edges[i]) & (y_prob <= bin_edges[i + 1])
-        else:
-            mask = (y_prob >= bin_edges[i]) & (y_prob < bin_edges[i + 1])
-        if mask.sum() > 0:
-            curve.append({
-                "bin_center": float((bin_edges[i] + bin_edges[i + 1]) / 2),
-                "predicted": float(y_prob[mask].mean()),
-                "actual": float(y_true[mask].mean()),
-                "count": int(mask.sum()),
-            })
+        bin_edges = np.linspace(0, 1, bins + 1)
+        curve = []
+        for i in range(bins):
+            if i == bins - 1:
+                mask = (y_prob >= bin_edges[i]) & (y_prob <= bin_edges[i + 1])
+            else:
+                mask = (y_prob >= bin_edges[i]) & (y_prob < bin_edges[i + 1])
+            if mask.sum() > 0:
+                curve.append({
+                    "bin_center": float((bin_edges[i] + bin_edges[i + 1]) / 2),
+                    "predicted": float(y_prob[mask].mean()),
+                    "actual": float(y_true[mask].mean()),
+                    "count": int(mask.sum()),
+                })
 
-    return {"calibration": curve, "prob_column": prob_col}
+        return {"calibration": curve, "prob_column": prob_col}
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/runs/{run_id}/residuals")
 async def run_residuals(request: Request, run_id: str, project: str | None = None):
     """Compute residual analysis for regression tasks."""
-    import numpy as np
+    try:
+        import numpy as np
 
-    project_dir = resolve_project_dir_from_request(request, project)
-    run_dir = project_dir / "outputs" / run_id
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = project_dir / "outputs" / run_id
 
-    df = _load_predictions(run_dir)
-    if df is None:
-        return {"error": "No predictions found"}
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
 
-    target_col = _detect_target_col(df)
-    if target_col is None:
-        return {"error": "Could not identify target column"}
+        target_col = _detect_target_col(df)
+        if target_col is None:
+            return {"error": "Could not identify target column"}
 
-    y_true = df[target_col].values.astype(float)
-    y_pred = df["prob_ensemble"].values.astype(float) if "prob_ensemble" in df.columns else None
-    if y_pred is None:
-        return {"error": "No ensemble predictions found"}
+        y_true = df[target_col].values.astype(float)
+        y_pred = df["prob_ensemble"].values.astype(float) if "prob_ensemble" in df.columns else None
+        if y_pred is None:
+            return {"error": "No ensemble predictions found"}
 
-    residuals = y_true - y_pred
+        residuals = y_true - y_pred
 
-    # Scatter data (predicted vs actual)
-    scatter = [
-        {"predicted": float(p), "actual": float(a), "residual": float(r)}
-        for p, a, r in zip(y_pred, y_true, residuals)
-    ]
+        # Scatter data (predicted vs actual)
+        scatter = [
+            {"predicted": float(p), "actual": float(a), "residual": float(r)}
+            for p, a, r in zip(y_pred, y_true, residuals)
+        ]
 
-    # Residual distribution (histogram)
-    hist_counts, hist_edges = np.histogram(residuals, bins=30)
-    histogram = [
-        {"bin_center": float((hist_edges[i] + hist_edges[i + 1]) / 2), "count": int(hist_counts[i])}
-        for i in range(len(hist_counts))
-    ]
+        # Residual distribution (histogram)
+        hist_counts, hist_edges = np.histogram(residuals, bins=30)
+        histogram = [
+            {"bin_center": float((hist_edges[i] + hist_edges[i + 1]) / 2), "count": int(hist_counts[i])}
+            for i in range(len(hist_counts))
+        ]
 
-    return {
-        "scatter": scatter,
-        "histogram": histogram,
-        "stats": {
-            "mean_residual": float(np.mean(residuals)),
-            "std_residual": float(np.std(residuals)),
-            "median_residual": float(np.median(residuals)),
-            "max_overpredict": float(np.min(residuals)),
-            "max_underpredict": float(np.max(residuals)),
-        },
-    }
+        return {
+            "scatter": scatter,
+            "histogram": histogram,
+            "stats": {
+                "mean_residual": float(np.mean(residuals)),
+                "std_residual": float(np.std(residuals)),
+                "median_residual": float(np.median(residuals)),
+                "max_overpredict": float(np.min(residuals)),
+                "max_underpredict": float(np.max(residuals)),
+            },
+        }
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/runs/{run_id}/report")
