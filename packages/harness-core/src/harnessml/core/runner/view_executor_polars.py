@@ -254,6 +254,61 @@ def _rank(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
 
 
 # ---------------------------------------------------------------------------
+# Join + Union steps
+# ---------------------------------------------------------------------------
+
+
+def _join(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Join with another table resolved from context."""
+    if ctx is None:
+        raise ValueError("A context is required for join steps")
+    other_name = step["other"]
+    other_lf = ctx.get(other_name)
+    if other_lf is None:
+        raise ValueError(f"Table '{other_name}' not found in context")
+
+    on = step["on"]
+    how = step.get("how", "left")
+    select_cols = step.get("select")
+    prefix = step.get("prefix")
+
+    if isinstance(on, dict):
+        left_on = list(on.keys())
+        right_on = list(on.values())
+    else:
+        left_on = list(on) if isinstance(on, list) else [on]
+        right_on = left_on
+
+    # Apply select to narrow the right side before join
+    if select_cols:
+        keep_cols = [*right_on, *select_cols]
+        other_lf = other_lf.select([c for c in keep_cols])
+
+    # Apply prefix to non-key columns
+    if prefix:
+        schema = other_lf.collect_schema()
+        rename_map = {
+            c: f"{prefix}{c}" for c in schema.names() if c not in right_on
+        }
+        if rename_map:
+            other_lf = other_lf.rename(rename_map)
+
+    result = lf.join(other_lf, left_on=left_on, right_on=right_on, how=how)
+    return result
+
+
+def _union(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Concatenate with another table from context."""
+    if ctx is None:
+        raise ValueError("A context is required for union steps")
+    other_name = step["other"]
+    other_lf = ctx.get(other_name)
+    if other_lf is None:
+        raise ValueError(f"Table '{other_name}' not found in context")
+    return pl.concat([lf, other_lf])
+
+
+# ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
 
@@ -269,4 +324,6 @@ _DISPATCH: dict[str, callable] = {
     "cond_agg": _cond_agg,
     "ewm": _ewm,
     "rank": _rank,
+    "join": _join,
+    "union": _union,
 }

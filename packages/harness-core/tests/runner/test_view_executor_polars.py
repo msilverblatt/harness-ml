@@ -193,3 +193,66 @@ def test_ewm_step():
     }
     result = execute_step(lf, step).collect()
     assert "ewm_pts" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# Join + Union steps
+# ---------------------------------------------------------------------------
+
+
+def test_join_step():
+    left = pl.LazyFrame({"id": [1, 2, 3], "value": [10, 20, 30]})
+    right = pl.LazyFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+    step = {"op": "join", "other": "right_table", "on": ["id"], "how": "left"}
+    result = execute_step(left, step, context={"right_table": right}).collect()
+    assert "name" in result.columns
+    assert len(result) == 3
+
+
+def test_join_step_dict_keys():
+    left = pl.LazyFrame({"team_id": [1, 2, 3], "score": [10, 20, 30]})
+    right = pl.LazyFrame({"tid": [1, 2, 3], "name": ["a", "b", "c"]})
+    step = {
+        "op": "join",
+        "other": "right_table",
+        "on": {"team_id": "tid"},
+        "how": "left",
+    }
+    result = execute_step(left, step, context={"right_table": right}).collect()
+    assert "name" in result.columns
+
+
+def test_join_step_with_prefix():
+    left = pl.LazyFrame({"id": [1, 2], "value": [10, 20]})
+    right = pl.LazyFrame({"id": [1, 2], "value": [100, 200]})
+    step = {
+        "op": "join",
+        "other": "right_table",
+        "on": ["id"],
+        "how": "left",
+        "prefix": "other_",
+    }
+    result = execute_step(left, step, context={"right_table": right}).collect()
+    assert "other_value" in result.columns
+
+
+def test_join_no_context():
+    lf = pl.LazyFrame({"id": [1]})
+    step = {"op": "join", "other": "x", "on": ["id"], "how": "left"}
+    with pytest.raises(ValueError, match="context is required"):
+        execute_step(lf, step)
+
+
+def test_union_step():
+    top = pl.LazyFrame({"id": [1, 2], "val": [10, 20]})
+    bottom = pl.LazyFrame({"id": [3, 4], "val": [30, 40]})
+    step = {"op": "union", "other": "bottom_table"}
+    result = execute_step(top, step, context={"bottom_table": bottom}).collect()
+    assert len(result) == 4
+
+
+def test_union_no_context():
+    lf = pl.LazyFrame({"id": [1]})
+    step = {"op": "union", "other": "x"}
+    with pytest.raises(ValueError, match="context is required"):
+        execute_step(lf, step)
