@@ -137,10 +137,14 @@ class TabNetModel(BaseModel):
             fit_kwargs["eval_set"] = [(X_val, y_val)]
             X, y = X_train, y_train
 
+        from harnessml.core.models.device import detect_device
+
+        device_name = detect_device()
+
         self._models = []
         for seed_idx in range(self._n_seeds):
             seed_val = self._base_seed + seed_idx * self._seed_stride
-            model = TabNetClassifier(**init_kwargs, seed=seed_val)
+            model = TabNetClassifier(**init_kwargs, seed=seed_val, device_name=device_name)
             model.fit(X, y, **fit_kwargs)
             self._models.append(model)
         self._fitted = True
