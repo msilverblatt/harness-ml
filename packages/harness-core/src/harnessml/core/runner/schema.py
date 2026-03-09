@@ -743,23 +743,155 @@ class LogitAdjustment(BaseModel):
         return v
 
 
+class CalibrationConfig(BaseModel):
+    """Calibration settings for the ensemble."""
+    method: str = "spline"
+    spline_prob_max: float = 0.985
+    spline_n_bins: int = 20
+
+
+class PostProcessingConfig(BaseModel):
+    """Post-processing settings for the ensemble."""
+    temperature: float = 1.0
+    clip_floor: float = 0.0
+    prior_compression: float = 0.0
+    prior_compression_threshold: int = 4
+    prior_feature: str | None = None
+    logit_adjustments: list[LogitAdjustment] = []
+
+
+# Fields belonging to each sub-config, used for routing flat kwargs
+_CALIBRATION_FIELDS = {"spline_prob_max", "spline_n_bins"}
+_POST_PROCESSING_FIELDS = {"temperature", "clip_floor", "prior_compression",
+                            "prior_compression_threshold", "prior_feature",
+                            "logit_adjustments"}
+
+
 class EnsembleDef(BaseModel):
     """Ensemble configuration."""
 
     method: Literal["stacked", "average"]
     meta_learner: dict[str, Any] = {}
     pre_calibration: dict[str, str] = {}
-    calibration: str = "spline"
-    spline_prob_max: float = 0.985
-    spline_n_bins: int = 20
     meta_features: list[str] = []
-    prior_compression: float = 0.0
-    prior_compression_threshold: int = 4
-    temperature: float = 1.0
-    clip_floor: float = 0.0
-    logit_adjustments: list[LogitAdjustment] = []
     exclude_models: list[str] = []
-    prior_feature: str | None = None  # data column to use as prior (mapped to diff_prior)
+
+    # Composed sub-configs
+    calibration_config: CalibrationConfig = CalibrationConfig()
+    post_processing: PostProcessingConfig = PostProcessingConfig()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _route_flat_kwargs(cls, data: Any) -> Any:
+        """Route flat kwargs to sub-configs for backward compatibility."""
+        if not isinstance(data, dict):
+            return data
+        cal_vals: dict[str, Any] = {}
+        pp_vals: dict[str, Any] = {}
+
+        # Handle "calibration" string -> calibration_config.method
+        if "calibration" in data and "calibration_config" not in data:
+            cal_val = data.pop("calibration")
+            if isinstance(cal_val, str):
+                cal_vals["method"] = cal_val
+            elif isinstance(cal_val, dict):
+                data["calibration_config"] = cal_val
+
+        for field_name in list(data.keys()):
+            if field_name in _CALIBRATION_FIELDS:
+                cal_vals[field_name] = data.pop(field_name)
+            elif field_name in _POST_PROCESSING_FIELDS:
+                pp_vals[field_name] = data.pop(field_name)
+
+        if cal_vals:
+            existing = data.get("calibration_config", {})
+            if isinstance(existing, dict):
+                existing.update(cal_vals)
+                data["calibration_config"] = existing
+            else:
+                data["calibration_config"] = cal_vals
+        if pp_vals:
+            existing = data.get("post_processing", {})
+            if isinstance(existing, dict):
+                existing.update(pp_vals)
+                data["post_processing"] = existing
+            else:
+                data["post_processing"] = pp_vals
+        return data
+
+    # --- Backward-compat property: calibration (string) ---
+    @property
+    def calibration(self) -> str:
+        return self.calibration_config.method
+
+    @calibration.setter
+    def calibration(self, value: str) -> None:
+        self.calibration_config.method = value
+
+    @property
+    def spline_prob_max(self) -> float:
+        return self.calibration_config.spline_prob_max
+
+    @spline_prob_max.setter
+    def spline_prob_max(self, value: float) -> None:
+        self.calibration_config.spline_prob_max = value
+
+    @property
+    def spline_n_bins(self) -> int:
+        return self.calibration_config.spline_n_bins
+
+    @spline_n_bins.setter
+    def spline_n_bins(self, value: int) -> None:
+        self.calibration_config.spline_n_bins = value
+
+    # --- Backward-compat properties: PostProcessingConfig ---
+    @property
+    def temperature(self) -> float:
+        return self.post_processing.temperature
+
+    @temperature.setter
+    def temperature(self, value: float) -> None:
+        self.post_processing.temperature = value
+
+    @property
+    def clip_floor(self) -> float:
+        return self.post_processing.clip_floor
+
+    @clip_floor.setter
+    def clip_floor(self, value: float) -> None:
+        self.post_processing.clip_floor = value
+
+    @property
+    def prior_compression(self) -> float:
+        return self.post_processing.prior_compression
+
+    @prior_compression.setter
+    def prior_compression(self, value: float) -> None:
+        self.post_processing.prior_compression = value
+
+    @property
+    def prior_compression_threshold(self) -> int:
+        return self.post_processing.prior_compression_threshold
+
+    @prior_compression_threshold.setter
+    def prior_compression_threshold(self, value: int) -> None:
+        self.post_processing.prior_compression_threshold = value
+
+    @property
+    def prior_feature(self) -> str | None:
+        return self.post_processing.prior_feature
+
+    @prior_feature.setter
+    def prior_feature(self, value: str | None) -> None:
+        self.post_processing.prior_feature = value
+
+    @property
+    def logit_adjustments(self) -> list[LogitAdjustment]:
+        return self.post_processing.logit_adjustments
+
+    @logit_adjustments.setter
+    def logit_adjustments(self, value: list[LogitAdjustment]) -> None:
+        self.post_processing.logit_adjustments = value
 
 
 # -----------------------------------------------------------------------
