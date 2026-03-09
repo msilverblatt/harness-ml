@@ -77,8 +77,8 @@ probabilistic forecasting.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      CROSS-VALIDATION & TRAINING                            │
 │                                                                             │
-│   CV Strategies (7 strategies)                                              │
-│       LOSO, Expanding Window, Sliding Window, Purged KFold,                 │
+│   CV Strategies (8 strategies)                                              │
+│       LOSO, Expanding Window, Sliding Window, KFold, Purged KFold,          │
 │       Stratified KFold, Group KFold, Bootstrap (.632)                       │
 │       │                                                                     │
 │       ▼                                                                     │
@@ -130,7 +130,7 @@ MCP server, making the entire pipeline agent-readable and agent-writable.
 | `core.schemas` | Pydantic v2 contracts + MetricRegistry (45 metrics across 6 task types) |
 | `core.config` | YAML loading + OmegaConf deep merge for experiment overlays |
 | `core.guardrails` | Safety guardrails: leakage detection, temporal validation, naming conventions |
-| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet) + ModelRegistry |
+| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost) + ModelRegistry |
 | `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
 | `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
 | `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
@@ -159,14 +159,14 @@ The table below documents what was built custom versus adopted, and why.
 | View Engine | Custom 22-step declarative ETL | dbt, Pandas pipes, Hamilton | YAML-driven for agent consumption; domain-specific steps (symmetric unpivot, matchup joins); tightly integrated with feature store and source registry |
 | Feature Store | Custom parquet-based with registry | Feast, Tecton, Hopsworks, Featuretools | Zero infrastructure requirement; file-based portability; MCP-integrated add/remove/search; SHA256 fingerprint-based caching eliminates redundant recomputation |
 | Experiment Tracking | Custom JSONL journal + discipline enforcement | MLflow, W&B, Neptune, ClearML | Hypothesis-driven methodology is a core value proposition; YAML-native config diffs via OmegaConf; phased workflow enforcement (EDA through Ensemble) not available in any alternative |
-| Model Wrappers | Custom BaseModel + ModelRegistry | sklearn Pipeline, MLflow Models, ONNX Runtime | Unified interface across 8+ model types with per-fold calibration; multi-seed averaging (seed_stride); inspect-based kwargs forwarding; normalize/batch_norm/early_stopping per wrapper |
+| Model Wrappers | Custom BaseModel + ModelRegistry | sklearn Pipeline, MLflow Models, ONNX Runtime | Unified interface across 12 model types with per-fold calibration; multi-seed averaging (seed_stride); inspect-based kwargs forwarding; normalize/batch_norm/early_stopping per wrapper |
 | Dashboard | Custom FastAPI + React 19 | Streamlit, Gradio, TensorBoard, Grafana | Real-time WebSocket streaming of MCP events; pipeline DAG visualization; experiment discipline integration (hypothesis/conclusion); 45-metric diagnostics panel |
 | Config Management | OmegaConf + YAML | Hydra, Pydantic Settings, dynaconf | Deep merge enables experiment overlays on immutable production config; YAML-native format is agent-readable and agent-writable; no decorator or annotation overhead |
 | MCP Server | FastMCP | Custom WebSocket, gRPC, REST API | Native Claude Code integration; hot-reload handlers in dev mode (HARNESS_DEV=1); tool signatures serve as self-documenting API |
 | Guardrails | Custom overridable / non-overridable system | Great Expectations, Pandera, whylogs | ML-specific checks (leakage detection, temporal validation, critical path protection); agent-facing override hints with explanations; two-tier severity model |
 | Calibration | Custom Spline/Isotonic/Platt/Beta | sklearn CalibratedClassifierCV, netcal | PCHIP spline interpolation; per-fold calibration within cross-validation; integrated into ensemble meta-learner; sigmoid CDF conversion for probability output |
 | HPO | Optuna wrapper | Hyperopt, Ray Tune, sklearn GridSearchCV | Pruning support for early termination; multi-objective optimization; lightweight single-process execution; integrates with experiment journal |
-| Cross-Validation | Custom 7-strategy system | sklearn CV splitters, TimeSeriesSplit | Temporal integrity enforcement; nested calibration within folds; symmetric LOSO for matchup prediction; custom fold column support |
+| Cross-Validation | Custom 8-strategy system | sklearn CV splitters, TimeSeriesSplit | Temporal integrity enforcement; nested calibration within folds; symmetric LOSO for matchup prediction; custom fold column support |
 | Source Adapters | Custom registry with 4 adapter types | Intake, fsspec, Kedro DataCatalog | Freshness tracking; schema validation at load time; computed sources for derived datasets; MCP-integrated source management |
 | Metric Registry | Custom registry with 45 metrics | torchmetrics, sklearn.metrics | Covers 6 task types in one registry; agent-discoverable via MCP; custom metrics (ECE, Brier decomposition) not available elsewhere as a unified set |
 
@@ -210,7 +210,7 @@ that the agent can inspect and modify.
 For matchup prediction (e.g., sports), each game appears twice in the
 dataset (once per team perspective). Symmetric Leave-One-Season-Out ensures
 that both perspectives of the same game land in the same fold, preventing
-data leakage. The system supports 7 CV strategies total, with temporal
+data leakage. The system supports 8 CV strategies total, with temporal
 integrity checks built into each.
 
 ### Registry Pattern
@@ -273,7 +273,7 @@ harness-core
                 omegaconf, pyyaml, click, structlog, polars
   Optional: xgboost, catboost, lightgbm, torch, pytorch-tabnet, optuna,
             shap, matplotlib, pandera, nbformat, google-api-python-client,
-            google-auth-oauthlib, kaggle
+            google-auth-oauthlib, kaggle, pygam, ngboost
 
 harness-plugin
   Dependencies: harness-core, mcp (FastMCP), click
@@ -484,63 +484,83 @@ harness-ml/
 │   │   │   ├── runner/
 │   │   │   │   ├── schema.py              # ProjectConfig, DataConfig, BacktestConfig, etc.
 │   │   │   │   ├── pipeline.py            # PipelineRunner (fold parallelization)
-│   │   │   │   ├── training.py            # Model training loop, NaN handling
-│   │   │   │   ├── meta_learner.py        # StackedEnsemble (logistic/ridge/gbm)
-│   │   │   │   ├── calibration.py         # build_calibrator factory
-│   │   │   │   ├── postprocessing.py      # Ensemble post-processing
-│   │   │   │   ├── cv_strategies.py       # 7 CV strategies
-│   │   │   │   ├── preprocessing.py       # Leakage-safe Preprocessor
-│   │   │   │   ├── feature_selection.py   # SelectKBest, RFE, correlation clustering
-│   │   │   │   ├── feature_store.py       # Parquet-based feature store
-│   │   │   │   ├── feature_engine.py      # Feature computation engine
-│   │   │   │   ├── feature_cache.py       # Feature caching
-│   │   │   │   ├── feature_discovery.py   # Auto feature discovery
-│   │   │   │   ├── feature_diversity.py   # Feature diversity analysis
-│   │   │   │   ├── feature_utils.py       # Feature utilities
-│   │   │   │   ├── prediction_cache.py    # SHA256 fingerprint-based caching
-│   │   │   │   ├── fingerprint.py         # Config fingerprinting
-│   │   │   │   ├── view_executor.py       # View engine (Pandas backend)
-│   │   │   │   ├── view_executor_polars.py# View engine (Polars backend, 3-13x faster)
-│   │   │   │   ├── view_resolver.py       # View dependency resolution
-│   │   │   │   ├── polars_compat.py       # Pandas ↔ Polars converters
-│   │   │   │   ├── diagnostics.py         # Markdown + JSON diagnostics
-│   │   │   │   ├── reporting.py           # Report generation
-│   │   │   │   ├── explainability.py      # SHAP values, PDP, interactions
-│   │   │   │   ├── drift.py               # KS test, PSI drift detection
-│   │   │   │   ├── conformal.py           # Conformal prediction intervals
-│   │   │   │   ├── ensemble_diversity.py  # Disagreement, Q-stat, Kappa, correlation
-│   │   │   │   ├── hpo.py                 # Optuna: pruning, multi-objective
-│   │   │   │   ├── validation.py          # validate_project pre-training checks
-│   │   │   │   ├── data_profiler.py       # Cardinality, type inference
-│   │   │   │   ├── data_ingest.py         # Data ingestion + raw preservation
-│   │   │   │   ├── data_pipeline.py       # Data pipeline orchestration
-│   │   │   │   ├── data_utils.py          # Data utilities
-│   │   │   │   ├── dag.py                 # Provider dependency DAG
-│   │   │   │   ├── hooks.py               # HookRegistry for domain plugins
-│   │   │   │   ├── guards.py              # Pipeline stage guards
-│   │   │   │   ├── stage_guards.py        # PipelineGuards class
-│   │   │   │   ├── matchups.py            # Matchup generation
 │   │   │   │   ├── project.py             # Project abstraction
-│   │   │   │   ├── loaders.py             # Config loaders
-│   │   │   │   ├── experiment_schema.py   # ExperimentRecord, TrialRecord Pydantic models
-│   │   │   │   ├── experiment_journal.py  # JSONL journal (read/write/update)
-│   │   │   │   ├── experiment_manager.py  # Experiment lifecycle, compare, rollback
-│   │   │   │   ├── experiment_logger.py   # Experiment logging
-│   │   │   │   ├── experiment.py          # Experiment utilities
-│   │   │   │   ├── exploration.py         # Hyperparameter exploration
-│   │   │   │   ├── sweep.py               # Parameter sweep
-│   │   │   │   ├── auto_search.py         # Auto feature search
-│   │   │   │   ├── workflow_tracker.py    # Phased workflow enforcement
-│   │   │   │   ├── notebook.py            # Jupyter notebook generation
-│   │   │   │   ├── scaffold.py            # Project scaffolding
-│   │   │   │   ├── presets.py             # Configuration presets
-│   │   │   │   ├── viz.py                 # Visualization utilities
+│   │   │   │   ├── hooks.py               # HookRegistry for domain plugins
+│   │   │   │   ├── dag.py                 # Provider dependency DAG
+│   │   │   │   ├── matchups.py            # Matchup generation
 │   │   │   │   ├── cli.py                 # CLI entry point
-│   │   │   │   ├── run_manager.py         # Run lifecycle
-│   │   │   │   ├── server_gen.py          # Server generation
-│   │   │   │   ├── pipeline_planner.py    # Pipeline planning
 │   │   │   │   ├── transformation_tester.py # Transform testing
-│   │   │   │   ├── validator.py           # Config validator
+│   │   │   │   │
+│   │   │   │   ├── data/                  # Data ingestion & pipeline
+│   │   │   │   │   ├── ingest.py          # Data ingestion + raw preservation
+│   │   │   │   │   ├── pipeline.py        # Data pipeline orchestration
+│   │   │   │   │   ├── profiler.py        # Cardinality, type inference
+│   │   │   │   │   ├── loaders.py         # Config loaders
+│   │   │   │   │   └── utils.py           # Data utilities
+│   │   │   │   │
+│   │   │   │   ├── features/              # Feature store & engineering
+│   │   │   │   │   ├── store.py           # Parquet-based feature store
+│   │   │   │   │   ├── engine.py          # Feature computation engine
+│   │   │   │   │   ├── cache.py           # Feature caching
+│   │   │   │   │   ├── discovery.py       # Auto feature discovery
+│   │   │   │   │   ├── diversity.py       # Feature diversity analysis
+│   │   │   │   │   ├── selection.py       # SelectKBest, RFE, correlation clustering
+│   │   │   │   │   ├── auto_search.py     # Auto feature search
+│   │   │   │   │   └── utils.py           # Feature utilities
+│   │   │   │   │
+│   │   │   │   ├── training/              # Training & ensemble
+│   │   │   │   │   ├── trainer.py         # Model training loop, NaN handling
+│   │   │   │   │   ├── cv_strategies.py   # 8 CV strategies
+│   │   │   │   │   ├── preprocessing.py   # Leakage-safe Preprocessor
+│   │   │   │   │   ├── meta_learner.py    # StackedEnsemble (logistic/ridge/gbm)
+│   │   │   │   │   ├── calibration.py     # build_calibrator factory
+│   │   │   │   │   ├── postprocessing.py  # Ensemble post-processing
+│   │   │   │   │   ├── prediction_cache.py # SHA256 fingerprint-based caching
+│   │   │   │   │   └── fingerprint.py     # Config fingerprinting
+│   │   │   │   │
+│   │   │   │   ├── experiments/           # Experiment tracking
+│   │   │   │   │   ├── schema.py          # ExperimentRecord, TrialRecord Pydantic models
+│   │   │   │   │   ├── journal.py         # JSONL journal (read/write/update)
+│   │   │   │   │   ├── manager.py         # Experiment lifecycle, compare, rollback
+│   │   │   │   │   ├── logger.py          # Experiment logging
+│   │   │   │   │   └── experiment.py      # Experiment utilities
+│   │   │   │   │
+│   │   │   │   ├── views/                 # Declarative ETL
+│   │   │   │   │   ├── executor.py        # View engine (Pandas backend)
+│   │   │   │   │   ├── executor_polars.py # View engine (Polars backend, 3-13x faster)
+│   │   │   │   │   ├── resolver.py        # View dependency resolution
+│   │   │   │   │   └── polars_compat.py   # Pandas ↔ Polars converters
+│   │   │   │   │
+│   │   │   │   ├── analysis/              # Diagnostics & reporting
+│   │   │   │   │   ├── diagnostics.py     # Markdown + JSON diagnostics
+│   │   │   │   │   ├── reporting.py       # Report generation
+│   │   │   │   │   ├── explainability.py  # SHAP values, PDP, interactions
+│   │   │   │   │   ├── drift.py           # KS test, PSI drift detection
+│   │   │   │   │   ├── conformal.py       # Conformal prediction intervals
+│   │   │   │   │   ├── ensemble_diversity.py # Disagreement, Q-stat, Kappa, correlation
+│   │   │   │   │   └── viz.py             # Visualization utilities
+│   │   │   │   │
+│   │   │   │   ├── optimization/          # HPO & exploration
+│   │   │   │   │   ├── hpo.py             # Optuna: pruning, multi-objective
+│   │   │   │   │   ├── exploration.py     # Hyperparameter exploration
+│   │   │   │   │   ├── sweep.py           # Parameter sweep
+│   │   │   │   │   └── pipeline_planner.py # Pipeline planning
+│   │   │   │   │
+│   │   │   │   ├── validation/            # Guards & validation
+│   │   │   │   │   ├── guards.py          # Pipeline stage guards
+│   │   │   │   │   ├── stage_guards.py    # PipelineGuards class
+│   │   │   │   │   ├── validation.py      # validate_project pre-training checks
+│   │   │   │   │   └── validator.py       # Config validator
+│   │   │   │   │
+│   │   │   │   ├── scaffold/              # Project scaffolding
+│   │   │   │   │   ├── scaffold.py        # Project scaffolding
+│   │   │   │   │   ├── presets.py         # Configuration presets
+│   │   │   │   │   ├── notebook.py        # Jupyter notebook generation
+│   │   │   │   │   └── server_gen.py      # Server generation
+│   │   │   │   │
+│   │   │   │   ├── workflow/              # Workflow & run management
+│   │   │   │   │   ├── tracker.py         # Phased workflow enforcement
+│   │   │   │   │   └── run_manager.py     # Run lifecycle
 │   │   │   │   │
 │   │   │   │   ├── config_writer/         # Config YAML management (10 submodules)
 │   │   │   │   │   ├── __init__.py        # Re-exports 65 public functions
