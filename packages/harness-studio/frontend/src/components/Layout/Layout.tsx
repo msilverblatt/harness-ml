@@ -183,6 +183,9 @@ function IconActivity() {
 function IconExperiments() {
     return <svg {...I}><path d="M9 3h6v7l4 9H5l4-9V3z"/><line x1="9" y1="3" x2="15" y2="3"/></svg>;
 }
+function IconNotebook() {
+    return <svg {...I}><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="8" y1="7" x2="16" y2="7"/><line x1="8" y1="11" x2="13" y2="11"/></svg>;
+}
 
 // Data
 function IconSources() {
@@ -286,6 +289,7 @@ export function Layout() {
         activity: () => navigate(`/${projectName}/activity`),
         dag: () => navigate(`/${projectName}/dag`),
         experiments: () => navigate(`/${projectName}/experiments`),
+        notebook: () => navigate(`/${projectName}/notebook`),
         diagnostics: () => navigate(`/${projectName}/diagnostics`),
         predictions: () => navigate(`/${projectName}/predictions`),
         refresh: () => window.location.reload(),
@@ -307,6 +311,7 @@ export function Layout() {
             tabs: [
                 { path: `/${projectName}/activity`, label: 'Activity', icon: <IconActivity />, badge: 'MCP' },
                 { path: `/${projectName}/experiments`, label: 'Experiments', icon: <IconExperiments /> },
+                { path: `/${projectName}/notebook`, label: 'Notebook', icon: <IconNotebook /> },
             ],
         },
         {
