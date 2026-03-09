@@ -127,6 +127,14 @@ class ColumnCleaningRule(BaseModel):
     normalize: Literal["none", "zscore", "minmax"] = "none"
 
 
+class TrainingFilterDef(BaseModel):
+    """Defines a filter applied to training or test data."""
+
+    expr: str
+    description: str = ""
+    apply_to: Literal["train", "test", "both"] = "train"
+
+
 class SourceConfig(BaseModel):
     """A declared data source in the pipeline."""
 
@@ -138,6 +146,13 @@ class SourceConfig(BaseModel):
     default_cleaning: ColumnCleaningRule = ColumnCleaningRule()
     temporal_safety: Literal["pre_event", "post_event", "mixed", "unknown"] = "unknown"
     enabled: bool = True
+
+    @field_validator("join_on")
+    @classmethod
+    def _validate_join_on(cls, v: list[str] | None) -> list[str] | None:
+        if v is not None and len(v) == 0:
+            raise ValueError("join_on must not be empty when specified; use None to omit")
+        return v
 
 
 # -----------------------------------------------------------------------
