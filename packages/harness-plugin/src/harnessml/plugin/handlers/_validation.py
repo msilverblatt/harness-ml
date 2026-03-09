@@ -1,11 +1,30 @@
-"""Shared validation utilities for MCP handlers."""
+"""Shared validation utilities for MCP handlers.
+
+Provides three categories of validation:
+
+1. **Required params** — ``validate_required()`` returns a clear error naming
+   the missing parameter.
+2. **Enum params** — ``validate_enum()`` uses fuzzy matching
+   (``difflib.get_close_matches``) and appends a "Did you mean?" hint when a
+   close match exists.
+3. **Cross-parameter dependencies** — ``validate_cross_params()`` checks rules
+   that span multiple parameters (e.g. "if *a* is set, *b* must also be set")
+   and returns blocking errors.  Non-blocking advisory hints are handled
+   separately by ``collect_hints()``.
+"""
 from __future__ import annotations
 
 from difflib import get_close_matches
+from typing import Any
 
 
 def validate_enum(value: str, valid: set[str], param_name: str) -> str | None:
-    """Validate value against allowed set, return error message or None."""
+    """Validate *value* against an allowed set.
+
+    Returns an error message string if invalid, or ``None`` if valid.
+    When the value is close to a valid option, a "Did you mean?" suggestion
+    is appended.
+    """
     if value in valid:
         return None
     closest = get_close_matches(value, sorted(valid), n=1, cutoff=0.6)
@@ -15,15 +34,47 @@ def validate_enum(value: str, valid: set[str], param_name: str) -> str | None:
     return msg
 
 
-def validate_required(value, param_name: str) -> str | None:
-    """Return error message if value is None/empty, else None."""
+def validate_required(value: Any, param_name: str) -> str | None:
+    """Return an error message if *value* is ``None`` or empty string, else ``None``."""
     if value is None or value == "":
         return f"**Error**: `{param_name}` is required."
     return None
 
 
 # -----------------------------------------------------------------------
-# Cross-parameter hints
+# Cross-parameter dependency validation
+# -----------------------------------------------------------------------
+
+
+def validate_cross_params(
+    rules: list[tuple[bool, str]],
+) -> str | None:
+    """Validate cross-parameter dependency rules.
+
+    Each *rule* is a ``(condition, error_message)`` tuple.  The *condition*
+    should evaluate to ``True`` when the constraint is **violated**.
+
+    Returns the first failing error message, or ``None`` if all rules pass.
+
+    Example::
+
+        err = validate_cross_params([
+            (mode == "regressor" and cdf_scale is None,
+             "`cdf_scale` is required when mode is 'regressor'."),
+            (calibration == "spline" and n_bins is not None and n_bins < 2,
+             "`spline_n_bins` must be >= 2."),
+        ])
+        if err:
+            return err
+    """
+    for violated, message in rules:
+        if violated:
+            return f"**Error**: {message}"
+    return None
+
+
+# -----------------------------------------------------------------------
+# Cross-parameter hints (non-blocking)
 # -----------------------------------------------------------------------
 
 
