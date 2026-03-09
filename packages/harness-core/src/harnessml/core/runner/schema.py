@@ -922,7 +922,7 @@ class EnsembleDef(BaseModel):
 # Backtest config
 # -----------------------------------------------------------------------
 
-_CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold"}
+_CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold", "stratified_kfold", "group_kfold", "bootstrap"}
 
 _CV_STRATEGY_ALIASES = {
     "loso": "leave_one_out",
@@ -930,6 +930,8 @@ _CV_STRATEGY_ALIASES = {
     "expanding": "expanding_window",
     "sliding": "sliding_window",
     "purged": "purged_kfold",
+    "skf": "stratified_kfold",
+    "gkf": "group_kfold",
 }
 
 
@@ -945,6 +947,12 @@ class BacktestConfig(BaseModel):
     n_folds: int | None = None
     purge_gap: int = 1
     eval_filter: str | None = None  # pandas query expression to filter test folds before metrics
+
+    # Fields for index-based CV strategies
+    group_column: str | None = None  # column for group_kfold strategy
+    target_column: str | None = None  # target column for stratified_kfold (overrides data.ml_problem.target_column)
+    n_iterations: int = 5  # number of bootstrap iterations
+    seed: int = 42  # random seed for bootstrap and stratified_kfold
 
     @field_validator("cv_strategy")
     @classmethod
@@ -964,6 +972,10 @@ class BacktestConfig(BaseModel):
             raise ValueError("sliding_window strategy requires window_size")
         if self.cv_strategy == "purged_kfold" and self.n_folds is None:
             raise ValueError("purged_kfold strategy requires n_folds")
+        if self.cv_strategy == "stratified_kfold" and self.n_folds is None:
+            raise ValueError("stratified_kfold strategy requires n_folds")
+        if self.cv_strategy == "group_kfold" and self.group_column is None:
+            raise ValueError("group_kfold strategy requires group_column")
         return self
 
 
