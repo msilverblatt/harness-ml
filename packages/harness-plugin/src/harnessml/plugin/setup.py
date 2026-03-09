@@ -88,7 +88,7 @@ def _install_skills(repo_root: Path | None) -> int:
 
     # Find skill source files
     if repo_root:
-        skills_source = repo_root / "docs" / "skills"
+        skills_source = repo_root / "skills"
     else:
         skills_source = _find_package_root() / "skills"
 
@@ -96,7 +96,7 @@ def _install_skills(repo_root: Path | None) -> int:
         return 0
 
     for skill_name in _SKILLS:
-        source_file = skills_source / f"{skill_name}.md"
+        source_file = skills_source / skill_name / "SKILL.md"
         if not source_file.exists():
             continue
         target_dir = skills_target / skill_name

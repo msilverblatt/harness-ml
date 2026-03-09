@@ -11,11 +11,11 @@
 **An Agent-Computer Interface (ACI) for machine learning.**<br>
 Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776ab.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/ci.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
-[![CI](https://img.shields.io/github/actions/workflow/status/msilverblatt/harness-ml/tests.yml?style=flat-square&label=CI)](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=PyPI)](https://pypi.org/project/harness-core/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-f59e0b.svg?style=flat-square)](LICENSE)
 
 </div>
 
