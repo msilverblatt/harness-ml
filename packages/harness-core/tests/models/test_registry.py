@@ -180,3 +180,50 @@ def test_create_var_keyword():
     model = registry.create("mock_var", params={"depth": 3}, mode="regressor", custom="value")
     assert isinstance(model, MockModelWithVarKeyword)
     assert model.extra == {"mode": "regressor", "custom": "value"}
+
+
+# --- Tests for with_defaults and real model types ---
+
+
+def test_with_defaults_registers_all_models():
+    """with_defaults() registers at least 8 model types."""
+    registry = ModelRegistry.with_defaults()
+    expected = [
+        "logistic_regression",
+        "elastic_net",
+        "random_forest",
+        "xgboost",
+        "catboost",
+        "lightgbm",
+        "mlp",
+        "tabnet",
+    ]
+    for name in expected:
+        assert name in registry, f"{name} not registered in default registry"
+
+
+def test_create_returns_correct_type():
+    """registry.create('xgboost') returns an XGBoostModel instance."""
+    from harnessml.core.models.wrappers.xgboost import XGBoostModel
+
+    registry = ModelRegistry.with_defaults()
+    model = registry.create("xgboost")
+    assert isinstance(model, XGBoostModel)
+
+
+def test_create_unknown_type_raises():
+    """Creating an unregistered model type raises KeyError."""
+    registry = ModelRegistry.with_defaults()
+    with pytest.raises(KeyError, match="Unknown model type"):
+        registry.create("totally_fake_model")
+
+
+def test_registry_is_singleton_like():
+    """with_defaults() returns a consistent set of registered models."""
+    r1 = ModelRegistry.with_defaults()
+    r2 = ModelRegistry.with_defaults()
+    # Both registries should have the same set of registered model names
+    assert set(r1._registry.keys()) == set(r2._registry.keys())
+    # And each name maps to the same class
+    for name in r1._registry:
+        assert r1._registry[name] is r2._registry[name]
