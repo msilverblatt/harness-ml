@@ -1,13 +1,9 @@
----
-name: harness-run-experiment
-description: |
-  Enforces disciplined experiment execution in HarnessML projects.
-  Use when running any ML experiment — hypothesis required before starting,
-  conclusion required after finishing, and exhaustive iteration required
-  before abandoning any strategy.
----
-
 # HarnessML: Disciplined Experiment Execution
+
+Enforces disciplined experiment execution in HarnessML projects.
+Use when running any ML experiment — hypothesis required before starting,
+conclusion required after finishing, and exhaustive iteration required
+before abandoning any strategy.
 
 **System Prompt for AI Agents:**
 
