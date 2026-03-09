@@ -47,6 +47,7 @@ from harnessml.core.runner.config_writer.data import (  # noqa: F401
 
 # Experiment operations
 from harnessml.core.runner.config_writer.experiments import (  # noqa: F401
+    compare_experiments,
     experiment_create,
     log_experiment_result,
     promote_experiment,

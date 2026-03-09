@@ -18,6 +18,9 @@ def experiment_create(
     description: str,
     *,
     hypothesis: str = "",
+    parent_id: str | None = None,
+    branching_reason: str = "",
+    phase: str = "",
 ) -> str:
     """Create a new experiment directory with auto-generated ID."""
     experiments_dir = Path(project_dir) / "experiments"
@@ -42,12 +45,39 @@ def experiment_create(
     # Write hypothesis
     (exp_dir / "hypothesis.txt").write_text(hypothesis)
 
-    return (
-        f"**Created experiment**: `{exp_id}`\n"
-        f"- Directory: `{exp_dir}`\n"
-        f"- Overlay: `{overlay_path}`\n"
-        f"- Description: {description}"
-    )
+    # Write to JSONL journal
+    journal_path = experiments_dir / "journal.jsonl"
+    try:
+        from harnessml.core.runner.experiment_journal import ExperimentJournal
+        from harnessml.core.runner.experiment_schema import (
+            ExperimentRecord,
+            ExperimentStatus,
+        )
+        journal = ExperimentJournal(journal_path)
+        record = ExperimentRecord(
+            experiment_id=exp_id,
+            hypothesis=hypothesis,
+            status=ExperimentStatus.CREATED,
+            parent_id=parent_id,
+            branching_reason=branching_reason,
+            phase=phase,
+        )
+        journal.append(record)
+    except Exception:
+        pass  # Fail-safe: don't block experiment creation if journal write fails
+
+    lines = [
+        f"**Created experiment**: `{exp_id}`",
+        f"- Directory: `{exp_dir}`",
+        f"- Overlay: `{overlay_path}`",
+        f"- Description: {description}",
+    ]
+    if parent_id:
+        lines.append(f"- Parent: `{parent_id}`")
+    if phase:
+        lines.append(f"- Phase: {phase}")
+
+    return "\n".join(lines)
 
 
 def write_overlay(
@@ -318,12 +348,15 @@ def log_experiment_result(
     hypothesis: str = "",
     conclusion: str = "",
     metrics: dict | None = None,
+    baseline_metrics: dict | None = None,
     overlay: dict | None = None,
     verdict: str = "",
 ) -> str:
-    """Append an experiment result to the journal (JSONL format)."""
-    from datetime import datetime
+    """Append an experiment result to the journal (JSONL format).
 
+    Uses the structured ExperimentJournal when possible, falling back
+    to raw JSONL append for backward compatibility.
+    """
     project_dir = Path(project_dir)
 
     # Save conclusion.txt alongside hypothesis.txt
@@ -335,22 +368,96 @@ def log_experiment_result(
     journal_path = project_dir / "experiments" / "journal.jsonl"
     journal_path.parent.mkdir(parents=True, exist_ok=True)
 
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "experiment_id": experiment_id,
-        "description": description,
-        "hypothesis": hypothesis,
-        "conclusion": conclusion,
-        "metrics": metrics or {},
-        "verdict": verdict,
-    }
-    if overlay:
-        entry["overlay_summary"] = str(overlay)[:200]
+    try:
+        from harnessml.core.runner.experiment_journal import ExperimentJournal
+        from harnessml.core.runner.experiment_manager import ExperimentManager
+        from harnessml.core.runner.experiment_schema import ExperimentStatus
 
-    with open(journal_path, "a") as f:
-        f.write(json.dumps(entry) + "\n")
+        journal = ExperimentJournal(journal_path)
+        existing = journal.get(experiment_id)
 
-    return f"Logged experiment `{experiment_id}` to journal."
+        if existing is not None:
+            # Update existing record with conclusion
+            mgr = ExperimentManager(
+                experiments_dir=project_dir / "experiments",
+                journal_path=journal_path,
+            )
+            if verdict:
+                struct_conclusion = mgr._build_conclusion(
+                    verdict=verdict,
+                    learnings=conclusion,
+                    metrics=metrics,
+                    baseline_metrics=baseline_metrics,
+                )
+                journal.update(
+                    experiment_id,
+                    status=ExperimentStatus.COMPLETED,
+                    conclusion=struct_conclusion,
+                )
+            else:
+                journal.update(
+                    experiment_id,
+                    status=ExperimentStatus.COMPLETED,
+                )
+
+            # Auto-regenerate markdown
+            log_path = project_dir / "EXPERIMENT_LOG.md"
+            log_path.write_text(journal.generate_markdown())
+
+            return f"Logged experiment `{experiment_id}` to journal."
+        else:
+            # No existing record; create one from scratch
+            from harnessml.core.runner.experiment_schema import ExperimentRecord
+            hyp = hypothesis or description or "No hypothesis provided"
+            record = ExperimentRecord(
+                experiment_id=experiment_id,
+                hypothesis=hyp,
+                status=ExperimentStatus.COMPLETED,
+            )
+            journal.append(record)
+
+            if verdict:
+                mgr = ExperimentManager(
+                    experiments_dir=project_dir / "experiments",
+                    journal_path=journal_path,
+                )
+                struct_conclusion = mgr._build_conclusion(
+                    verdict=verdict,
+                    learnings=conclusion,
+                    metrics=metrics,
+                    baseline_metrics=baseline_metrics,
+                )
+                journal.update(
+                    experiment_id,
+                    conclusion=struct_conclusion,
+                )
+
+            # Auto-regenerate markdown
+            log_path = project_dir / "EXPERIMENT_LOG.md"
+            log_path.write_text(journal.generate_markdown())
+
+            return f"Logged experiment `{experiment_id}` to journal."
+
+    except Exception:
+        # Fallback to raw JSONL append
+        from datetime import datetime
+
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "experiment_id": experiment_id,
+            "description": description,
+            "hypothesis": hypothesis,
+            "conclusion": conclusion,
+            "metrics": metrics or {},
+            "verdict": verdict,
+        }
+        if overlay:
+            entry["overlay_summary"] = str(overlay)[:200]
+
+        with open(journal_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        return f"Logged experiment `{experiment_id}` to journal."
 
 
 def show_journal(project_dir: Path, *, last_n: int = 20) -> str:
@@ -395,6 +502,32 @@ def show_journal(project_dir: Path, *, last_n: int = 20) -> str:
         lines.append(f"| {i} | {e['experiment_id']} | {desc} | {vals} | {verdict} |")
 
     return "\n".join(lines)
+
+
+def compare_experiments(
+    project_dir: Path,
+    experiment_ids: list[str],
+) -> str:
+    """Compare two or more experiments using the JSONL journal.
+
+    Returns a markdown table with side-by-side metrics comparison.
+    """
+    project_dir = Path(project_dir)
+    journal_path = project_dir / "experiments" / "journal.jsonl"
+
+    if not journal_path.exists():
+        return "No experiment journal found. Run experiments first."
+
+    try:
+        from harnessml.core.runner.experiment_manager import ExperimentManager
+
+        mgr = ExperimentManager(
+            experiments_dir=project_dir / "experiments",
+            journal_path=journal_path,
+        )
+        return mgr.compare(experiment_ids)
+    except Exception as exc:
+        return f"**Error** comparing experiments: {exc}"
 
 
 def promote_experiment(

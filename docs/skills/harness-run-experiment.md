@@ -95,7 +95,7 @@ Use `pipeline(action="diagnostics")` and `experiments(action="compare")` for thi
 
 ### Rule 6: Log Everything
 
-Every experiment result goes in EXPERIMENT_LOG.md regardless of outcome. Failed experiments are as valuable as successful ones — they narrow the search space.
+Every experiment result is recorded in the JSONL journal (`experiments/journal.jsonl`), which is the single source of truth. `EXPERIMENT_LOG.md` is auto-generated from it and should never be hand-edited. Failed experiments are as valuable as successful ones — they narrow the search space.
 
 ### Rule 7: Compare to Baseline
 
@@ -124,6 +124,17 @@ experiments(action="create",
 ```
 
 The `hypothesis` parameter is REQUIRED. The experiment will not be created without it.
+
+For multi-step research plans, use `parent_id` to link related experiments:
+
+```
+experiments(action="create",
+  description="Tune L2 strength after baseline",
+  hypothesis="Reducing reg_lambda from 0.5 to 0.3 will retain regularization benefit with less underfitting.",
+  parent_id="exp-001",
+  branching_reason="Exploring reg_lambda variants after baseline established"
+)
+```
 
 ### Step 3: Write the Overlay
 
@@ -171,17 +182,21 @@ Only after multiple attempts with diagnosis between each one:
 
 - **REVERT**: After 3+ meaningfully different attempts, the entire strategy is fundamentally flawed. Document WHY the strategy fails, not just that individual configs failed.
 
-### Step 7: Log with Conclusion
+### Step 7: Log with Structured Conclusion
 
 ```
 experiments(action="log_result",
   experiment_id="exp-001",
   conclusion="L2 regularization at reg_lambda=0.5 improved Brier by 0.004. The overfitting hypothesis was confirmed — folds 2 and 6 improved by 0.008 and 0.011 respectively. Remaining folds were neutral. The mechanism is reduced leaf weight variance in low-sample folds.",
-  verdict="KEEP"
+  verdict="keep",
+  metrics={"brier": 0.1348, "accuracy": 0.8200, "ece": 0.028},
+  baseline_metrics={"brier": 0.1388, "accuracy": 0.8127, "ece": 0.031}
 )
 ```
 
-The `conclusion` must explain what was LEARNED, not just restate the numbers. See Rule 2.
+Including `metrics` and `baseline_metrics` enables structured comparison: the system auto-computes improvement percentage and stores it in the JSONL journal for programmatic analysis.
+
+The `conclusion` must explain what was LEARNED, not just restate the numbers. See Rule 2. The EXPERIMENT_LOG.md is auto-generated from the journal after logging.
 
 ---
 
@@ -189,9 +204,10 @@ The `conclusion` must explain what was LEARNED, not just restate the numbers. Se
 
 | Verdict | Meaning | Action |
 |---------|---------|--------|
-| **KEEP** | Primary metric improves. Gains are consistent across folds. | Promote to production config. |
-| **PARTIAL** | Directional improvement, or improvement on subset of metrics/folds. Below success threshold. | Log for potential combination with future experiments. Do not promote yet. |
-| **REVERT** | After exhaustive attempts (3+ meaningfully different configs), the strategy is fundamentally flawed. | Document why the entire approach fails. Revert all changes. Move on. |
+| **keep** | Primary metric improves. Gains are consistent across folds. | Promote to production config. |
+| **partial** | Directional improvement, or improvement on subset of metrics/folds. Below success threshold. | Log for potential combination with future experiments. Do not promote yet. |
+| **revert** | After exhaustive attempts (3+ meaningfully different configs), the strategy is fundamentally flawed. | Document why the entire approach fails. Revert all changes. Move on. |
+| **inconclusive** | Results are ambiguous or need more data to draw a conclusion. | May revisit with different approach or more data. |
 
 ---
 
@@ -218,13 +234,15 @@ When a strategy shows initial promise or ambiguous results, the following patter
 | Action | Tool Call |
 |--------|-----------|
 | Create experiment | `experiments(action="create", description="...", hypothesis="...")` |
+| Create with parent | `experiments(action="create", description="...", hypothesis="...", parent_id="exp-001")` |
 | Write config overlay | `experiments(action="write_overlay", experiment_id="...", overlay={...})` |
 | Run with baseline comparison | `experiments(action="run", experiment_id="...", primary_metric="...")` |
 | One-shot experiment | `experiments(action="quick_run", description="...", hypothesis="...", overlay={...})` |
-| Compare two experiments | `experiments(action="compare", experiment_ids=["exp-001", "exp-002"])` |
+| Compare experiments | `experiments(action="compare", experiment_ids=["exp-001", "exp-002"])` |
 | Bayesian search | `experiments(action="explore", search_space={...})` |
 | Promote to production | `experiments(action="promote", experiment_id="...", primary_metric="...")` |
-| Log result with conclusion | `experiments(action="log_result", experiment_id="...", conclusion="...", verdict="...")` |
+| Log with metrics | `experiments(action="log_result", experiment_id="...", conclusion="...", verdict="...", metrics={...}, baseline_metrics={...})` |
+| View experiment journal | `experiments(action="journal")` |
 | Run diagnostics | `pipeline(action="diagnostics")` |
 
 ---

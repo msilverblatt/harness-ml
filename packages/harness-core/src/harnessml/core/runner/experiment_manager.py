@@ -13,6 +13,8 @@ from typing import Any
 
 import yaml
 from harnessml.core.config.merge import deep_merge, resolve_feature_mutations
+from harnessml.core.runner.experiment_journal import ExperimentJournal
+from harnessml.core.runner.experiment_schema import StructuredConclusion
 from harnessml.core.schemas.contracts import GuardrailViolation
 
 # ---------------------------------------------------------------------------
@@ -82,11 +84,17 @@ class ExperimentManager:
     log_path:
         Path to the experiment log markdown file.  When set, mandatory
         logging enforcement is enabled.
+    journal_path:
+        Path to the JSONL journal file.  When set, experiment records
+        are written to/read from this journal.  The markdown log_path
+        is auto-generated from it.
     baseline_metrics:
         Optional dict of baseline metric values for comparison.
     do_not_retry_path:
         Path to a JSON file storing do-not-retry patterns.  Loaded on
         init if it exists; written on every ``add_do_not_retry`` call.
+    verdict_thresholds:
+        Optional dict of metric_name -> minimum improvement threshold.
     """
 
     def __init__(
@@ -94,14 +102,22 @@ class ExperimentManager:
         experiments_dir: str | Path,
         naming_pattern: str | None = None,
         log_path: str | Path | None = None,
+        journal_path: str | Path | None = None,
         baseline_metrics: dict[str, Any] | None = None,
         do_not_retry_path: str | Path | None = None,
+        verdict_thresholds: dict[str, float] | None = None,
     ) -> None:
         self.experiments_dir = Path(experiments_dir)
         self.naming_pattern = re.compile(naming_pattern) if naming_pattern else None
         self.log_path = Path(log_path) if log_path else None
         self.baseline_metrics = baseline_metrics or {}
         self.do_not_retry_path = Path(do_not_retry_path) if do_not_retry_path else None
+        self.verdict_thresholds = verdict_thresholds or {}
+
+        # Set up JSONL journal if path is provided
+        self.journal = None
+        if journal_path:
+            self.journal = ExperimentJournal(journal_path)
 
         # In-memory do-not-retry list, loaded from disk if available
         self._do_not_retry: list[DoNotRetryEntry] = []
@@ -112,7 +128,15 @@ class ExperimentManager:
     # 6.1  Experiment creation + naming validation
     # ------------------------------------------------------------------
 
-    def create(self, experiment_id: str) -> Path:
+    def create(
+        self,
+        experiment_id: str,
+        *,
+        hypothesis: str = "",
+        parent_id: str | None = None,
+        branching_reason: str = "",
+        phase: str = "",
+    ) -> Path:
         """Create a new experiment directory with an empty overlay.
 
         Validates the naming pattern, checks for duplicates, and enforces
@@ -121,7 +145,7 @@ class ExperimentManager:
         Returns the experiment directory path.
         """
         # Enforce mandatory logging before allowing a new experiment
-        if self.log_path is not None and self.has_unlogged():
+        if (self.log_path is not None or self.journal is not None) and self.has_unlogged():
             raise ExperimentError(
                 GuardrailViolation(
                     blocked=True,
@@ -164,6 +188,26 @@ class ExperimentManager:
         exp_dir.mkdir(parents=True)
         overlay_path = exp_dir / "overlay.yaml"
         overlay_path.write_text("# Overlay config — only what differs from production\n")
+
+        # Write hypothesis file if provided
+        if hypothesis:
+            (exp_dir / "hypothesis.txt").write_text(hypothesis)
+
+        # Write to JSONL journal if configured
+        if self.journal is not None and hypothesis:
+            from harnessml.core.runner.experiment_schema import (
+                ExperimentRecord,
+                ExperimentStatus,
+            )
+            record = ExperimentRecord(
+                experiment_id=experiment_id,
+                hypothesis=hypothesis,
+                status=ExperimentStatus.CREATED,
+                parent_id=parent_id,
+                branching_reason=branching_reason,
+                phase=phase,
+            )
+            self.journal.append(record)
 
         return exp_dir
 
@@ -308,6 +352,8 @@ class ExperimentManager:
         verdict: str,
         conclusion: str = "",
         notes: str = "",
+        metrics: dict[str, float] | None = None,
+        baseline_metrics: dict[str, float] | None = None,
     ) -> None:
         """Append a log entry for an experiment to the log file.
 
@@ -320,13 +366,17 @@ class ExperimentManager:
         changes:
             Brief description of what was changed.
         verdict:
-            One of "keep", "revert", or "partial".
+            One of "keep", "revert", "partial", or "inconclusive".
         conclusion:
             What was learned from this experiment.
         notes:
             Optional additional observations.
+        metrics:
+            Experiment metrics dict (e.g. {"brier": 0.13, "accuracy": 0.82}).
+        baseline_metrics:
+            Baseline metrics for computing improvement.
         """
-        if self.log_path is None:
+        if self.log_path is None and self.journal is None:
             raise ExperimentError(
                 GuardrailViolation(
                     blocked=True,
@@ -336,33 +386,79 @@ class ExperimentManager:
                 )
             )
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        entry_lines = [
-            f"## {experiment_id}",
-            f"**Date:** {timestamp}",
-            f"**Hypothesis:** {hypothesis}",
-            f"**Changes:** {changes}",
-            f"**Verdict:** {verdict}",
-        ]
-        if conclusion:
-            entry_lines.append(f"**Conclusion:** {conclusion}")
-        if notes:
-            entry_lines.append(f"**Notes:** {notes}")
-        entry_lines.append("")  # trailing newline
+        # Update JSONL journal if configured
+        if self.journal is not None:
+            struct_conclusion = self._build_conclusion(
+                verdict=verdict,
+                learnings=conclusion,
+                metrics=metrics,
+                baseline_metrics=baseline_metrics,
+            )
+            config_changes = self._extract_config_changes(experiment_id)
 
-        entry_text = "\n".join(entry_lines) + "\n"
+            from harnessml.core.runner.experiment_schema import ExperimentStatus
+            self.journal.update(
+                experiment_id,
+                status=ExperimentStatus.COMPLETED,
+                conclusion=struct_conclusion,
+                config_changes=config_changes,
+            )
 
-        # Append to log file (create if needed)
-        with open(self.log_path, "a") as fh:
-            fh.write(entry_text)
+            # Auto-regenerate markdown from journal
+            if self.log_path:
+                self.log_path.write_text(self.journal.generate_markdown())
+
+            # Write conclusion.txt for backward compat
+            exp_dir = self.experiments_dir / experiment_id
+            if exp_dir.exists() and (conclusion or struct_conclusion.learnings):
+                (exp_dir / "conclusion.txt").write_text(
+                    conclusion or struct_conclusion.learnings
+                )
+        else:
+            # Legacy markdown-only path
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            entry_lines = [
+                f"## {experiment_id}",
+                f"**Date:** {timestamp}",
+                f"**Hypothesis:** {hypothesis}",
+                f"**Changes:** {changes}",
+                f"**Verdict:** {verdict}",
+            ]
+            if conclusion:
+                entry_lines.append(f"**Conclusion:** {conclusion}")
+            if notes:
+                entry_lines.append(f"**Notes:** {notes}")
+            entry_lines.append("")  # trailing newline
+
+            entry_text = "\n".join(entry_lines) + "\n"
+
+            # Append to log file (create if needed)
+            with open(self.log_path, "a") as fh:
+                fh.write(entry_text)
 
     def has_unlogged(self) -> bool:
         """Check if any created experiment lacks a log entry.
 
         An experiment is "created" if its directory exists under
         experiments_dir.  An experiment is "logged" if its ID appears in
-        the log file.
+        the log file or has a completed/failed status in the journal.
         """
+        # Journal-based check
+        if self.journal is not None:
+            from harnessml.core.runner.experiment_schema import ExperimentStatus
+            snapshots = self.journal._latest_snapshots()
+            created_dirs = self._list_created_experiments()
+            for exp_id in created_dirs:
+                if exp_id in snapshots:
+                    record = snapshots[exp_id]
+                    if record.status in (ExperimentStatus.CREATED, ExperimentStatus.RUNNING):
+                        return True
+                else:
+                    # Directory exists but no journal entry - unlogged
+                    return True
+            return False
+
+        # Legacy markdown-based check
         if self.log_path is None:
             return False
 
@@ -394,6 +490,161 @@ class ExperimentManager:
         for match in re.finditer(r"^## (.+)$", content, re.MULTILINE):
             logged.add(match.group(1).strip())
         return logged
+
+    # ------------------------------------------------------------------
+    # Structured conclusion builder
+    # ------------------------------------------------------------------
+
+    # Metrics where lower is better
+    _LOWER_IS_BETTER = {"brier", "brier_score", "log_loss", "ece", "mae", "mse", "rmse"}
+
+    def _build_conclusion(
+        self,
+        verdict: str,
+        learnings: str,
+        metrics: dict[str, float] | None = None,
+        baseline_metrics: dict[str, float] | None = None,
+    ) -> StructuredConclusion:
+        """Build a StructuredConclusion from raw inputs."""
+        from harnessml.core.runner.experiment_schema import (
+            ExperimentVerdict,
+            StructuredConclusion,
+        )
+
+        baseline = baseline_metrics or self.baseline_metrics or {}
+        metrics = metrics or {}
+
+        # Determine primary metric (first metric in baseline, or first in metrics)
+        primary = ""
+        baseline_val = None
+        result_val = None
+        improvement = None
+        improvement_pct = None
+
+        if baseline:
+            primary = next(iter(baseline))
+            baseline_val = baseline.get(primary)
+            result_val = metrics.get(primary)
+            if baseline_val is not None and result_val is not None and baseline_val != 0:
+                lower_is_better = primary in self._LOWER_IS_BETTER
+                if lower_is_better:
+                    improvement = baseline_val - result_val
+                else:
+                    improvement = result_val - baseline_val
+                improvement_pct = (improvement / abs(baseline_val)) * 100
+
+        return StructuredConclusion(
+            verdict=ExperimentVerdict(verdict),
+            primary_metric=primary,
+            baseline_value=baseline_val,
+            result_value=result_val,
+            improvement=improvement,
+            improvement_pct=improvement_pct,
+            secondary_metrics={k: v for k, v in metrics.items() if k != primary},
+            learnings=learnings,
+        )
+
+    def _extract_config_changes(self, experiment_id: str) -> list:
+        """Extract config changes from the experiment overlay."""
+
+        exp_dir = self.experiments_dir / experiment_id
+        overlay_path = exp_dir / "overlay.yaml"
+        if not overlay_path.exists():
+            return []
+
+        try:
+            overlay = yaml.safe_load(overlay_path.read_text()) or {}
+        except yaml.YAMLError:
+            return []
+
+        changes = []
+        _extract_paths(overlay, "", changes)
+        return changes
+
+    # ------------------------------------------------------------------
+    # Experiment comparison
+    # ------------------------------------------------------------------
+
+    def compare(self, experiment_ids: list[str]) -> str:
+        """Generate a side-by-side comparison of experiments as markdown."""
+        if self.journal is None:
+            return "Journal not configured. Cannot compare experiments."
+
+        records = []
+        for eid in experiment_ids:
+            r = self.journal.get(eid)
+            if r is None:
+                return f"Experiment '{eid}' not found in journal."
+            records.append(r)
+
+        # Collect all metrics across experiments
+        all_metrics: set[str] = set()
+        for r in records:
+            if r.conclusion:
+                if r.conclusion.primary_metric:
+                    all_metrics.add(r.conclusion.primary_metric)
+                all_metrics.update(r.conclusion.secondary_metrics.keys())
+            for t in r.trials:
+                all_metrics.update(t.metrics.keys())
+
+        # Build comparison table
+        lines = ["## Experiment Comparison\n"]
+        header = "| Metric | " + " | ".join(r.experiment_id for r in records) + " |"
+        sep = "|---|" + "|".join("---" for _ in records) + "|"
+        lines.extend([header, sep])
+
+        # Hypothesis row
+        lines.append("| **Hypothesis** | " + " | ".join(
+            r.hypothesis[:50] + "..." if len(r.hypothesis) > 50 else r.hypothesis
+            for r in records
+        ) + " |")
+
+        # Verdict row
+        lines.append("| **Verdict** | " + " | ".join(
+            r.conclusion.verdict.value if r.conclusion else "-"
+            for r in records
+        ) + " |")
+
+        # Metric rows
+        for metric in sorted(all_metrics):
+            values = []
+            for r in records:
+                val = None
+                if r.conclusion:
+                    if r.conclusion.primary_metric == metric:
+                        val = r.conclusion.result_value
+                    else:
+                        val = r.conclusion.secondary_metrics.get(metric)
+                if val is None and r.trials:
+                    val = r.trials[-1].metrics.get(metric)
+                values.append(f"{val:.4f}" if val is not None else "-")
+
+            lines.append(f"| {metric} | " + " | ".join(values) + " |")
+
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # Rollback
+    # ------------------------------------------------------------------
+
+    def rollback(
+        self,
+        production_config_path: str | Path,
+        backup_path: str | Path,
+    ) -> None:
+        """Restore production config from a backup file."""
+        production_config_path = Path(production_config_path)
+        backup_path = Path(backup_path)
+        if not backup_path.exists():
+            raise ExperimentError(
+                GuardrailViolation(
+                    blocked=True,
+                    rule="rollback_backup_missing",
+                    message=f"Backup file not found: {backup_path}",
+                    source="ExperimentManager.rollback",
+                )
+            )
+        shutil.copy2(backup_path, production_config_path)
 
     # ------------------------------------------------------------------
     # 6.5  Atomic promote with rollback
@@ -491,24 +742,146 @@ class ExperimentManager:
         return backup_path
 
     def _get_logged_verdicts(self) -> dict[str, str]:
-        """Parse the log file and return {experiment_id: verdict} mapping."""
-        if self.log_path is None or not self.log_path.exists():
-            return {}
+        """Parse the log file and return {experiment_id: verdict} mapping.
 
+        Checks both JSONL journal and markdown log file.
+        """
         verdicts: dict[str, str] = {}
-        content = self.log_path.read_text()
 
-        current_id: str | None = None
-        for line in content.splitlines():
-            heading_match = re.match(r"^## (.+)$", line)
-            if heading_match:
-                current_id = heading_match.group(1).strip()
-                continue
+        # Check journal first
+        if self.journal is not None:
+            snapshots = self.journal._latest_snapshots()
+            for exp_id, record in snapshots.items():
+                if record.conclusion:
+                    verdicts[exp_id] = record.conclusion.verdict.value
 
-            if current_id is not None:
-                verdict_match = re.match(r"\*\*Verdict:\*\*\s*(.+)", line)
-                if verdict_match:
-                    verdicts[current_id] = verdict_match.group(1).strip()
-                    current_id = None
+        # Fall back to/augment with markdown parsing
+        if self.log_path is not None and self.log_path.exists():
+            content = self.log_path.read_text()
+            current_id: str | None = None
+            for line in content.splitlines():
+                heading_match = re.match(r"^## (.+)$", line)
+                if heading_match:
+                    current_id = heading_match.group(1).strip()
+                    continue
+
+                if current_id is not None:
+                    verdict_match = re.match(r"\*\*Verdict:\*\*\s*(.+)", line)
+                    if verdict_match:
+                        # Don't overwrite journal verdicts
+                        if current_id not in verdicts:
+                            verdicts[current_id] = verdict_match.group(1).strip()
+                        current_id = None
 
         return verdicts
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _extract_paths(obj: dict, prefix: str, changes: list) -> None:
+    """Recursively extract dot-notation paths from a dict into ConfigChange objects."""
+    from harnessml.core.runner.experiment_schema import ConfigChange
+
+    for key, value in obj.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            _extract_paths(value, path, changes)
+        else:
+            changes.append(ConfigChange(path=path, new_value=value))
+
+
+# ---------------------------------------------------------------------------
+# Migration
+# ---------------------------------------------------------------------------
+
+def migrate_markdown_to_jsonl(log_path: Path, journal_path: Path) -> int:
+    """Parse existing EXPERIMENT_LOG.md and write records to journal.jsonl.
+
+    Returns the number of experiments migrated.
+    """
+    from harnessml.core.runner.experiment_journal import ExperimentJournal
+
+    log_path = Path(log_path)
+    journal_path = Path(journal_path)
+
+    if not log_path.exists():
+        return 0
+
+    content = log_path.read_text()
+    if not content.strip():
+        return 0
+
+    journal = ExperimentJournal(journal_path)
+    count = 0
+
+    # Parse markdown sections
+    current_id: str | None = None
+    current_data: dict[str, str] = {}
+    for line in content.splitlines():
+        heading = re.match(r"^## (.+)$", line)
+        if heading:
+            if current_id and current_data:
+                _write_migrated_record(journal, current_id, current_data)
+                count += 1
+            current_id = heading.group(1).strip()
+            current_data = {}
+            continue
+        for field_name in ("Hypothesis", "Changes", "Verdict", "Conclusion", "Notes", "Date"):
+            match = re.match(rf"\*\*{field_name}:\*\*\s*(.+)", line)
+            if match:
+                current_data[field_name.lower()] = match.group(1).strip()
+
+    if current_id and current_data:
+        _write_migrated_record(journal, current_id, current_data)
+        count += 1
+
+    return count
+
+
+def _write_migrated_record(
+    journal: ExperimentJournal,
+    experiment_id: str,
+    data: dict[str, str],
+) -> None:
+    """Write a single migrated record to the journal."""
+    from harnessml.core.runner.experiment_schema import (
+        ExperimentRecord,
+        ExperimentStatus,
+        ExperimentVerdict,
+        StructuredConclusion,
+    )
+
+    hypothesis = data.get("hypothesis", "Migrated experiment (no hypothesis)")
+    verdict_str = data.get("verdict", "")
+    conclusion_text = data.get("conclusion", "")
+
+    # Build conclusion if we have a verdict
+    conclusion = None
+    if verdict_str:
+        # Map common verdict strings to valid enum values
+        verdict_map = {
+            "keep": ExperimentVerdict.KEEP,
+            "revert": ExperimentVerdict.REVERT,
+            "partial": ExperimentVerdict.PARTIAL,
+            "inconclusive": ExperimentVerdict.INCONCLUSIVE,
+            "improved": ExperimentVerdict.KEEP,
+            "regressed": ExperimentVerdict.REVERT,
+            "neutral": ExperimentVerdict.INCONCLUSIVE,
+        }
+        verdict_enum = verdict_map.get(
+            verdict_str.lower(), ExperimentVerdict.INCONCLUSIVE
+        )
+        conclusion = StructuredConclusion(
+            verdict=verdict_enum,
+            learnings=conclusion_text,
+        )
+
+    record = ExperimentRecord(
+        experiment_id=experiment_id,
+        hypothesis=hypothesis,
+        status=ExperimentStatus.COMPLETED if verdict_str else ExperimentStatus.CREATED,
+        conclusion=conclusion,
+    )
+    journal.append(record)
