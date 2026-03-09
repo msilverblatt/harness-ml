@@ -1,0 +1,208 @@
+.notebook {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* --- View toggle --- */
+
+.viewToggle {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    width: fit-content;
+}
+
+.viewButton {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-3);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-muted);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.viewButton:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+}
+
+.viewButtonActive {
+    composes: viewButton;
+    background: var(--color-accent-a12);
+    color: var(--color-accent);
+}
+
+/* --- Top bar --- */
+
+.topBar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+/* --- Filter bar --- */
+
+.filterBar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+}
+
+.filterSelect,
+.filterInput,
+.dateInput {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-2);
+    outline: none;
+}
+
+.filterSelect:focus,
+.filterInput:focus,
+.dateInput:focus {
+    border-color: var(--color-accent);
+}
+
+.filterCount {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.clearButton {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.clearButton:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.struckToggle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.struckToggle:hover {
+    background: var(--color-bg-hover);
+}
+
+.struckToggleActive {
+    composes: struckToggle;
+    background: var(--color-warning-a15);
+    color: var(--color-warning);
+    border-color: var(--color-warning-a40);
+}
+
+/* --- Timeline view --- */
+
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* --- Journal view --- */
+
+.journalSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.journalSectionHeader {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border-subtle);
+    padding-bottom: var(--space-1);
+}
+
+.heroCards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+    .heroCards {
+        grid-template-columns: 1fr;
+    }
+}
+
+.heroCard {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+}
+
+.heroCardLabel {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.heroCardContent {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-primary);
+}
+
+.experimentGroup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.experimentGroupHeader {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+}
+
+.emptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+}
