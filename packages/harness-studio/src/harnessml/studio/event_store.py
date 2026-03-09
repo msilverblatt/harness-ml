@@ -20,6 +20,7 @@ class EventStore:
     def init(self) -> None:
         """Create the database and events table if needed."""
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS events (
@@ -43,6 +44,7 @@ class EventStore:
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tool ON events(tool)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_project ON events(project)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tool_project ON events(tool, project)")
         # Project registry table
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
@@ -103,20 +105,20 @@ class EventStore:
 
         results = []
         for r in rows:
-            ts = r[1]
+            ts = r["timestamp"]
             if isinstance(ts, (int, float)):
                 ts = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-            params = r[4]
+            params = r["params"]
             if isinstance(params, str):
                 try:
                     params = json.loads(params)
                 except (json.JSONDecodeError, TypeError):
                     params = {}
             results.append({
-                "id": r[0], "timestamp": ts, "tool": r[2], "action": r[3],
-                "params": params, "result": r[5], "duration_ms": r[6],
-                "status": r[7], "project": r[8],
-                "caller": r[9] if len(r) > 9 else "",
+                "id": r["id"], "timestamp": ts, "tool": r["tool"], "action": r["action"],
+                "params": params, "result": r["result"], "duration_ms": r["duration_ms"],
+                "status": r["status"], "project": r["project"],
+                "caller": r["caller"] if "caller" in r.keys() else "",
             })
         return results
 
