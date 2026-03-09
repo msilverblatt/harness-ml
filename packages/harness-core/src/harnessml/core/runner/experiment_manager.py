@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 from harnessml.core.config.merge import deep_merge, resolve_feature_mutations
+from harnessml.core.runner.experiment_journal import ExperimentJournal
 from harnessml.core.runner.experiment_schema import StructuredConclusion
 from harnessml.core.schemas.contracts import GuardrailViolation
 
@@ -116,7 +117,6 @@ class ExperimentManager:
         # Set up JSONL journal if path is provided
         self.journal = None
         if journal_path:
-            from harnessml.core.runner.experiment_journal import ExperimentJournal
             self.journal = ExperimentJournal(journal_path)
 
         # In-memory do-not-retry list, loaded from disk if available
@@ -790,3 +790,98 @@ def _extract_paths(obj: dict, prefix: str, changes: list) -> None:
             _extract_paths(value, path, changes)
         else:
             changes.append(ConfigChange(path=path, new_value=value))
+
+
+# ---------------------------------------------------------------------------
+# Migration
+# ---------------------------------------------------------------------------
+
+def migrate_markdown_to_jsonl(log_path: Path, journal_path: Path) -> int:
+    """Parse existing EXPERIMENT_LOG.md and write records to journal.jsonl.
+
+    Returns the number of experiments migrated.
+    """
+    from harnessml.core.runner.experiment_journal import ExperimentJournal
+
+    log_path = Path(log_path)
+    journal_path = Path(journal_path)
+
+    if not log_path.exists():
+        return 0
+
+    content = log_path.read_text()
+    if not content.strip():
+        return 0
+
+    journal = ExperimentJournal(journal_path)
+    count = 0
+
+    # Parse markdown sections
+    current_id: str | None = None
+    current_data: dict[str, str] = {}
+    for line in content.splitlines():
+        heading = re.match(r"^## (.+)$", line)
+        if heading:
+            if current_id and current_data:
+                _write_migrated_record(journal, current_id, current_data)
+                count += 1
+            current_id = heading.group(1).strip()
+            current_data = {}
+            continue
+        for field_name in ("Hypothesis", "Changes", "Verdict", "Conclusion", "Notes", "Date"):
+            match = re.match(rf"\*\*{field_name}:\*\*\s*(.+)", line)
+            if match:
+                current_data[field_name.lower()] = match.group(1).strip()
+
+    if current_id and current_data:
+        _write_migrated_record(journal, current_id, current_data)
+        count += 1
+
+    return count
+
+
+def _write_migrated_record(
+    journal: ExperimentJournal,
+    experiment_id: str,
+    data: dict[str, str],
+) -> None:
+    """Write a single migrated record to the journal."""
+    from harnessml.core.runner.experiment_schema import (
+        ExperimentRecord,
+        ExperimentStatus,
+        ExperimentVerdict,
+        StructuredConclusion,
+    )
+
+    hypothesis = data.get("hypothesis", "Migrated experiment (no hypothesis)")
+    verdict_str = data.get("verdict", "")
+    conclusion_text = data.get("conclusion", "")
+
+    # Build conclusion if we have a verdict
+    conclusion = None
+    if verdict_str:
+        # Map common verdict strings to valid enum values
+        verdict_map = {
+            "keep": ExperimentVerdict.KEEP,
+            "revert": ExperimentVerdict.REVERT,
+            "partial": ExperimentVerdict.PARTIAL,
+            "inconclusive": ExperimentVerdict.INCONCLUSIVE,
+            "improved": ExperimentVerdict.KEEP,
+            "regressed": ExperimentVerdict.REVERT,
+            "neutral": ExperimentVerdict.INCONCLUSIVE,
+        }
+        verdict_enum = verdict_map.get(
+            verdict_str.lower(), ExperimentVerdict.INCONCLUSIVE
+        )
+        conclusion = StructuredConclusion(
+            verdict=verdict_enum,
+            learnings=conclusion_text,
+        )
+
+    record = ExperimentRecord(
+        experiment_id=experiment_id,
+        hypothesis=hypothesis,
+        status=ExperimentStatus.COMPLETED if verdict_str else ExperimentStatus.CREATED,
+        conclusion=conclusion,
+    )
+    journal.append(record)
