@@ -39,6 +39,8 @@ class ColumnProfile:
     min: float | None = None
     max: float | None = None
     median: float | None = None
+    cardinality: int | None = None
+    inferred_type: str | None = None
 
 
 @dataclass
@@ -134,7 +136,10 @@ class DataProfile:
             return "No columns found."
 
         lines: list[str] = []
-        header = f"{'Column':<45} {'Type':<10} {'Null%':>6} {'Mean':>10} {'Std':>10} {'Min':>10} {'Max':>10}"
+        header = (
+            f"{'Column':<45} {'Type':<10} {'Inferred':<15} "
+            f"{'Null%':>6} {'Card':>6} {'Mean':>10} {'Std':>10} {'Min':>10} {'Max':>10}"
+        )
         lines.append(header)
         lines.append("-" * len(header))
 
@@ -143,8 +148,11 @@ class DataProfile:
             std_s = f"{col.std:.4f}" if col.std is not None else ""
             min_s = f"{col.min:.2f}" if col.min is not None else ""
             max_s = f"{col.max:.2f}" if col.max is not None else ""
+            inferred = col.inferred_type or ""
+            card_s = str(col.cardinality) if col.cardinality is not None else ""
             lines.append(
-                f"{col.name:<45} {col.dtype:<10} {col.null_pct:>5.1f}% "
+                f"{col.name:<45} {col.dtype:<10} {inferred:<15} "
+                f"{col.null_pct:>5.1f}% {card_s:>6} "
                 f"{mean_s:>10} {std_s:>10} {min_s:>10} {max_s:>10}"
             )
 
@@ -366,11 +374,52 @@ def _find_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
     return None
 
 
+def _infer_column_type(series: pd.Series, n_unique: int, n_rows: int) -> str:
+    """Infer a semantic type hint for a column.
+
+    Returns one of: 'numeric', 'binary', 'categorical', 'high_cardinality',
+    'boolean', 'datetime', 'text', 'id'.
+    """
+    dtype = series.dtype
+
+    if pd.api.types.is_bool_dtype(dtype):
+        return "boolean"
+
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "datetime"
+
+    if pd.api.types.is_numeric_dtype(dtype):
+        if n_unique == 2:
+            return "binary"
+        if n_unique <= 20 and n_rows > 0:
+            return "categorical"
+        return "numeric"
+
+    # Object / string columns
+    if n_rows > 0:
+        unique_ratio = n_unique / n_rows
+        if unique_ratio > 0.9:
+            return "id"
+        if n_unique <= 50:
+            return "categorical"
+        return "high_cardinality"
+
+    return "text"
+
+
 def _profile_column(name: str, series: pd.Series, n_rows: int) -> ColumnProfile:
     """Build a ColumnProfile for a single column."""
     null_count = int(series.isna().sum())
     null_pct = null_count / n_rows * 100 if n_rows > 0 else 0.0
     n_unique = int(series.nunique())
+
+    # Cardinality for non-numeric columns (categorical/object)
+    cardinality = None
+    if not pd.api.types.is_numeric_dtype(series) or n_unique <= 50:
+        cardinality = n_unique
+
+    # Infer semantic type
+    inferred_type = _infer_column_type(series, n_unique, n_rows)
 
     cp = ColumnProfile(
         name=name,
@@ -378,6 +427,8 @@ def _profile_column(name: str, series: pd.Series, n_rows: int) -> ColumnProfile:
         null_count=null_count,
         null_pct=null_pct,
         n_unique=n_unique,
+        cardinality=cardinality,
+        inferred_type=inferred_type,
     )
 
     if pd.api.types.is_numeric_dtype(series):
