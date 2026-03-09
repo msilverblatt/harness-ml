@@ -16,24 +16,108 @@ probabilistic forecasting.
 | **harness-studio** | Companion web dashboard: real-time observability via FastAPI + React | `harnessml.studio.*` |
 | **harness-sports** | Optional domain plugin: matchup prediction, pairwise features, symmetric LOSO | `harnessml.sports.*` |
 
-### Data Flow
+### System Flow
 
 ```
-CSV / Parquet / URL / API
-        |
-    Source Registry (file, url, api, computed adapters)
-        |
-    Views: 22-step declarative ETL (YAML-driven)
-        |
-    Feature Store (parquet, fingerprint-cached)
-        |
-    Model Registry (8 model types, multi-seed averaging)
-        |
-    Meta-Learner Ensemble (per-fold coefficients)
-        |
-    Calibration (Spline / Isotonic / Platt / Beta)
-        |
-    Predictions + Diagnostics
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AGENT / USER INTERFACE                            │
+│                                                                             │
+│   Claude Code ──► MCP Server (harness-plugin)                               │
+│                     │  7 tools, ~80 actions                                 │
+│                     │  hot-reload handlers (HARNESS_DEV=1)                  │
+│                     │                                                       │
+│                     ├──► Event Emitter ──► SQLite ──► Studio (harness-studio)│
+│                     │                                  WebSocket live stream │
+│                     │                                  React 19 dashboard   │
+│                     ▼                                                       │
+│               Config Writer                                                 │
+│          (reads/writes YAML configs)                                        │
+└─────────────┬───────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA INGESTION & ETL                                │
+│                                                                             │
+│   Data Sources (CSV, Parquet, URL, API, Computed)                           │
+│       │  Source Registry: freshness tracking, schema validation              │
+│       ▼                                                                     │
+│   View Executor (22-step declarative ETL, Polars or Pandas backend)         │
+│       │  Steps: filter, select, derive, group_by, join, union, unpivot,     │
+│       │         sort, head, rolling, cast, distinct, rank, isin, cond_agg,  │
+│       │         lag, ewm, diff, trend, encode, bin, datetime, null_indicator│
+│       ▼                                                                     │
+│   Feature Store (parquet files, SHA256 fingerprint caching)                 │
+│       │  Feature Registry: formula, grouped, instance, regime types          │
+│       │  Feature Selection: SelectKBest, RFE, correlation clustering         │
+│       │  Text Features: TF-IDF, count vectorizer                            │
+│       │  Cyclical Encoding: sin/cos pairs for periodic features              │
+│       ▼                                                                     │
+│   Preprocessing (leakage-safe: fit on train, transform test)                │
+│       Scaling: zscore, robust, quantile                                     │
+│       Imputation: median, mean, zero, KNN, iterative (MICE)                 │
+│       Categorical: frequency encoding                                       │
+└─────────────┬───────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        GUARDRAILS & VALIDATION                              │
+│                                                                             │
+│   Pre-Training Validation (validate_project)                                │
+│       │  Leakage detection (non-overridable)                                │
+│       │  Temporal ordering (non-overridable)                                │
+│       │  Critical path protection (non-overridable)                         │
+│       │  Data distribution, class imbalance, model complexity (overridable)  │
+│       │  Feature count, prediction sanity (overridable)                      │
+│       │  Formula syntax validation, feature existence checks                 │
+│       ▼                                                                     │
+│   Data Profiler: cardinality, type inference, distribution hints             │
+└─────────────┬───────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CROSS-VALIDATION & TRAINING                            │
+│                                                                             │
+│   CV Strategies (7 strategies)                                              │
+│       LOSO, Expanding Window, Sliding Window, Purged KFold,                 │
+│       Stratified KFold, Group KFold, Bootstrap (.632)                       │
+│       │                                                                     │
+│       ▼                                                                     │
+│   Model Training (per fold, parallel via ThreadPoolExecutor)                │
+│       │  12 model wrappers:                                                 │
+│       │    XGBoost, LightGBM, CatBoost, RandomForest, Logistic, ElasticNet, │
+│       │    MLP, TabNet, SVM, HistGradientBoosting, GAM, NGBoost             │
+│       │  GPU routing: CUDA / MPS / CPU (detect_device)                      │
+│       │  Multi-seed averaging (seed_stride)                                 │
+│       │  Error recovery: partial results on model failure                    │
+│       │  Prediction caching: skip unchanged model+feature+data combos       │
+│       ▼                                                                     │
+│   Meta-Learner Ensemble (LOSO training)                                     │
+│       │  Types: logistic (default), ridge, GBM                              │
+│       │  Per-fold coefficients, multiclass per-class weighting              │
+│       │  Ensemble diversity: disagreement, Q-statistic, Kappa, correlation   │
+│       ▼                                                                     │
+│   Calibration (per-fold, 4 methods)                                         │
+│       Spline (PCHIP), Isotonic, Platt, Beta                                 │
+│       │                                                                     │
+│       ▼                                                                     │
+│   Post-Processing                                                           │
+│       Temperature scaling, clip floor, prior compression, logit adjustments  │
+└─────────────┬───────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        OUTPUTS & ANALYSIS                                   │
+│                                                                             │
+│   Predictions (CSV/Parquet export)                                          │
+│   Diagnostics (45 metrics, markdown + JSON, per-fold breakdowns)            │
+│   Explainability (SHAP values, PDP, feature interactions)                   │
+│   Drift Detection (KS test, PSI)                                            │
+│   Conformal Prediction (calibrated confidence intervals)                    │
+│   Experiment Journal (JSONL, hypothesis/conclusion, compare, rollback)       │
+│   HPO (Optuna: pruning, multi-objective, hyperparameter importance)          │
+│   Notebook Generation (Colab, Kaggle, local)                                │
+│   Cloud Upload (Google Drive, Kaggle)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Each stage is driven by YAML configuration and orchestrated through the
@@ -302,43 +386,289 @@ If HarnessML is deployed in a shared or networked environment, consider:
 ## File Layout
 
 ```
-packages/
-  harness-core/
-    src/harnessml/core/
-      schemas/         # Pydantic contracts, MetricRegistry
-      config/          # YAML loading, OmegaConf merge
-      guardrails/      # Leakage, temporal, naming checks
-      models/          # BaseModel, wrappers/, ModelRegistry
-      runner/          # Pipeline, training, meta-learner, calibration
-        sources/       # Source registry, adapters
-        drives/        # Google Drive, Kaggle cloud adapters
-        notebook/      # Jupyter notebook generation
-      feature_eng/     # Feature registry, transforms
-    tests/
-
-  harness-plugin/
-    src/harnessml/plugin/
-      mcp_server.py    # Tool signatures, async dispatcher
-      handlers/        # Business logic (hot-reloadable)
-        models.py      # Model CRUD actions
-        data.py        # Data source management
-        features.py    # Feature add/remove/search
-        experiments.py # Experiment lifecycle
-        config.py      # Config read/write
-        pipeline.py    # Pipeline orchestration + progress
-        _validation.py # Enum validation, fuzzy match
-        _common.py     # Shared helpers
-
-  harness-studio/
-    src/harnessml/studio/
-      server.py        # FastAPI application
-      event_store.py   # SQLite WAL-mode event store
-      broadcaster.py   # WebSocket fan-out
-      routes/          # REST + WebSocket endpoints
-    frontend/          # React 19 + TypeScript + Vite
-
-  harness-sports/
-    src/harnessml/sports/
-      matchups.py      # Matchup prediction logic
-      hooks.py         # Hook registration into core
+harness-ml/
+├── ARCHITECTURE.md                    # This file
+├── CLAUDE.md                          # AI agent instructions
+├── CONTRIBUTING.md                    # Development guide
+├── README.md                          # Project overview
+├── pyproject.toml                     # Workspace root (uv)
+├── uv.lock                           # Lockfile
+│
+├── .claude-plugin/
+│   └── plugin.json                    # Claude Code Plugin manifest
+├── .mcp.json                          # MCP server configuration
+├── skills/
+│   ├── harness-run-experiment/SKILL.md
+│   ├── harness-explore-space/SKILL.md
+│   └── harness-domain-research/SKILL.md
+│
+├── .github/workflows/
+│   ├── tests.yml                      # CI test suite
+│   ├── publish.yml                    # PyPI publishing
+│   └── deploy-docs.yml               # GitHub Pages
+│
+├── docs/
+│   ├── for-agents.md                  # MCP tool reference
+│   ├── for-humans.md                  # Human-readable guide
+│   ├── troubleshooting.md             # Common issues + fixes
+│   ├── examples/
+│   │   ├── binary-classification.md
+│   │   ├── temporal-cv.md
+│   │   └── feature-engineering.md
+│   ├── skills/                        # Skill source markdown
+│   └── plans/                         # Implementation plans
+│
+├── packages/
+│   ├── harness-core/                  # ── ML ENGINE ──
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── src/harnessml/core/
+│   │   │   ├── __init__.py
+│   │   │   ├── errors.py                  # ErrorCode enum, format_error/warning
+│   │   │   ├── logging.py                 # structlog-based get_logger, configure_logging
+│   │   │   │
+│   │   │   ├── schemas/
+│   │   │   │   ├── contracts.py           # Pydantic v2 contracts, GuardrailRule enum
+│   │   │   │   └── metrics.py             # MetricRegistry (45 metrics, 6 task types)
+│   │   │   │
+│   │   │   ├── config/
+│   │   │   │   ├── loader.py              # YAML loading
+│   │   │   │   ├── merge.py               # OmegaConf deep merge
+│   │   │   │   └── resolver.py            # Path and variable resolution
+│   │   │   │
+│   │   │   ├── guardrails/
+│   │   │   │   ├── base.py                # Guardrail base class, severity levels
+│   │   │   │   ├── inventory.py           # 12 guards (DataDistribution, ClassImbalance, etc.)
+│   │   │   │   ├── execution.py           # Guardrail execution engine
+│   │   │   │   ├── audit.py               # Audit trail
+│   │   │   │   └── server.py              # Guardrail server integration
+│   │   │   │
+│   │   │   ├── models/
+│   │   │   │   ├── base.py                # BaseModel abstract class
+│   │   │   │   ├── registry.py            # ModelRegistry with with_defaults()
+│   │   │   │   ├── params.py              # Per-model Pydantic param schemas
+│   │   │   │   ├── calibration.py         # Spline, Isotonic, Platt, Beta calibrators
+│   │   │   │   ├── device.py              # GPU detection (CUDA/MPS/CPU)
+│   │   │   │   ├── ensemble.py            # Ensemble utilities
+│   │   │   │   ├── backtest.py            # BacktestRunner
+│   │   │   │   ├── cv.py                  # Cross-validation utilities
+│   │   │   │   ├── fingerprint.py         # Model fingerprinting
+│   │   │   │   ├── orchestrator.py        # Training orchestration
+│   │   │   │   ├── postprocessing.py      # Prediction post-processing
+│   │   │   │   ├── run_manager.py         # Run lifecycle management
+│   │   │   │   ├── tracking.py            # Model tracking
+│   │   │   │   └── wrappers/
+│   │   │   │       ├── xgboost.py         # XGBoost
+│   │   │   │       ├── lightgbm.py        # LightGBM
+│   │   │   │       ├── catboost.py        # CatBoost
+│   │   │   │       ├── random_forest.py   # RandomForest
+│   │   │   │       ├── logistic.py        # LogisticRegression (auto max_iter)
+│   │   │   │       ├── elastic_net.py     # ElasticNet (normalize, NaN handling)
+│   │   │   │       ├── mlp.py             # MLP (GPU, batch_norm, early_stopping)
+│   │   │   │       ├── tabnet.py          # TabNet (GPU, scheduler, seed_stride)
+│   │   │   │       ├── svm.py             # SVM (SVC/SVR, probability=True)
+│   │   │   │       ├── hist_gbm.py        # HistGradientBoosting (native NaN)
+│   │   │   │       ├── gam.py             # GAM (PyGAM, optional dep)
+│   │   │   │       └── ngboost.py         # NGBoost (optional dep)
+│   │   │   │
+│   │   │   ├── runner/
+│   │   │   │   ├── schema.py              # ProjectConfig, DataConfig, BacktestConfig, etc.
+│   │   │   │   ├── pipeline.py            # PipelineRunner (fold parallelization)
+│   │   │   │   ├── training.py            # Model training loop, NaN handling
+│   │   │   │   ├── meta_learner.py        # StackedEnsemble (logistic/ridge/gbm)
+│   │   │   │   ├── calibration.py         # build_calibrator factory
+│   │   │   │   ├── postprocessing.py      # Ensemble post-processing
+│   │   │   │   ├── cv_strategies.py       # 7 CV strategies
+│   │   │   │   ├── preprocessing.py       # Leakage-safe Preprocessor
+│   │   │   │   ├── feature_selection.py   # SelectKBest, RFE, correlation clustering
+│   │   │   │   ├── feature_store.py       # Parquet-based feature store
+│   │   │   │   ├── feature_engine.py      # Feature computation engine
+│   │   │   │   ├── feature_cache.py       # Feature caching
+│   │   │   │   ├── feature_discovery.py   # Auto feature discovery
+│   │   │   │   ├── feature_diversity.py   # Feature diversity analysis
+│   │   │   │   ├── feature_utils.py       # Feature utilities
+│   │   │   │   ├── prediction_cache.py    # SHA256 fingerprint-based caching
+│   │   │   │   ├── fingerprint.py         # Config fingerprinting
+│   │   │   │   ├── view_executor.py       # View engine (Pandas backend)
+│   │   │   │   ├── view_executor_polars.py# View engine (Polars backend, 3-13x faster)
+│   │   │   │   ├── view_resolver.py       # View dependency resolution
+│   │   │   │   ├── polars_compat.py       # Pandas ↔ Polars converters
+│   │   │   │   ├── diagnostics.py         # Markdown + JSON diagnostics
+│   │   │   │   ├── reporting.py           # Report generation
+│   │   │   │   ├── explainability.py      # SHAP values, PDP, interactions
+│   │   │   │   ├── drift.py               # KS test, PSI drift detection
+│   │   │   │   ├── conformal.py           # Conformal prediction intervals
+│   │   │   │   ├── ensemble_diversity.py  # Disagreement, Q-stat, Kappa, correlation
+│   │   │   │   ├── hpo.py                 # Optuna: pruning, multi-objective
+│   │   │   │   ├── validation.py          # validate_project pre-training checks
+│   │   │   │   ├── data_profiler.py       # Cardinality, type inference
+│   │   │   │   ├── data_ingest.py         # Data ingestion + raw preservation
+│   │   │   │   ├── data_pipeline.py       # Data pipeline orchestration
+│   │   │   │   ├── data_utils.py          # Data utilities
+│   │   │   │   ├── dag.py                 # Provider dependency DAG
+│   │   │   │   ├── hooks.py               # HookRegistry for domain plugins
+│   │   │   │   ├── guards.py              # Pipeline stage guards
+│   │   │   │   ├── stage_guards.py        # PipelineGuards class
+│   │   │   │   ├── matchups.py            # Matchup generation
+│   │   │   │   ├── project.py             # Project abstraction
+│   │   │   │   ├── loaders.py             # Config loaders
+│   │   │   │   ├── experiment_schema.py   # ExperimentRecord, TrialRecord Pydantic models
+│   │   │   │   ├── experiment_journal.py  # JSONL journal (read/write/update)
+│   │   │   │   ├── experiment_manager.py  # Experiment lifecycle, compare, rollback
+│   │   │   │   ├── experiment_logger.py   # Experiment logging
+│   │   │   │   ├── experiment.py          # Experiment utilities
+│   │   │   │   ├── exploration.py         # Hyperparameter exploration
+│   │   │   │   ├── sweep.py               # Parameter sweep
+│   │   │   │   ├── auto_search.py         # Auto feature search
+│   │   │   │   ├── workflow_tracker.py    # Phased workflow enforcement
+│   │   │   │   ├── notebook.py            # Jupyter notebook generation
+│   │   │   │   ├── scaffold.py            # Project scaffolding
+│   │   │   │   ├── presets.py             # Configuration presets
+│   │   │   │   ├── viz.py                 # Visualization utilities
+│   │   │   │   ├── cli.py                 # CLI entry point
+│   │   │   │   ├── run_manager.py         # Run lifecycle
+│   │   │   │   ├── server_gen.py          # Server generation
+│   │   │   │   ├── pipeline_planner.py    # Pipeline planning
+│   │   │   │   ├── transformation_tester.py # Transform testing
+│   │   │   │   ├── validator.py           # Config validator
+│   │   │   │   │
+│   │   │   │   ├── config_writer/         # Config YAML management (10 submodules)
+│   │   │   │   │   ├── __init__.py        # Re-exports 65 public functions
+│   │   │   │   │   ├── _helpers.py        # Shared helpers
+│   │   │   │   │   ├── _init.py           # Project initialization
+│   │   │   │   │   ├── features.py        # Feature CRUD + formula validation
+│   │   │   │   │   ├── models.py          # Model CRUD + feature existence checks
+│   │   │   │   │   ├── data.py            # Data config management
+│   │   │   │   │   ├── pipeline.py        # Pipeline + backtest config
+│   │   │   │   │   ├── experiments.py     # Experiment CRUD + JSONL journal
+│   │   │   │   │   ├── views.py           # View definitions
+│   │   │   │   │   └── sources.py         # Source definitions
+│   │   │   │   │
+│   │   │   │   ├── sources/               # Data source adapters
+│   │   │   │   │   ├── registry.py        # Source registry
+│   │   │   │   │   ├── adapters.py        # File, URL, API, computed adapters
+│   │   │   │   │   ├── freshness.py       # Freshness tracking
+│   │   │   │   │   └── validation.py      # Schema validation at load time
+│   │   │   │   │
+│   │   │   │   └── drives/                # Cloud integrations
+│   │   │   │       ├── drive.py           # Google Drive (OAuth upload/folders)
+│   │   │   │       └── kaggle.py          # Kaggle (dataset/notebook upload)
+│   │   │   │
+│   │   │   └── feature_eng/
+│   │   │       ├── registry.py            # Feature engineering registry
+│   │   │       ├── text.py                # TF-IDF, count vectorizer
+│   │   │       └── transforms.py          # Cyclical encoding, transform functions
+│   │   │
+│   │   └── tests/                         # ~1780 tests
+│   │       ├── schemas/                   # Contract + metric tests
+│   │       ├── config/                    # Config loading tests
+│   │       ├── guardrails/                # Guardrail tests
+│   │       ├── models/                    # Model wrapper + calibration tests
+│   │       ├── runner/                    # Pipeline, training, CV, experiment tests
+│   │       ├── feature_eng/               # Feature engineering tests
+│   │       └── benchmarks/                # View executor benchmarks
+│   │
+│   ├── harness-plugin/                # ── MCP SERVER ──
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── src/harnessml/plugin/
+│   │   │   ├── mcp_server.py              # Tool signatures, async dispatcher, threading locks
+│   │   │   ├── event_emitter.py           # Fail-safe SQLite event emission
+│   │   │   ├── setup.py                   # harness-setup CLI, skill installation
+│   │   │   └── handlers/
+│   │   │       ├── data.py                # Data source management actions
+│   │   │       ├── features.py            # Feature add/remove/search/auto_search
+│   │   │       ├── models.py              # Model add/update/remove/list
+│   │   │       ├── config.py              # Config read/write/validate
+│   │   │       ├── pipeline.py            # Backtest, predict, train, progress
+│   │   │       ├── experiments.py         # Create/log/compare/rollback experiments
+│   │   │       ├── competitions.py        # Kaggle/competition integrations
+│   │   │       ├── _validation.py         # Enum fuzzy match, required params, cross-param
+│   │   │       └── _common.py             # Shared helpers (resolve_project_dir, etc.)
+│   │   └── tests/                         # ~152 tests
+│   │
+│   ├── harness-studio/               # ── WEB DASHBOARD ──
+│   │   ├── pyproject.toml
+│   │   ├── README.md
+│   │   ├── scripts/build_frontend.sh
+│   │   ├── src/harnessml/studio/
+│   │   │   ├── server.py                  # FastAPI app, static file serving
+│   │   │   ├── cli.py                     # CLI: harness-studio command
+│   │   │   ├── event_store.py             # SQLite WAL-mode, parameterized queries
+│   │   │   ├── broadcaster.py             # asyncio.Queue fan-out, bounded queues
+│   │   │   ├── errors.py                  # ErrorCategory enum, classify_error
+│   │   │   └── routes/
+│   │   │       ├── events.py              # Event log REST + WebSocket
+│   │   │       ├── project.py             # Config + DAG endpoints
+│   │   │       ├── experiments.py         # Experiment journal endpoints
+│   │   │       ├── runs.py                # Metrics, calibration, correlations (cached)
+│   │   │       ├── predictions.py         # Prediction export (CSV/Parquet), pagination
+│   │   │       ├── config.py              # Config viewer
+│   │   │       ├── data.py                # Data viewer
+│   │   │       ├── features.py            # Feature viewer
+│   │   │       ├── models.py              # Model viewer
+│   │   │       ├── ensemble.py            # Ensemble viewer
+│   │   │       └── ws.py                  # WebSocket handler
+│   │   │
+│   │   ├── frontend/                      # React 19 + TypeScript + Vite + bun
+│   │   │   └── src/
+│   │   │       ├── App.tsx                # Root component, tab routing
+│   │   │       ├── main.tsx               # Entry point
+│   │   │       ├── types/api.ts           # TypeScript API response types
+│   │   │       ├── utils/time.ts          # Timestamp humanization
+│   │   │       ├── hooks/
+│   │   │       │   ├── useApi.ts          # API fetch hook
+│   │   │       │   ├── useWebSocket.ts    # WebSocket connection
+│   │   │       │   ├── useKeyboardShortcuts.ts  # Keyboard shortcuts (1-4, r, /, ?)
+│   │   │       │   ├── useProject.ts      # Project context
+│   │   │       │   ├── useTheme.ts        # Theme switching
+│   │   │       │   └── useRefreshKey.ts   # Auto-refresh
+│   │   │       ├── components/
+│   │   │       │   ├── Layout/            # App shell, sidebar, navigation
+│   │   │       │   ├── Toast/             # Toast notifications (auto-dismiss)
+│   │   │       │   ├── EmptyState/        # Contextual empty states
+│   │   │       │   ├── ErrorBoundary/     # React error boundary per tab
+│   │   │       │   ├── StatBox/           # Metric stat boxes
+│   │   │       │   ├── ExpandableRow/     # Expandable table rows
+│   │   │       │   ├── MarkdownRenderer/  # Markdown rendering
+│   │   │       │   └── Tooltip/           # Tooltips with glossary
+│   │   │       ├── views/
+│   │   │       │   ├── Dashboard/         # Overview dashboard
+│   │   │       │   ├── Activity/          # Live event log + stat bar
+│   │   │       │   ├── DAG/               # Pipeline DAG (React Flow nodes)
+│   │   │       │   ├── Experiments/       # Sortable table + metric charts
+│   │   │       │   ├── Diagnostics/       # Metrics, calibration, correlations, residuals
+│   │   │       │   ├── Data/              # Data viewer
+│   │   │       │   ├── Features/          # Feature viewer
+│   │   │       │   ├── Models/            # Model viewer
+│   │   │       │   ├── Ensemble/          # Ensemble viewer
+│   │   │       │   ├── Config/            # Config viewer
+│   │   │       │   ├── Predictions/       # Prediction viewer + export
+│   │   │       │   └── Preferences/       # Theme + settings
+│   │   │       └── styles/
+│   │   │           ├── tokens.css         # Design tokens
+│   │   │           ├── reset.css          # CSS reset
+│   │   │           ├── colors.ts          # Color utilities
+│   │   │           └── themes/            # 11 themes (claude, nord, matrix, etc.)
+│   │   │
+│   │   └── tests/                         # ~33 tests
+│   │
+│   └── harness-sports/               # ── DOMAIN PLUGIN ──
+│       ├── pyproject.toml
+│       ├── README.md
+│       ├── src/harnessml/sports/
+│       │   ├── hooks.py                   # Hook registration into core
+│       │   ├── matchups.py                # Matchup prediction logic
+│       │   ├── pairwise.py                # Pairwise feature generation
+│       │   └── competitions/
+│       │       ├── schemas.py             # Tournament/bracket schemas
+│       │       ├── structure.py           # Bracket structure generation
+│       │       ├── simulator.py           # Monte Carlo simulation
+│       │       ├── scorer.py              # Scoring systems
+│       │       ├── optimizer.py           # Bracket optimization
+│       │       ├── confidence.py          # Confidence intervals
+│       │       ├── adjustments.py         # Probability adjustments
+│       │       ├── explainer.py           # Pick explanations
+│       │       └── export.py              # Export formats
+│       └── tests/                         # ~20 tests
 ```
