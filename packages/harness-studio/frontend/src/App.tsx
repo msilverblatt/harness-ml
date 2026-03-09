@@ -28,6 +28,7 @@ import { ConfigView } from './views/Config/Config';
 import { PreferencesView } from './views/Preferences/Preferences';
 import { ProjectRedirect } from './components/ProjectRedirect';
 import { ToastProvider } from './components/Toast/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 
 function App() {
     const themeCtx = useThemeProvider();
@@ -42,18 +43,18 @@ function App() {
                     {/* Project-scoped routes */}
                     <Route path=":project" element={<Layout />}>
                         <Route index element={<Navigate to="dashboard" replace />} />
-                        <Route path="dashboard" element={<Dashboard />} />
-                        <Route path="activity" element={<Activity />} />
-                        <Route path="dag" element={<DAG />} />
-                        <Route path="experiments" element={<Experiments />} />
-                        <Route path="data" element={<DataView />} />
-                        <Route path="features" element={<FeaturesView />} />
-                        <Route path="models" element={<ModelsView />} />
-                        <Route path="ensemble" element={<EnsembleView />} />
-                        <Route path="predictions" element={<PredictionsView />} />
-                        <Route path="diagnostics" element={<Diagnostics />} />
-                        <Route path="config" element={<ConfigView />} />
-                        <Route path="preferences" element={<PreferencesView />} />
+                        <Route path="dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+                        <Route path="activity" element={<ErrorBoundary><Activity /></ErrorBoundary>} />
+                        <Route path="dag" element={<ErrorBoundary><DAG /></ErrorBoundary>} />
+                        <Route path="experiments" element={<ErrorBoundary><Experiments /></ErrorBoundary>} />
+                        <Route path="data" element={<ErrorBoundary><DataView /></ErrorBoundary>} />
+                        <Route path="features" element={<ErrorBoundary><FeaturesView /></ErrorBoundary>} />
+                        <Route path="models" element={<ErrorBoundary><ModelsView /></ErrorBoundary>} />
+                        <Route path="ensemble" element={<ErrorBoundary><EnsembleView /></ErrorBoundary>} />
+                        <Route path="predictions" element={<ErrorBoundary><PredictionsView /></ErrorBoundary>} />
+                        <Route path="diagnostics" element={<ErrorBoundary><Diagnostics /></ErrorBoundary>} />
+                        <Route path="config" element={<ErrorBoundary><ConfigView /></ErrorBoundary>} />
+                        <Route path="preferences" element={<ErrorBoundary><PreferencesView /></ErrorBoundary>} />
                     </Route>
                 </Routes>
             </BrowserRouter>
