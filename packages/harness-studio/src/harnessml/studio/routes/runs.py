@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import time as _time
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,10 @@ from harnessml.studio.routes.project import resolve_project_dir_from_request
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["runs"])
+
+# In-memory cache for correlation matrices: {run_id: (timestamp, response_data)}
+_correlation_cache: dict[str, tuple[float, dict]] = {}
+_CORRELATION_CACHE_TTL = 300  # 5 minutes
 
 
 def _load_predictions(run_dir: Path) -> pd.DataFrame | None:
@@ -225,6 +230,12 @@ async def run_folds(request: Request, run_id: str, project: str | None = None):
 async def run_correlations(request: Request, run_id: str, project: str | None = None):
     """Compute model prediction correlation matrix from predictions parquet."""
     try:
+        # Check cache first
+        if run_id in _correlation_cache:
+            cached_ts, cached_data = _correlation_cache[run_id]
+            if _time.time() - cached_ts < _CORRELATION_CACHE_TTL:
+                return cached_data
+
         project_dir = resolve_project_dir_from_request(request, project)
         run_dir = project_dir / "outputs" / run_id
 
@@ -238,10 +249,15 @@ async def run_correlations(request: Request, run_id: str, project: str | None = 
 
         corr = df[prob_cols].corr()
         model_names = [c.replace("prob_", "") for c in prob_cols]
-        return {
+        result = {
             "models": model_names,
             "matrix": corr.values.tolist(),
         }
+
+        # Store in cache
+        _correlation_cache[run_id] = (_time.time(), result)
+
+        return result
     except Exception as e:
         return error_response(e)
 

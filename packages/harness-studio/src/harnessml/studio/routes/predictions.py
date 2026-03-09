@@ -118,6 +118,8 @@ async def list_predictions(
     run_id: str | None = None,
     page: int = 0,
     page_size: int = 50,
+    offset: int | None = None,
+    limit: int | None = None,
     project: str | None = None,
 ):
     try:
@@ -131,8 +133,15 @@ async def list_predictions(
             return {"error": "No predictions found"}
 
         total = len(df)
-        start = page * page_size
-        end = min(start + page_size, total)
+
+        # Support both offset/limit and page/page_size APIs
+        if offset is not None or limit is not None:
+            start = offset or 0
+            end = min(start + (limit or 100), total)
+        else:
+            start = page * page_size
+            end = min(start + page_size, total)
+
         page_df = df.iloc[start:end].copy()
 
         # Round floats for display
