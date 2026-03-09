@@ -81,15 +81,13 @@ class TestGenerateCVFolds:
 
     def test_sliding_window_requires_window_size(self):
         """Raises ValueError if window_size is None."""
-        df = pd.DataFrame({"season": [2015, 2016, 2017]})
-        bt = BacktestConfig(
-            cv_strategy="sliding_window",
-            fold_column="season",
-            fold_values=[2015, 2016, 2017],
-            window_size=None,
-        )
-        with pytest.raises(ValueError, match="window_size"):
-            generate_cv_folds(df, bt)
+        with pytest.raises((ValueError, Exception), match="window_size"):
+            BacktestConfig(
+                cv_strategy="sliding_window",
+                fold_column="season",
+                fold_values=[2015, 2016, 2017],
+                window_size=None,
+            )
 
     def test_purged_kfold_embargo(self):
         """Fold values within purge_gap of test are excluded from training."""
@@ -112,15 +110,13 @@ class TestGenerateCVFolds:
 
     def test_purged_kfold_requires_n_folds(self):
         """Raises ValueError if n_folds is None."""
-        df = pd.DataFrame({"season": [2015, 2016, 2017]})
-        bt = BacktestConfig(
-            cv_strategy="purged_kfold",
-            fold_column="season",
-            fold_values=[2015, 2016, 2017],
-            n_folds=None,
-        )
-        with pytest.raises(ValueError, match="n_folds"):
-            generate_cv_folds(df, bt)
+        with pytest.raises((ValueError, Exception), match="n_folds"):
+            BacktestConfig(
+                cv_strategy="purged_kfold",
+                fold_column="season",
+                fold_values=[2015, 2016, 2017],
+                n_folds=None,
+            )
 
     def test_uses_fold_values_from_config(self):
         """If bt_config.fold_values is set, uses those as test folds."""

@@ -1,10 +1,25 @@
 """Core data schemas — shared contracts used by all harnessml packages."""
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict
+
+# ---------------------------------------------------------------------------
+# Guardrail rule enum
+# ---------------------------------------------------------------------------
+
+class GuardrailRule(str, Enum):
+    """Known guardrail rule identifiers."""
+    FEATURE_LEAKAGE = "feature_leakage"
+    TEMPORAL_ORDERING = "temporal_ordering"
+    NAMING = "naming"
+    CRITICAL_PATH = "critical_path"
+    MANDATORY_LOGGING = "mandatory_logging"
+    DO_NOT_RETRY = "do_not_retry"
+
 
 # ---------------------------------------------------------------------------
 # Temporal / leakage filters
