@@ -56,7 +56,8 @@ class EventStore:
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
             self.init()
-        return self._conn  # type: ignore[return-value]
+        assert self._conn is not None
+        return self._conn
 
     def record(self, *, tool: str, action: str, params: dict, result: str,
                duration_ms: int, status: str, project: str = "",
@@ -71,7 +72,8 @@ class EventStore:
                  result, duration_ms, status, project, caller),
             )
             conn.commit()
-            return cur.lastrowid  # type: ignore[return-value]
+            assert cur.lastrowid is not None
+            return cur.lastrowid
 
     def query(self, *, tool: str | None = None, project: str | None = None,
               limit: int = 500, before_id: int | None = None,

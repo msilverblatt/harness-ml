@@ -1,6 +1,7 @@
 """Handler for pipeline tool."""
 from __future__ import annotations
 
+from harnessml.core.logging import get_logger
 from harnessml.plugin.handlers._common import make_progress_callback, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
     collect_hints,
@@ -8,6 +9,8 @@ from harnessml.plugin.handlers._validation import (
     validate_enum,
     validate_required,
 )
+
+logger = get_logger(__name__)
 
 
 async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
@@ -256,7 +259,8 @@ async def _handle_compare_targets(*, ctx, project_dir, **_kwargs):
                 except ValueError:
                     float_metrics[k] = v
             results[target_name] = float_metrics
-        except Exception as e:
+        except (ValueError, RuntimeError, FileNotFoundError, OSError) as e:
+            logger.exception("compare_targets backtest failed", action="compare_targets")
             results[target_name] = {"error": str(e)}
 
     # Restore original target

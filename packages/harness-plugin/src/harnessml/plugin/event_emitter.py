@@ -1,11 +1,12 @@
 """Event emitter for MCP tool calls — bridges plugin to Studio event store."""
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from harnessml.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 _DEFAULT_DB_DIR = Path.home() / ".harnessml"
 

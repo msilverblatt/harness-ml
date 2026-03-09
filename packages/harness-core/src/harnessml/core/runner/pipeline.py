@@ -17,7 +17,7 @@ import platform
 if platform.system() == "Darwin":
     os.environ.setdefault("OMP_NUM_THREADS", "1")
 
-import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 import pandas as pd
+from harnessml.core.logging import get_logger
 from harnessml.core.models.backtest import BacktestRunner
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.cv_strategies import generate_cv_folds
@@ -45,7 +46,7 @@ from harnessml.core.runner.training import (
 )
 from harnessml.core.runner.validator import validate_project
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 
@@ -163,10 +164,9 @@ class ProviderContext:
         )
         if not entity_id_col or not fold_col:
             logger.warning(
-                "Entity provider %s output missing entity_id or %s columns, "
-                "skipping injection",
-                provider_name,
-                self.fold_column,
+                "entity provider output missing required columns",
+                provider=provider_name,
+                fold_column=self.fold_column,
             )
             return df
 
@@ -182,7 +182,7 @@ class ProviderContext:
 
         if not entity_a_col or not entity_b_col:
             logger.warning(
-                "Cannot inject entity-level features: missing entity columns"
+                "cannot inject entity-level features: missing entity columns",
             )
             return df
 
@@ -429,11 +429,11 @@ class PipelineRunner:
                 entity_path = self.project_dir / entity_path
             if entity_path.exists():
                 self._entity_df = pd.read_parquet(entity_path)
-                logger.info("Loaded entity features: %s", entity_path)
+                logger.info("loaded entity features", path=str(entity_path))
             else:
                 logger.warning(
-                    "Entity features path configured but not found: %s",
-                    entity_path,
+                    "entity features path configured but not found",
+                    path=str(entity_path),
                 )
 
         # Create diff_prior alias from prior_feature config
@@ -598,7 +598,7 @@ class PipelineRunner:
 
                 except Exception:
                     logger.exception(
-                        "Failed to train %s", model_name,
+                        "failed to train model", model=model_name,
                     )
                     continue
 
@@ -663,7 +663,7 @@ class PipelineRunner:
         test_df = self._df[test_mask].copy()
 
         if len(test_df) == 0:
-            logger.warning("No data found for fold %d", fold_value)
+            logger.warning("no data found for fold", fold=fold_value)
             return pd.DataFrame()
 
         # Build predictions DataFrame
@@ -758,8 +758,8 @@ class PipelineRunner:
 
                 except Exception:
                     logger.exception(
-                        "Failed to train/predict %s for fold %d",
-                        model_name, fold_value,
+                        "failed to train/predict model for fold",
+                        model=model_name, fold=fold_value,
                     )
                     continue
 
@@ -811,7 +811,7 @@ class PipelineRunner:
                         # Fall back to simple average
                         preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
                 except Exception:
-                    logger.exception("Meta-learner training failed, falling back to average")
+                    logger.exception("meta-learner training failed, falling back to average")
                     preds_df["prob_ensemble"] = preds_df[prob_cols].mean(axis=1)
             else:
                 # Simple average
@@ -943,6 +943,8 @@ class PipelineRunner:
         fold_data: dict[int, pd.DataFrame] = {}
         n_models = len(active_models)
         for fold_idx, (train_folds, test_fold) in enumerate(cv_folds):
+            logger.info("fold_start", fold=fold_idx, train_size=len(train_folds), test_size=1)
+
             # Per-model progress within each fold
             def _model_progress(model_idx: int, model_name: str, fold_i: int = fold_idx, tf: int = test_fold):
                 if on_progress:
@@ -1270,6 +1272,7 @@ class PipelineRunner:
                 )
 
                 try:
+                    t0 = time.perf_counter()
                     model, feature_cols, metrics = train_single_model(
                         model_name=model_name,
                         model_def=model_def,
@@ -1280,6 +1283,8 @@ class PipelineRunner:
                         data_config=self.config.data,
                         task_type=self._task_type(),
                     )
+                    elapsed_ms = int((time.perf_counter() - t0) * 1000)
+                    logger.info("model_trained", model=model_name, duration_ms=elapsed_ms)
 
                     cdf_scale = metrics.get("cdf_scale")
                     if cdf_scale is not None:
@@ -1319,9 +1324,8 @@ class PipelineRunner:
                             # Entity-level providers need special handling
                             # with entity_df and per-entity predictions
                             logger.info(
-                                "Entity-level provider %s — entity feature "
-                                "injection requires entity_df",
-                                model_name,
+                                "entity-level provider requires entity_df",
+                                model=model_name,
                             )
 
                     # Store in prediction cache (non-provider models only)
@@ -1349,8 +1353,8 @@ class PipelineRunner:
 
                 except Exception as exc:
                     logger.exception(
-                        "Failed to train/predict %s for fold %d",
-                        model_name, test_fold,
+                        "failed to train/predict model for fold",
+                        model=model_name, fold=test_fold,
                     )
                     self._failed_models.add(model_name)
                     self._fold_errors.append(f"  - {model_name} (fold {test_fold}): {exc}")

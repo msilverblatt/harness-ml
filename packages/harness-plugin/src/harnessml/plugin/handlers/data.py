@@ -1,6 +1,7 @@
 """Handler for manage_data tool."""
 from __future__ import annotations
 
+from harnessml.core.logging import get_logger
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
     collect_hints,
@@ -8,6 +9,8 @@ from harnessml.plugin.handlers._validation import (
     validate_enum,
     validate_required,
 )
+
+logger = get_logger(__name__)
 
 
 def _handle_add(*, data_path, join_on, prefix, auto_clean, project_dir, **_kwargs):
@@ -230,7 +233,8 @@ def _handle_add_sources_batch(*, sources, project_dir, **_kwargs):
                 project_dir=project_dir,
             )
             results.append(src_name)
-        except Exception as e:
+        except (ValueError, KeyError, FileNotFoundError, OSError) as e:
+            logger.exception("add_sources_batch failed for source", action="add_sources_batch")
             errors.append(f"{src.get('name', f'source_{i}')}: {e}")
     summary = f"Added {len(results)} source(s)."
     if errors:
@@ -256,7 +260,8 @@ def _handle_fill_nulls_batch(*, columns, project_dir, **_kwargs):
                 project_dir=project_dir,
             )
             results.append(col_name)
-        except Exception as e:
+        except (ValueError, KeyError, FileNotFoundError, OSError) as e:
+            logger.exception("fill_nulls_batch failed for column", action="fill_nulls_batch")
             errors.append(f"{item.get('column', f'column_{i}')}: {e}")
     summary = f"Filled nulls in {len(results)} column(s)."
     if errors:
@@ -287,7 +292,8 @@ def _handle_add_views_batch(*, views, project_dir, **_kwargs):
                 project_dir=project_dir,
             )
             results.append(view_name)
-        except Exception as e:
+        except (ValueError, KeyError, FileNotFoundError, OSError) as e:
+            logger.exception("add_views_batch failed for view", action="add_views_batch")
             errors.append(f"{view.get('name', f'view_{i}')}: {e}")
     summary = f"Added {len(results)} view(s)."
     if errors:

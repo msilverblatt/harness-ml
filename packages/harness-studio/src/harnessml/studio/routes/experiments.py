@@ -4,8 +4,11 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Request
+from harnessml.core.logging import get_logger
 from harnessml.studio.routes.project import resolve_project_dir_from_request
 from harnessml.studio.routes.runs import _compute_fold_std
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["experiments"])
 
@@ -80,7 +83,8 @@ async def list_experiments(request: Request, project: str | None = None):
                 try:
                     raw = json.loads(metrics_path.read_text())
                     run_metrics = raw.get("ensemble", raw) if isinstance(raw.get("ensemble"), dict) else raw
-                except (json.JSONDecodeError, Exception):
+                except (json.JSONDecodeError, KeyError, ValueError, OSError) as e:
+                    logger.warning("failed to parse run metrics", path=str(metrics_path), error=str(e))
                     continue
                 shared = set(run_metrics.keys()) & set(exp_metrics.keys())
                 if shared and all(

@@ -5,6 +5,9 @@ from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, HTTPException, Request
+from harnessml.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["project"])
 
@@ -114,8 +117,8 @@ async def project_status(request: Request, project: str | None = None):
                 try:
                     raw = _json.loads(mp.read_text())
                     latest_metrics = raw.get("ensemble", raw) if isinstance(raw.get("ensemble"), dict) else raw
-                except Exception:
-                    pass
+                except (_json.JSONDecodeError, KeyError, ValueError) as e:
+                    logger.warning("failed to parse pooled_metrics.json", path=str(mp), error=str(e))
                 break
 
     return {
@@ -137,7 +140,8 @@ def _load_json(path: Path) -> dict | list:
     import json
     try:
         return json.loads(path.read_text())
-    except Exception:
+    except (json.JSONDecodeError, ValueError, OSError) as e:
+        logger.warning("failed to load JSON file", path=str(path), error=str(e))
         return {}
 
 
@@ -305,7 +309,8 @@ def build_dag(project_dir: Path) -> dict:
         for line in reversed(lines):
             try:
                 entry = _json.loads(line)
-            except Exception:
+            except (_json.JSONDecodeError, ValueError) as e:
+                logger.warning("failed to parse journal entry", error=str(e))
                 continue
             exp_id = entry.get("experiment_id", "")
             if not exp_id:
