@@ -17,6 +17,12 @@ class LogisticRegressionModel(BaseModel):
         self._model = LogisticRegression(**self.params)
 
     def fit(self, X: np.ndarray, y: np.ndarray, *, sample_weight: np.ndarray | None = None, **kwargs) -> None:
+        # Auto-scale max_iter for large feature sets to avoid convergence warnings.
+        # Only when max_iter was not explicitly set by the user.
+        n_features = X.shape[1] if X.ndim == 2 else 1
+        if "max_iter" not in self.params and n_features > 50:
+            scaled_max_iter = max(1000, n_features * 10)
+            self._model.max_iter = scaled_max_iter
         self._model.fit(X, y, sample_weight=sample_weight)
         self._fitted = True
 
