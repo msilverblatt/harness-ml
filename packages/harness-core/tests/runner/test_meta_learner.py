@@ -339,3 +339,180 @@ class TestTrainMetaLearnerLoso:
         assert isinstance(meta, StackedEnsemble)
         assert post_cal is not None  # default spline calibration
         assert pre_cals == {}
+
+
+# -----------------------------------------------------------------------
+# Non-linear meta-learner types
+# -----------------------------------------------------------------------
+
+class TestMetaLearnerTypes:
+    """Tests for ridge and gbm meta-learner types."""
+
+    def test_invalid_type_raises(self):
+        with pytest.raises(ValueError, match="Unknown meta_learner_type"):
+            StackedEnsemble(["a", "b"], meta_learner_type="invalid")
+
+    def test_ridge_fit_predict(self):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="ridge")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
+
+        assert len(probs) == 100
+        assert np.all(probs >= 0)
+        assert np.all(probs <= 1)
+
+    def test_ridge_coefficients(self):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="ridge")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+        coeffs = meta.get_coefficients()
+
+        assert len(coeffs) == 4  # 3 models + prior_diff
+        assert "prior_diff" in coeffs
+
+    def test_ridge_save_load_roundtrip(self, tmp_path):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="ridge")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+
+        probs_before = meta.predict(data["model_preds"], data["prior_diffs"])
+
+        path = tmp_path / "meta_ridge.json"
+        meta.save(path)
+
+        meta2 = StackedEnsemble([])
+        meta2.load(path)
+
+        assert meta2.meta_learner_type == "ridge"
+        probs_after = meta2.predict(data["model_preds"], data["prior_diffs"])
+        np.testing.assert_allclose(probs_before, probs_after, atol=1e-10)
+
+    def test_gbm_fit_predict(self):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="gbm")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
+
+        assert len(probs) == 100
+        assert np.all(probs >= 0)
+        assert np.all(probs <= 1)
+
+    def test_gbm_coefficients_are_importances(self):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="gbm")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+        coeffs = meta.get_coefficients()
+
+        assert len(coeffs) == 4  # 3 models + prior_diff
+        # GBM importances are non-negative integers (split counts)
+        assert all(v >= 0 for v in coeffs.values())
+
+    def test_gbm_save_load_roundtrip(self, tmp_path):
+        data = _synth_data(100, 3)
+        meta = StackedEnsemble(data["model_names"], meta_learner_type="gbm")
+        meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
+
+        probs_before = meta.predict(data["model_preds"], data["prior_diffs"])
+
+        path = tmp_path / "meta_gbm.json"
+        meta.save(path)
+
+        saved = json.loads(path.read_text())
+        assert saved["meta_learner_type"] == "gbm"
+        assert "lgbm_model_str" in saved
+
+    def test_ridge_regression(self):
+        """Ridge works for regression task type."""
+        data = _synth_data(100, 3)
+        # Continuous target
+        rng = np.random.RandomState(42)
+        y_reg = rng.randn(100)
+
+        meta = StackedEnsemble(
+            data["model_names"], task_type="regression", meta_learner_type="ridge"
+        )
+        meta.fit(data["model_preds"], data["prior_diffs"], y_reg)
+        preds = meta.predict(data["model_preds"], data["prior_diffs"])
+        assert preds.shape == (100,)
+
+    def test_gbm_regression(self):
+        """GBM works for regression task type."""
+        data = _synth_data(100, 3)
+        rng = np.random.RandomState(42)
+        y_reg = rng.randn(100)
+
+        meta = StackedEnsemble(
+            data["model_names"], task_type="regression", meta_learner_type="gbm"
+        )
+        meta.fit(data["model_preds"], data["prior_diffs"], y_reg)
+        preds = meta.predict(data["model_preds"], data["prior_diffs"])
+        assert preds.shape == (100,)
+
+    def test_loso_with_ridge(self):
+        """train_meta_learner_loso works with ridge type."""
+        data = _synth_data(150, 3, n_folds=3)
+        ensemble_config = {
+            "meta_learner": {"type": "ridge"},
+            "calibration": "none",
+            "pre_calibration": {},
+        }
+
+        meta, post_cal, pre_cals = train_meta_learner_loso(
+            y_true=data["y_true"],
+            model_preds=data["model_preds"],
+            prior_diffs=data["prior_diffs"],
+            fold_labels=data["fold_labels"],
+            model_names=data["model_names"],
+            ensemble_config=ensemble_config,
+        )
+
+        assert isinstance(meta, StackedEnsemble)
+        assert meta.meta_learner_type == "ridge"
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
+        assert len(probs) == 150
+
+    def test_loso_with_gbm(self):
+        """train_meta_learner_loso works with gbm type."""
+        data = _synth_data(150, 3, n_folds=3)
+        ensemble_config = {
+            "meta_learner": {"type": "gbm"},
+            "calibration": "none",
+            "pre_calibration": {},
+        }
+
+        meta, post_cal, pre_cals = train_meta_learner_loso(
+            y_true=data["y_true"],
+            model_preds=data["model_preds"],
+            prior_diffs=data["prior_diffs"],
+            fold_labels=data["fold_labels"],
+            model_names=data["model_names"],
+            ensemble_config=ensemble_config,
+        )
+
+        assert isinstance(meta, StackedEnsemble)
+        assert meta.meta_learner_type == "gbm"
+        probs = meta.predict(data["model_preds"], data["prior_diffs"])
+        assert len(probs) == 150
+        assert np.all(probs >= 0)
+        assert np.all(probs <= 1)
+
+    def test_loso_default_type_is_logistic(self):
+        """Default type in LOSO remains logistic when not specified."""
+        data = _synth_data(150, 3, n_folds=3)
+        ensemble_config = {
+            "meta_learner": {"C": 1.0},
+            "calibration": "none",
+            "pre_calibration": {},
+        }
+
+        meta, _, _ = train_meta_learner_loso(
+            y_true=data["y_true"],
+            model_preds=data["model_preds"],
+            prior_diffs=data["prior_diffs"],
+            fold_labels=data["fold_labels"],
+            model_names=data["model_names"],
+            ensemble_config=ensemble_config,
+        )
+
+        assert meta.meta_learner_type == "logistic"

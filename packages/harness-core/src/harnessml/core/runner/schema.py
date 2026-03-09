@@ -792,7 +792,14 @@ _POST_PROCESSING_FIELDS = {"temperature", "clip_floor", "prior_compression",
 
 
 class EnsembleDef(BaseModel):
-    """Ensemble configuration."""
+    """Ensemble configuration.
+
+    The ``meta_learner`` dict supports the following keys:
+
+    - ``type`` (str): Meta-learner algorithm. One of ``"logistic"`` (default),
+      ``"ridge"`` (RidgeCV), or ``"gbm"`` (LightGBM with conservative params).
+    - ``C`` (float): Regularization strength (only used by ``"logistic"``).
+    """
 
     method: Literal["stacked", "average"]
     meta_learner: dict[str, Any] = {}
