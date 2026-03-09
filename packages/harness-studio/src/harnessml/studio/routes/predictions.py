@@ -1,10 +1,12 @@
 """Prediction browsing endpoints."""
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from harnessml.studio.errors import error_response
 from harnessml.studio.routes.project import resolve_project_dir_from_request
 from harnessml.studio.routes.runs import _detect_target_col, _load_predictions
@@ -67,6 +69,47 @@ def _resolve_run_dir(project_dir: Path, run_id: str | None) -> Path | None:
         rd = project_dir / "outputs" / run_id
         return rd if rd.exists() else None
     return _latest_run_dir(project_dir)
+
+
+@router.get("/predictions/export")
+async def export_predictions(
+    request: Request,
+    format: str = "csv",
+    run_id: str | None = None,
+    project: str | None = None,
+):
+    """Export predictions as CSV or Parquet."""
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = _resolve_run_dir(project_dir, run_id)
+        if not run_dir:
+            return {"error": "No runs found"}
+
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
+
+        run_label = run_dir.name
+
+        if format == "parquet":
+            buf = io.BytesIO()
+            df.to_parquet(buf, index=False)
+            buf.seek(0)
+            return StreamingResponse(
+                buf,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f"attachment; filename=predictions_{run_label}.parquet"},
+            )
+        else:
+            buf = io.StringIO()
+            df.to_csv(buf, index=False)
+            return StreamingResponse(
+                iter([buf.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=predictions_{run_label}.csv"},
+            )
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/predictions")
