@@ -362,6 +362,13 @@ def ingest_dataset(
     new_df = _read_file(data_file)
     logger.info("data_loaded", rows=len(new_df), columns=len(new_df.columns), path=str(data_file))
 
+    # Preserve raw copy before any processing/cleaning
+    raw_dir = project_dir / "data" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = raw_dir / f"raw_{data_file.stem}.parquet"
+    new_df.to_parquet(raw_path, index=False)
+    logger.info("raw_preserved", path=str(raw_path), rows=len(new_df))
+
     # Auto-clean the incoming data if requested
     cleaning_actions: list[str] = []
     if auto_clean:

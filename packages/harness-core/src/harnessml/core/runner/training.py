@@ -74,7 +74,7 @@ def train_single_model(
         exclude_expr = model_def.training_filter.get("exclude")
         if exclude_expr:
             mask = ~df.eval(exclude_expr)
-            df = df.loc[mask].copy()
+            df = df.loc[mask]
             logger.info(
                 "training_filter_applied",
                 excluded=int((~mask).sum()),
@@ -112,9 +112,13 @@ def train_single_model(
 
     # Zero-fill specified features before dropping NaN rows
     if model_def.zero_fill_features:
-        for col in model_def.zero_fill_features:
-            if col in df.columns:
-                df[col] = df[col].fillna(0.0)
+        fills = {
+            col: df[col].fillna(0.0)
+            for col in model_def.zero_fill_features
+            if col in df.columns
+        }
+        if fills:
+            df = df.assign(**fills)
 
     # Drop rows with NaN in any feature column
     before_drop = len(df)

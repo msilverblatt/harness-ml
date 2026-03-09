@@ -595,6 +595,103 @@ def _compute_log_loss(y_true: np.ndarray, y_prob: np.ndarray) -> float:
 
 
 # ---------------------------------------------------------------------------
+# JSON diagnostics output
+# ---------------------------------------------------------------------------
+
+
+def build_diagnostics_json(
+    fold_predictions: list[pd.DataFrame],
+    target_column: str = "result",
+    task: str = "binary",
+) -> dict:
+    """Build structured JSON diagnostics from fold predictions.
+
+    Computes pooled metrics, per-model metrics, and calibration data
+    and returns them as a nested dictionary suitable for JSON serialization.
+
+    Parameters
+    ----------
+    fold_predictions : list of pd.DataFrame
+        Each DataFrame has prob_{model_name} columns and a target column.
+    target_column : str
+        Name of the target/outcome column.
+    task : str
+        Task type: "binary", "multiclass", or "regression".
+
+    Returns
+    -------
+    dict
+        Structured diagnostics with keys: ``task``, ``n_folds``,
+        ``n_samples``, ``metrics`` (pooled per-model), ``calibration``
+        (binary only), ``per_fold`` (per-fold per-model breakdowns).
+    """
+    if not fold_predictions:
+        return {"task": task, "n_folds": 0, "n_samples": 0, "metrics": {}}
+
+    result: dict = {
+        "task": task,
+        "n_folds": len(fold_predictions),
+    }
+
+    # Pooled metrics
+    if task == "multiclass":
+        pooled = compute_pooled_metrics_multiclass(fold_predictions, target_column)
+    elif task == "regression":
+        pooled = compute_pooled_metrics_regression(fold_predictions, target_column)
+    else:
+        pooled = compute_pooled_metrics(fold_predictions, target_column)
+
+    result["metrics"] = pooled
+
+    # Total sample count
+    total_samples = sum(len(df) for df in fold_predictions)
+    result["n_samples"] = total_samples
+
+    # Per-fold breakdowns
+    per_fold = []
+    for fold_idx, df in enumerate(fold_predictions):
+        if task == "multiclass":
+            fold_metrics = evaluate_fold_predictions_multiclass(
+                df, fold_id=fold_idx, target_column=target_column,
+            )
+        elif task == "regression":
+            fold_metrics = evaluate_fold_predictions_regression(
+                df, fold_id=fold_idx, target_column=target_column,
+            )
+        else:
+            fold_metrics = evaluate_fold_predictions(
+                df, {}, fold_id=fold_idx, target_column=target_column,
+            )
+        per_fold.append(fold_metrics)
+    result["per_fold"] = per_fold
+
+    # Calibration curve (binary only)
+    if task == "binary":
+        combined = pd.concat(fold_predictions, ignore_index=True)
+        if target_column in combined.columns:
+            y_true = combined[target_column].values.astype(float)
+            prob_cols = [c for c in combined.columns if c.startswith("prob_")]
+            calibration = {}
+            for col in prob_cols:
+                model_name = col.replace("prob_", "", 1)
+                y_prob = combined[col].values.astype(float)
+                valid = ~np.isnan(y_prob) & ~np.isnan(y_true)
+                if valid.sum() == 0:
+                    continue
+                mean_pred, mean_actual, counts = compute_calibration_curve(
+                    y_true[valid], y_prob[valid],
+                )
+                calibration[model_name] = {
+                    "mean_predicted": mean_pred.tolist(),
+                    "mean_actual": mean_actual.tolist(),
+                    "bin_counts": counts.tolist(),
+                }
+            result["calibration"] = calibration
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # SHAP integration
 # ---------------------------------------------------------------------------
 

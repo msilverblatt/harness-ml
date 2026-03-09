@@ -49,7 +49,7 @@ def test_feature_importance(synthetic_binary_data):
     model.fit(X, y)
     # Access first Linear layer weights as a proxy for feature importance
     first_layer = model._models[0][0]
-    weights = first_layer.weight.detach().numpy()
+    weights = first_layer.weight.detach().cpu().numpy()
     assert weights.shape[1] == X.shape[1]
     assert np.all(np.isfinite(weights))
 
