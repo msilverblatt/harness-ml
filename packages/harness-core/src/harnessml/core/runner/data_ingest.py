@@ -6,14 +6,14 @@ that an AI agent can present to the user.
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from harnessml.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # -----------------------------------------------------------------------
@@ -191,8 +191,8 @@ def _register_source(
         })
         registry_path.write_text(json.dumps(registry, indent=2))
         return True
-    except Exception as exc:
-        logger.warning("Failed to register source: %s", exc)
+    except (OSError, json.JSONDecodeError, TypeError) as exc:
+        logger.warning("failed to register source", path=str(registry_path), error=str(exc))
         return False
 
 
@@ -342,7 +342,8 @@ def ingest_dataset(
         try:
             config = load_data_config(project_dir)
             feat_dir = project_dir / config.features_dir
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features dir", error=str(exc))
             feat_dir = project_dir / "data" / "features"
 
     try:
@@ -350,7 +351,8 @@ def ingest_dataset(
         features_filename = config.features_file
         configured_keys = config.key_columns
         target_col = config.target_column or target_col
-    except Exception:
+    except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+        logger.debug("config load failed, using default features settings", error=str(exc))
         features_filename = "features.parquet"
         configured_keys = []
 
@@ -412,8 +414,8 @@ def ingest_dataset(
         exclude_cols = [target_col]
         try:
             exclude_cols.extend(config.exclude_columns)
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as exc:
+            logger.debug("could not read exclude_columns from config", error=str(exc))
         join_on = _detect_join_keys(
             new_df, existing_df,
             key_columns=configured_keys,
@@ -583,7 +585,8 @@ def validate_dataset(
         config = load_data_config(project_dir)
         feat_dir = project_dir / config.features_dir if features_dir is None else Path(features_dir)
         parquet_path = feat_dir / config.features_file
-    except Exception:
+    except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+        logger.debug("config load failed, using default features path", error=str(exc))
         feat_dir = project_dir / "data" / "features" if features_dir is None else Path(features_dir)
         parquet_path = feat_dir / "features.parquet"
 
@@ -628,13 +631,15 @@ def fill_nulls(
         try:
             config = load_data_config(project_dir)
             parquet_path = Path(features_dir) / config.features_file
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features file", error=str(exc))
             parquet_path = Path(features_dir) / "features.parquet"
     else:
         try:
             config = load_data_config(project_dir)
             parquet_path = get_features_path(project_dir, config)
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features path", error=str(exc))
             parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     if not parquet_path.exists():
@@ -692,13 +697,15 @@ def drop_duplicates(
         try:
             config = load_data_config(project_dir)
             parquet_path = Path(features_dir) / config.features_file
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features file", error=str(exc))
             parquet_path = Path(features_dir) / "features.parquet"
     else:
         try:
             config = load_data_config(project_dir)
             parquet_path = get_features_path(project_dir, config)
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features path", error=str(exc))
             parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     if not parquet_path.exists():
@@ -761,13 +768,15 @@ def derive_column(
         try:
             config = load_data_config(project_dir)
             parquet_path = Path(features_dir) / config.features_file
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features file", error=str(exc))
             parquet_path = Path(features_dir) / "features.parquet"
     else:
         try:
             config = load_data_config(project_dir)
             parquet_path = get_features_path(project_dir, config)
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features path", error=str(exc))
             parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     if not parquet_path.exists():
@@ -796,7 +805,7 @@ def derive_column(
             )[name]
         else:
             result = eval(expression, {"__builtins__": {}}, _build_eval_ns(df))  # noqa: S307
-    except Exception as exc:
+    except (NameError, SyntaxError, TypeError, ValueError, KeyError, ZeroDivisionError) as exc:
         raise ValueError(
             f"Failed to evaluate expression '{expression}': {exc}"
         ) from exc
@@ -856,13 +865,15 @@ def drop_rows(
         try:
             config = load_data_config(project_dir)
             parquet_path = Path(features_dir) / config.features_file
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features file", error=str(exc))
             parquet_path = Path(features_dir) / "features.parquet"
     else:
         try:
             config = load_data_config(project_dir)
             parquet_path = get_features_path(project_dir, config)
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features path", error=str(exc))
             parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     if not parquet_path.exists():
@@ -880,7 +891,7 @@ def drop_rows(
     else:
         try:
             mask = df.eval(condition)
-        except Exception as exc:
+        except (NameError, SyntaxError, TypeError, ValueError, KeyError) as exc:
             raise ValueError(
                 f"Failed to evaluate condition '{condition}': {exc}"
             ) from exc
@@ -917,13 +928,15 @@ def rename_columns(
         try:
             config = load_data_config(project_dir)
             parquet_path = Path(features_dir) / config.features_file
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features file", error=str(exc))
             parquet_path = Path(features_dir) / "features.parquet"
     else:
         try:
             config = load_data_config(project_dir)
             parquet_path = get_features_path(project_dir, config)
-        except Exception:
+        except (FileNotFoundError, OSError, KeyError, ValueError, TypeError) as exc:
+            logger.debug("config load failed, using default features path", error=str(exc))
             parquet_path = project_dir / "data" / "features" / "features.parquet"
 
     if not parquet_path.exists():
