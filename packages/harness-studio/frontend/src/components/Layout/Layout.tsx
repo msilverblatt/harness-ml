@@ -1,8 +1,10 @@
 import { NavLink, Link, Outlet, useOutletContext, useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useWebSocket, type Event } from '../../hooks/useWebSocket';
 import { useApi } from '../../hooks/useApi';
 import { ProjectContext } from '../../hooks/useProject';
+import { useToast } from '../Toast/Toast';
+import { useKeyboardShortcuts, SHORTCUT_DESCRIPTIONS } from '../../hooks/useKeyboardShortcuts';
 import styles from './Layout.module.css';
 
 interface ProjectStatus {
@@ -225,8 +227,10 @@ export function Layout() {
             ? 'working'
             : 'idle';
 
+    const { addToast } = useToast();
     const [robotMessage, setRobotMessage] = useState<string | null>(null);
     const lastEventCount = useRef(events.length);
+    const toastEventCount = useRef(events.length);
 
     useEffect(() => {
         if (events.length > lastEventCount.current) {
@@ -242,12 +246,53 @@ export function Layout() {
         lastEventCount.current = events.length;
     }, [events.length]);
 
+    // Toast on run completion
+    useEffect(() => {
+        if (events.length <= toastEventCount.current) {
+            toastEventCount.current = events.length;
+            return;
+        }
+        const newEvents = events.slice(toastEventCount.current);
+        toastEventCount.current = events.length;
+        for (const evt of newEvents) {
+            if (evt.tool === 'pipeline' && evt.action === 'run_backtest' && (evt.status === 'success' || evt.status === 'error')) {
+                if (evt.status === 'success') {
+                    addToast('Run completed — metrics updated', 'success');
+                } else {
+                    addToast('Run failed — check logs for details', 'warning');
+                }
+            }
+            if (evt.tool === 'experiments' && evt.action === 'quick_run' && (evt.status === 'success' || evt.status === 'error')) {
+                if (evt.status === 'success') {
+                    addToast('Experiment run completed', 'success');
+                } else {
+                    addToast('Experiment run failed', 'warning');
+                }
+            }
+        }
+    }, [events, addToast]);
+
     useEffect(() => {
         fetch('/api/projects')
             .then(r => r.json())
             .then(setProjects)
             .catch(() => {});
     }, []);
+
+    const [showShortcuts, setShowShortcuts] = useState(false);
+
+    const shortcutHandlers = useCallback(() => ({
+        dashboard: () => navigate(`/${projectName}/dashboard`),
+        activity: () => navigate(`/${projectName}/activity`),
+        dag: () => navigate(`/${projectName}/dag`),
+        experiments: () => navigate(`/${projectName}/experiments`),
+        diagnostics: () => navigate(`/${projectName}/diagnostics`),
+        predictions: () => navigate(`/${projectName}/predictions`),
+        refresh: () => window.location.reload(),
+        help: () => setShowShortcuts(prev => !prev),
+    }), [navigate, projectName]);
+
+    useKeyboardShortcuts(shortcutHandlers());
 
     const sections = [
         {
@@ -376,6 +421,26 @@ export function Layout() {
                         <Outlet context={{ events, connected } satisfies LayoutContext} />
                     </main>
                 </div>
+                {showShortcuts && (
+                    <div className={styles.shortcutsOverlay} onClick={() => setShowShortcuts(false)}>
+                        <div className={styles.shortcutsPanel} onClick={e => e.stopPropagation()}>
+                            <div className={styles.shortcutsPanelHeader}>
+                                <span className={styles.shortcutsPanelTitle}>Keyboard Shortcuts</span>
+                                <button className={styles.shortcutsPanelClose} onClick={() => setShowShortcuts(false)}>
+                                    &times;
+                                </button>
+                            </div>
+                            <div className={styles.shortcutsList}>
+                                {SHORTCUT_DESCRIPTIONS.map(s => (
+                                    <div key={s.key} className={styles.shortcutRow}>
+                                        <kbd className={styles.shortcutKey}>{s.key}</kbd>
+                                        <span className={styles.shortcutLabel}>{s.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </ProjectContext.Provider>
     );

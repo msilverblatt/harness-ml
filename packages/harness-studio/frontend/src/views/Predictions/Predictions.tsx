@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { useApi } from '../../hooks/useApi';
 import { useProject } from '../../hooks/useProject';
 import { useTheme } from '../../hooks/useTheme';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
 import styles from './Predictions.module.css';
 
 interface PredSummary {
@@ -32,6 +33,34 @@ interface PredPage {
     page_size: number;
 }
 
+function getBaseUrl(): string {
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    return window.location.origin;
+}
+
+function ExportButtons({ project }: { project: string }) {
+    const handleExport = (format: 'csv' | 'parquet') => {
+        let url = `${getBaseUrl()}/api/predictions/export?format=${format}`;
+        if (project) {
+            url += `&project=${encodeURIComponent(project)}`;
+        }
+        window.open(url, '_blank');
+    };
+
+    return (
+        <div className={styles.exportButtons}>
+            <button className={styles.exportBtn} onClick={() => handleExport('csv')}>
+                Export CSV
+            </button>
+            <button className={styles.exportBtn} onClick={() => handleExport('parquet')}>
+                Export Parquet
+            </button>
+        </div>
+    );
+}
+
 export function PredictionsView() {
     const { colors } = useTheme();
     const project = useProject();
@@ -51,28 +80,31 @@ export function PredictionsView() {
     return (
         <div className={styles.predictions}>
             {summary && (
-                <div className={styles.summaryBar}>
-                    <div className={styles.summaryCard}>
-                        <div className={styles.summaryValue}>{summary.total_predictions.toLocaleString()}</div>
-                        <div className={styles.summaryLabel}>Total</div>
-                    </div>
-                    {summary.accuracy != null && (
+                <>
+                    <div className={styles.summaryBar}>
                         <div className={styles.summaryCard}>
-                            <div className={styles.summaryValue}>{(summary.accuracy * 100).toFixed(1)}%</div>
-                            <div className={styles.summaryLabel}>Accuracy</div>
+                            <div className={styles.summaryValue}>{summary.total_predictions.toLocaleString()}</div>
+                            <div className={styles.summaryLabel}>Total</div>
                         </div>
-                    )}
-                    {summary.avg_confidence != null && (
+                        {summary.accuracy != null && (
+                            <div className={styles.summaryCard}>
+                                <div className={styles.summaryValue}>{(summary.accuracy * 100).toFixed(1)}%</div>
+                                <div className={styles.summaryLabel}>Accuracy</div>
+                            </div>
+                        )}
+                        {summary.avg_confidence != null && (
+                            <div className={styles.summaryCard}>
+                                <div className={styles.summaryValue}>{(summary.avg_confidence * 100).toFixed(1)}%</div>
+                                <div className={styles.summaryLabel}>Avg Confidence</div>
+                            </div>
+                        )}
                         <div className={styles.summaryCard}>
-                            <div className={styles.summaryValue}>{(summary.avg_confidence * 100).toFixed(1)}%</div>
-                            <div className={styles.summaryLabel}>Avg Confidence</div>
+                            <div className={styles.summaryValue}>{summary.model_columns.length}</div>
+                            <div className={styles.summaryLabel}>Models</div>
                         </div>
-                    )}
-                    <div className={styles.summaryCard}>
-                        <div className={styles.summaryValue}>{summary.model_columns.length}</div>
-                        <div className={styles.summaryLabel}>Models</div>
                     </div>
-                </div>
+                    <ExportButtons project={project} />
+                </>
             )}
 
             {dist && dist.histogram && (
@@ -153,7 +185,10 @@ export function PredictionsView() {
             )}
 
             {!summary && !summaryLoading && (
-                <div className={styles.emptyState}>No predictions available.</div>
+                <EmptyState
+                    title="No predictions available"
+                    description="Run a backtest to generate predictions. Distribution charts and data export will be available here."
+                />
             )}
         </div>
     );

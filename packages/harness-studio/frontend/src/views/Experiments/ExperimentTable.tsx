@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MetricLabel, Tooltip } from '../../components/Tooltip/Tooltip';
+import { humanizeTimestamp, formatTimestamp } from '../../utils/time';
 import styles from './Experiments.module.css';
 
 export interface Experiment {
@@ -39,12 +40,12 @@ const LOWER_IS_BETTER = new Set(['brier', 'ece', 'log_loss', 'mae', 'mse', 'rmse
 
 function formatDate(ts?: string): string {
     if (!ts) return '--';
-    try {
-        const d = new Date(ts);
-        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-        return ts;
-    }
+    return humanizeTimestamp(ts);
+}
+
+function fullDate(ts?: string): string {
+    if (!ts) return '';
+    return formatTimestamp(ts);
 }
 
 function truncate(s: string | undefined, max: number): string {
@@ -331,7 +332,7 @@ function ExperimentRow({
                     </span>
                 </td>
                 <td className={styles.td}>{experiment.experiment_id}</td>
-                <td className={styles.td}>{formatDate(experiment.timestamp)}</td>
+                <td className={styles.td} title={fullDate(experiment.timestamp)}>{formatDate(experiment.timestamp)}</td>
                 <td className={styles.td} title={experiment.hypothesis}>{truncate(experiment.hypothesis, 50)}</td>
                 <td className={styles.td}>
                     <span className={verdictClass(experiment.verdict)}>

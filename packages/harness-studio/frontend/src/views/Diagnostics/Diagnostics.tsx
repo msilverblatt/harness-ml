@@ -3,6 +3,7 @@ import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
 import { useLayoutContext } from '../../components/Layout/Layout';
 import { useProject } from '../../hooks/useProject';
+import { EmptyState } from '../../components/EmptyState/EmptyState';
 import { RunSelector } from './RunSelector';
 import { MetricSummary } from './MetricSummary';
 import { CalibrationPlot } from './CalibrationPlot';
@@ -55,7 +56,10 @@ export function Diagnostics() {
     if (!runs || runs.length === 0) {
         return (
             <div className={styles.diagnostics}>
-                <div className={styles.emptyState}>No runs available. Run a pipeline to see diagnostics.</div>
+                <EmptyState
+                    title="No run results found"
+                    description="Run a backtest to generate diagnostics. Metrics, calibration curves, and fold breakdowns will appear here."
+                />
             </div>
         );
     }
