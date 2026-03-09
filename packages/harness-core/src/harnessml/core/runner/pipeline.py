@@ -23,28 +23,28 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from harnessml.core.runner.meta_learner import StackedEnsemble
+    from harnessml.core.runner.training.meta_learner import StackedEnsemble
 
 import numpy as np
 import pandas as pd
 from harnessml.core.logging import get_logger
 from harnessml.core.models.backtest import BacktestRunner
 from harnessml.core.models.registry import ModelRegistry
-from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.dag import build_provider_map, infer_dependencies, topological_waves
-from harnessml.core.runner.fingerprint import compute_fingerprint
 from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
-from harnessml.core.runner.meta_learner import train_meta_learner_loso
-from harnessml.core.runner.postprocessing import apply_ensemble_postprocessing
-from harnessml.core.runner.prediction_cache import PredictionCache
 from harnessml.core.runner.schema import ModelDef, ProjectConfig
-from harnessml.core.runner.stage_guards import PipelineGuards
-from harnessml.core.runner.training import (
+from harnessml.core.runner.training.cv_strategies import generate_cv_folds
+from harnessml.core.runner.training.fingerprint import compute_fingerprint
+from harnessml.core.runner.training.meta_learner import train_meta_learner_loso
+from harnessml.core.runner.training.postprocessing import apply_ensemble_postprocessing
+from harnessml.core.runner.training.prediction_cache import PredictionCache
+from harnessml.core.runner.training.trainer import (
     compute_feature_medians,
     predict_single_model,
     train_single_model,
 )
-from harnessml.core.runner.validator import validate_project
+from harnessml.core.runner.validation.stage_guards import PipelineGuards
+from harnessml.core.runner.validation.validator import validate_project
 
 logger = get_logger(__name__)
 
@@ -231,6 +231,8 @@ class PipelineRunner:
         config: ProjectConfig | None = None,
         prediction_cache: PredictionCache | None = None,
         run_dir: str | Path | None = None,
+        parallel_folds: bool = False,
+        max_workers: int | None = None,
     ) -> None:
         self.project_dir = Path(project_dir)
         self.config_dir = Path(config_dir) if config_dir else None
@@ -238,6 +240,8 @@ class PipelineRunner:
         self.overlay = overlay
         self.enable_guards = enable_guards
         self.run_dir = Path(run_dir) if run_dir else None
+        self.parallel_folds = parallel_folds
+        self.max_workers = max_workers
 
         self.config: ProjectConfig | None = config
         self._registry: ModelRegistry | None = None
@@ -303,14 +307,14 @@ class PipelineRunner:
 
         # Validate model features against declared feature registry
         if self.config.features:
-            from harnessml.core.runner.feature_utils import validate_model_features
+            from harnessml.core.runner.features.utils import validate_model_features
             for model_name, model_def in self.config.models.items():
                 warnings = validate_model_features(model_def, self.config.features, model_name)
                 for w in warnings:
                     logger.warning(w)
 
         # Validate model types against model registry
-        from harnessml.core.runner.feature_utils import validate_registry_coverage
+        from harnessml.core.runner.features.utils import validate_registry_coverage
         registry_warnings = validate_registry_coverage(self.config, self._registry)
         for w in registry_warnings:
             logger.warning(w)
@@ -385,14 +389,14 @@ class PipelineRunner:
         Also loads entity features if any model has
         ``provides_level="team"``.
         """
-        from harnessml.core.runner.data_utils import get_features_df
+        from harnessml.core.runner.data.utils import get_features_df
 
         self._df = get_features_df(self.project_dir, self.config.data)
         self._normalize_columns()
 
         # If declarative features are configured, compute them via FeatureStore
         if self.config.data.feature_defs:
-            from harnessml.core.runner.feature_store import FeatureStore
+            from harnessml.core.runner.features.store import FeatureStore
 
             store = FeatureStore(self.project_dir, self.config.data)
 
@@ -470,7 +474,7 @@ class PipelineRunner:
 
     def _apply_injections(self) -> None:
         """Apply configured feature injections to the loaded data."""
-        from harnessml.core.runner.feature_utils import inject_features
+        from harnessml.core.runner.features.utils import inject_features
 
         fold_col = self.config.backtest.fold_column
 
@@ -563,7 +567,7 @@ class PipelineRunner:
                     )
 
                     # Compute fingerprint including upstream dependencies
-                    from harnessml.core.runner.fingerprint import save_fingerprint
+                    from harnessml.core.runner.training.fingerprint import save_fingerprint
                     upstream_fps = {
                         dep: model_fingerprints[dep]
                         for dep in model_deps
@@ -644,7 +648,7 @@ class PipelineRunner:
 
         # Resolve feature_sets if feature declarations are configured
         if self.config.features:
-            from harnessml.core.runner.feature_utils import resolve_model_features
+            from harnessml.core.runner.features.utils import resolve_model_features
             for model_name, model_def in list(active_models.items()):
                 if model_def.feature_sets:
                     resolved = resolve_model_features(model_def, self.config.features)
@@ -942,31 +946,15 @@ class PipelineRunner:
         # Pass 1: per-fold OOF predictions
         fold_data: dict[int, pd.DataFrame] = {}
         n_models = len(active_models)
-        for fold_idx, (train_folds, test_fold) in enumerate(cv_folds):
-            logger.info("fold_start", fold=fold_idx, train_size=len(train_folds), test_size=1)
 
-            # Per-model progress within each fold
-            def _model_progress(model_idx: int, model_name: str, fold_i: int = fold_idx, tf: int = test_fold):
-                if on_progress:
-                    on_progress(
-                        fold_i,
-                        n_folds,
-                        f"Fold {fold_i + 1}/{n_folds} (fold {tf}) — training {model_name} ({model_idx + 1}/{n_models})",
-                    )
-
-            preds_df = self._generate_predictions_for_fold(
-                train_folds, test_fold, active_models,
-                on_model_progress=_model_progress,
+        if self.parallel_folds and n_folds > 1:
+            fold_data = self._run_folds_parallel(
+                cv_folds, active_models, n_folds, n_models, on_progress,
             )
-            if preds_df is not None and len(preds_df) > 0:
-                fold_data[test_fold] = preds_df
-
-            if on_progress:
-                on_progress(
-                    fold_idx + 1,
-                    n_folds,
-                    f"Fold {fold_idx + 1}/{n_folds} complete (fold {test_fold})",
-                )
+        else:
+            fold_data = self._run_folds_sequential(
+                cv_folds, active_models, n_folds, n_models, on_progress,
+            )
 
         if not fold_data:
             details = ""
@@ -1020,6 +1008,8 @@ class PipelineRunner:
 
         failed = sorted(self._failed_models)
         result["models_failed"] = failed
+        if self._fold_errors:
+            result["model_errors"] = self._fold_errors
         if failed:
             result["models_trained"] = [
                 m for m in result.get("models_trained", [])
@@ -1034,6 +1024,99 @@ class PipelineRunner:
 
         return result
 
+    def _run_folds_sequential(
+        self,
+        cv_folds: list,
+        active_models: dict[str, ModelDef],
+        n_folds: int,
+        n_models: int,
+        on_progress=None,
+    ) -> dict[int, pd.DataFrame]:
+        """Run CV folds sequentially (default behavior)."""
+        fold_data: dict[int, pd.DataFrame] = {}
+        for fold_idx, (train_folds, test_fold) in enumerate(cv_folds):
+            logger.info("fold_start", fold=fold_idx, train_size=len(train_folds), test_size=1)
+
+            def _model_progress(model_idx: int, model_name: str, fold_i: int = fold_idx, tf: int = test_fold):
+                if on_progress:
+                    on_progress(
+                        fold_i,
+                        n_folds,
+                        f"Fold {fold_i + 1}/{n_folds} (fold {tf}) — training {model_name} ({model_idx + 1}/{n_models})",
+                    )
+
+            preds_df = self._generate_predictions_for_fold(
+                train_folds, test_fold, active_models,
+                on_model_progress=_model_progress,
+            )
+            if preds_df is not None and len(preds_df) > 0:
+                fold_data[test_fold] = preds_df
+
+            if on_progress:
+                on_progress(
+                    fold_idx + 1,
+                    n_folds,
+                    f"Fold {fold_idx + 1}/{n_folds} complete (fold {test_fold})",
+                )
+        return fold_data
+
+    def _run_folds_parallel(
+        self,
+        cv_folds: list,
+        active_models: dict[str, ModelDef],
+        n_folds: int,
+        n_models: int,
+        on_progress=None,
+    ) -> dict[int, pd.DataFrame]:
+        """Run CV folds in parallel using ThreadPoolExecutor.
+
+        ThreadPoolExecutor is used because sklearn, XGBoost, LightGBM,
+        and other ML libraries release the GIL during computation.
+        This avoids pickling issues that ProcessPoolExecutor would have
+        with model registries, prediction caches, and other shared state.
+        """
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        max_workers = self.max_workers or min(n_folds, os.cpu_count() or 4)
+        fold_data: dict[int, pd.DataFrame] = {}
+        lock = threading.Lock()
+
+        def _run_fold(fold_idx: int, train_folds: list[int], test_fold: int) -> tuple[int, pd.DataFrame | None]:
+            logger.info("fold_start", fold=fold_idx, train_size=len(train_folds), test_size=1)
+            preds_df = self._generate_predictions_for_fold(
+                train_folds, test_fold, active_models,
+            )
+            return test_fold, preds_df
+
+        completed = 0
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_run_fold, fold_idx, train_folds, test_fold): (fold_idx, test_fold)
+                for fold_idx, (train_folds, test_fold) in enumerate(cv_folds)
+            }
+            for future in as_completed(futures):
+                fold_idx, test_fold = futures[future]
+                try:
+                    test_fold_result, preds_df = future.result()
+                    if preds_df is not None and len(preds_df) > 0:
+                        with lock:
+                            fold_data[test_fold_result] = preds_df
+                except Exception as exc:
+                    logger.exception("fold_failed", fold=test_fold, error=str(exc))
+                    with lock:
+                        self._fold_errors.append(f"  - fold {test_fold}: {exc}")
+
+                completed += 1
+                if on_progress:
+                    on_progress(
+                        completed,
+                        n_folds,
+                        f"Fold {completed}/{n_folds} complete (fold {test_fold})",
+                    )
+
+        return fold_data
+
     def _generate_report(
         self,
         result: dict[str, Any],
@@ -1043,7 +1126,7 @@ class PipelineRunner:
 
         If ``run_dir`` is set, exports all artifacts to that directory.
         """
-        from harnessml.core.runner.reporting import (
+        from harnessml.core.runner.analysis.reporting import (
             build_diagnostics_report,
             build_pick_log,
             export_backtest_artifacts,
@@ -1198,7 +1281,7 @@ class PipelineRunner:
         # Resolve feature_sets if feature declarations are configured
         resolved_models = dict(active_models)
         if self.config.features:
-            from harnessml.core.runner.feature_utils import resolve_model_features
+            from harnessml.core.runner.features.utils import resolve_model_features
             for model_name, model_def in active_models.items():
                 if model_def.feature_sets:
                     resolved = resolve_model_features(model_def, self.config.features)

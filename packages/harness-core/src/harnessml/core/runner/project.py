@@ -165,7 +165,7 @@ class Project:
     def profile(self):
         """Profile the dataset. Returns a DataProfile object."""
         if self._data_profile is None:
-            from harnessml.core.runner.data_profiler import profile_dataset
+            from harnessml.core.runner.data.profiler import profile_dataset
 
             parquet_path = (
                 self.project_dir / self._data.features_dir / self._data.features_file
@@ -308,7 +308,7 @@ class Project:
             training fold for leak-free features.
         """
         if preset is not None:
-            from harnessml.core.runner.presets import apply_preset
+            from harnessml.core.runner.scaffold.presets import apply_preset
 
             # Build overrides from explicit kwargs
             overrides: dict[str, Any] = {}

@@ -10,7 +10,7 @@ import pytest
 # Skip all tests if matplotlib is not installed
 plt_mod = pytest.importorskip("matplotlib")
 
-from harnessml.core.runner.viz import (
+from harnessml.core.runner.analysis.viz import (
     render_calibration,
     render_confusion_matrix,
     render_feature_importance,

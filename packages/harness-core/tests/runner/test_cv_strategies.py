@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.schema import BacktestConfig
+from harnessml.core.runner.training.cv_strategies import generate_cv_folds
 
 # -----------------------------------------------------------------------
 # Unit tests for generate_cv_folds
@@ -81,15 +81,13 @@ class TestGenerateCVFolds:
 
     def test_sliding_window_requires_window_size(self):
         """Raises ValueError if window_size is None."""
-        df = pd.DataFrame({"season": [2015, 2016, 2017]})
-        bt = BacktestConfig(
-            cv_strategy="sliding_window",
-            fold_column="season",
-            fold_values=[2015, 2016, 2017],
-            window_size=None,
-        )
-        with pytest.raises(ValueError, match="window_size"):
-            generate_cv_folds(df, bt)
+        with pytest.raises((ValueError, Exception), match="window_size"):
+            BacktestConfig(
+                cv_strategy="sliding_window",
+                fold_column="season",
+                fold_values=[2015, 2016, 2017],
+                window_size=None,
+            )
 
     def test_purged_kfold_embargo(self):
         """Fold values within purge_gap of test are excluded from training."""
@@ -112,15 +110,13 @@ class TestGenerateCVFolds:
 
     def test_purged_kfold_requires_n_folds(self):
         """Raises ValueError if n_folds is None."""
-        df = pd.DataFrame({"season": [2015, 2016, 2017]})
-        bt = BacktestConfig(
-            cv_strategy="purged_kfold",
-            fold_column="season",
-            fold_values=[2015, 2016, 2017],
-            n_folds=None,
-        )
-        with pytest.raises(ValueError, match="n_folds"):
-            generate_cv_folds(df, bt)
+        with pytest.raises((ValueError, Exception), match="n_folds"):
+            BacktestConfig(
+                cv_strategy="purged_kfold",
+                fold_column="season",
+                fold_values=[2015, 2016, 2017],
+                n_folds=None,
+            )
 
     def test_uses_fold_values_from_config(self):
         """If bt_config.fold_values is set, uses those as test folds."""
@@ -360,3 +356,290 @@ class TestBacktestWithCVStrategies:
         assert "brier" in result["metrics"]
         assert result["metrics"]["brier"] >= 0
         assert result["metrics"]["brier"] <= 1.0
+
+
+# -----------------------------------------------------------------------
+# Unit tests for new CV strategies: stratified_kfold, group_kfold, bootstrap
+# -----------------------------------------------------------------------
+
+class TestStratifiedKFold:
+    """Tests for the stratified_kfold strategy."""
+
+    def test_stratified_basic(self):
+        """Stratified k-fold assigns folds preserving class distribution."""
+        rng = np.random.default_rng(42)
+        n = 200
+        target = np.concatenate([np.zeros(100), np.ones(100)]).astype(int)
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),  # placeholder
+            "result": target,
+            "x": rng.standard_normal(n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="stratified_kfold",
+            fold_column="fold",
+            n_folds=5,
+            target_column="result",
+            seed=42,
+        )
+        folds = generate_cv_folds(df, bt)
+        assert len(folds) == 5
+
+        # Each fold should have train/test split
+        for train_folds, test_fold in folds:
+            assert test_fold not in train_folds
+            assert len(train_folds) == 4
+
+        # All fold values should be used as test
+        test_vals = sorted([tf for _, tf in folds])
+        assert test_vals == [0, 1, 2, 3, 4]
+
+    def test_stratified_class_balance(self):
+        """Each fold should have roughly equal class proportions."""
+        n = 300
+        target = np.concatenate([np.zeros(200), np.ones(100)]).astype(int)
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "result": target,
+            "x": np.random.default_rng(0).standard_normal(n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="stratified_kfold",
+            fold_column="fold",
+            n_folds=5,
+            target_column="result",
+            seed=0,
+        )
+        generate_cv_folds(df, bt)
+
+        # Check that each fold has roughly 1/3 positive rate
+        overall_rate = target.mean()
+        for fold_val in range(5):
+            fold_mask = df["fold"] == fold_val
+            fold_rate = df.loc[fold_mask, "result"].mean()
+            assert abs(fold_rate - overall_rate) < 0.1, (
+                f"Fold {fold_val} has rate {fold_rate:.3f}, "
+                f"expected ~{overall_rate:.3f}"
+            )
+
+    def test_stratified_requires_n_folds(self):
+        """Raises ValueError if n_folds is None."""
+        with pytest.raises((ValueError, Exception), match="n_folds"):
+            BacktestConfig(
+                cv_strategy="stratified_kfold",
+                fold_column="fold",
+                n_folds=None,
+                target_column="result",
+            )
+
+    def test_stratified_missing_target_column(self):
+        """Raises ValueError if target column not in data."""
+        df = pd.DataFrame({
+            "fold": [0] * 10,
+            "x": range(10),
+        })
+        bt = BacktestConfig(
+            cv_strategy="stratified_kfold",
+            fold_column="fold",
+            n_folds=2,
+            target_column="result",
+        )
+        with pytest.raises(ValueError, match="Target column"):
+            generate_cv_folds(df, bt)
+
+    def test_stratified_alias_skf(self):
+        """The 'skf' alias resolves to stratified_kfold."""
+        bt = BacktestConfig(
+            cv_strategy="skf",
+            fold_column="fold",
+            n_folds=3,
+            target_column="result",
+        )
+        assert bt.cv_strategy == "stratified_kfold"
+
+
+class TestGroupKFold:
+    """Tests for the group_kfold strategy."""
+
+    def test_group_basic(self):
+        """Group k-fold splits by group column."""
+        groups = np.repeat(np.arange(10), 20)  # 10 groups, 20 rows each
+        df = pd.DataFrame({
+            "fold": np.zeros(200, dtype=int),
+            "group_id": groups,
+            "x": np.random.default_rng(0).standard_normal(200),
+        })
+        bt = BacktestConfig(
+            cv_strategy="group_kfold",
+            fold_column="fold",
+            group_column="group_id",
+            n_folds=5,
+        )
+        folds = generate_cv_folds(df, bt)
+        assert len(folds) == 5
+
+        for train_folds, test_fold in folds:
+            assert test_fold not in train_folds
+
+    def test_group_no_group_leaks(self):
+        """No group should appear in both train and test."""
+        groups = np.repeat(np.arange(10), 20)
+        df = pd.DataFrame({
+            "fold": np.zeros(200, dtype=int),
+            "group_id": groups,
+            "x": np.random.default_rng(0).standard_normal(200),
+        })
+        bt = BacktestConfig(
+            cv_strategy="group_kfold",
+            fold_column="fold",
+            group_column="group_id",
+            n_folds=5,
+        )
+        generate_cv_folds(df, bt)
+
+        # Check each pair of folds: groups should not overlap
+        for fold_val in df["fold"].unique():
+            fold_groups = set(df.loc[df["fold"] == fold_val, "group_id"].unique())
+            other_groups = set(df.loc[df["fold"] != fold_val, "group_id"].unique())
+            assert fold_groups.isdisjoint(other_groups) or len(fold_groups & other_groups) == 0, (
+                f"Group leak detected in fold {fold_val}"
+            )
+
+    def test_group_requires_group_column(self):
+        """Raises ValueError if group_column is None."""
+        with pytest.raises((ValueError, Exception), match="group_column"):
+            BacktestConfig(
+                cv_strategy="group_kfold",
+                fold_column="fold",
+                group_column=None,
+            )
+
+    def test_group_missing_group_column_in_data(self):
+        """Raises ValueError if group column not in data."""
+        df = pd.DataFrame({
+            "fold": [0] * 10,
+            "x": range(10),
+        })
+        bt = BacktestConfig(
+            cv_strategy="group_kfold",
+            fold_column="fold",
+            group_column="user_id",
+        )
+        with pytest.raises(ValueError, match="Group column"):
+            generate_cv_folds(df, bt)
+
+    def test_group_alias_gkf(self):
+        """The 'gkf' alias resolves to group_kfold."""
+        bt = BacktestConfig(
+            cv_strategy="gkf",
+            fold_column="fold",
+            group_column="group_id",
+        )
+        assert bt.cv_strategy == "group_kfold"
+
+    def test_group_n_folds_exceeds_groups(self):
+        """Raises ValueError if n_folds exceeds number of groups."""
+        groups = np.repeat(np.arange(3), 10)  # only 3 groups
+        df = pd.DataFrame({
+            "fold": np.zeros(30, dtype=int),
+            "group_id": groups,
+            "x": np.random.default_rng(0).standard_normal(30),
+        })
+        bt = BacktestConfig(
+            cv_strategy="group_kfold",
+            fold_column="fold",
+            group_column="group_id",
+            n_folds=10,
+        )
+        with pytest.raises(ValueError, match="cannot exceed"):
+            generate_cv_folds(df, bt)
+
+
+class TestBootstrap:
+    """Tests for the bootstrap strategy."""
+
+    def test_bootstrap_basic(self):
+        """Bootstrap generates the requested number of iterations."""
+        rng = np.random.default_rng(42)
+        n = 100
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "x": rng.standard_normal(n),
+            "result": rng.integers(0, 2, n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="bootstrap",
+            fold_column="fold",
+            n_iterations=5,
+            seed=42,
+        )
+        folds = generate_cv_folds(df, bt)
+        # Should have up to n_iterations folds (some iterations might have no OOB)
+        assert len(folds) >= 1
+        assert len(folds) <= 5
+
+    def test_bootstrap_oob_not_empty(self):
+        """Each bootstrap iteration has at least some OOB rows."""
+        rng = np.random.default_rng(42)
+        n = 200
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "x": rng.standard_normal(n),
+            "result": rng.integers(0, 2, n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="bootstrap",
+            fold_column="fold",
+            n_iterations=5,
+            seed=42,
+        )
+        folds = generate_cv_folds(df, bt)
+
+        for train_folds, test_fold in folds:
+            test_mask = df["fold"] == test_fold
+            assert test_mask.sum() > 0, f"Empty test set for fold {test_fold}"
+
+    def test_bootstrap_deterministic(self):
+        """Same seed produces same splits."""
+        rng = np.random.default_rng(42)
+        n = 100
+        df1 = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "x": rng.standard_normal(n),
+        })
+        df2 = df1.copy()
+
+        bt = BacktestConfig(
+            cv_strategy="bootstrap",
+            fold_column="fold",
+            n_iterations=3,
+            seed=123,
+        )
+        folds1 = generate_cv_folds(df1, bt)
+        folds2 = generate_cv_folds(df2, bt)
+
+        assert len(folds1) == len(folds2)
+        for (t1, tf1), (t2, tf2) in zip(folds1, folds2):
+            assert tf1 == tf2
+            assert t1 == t2
+
+    def test_bootstrap_different_seeds_differ(self):
+        """Different seeds produce different splits."""
+        n = 100
+        df1 = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "x": np.random.default_rng(0).standard_normal(n),
+        })
+        df2 = df1.copy()
+
+        bt1 = BacktestConfig(cv_strategy="bootstrap", fold_column="fold", n_iterations=3, seed=42)
+        bt2 = BacktestConfig(cv_strategy="bootstrap", fold_column="fold", n_iterations=3, seed=99)
+
+        generate_cv_folds(df1, bt1)
+        assignments1 = df1["fold"].values.copy()
+
+        generate_cv_folds(df2, bt2)
+        assignments2 = df2["fold"].values.copy()
+
+        # Very unlikely to be identical with different seeds
+        assert not np.array_equal(assignments1, assignments2)

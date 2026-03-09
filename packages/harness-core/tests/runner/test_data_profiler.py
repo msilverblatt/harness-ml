@@ -7,7 +7,7 @@ import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamAW
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.data_profiler import DataProfile, profile_dataset
+from harnessml.core.runner.data.profiler import DataProfile, profile_dataset
 from harnessml.core.runner.schema import DataConfig
 
 # -----------------------------------------------------------------------

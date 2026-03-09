@@ -1,10 +1,13 @@
 """Prediction browsing endpoints."""
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
+from harnessml.studio.errors import error_response
 from harnessml.studio.routes.project import resolve_project_dir_from_request
 from harnessml.studio.routes.runs import _detect_target_col, _load_predictions
 
@@ -68,40 +71,93 @@ def _resolve_run_dir(project_dir: Path, run_id: str | None) -> Path | None:
     return _latest_run_dir(project_dir)
 
 
+@router.get("/predictions/export")
+async def export_predictions(
+    request: Request,
+    format: str = "csv",
+    run_id: str | None = None,
+    project: str | None = None,
+):
+    """Export predictions as CSV or Parquet."""
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = _resolve_run_dir(project_dir, run_id)
+        if not run_dir:
+            return {"error": "No runs found"}
+
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
+
+        run_label = run_dir.name
+
+        if format == "parquet":
+            buf = io.BytesIO()
+            df.to_parquet(buf, index=False)
+            buf.seek(0)
+            return StreamingResponse(
+                buf,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f"attachment; filename=predictions_{run_label}.parquet"},
+            )
+        else:
+            buf = io.StringIO()
+            df.to_csv(buf, index=False)
+            return StreamingResponse(
+                iter([buf.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=predictions_{run_label}.csv"},
+            )
+    except Exception as e:
+        return error_response(e)
+
+
 @router.get("/predictions")
 async def list_predictions(
     request: Request,
     run_id: str | None = None,
     page: int = 0,
     page_size: int = 50,
+    offset: int | None = None,
+    limit: int | None = None,
     project: str | None = None,
 ):
-    project_dir = resolve_project_dir_from_request(request, project)
-    run_dir = _resolve_run_dir(project_dir, run_id)
-    if not run_dir:
-        return {"error": "No runs found"}
+    try:
+        project_dir = resolve_project_dir_from_request(request, project)
+        run_dir = _resolve_run_dir(project_dir, run_id)
+        if not run_dir:
+            return {"error": "No runs found"}
 
-    df = _load_predictions(run_dir)
-    if df is None:
-        return {"error": "No predictions found"}
+        df = _load_predictions(run_dir)
+        if df is None:
+            return {"error": "No predictions found"}
 
-    total = len(df)
-    start = page * page_size
-    end = min(start + page_size, total)
-    page_df = df.iloc[start:end].copy()
+        total = len(df)
 
-    # Round floats for display
-    for col in page_df.select_dtypes(include=["float64", "float32"]).columns:
-        page_df[col] = page_df[col].round(4)
+        # Support both offset/limit and page/page_size APIs
+        if offset is not None or limit is not None:
+            start = offset or 0
+            end = min(start + (limit or 100), total)
+        else:
+            start = page * page_size
+            end = min(start + page_size, total)
 
-    return {
-        "run_id": run_dir.name,
-        "columns": list(df.columns),
-        "rows": page_df.fillna("").to_dict(orient="records"),
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+        page_df = df.iloc[start:end].copy()
+
+        # Round floats for display
+        for col in page_df.select_dtypes(include=["float64", "float32"]).columns:
+            page_df[col] = page_df[col].round(4)
+
+        return {
+            "run_id": run_dir.name,
+            "columns": list(df.columns),
+            "rows": page_df.fillna("").to_dict(orient="records"),
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    except Exception as e:
+        return error_response(e)
 
 
 @router.get("/predictions/distribution")

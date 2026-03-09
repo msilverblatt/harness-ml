@@ -1,7 +1,7 @@
 """Tests for experiment creation, naming validation, and change detection."""
 
 import pytest
-from harnessml.core.runner.experiment_manager import ChangeReport, ExperimentManager
+from harnessml.core.runner.experiments.manager import ChangeReport, ExperimentManager
 
 # ---------------------------------------------------------------------------
 # 6.1  Experiment creation + naming validation

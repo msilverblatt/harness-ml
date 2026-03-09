@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.schema import ModelDef
-from harnessml.core.runner.training import train_single_model
+from harnessml.core.runner.training.trainer import train_single_model
 
 
 @pytest.fixture

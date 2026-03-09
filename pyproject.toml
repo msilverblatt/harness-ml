@@ -3,6 +3,9 @@ name = "harnessml"
 version = "0.1.0"
 description = "AI-driven ML framework with guardrails"
 requires-python = ">=3.11"
+dependencies = [
+    "tabulate>=0.10.0",
+]
 
 [tool.uv.workspace]
 members = [

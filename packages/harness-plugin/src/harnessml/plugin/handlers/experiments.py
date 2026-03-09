@@ -10,7 +10,7 @@ from harnessml.plugin.handlers._validation import (
 )
 
 
-def _handle_create(*, description, hypothesis, project_dir, **_kwargs):
+def _handle_create(*, description, hypothesis, parent_id=None, branching_reason="", phase="", project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(description, "description")
@@ -20,6 +20,9 @@ def _handle_create(*, description, hypothesis, project_dir, **_kwargs):
         resolve_project_dir(project_dir),
         description,
         hypothesis=hypothesis,
+        parent_id=parent_id,
+        branching_reason=branching_reason or "",
+        phase=phase or "",
     )
 
 
@@ -134,7 +137,7 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
     # Workflow phase gate: check if exploration is premature
     try:
         import yaml
-        from harnessml.core.runner.workflow_tracker import WorkflowTracker
+        from harnessml.core.runner.workflow.tracker import WorkflowTracker
 
         proj = resolve_project_dir(project_dir)
         config_dir = proj / "config"
@@ -240,29 +243,11 @@ def _handle_compare(*, experiment_ids, project_dir, **_kwargs):
     if not experiment_ids or len(experiment_ids) < 2:
         return "**Error**: `experiment_ids` must be a list of 2 experiment IDs to compare."
 
-    id_a, id_b = experiment_ids[0], experiment_ids[1]
     proj = resolve_project_dir(project_dir)
 
-    # Run both experiments and compare results
-    # For now we compare by running each and formatting side by side
-    try:
-        result_a = cw.run_experiment(proj, id_a)
-    except Exception as e:
-        return f"**Error** running experiment `{id_a}`: {e}"
-    try:
-        result_b = cw.run_experiment(proj, id_b)
-    except Exception as e:
-        return f"**Error** running experiment `{id_b}`: {e}"
-
-    return _format_experiment_comparison(id_a, result_a, id_b, result_b)
-
-
-def _format_experiment_comparison(id_a: str, result_a: str, id_b: str, result_b: str) -> str:
-    """Format two experiment results as a side-by-side comparison."""
-    lines = [f"## Experiment Comparison: `{id_a}` vs `{id_b}`\n"]
-    lines.append(f"### `{id_a}`\n{result_a}\n")
-    lines.append(f"### `{id_b}`\n{result_b}")
-    return "\n".join(lines)
+    # Use journal-based comparison if available
+    parsed_ids = parse_json_param(experiment_ids) if isinstance(experiment_ids, str) else experiment_ids
+    return cw.compare_experiments(proj, parsed_ids)
 
 
 def _handle_journal(*, last_n, project_dir, **_kwargs):
@@ -270,11 +255,13 @@ def _handle_journal(*, last_n, project_dir, **_kwargs):
     return cw.show_journal(resolve_project_dir(project_dir), last_n=last_n or 20)
 
 
-def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, verdict, project_dir, **_kwargs):
+def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, verdict, metrics=None, baseline_metrics=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
     err = validate_required(experiment_id, "experiment_id")
     if err:
         return err
+    parsed_metrics = parse_json_param(metrics) if metrics else None
+    parsed_baseline = parse_json_param(baseline_metrics) if baseline_metrics else None
     return cw.log_experiment_result(
         resolve_project_dir(project_dir),
         experiment_id,
@@ -282,6 +269,8 @@ def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, ve
         hypothesis=hypothesis or "",
         conclusion=conclusion or "",
         verdict=verdict or "",
+        metrics=parsed_metrics,
+        baseline_metrics=parsed_baseline,
     )
 
 

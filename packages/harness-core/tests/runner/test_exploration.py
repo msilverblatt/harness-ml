@@ -4,7 +4,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from harnessml.core.runner.exploration import (
+from harnessml.core.runner.optimization.exploration import (
     AxisDef,
     ExplorationSpace,
     _apply_subset_to_overlay,

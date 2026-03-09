@@ -1,0 +1,7 @@
+ensemble:
+  method: stacked
+  meta_learner: {}
+  temperature: 1.0
+  clip_floor: 0.0
+  logit_adjustments: []
+  exclude_models: []

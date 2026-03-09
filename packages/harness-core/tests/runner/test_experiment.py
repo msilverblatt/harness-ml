@@ -5,7 +5,7 @@ import json
 
 import pytest
 import yaml
-from harnessml.core.runner.experiment import (
+from harnessml.core.runner.experiments.experiment import (
     ChangeSet,
     ExperimentResult,
     _rank_sweep_results,

@@ -816,14 +816,19 @@ class TestCvStrategyAliases:
         assert BacktestConfig(cv_strategy="expanding").cv_strategy == "expanding_window"
 
     def test_sliding_alias(self):
-        assert BacktestConfig(cv_strategy="sliding").cv_strategy == "sliding_window"
+        assert BacktestConfig(cv_strategy="sliding", window_size=3).cv_strategy == "sliding_window"
 
     def test_purged_alias(self):
-        assert BacktestConfig(cv_strategy="purged").cv_strategy == "purged_kfold"
+        assert BacktestConfig(cv_strategy="purged", n_folds=5).cv_strategy == "purged_kfold"
 
     def test_canonical_names_still_work(self):
+        # sliding_window requires window_size, purged_kfold requires n_folds
+        extras = {
+            "sliding_window": {"window_size": 3},
+            "purged_kfold": {"n_folds": 5},
+        }
         for name in ("leave_one_out", "expanding_window", "sliding_window", "purged_kfold"):
-            assert BacktestConfig(cv_strategy=name).cv_strategy == name
+            assert BacktestConfig(cv_strategy=name, **extras.get(name, {})).cv_strategy == name
 
     def test_invalid_strategy_rejected(self):
         with pytest.raises(ValidationError, match="Invalid cv_strategy"):

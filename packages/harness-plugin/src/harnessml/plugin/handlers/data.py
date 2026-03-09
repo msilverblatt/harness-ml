@@ -32,7 +32,7 @@ def _handle_validate(*, data_path, project_dir, **_kwargs):
     err = validate_required(data_path, "data_path")
     if err:
         return err
-    from harnessml.core.runner.data_ingest import validate_dataset
+    from harnessml.core.runner.data.ingest import validate_dataset
 
     return validate_dataset(resolve_project_dir(project_dir), data_path)
 
@@ -41,7 +41,7 @@ def _handle_fill_nulls(*, column, strategy, value, project_dir, **_kwargs):
     err = validate_required(column, "column")
     if err:
         return err
-    from harnessml.core.runner.data_ingest import fill_nulls
+    from harnessml.core.runner.data.ingest import fill_nulls
 
     return fill_nulls(
         resolve_project_dir(project_dir),
@@ -52,7 +52,7 @@ def _handle_fill_nulls(*, column, strategy, value, project_dir, **_kwargs):
 
 
 def _handle_drop_duplicates(*, columns, project_dir, **_kwargs):
-    from harnessml.core.runner.data_ingest import drop_duplicates
+    from harnessml.core.runner.data.ingest import drop_duplicates
 
     return drop_duplicates(resolve_project_dir(project_dir), columns=columns)
 
@@ -61,7 +61,7 @@ def _handle_rename(*, mapping, project_dir, **_kwargs):
     err = validate_required(mapping, "mapping")
     if err:
         return err
-    from harnessml.core.runner.data_ingest import rename_columns
+    from harnessml.core.runner.data.ingest import rename_columns
 
     parsed = parse_json_param(mapping)
     return rename_columns(resolve_project_dir(project_dir), parsed)

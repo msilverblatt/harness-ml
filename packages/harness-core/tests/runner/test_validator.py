@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from harnessml.core.runner.validator import validate_project
+from harnessml.core.runner.validation.validator import validate_project
 
 # -----------------------------------------------------------------------
 # Helpers — write YAML fixtures to tmp_path

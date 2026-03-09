@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from harnessml.core.runner.experiment import auto_log_result
-from harnessml.core.runner.experiment_logger import ExperimentManager
+from harnessml.core.runner.experiments.experiment import auto_log_result
+from harnessml.core.runner.experiments.logger import ExperimentManager
 
 # ---------------------------------------------------------------------------
 # Helpers

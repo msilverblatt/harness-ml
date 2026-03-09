@@ -1,12 +1,15 @@
-"""Full guardrail inventory — all 12 concrete guardrail implementations.
+"""Full guardrail inventory — all 17 concrete guardrail implementations.
 
 Overridable:
     SanityCheckGuardrail, NamingConventionGuardrail, DoNotRetryGuardrail,
     SingleVariableGuardrail, ConfigProtectionGuardrail, RateLimitGuardrail,
-    ExperimentLoggedGuardrail, FeatureStalenessGuardrail, FeatureDiversityGuardrail
+    ExperimentLoggedGuardrail, FeatureStalenessGuardrail, FeatureDiversityGuardrail,
+    DataDistributionGuard, ClassImbalanceGuard, ModelComplexityGuard,
+    FeatureCountGuard
 
 Non-overridable:
-    FeatureLeakageGuardrail, CriticalPathGuardrail, TemporalOrderingGuardrail
+    FeatureLeakageGuardrail, CriticalPathGuardrail, TemporalOrderingGuardrail,
+    PredictionSanityGuard
 """
 
 from __future__ import annotations
@@ -452,7 +455,7 @@ class FeatureDiversityGuardrail(Guardrail):
         self.min_diversity_score = min_diversity_score
 
     def _check(self, context: dict) -> None:
-        from harnessml.core.runner.feature_diversity import compute_diversity_score
+        from harnessml.core.runner.features.diversity import compute_diversity_score
 
         models = context.get("models", {})
         if not models:
@@ -471,4 +474,207 @@ class FeatureDiversityGuardrail(Guardrail):
                 f"Use manage_features(action='diversity') to analyze overlap "
                 f"and diversify feature sets across models.",
                 source="FeatureDiversityGuardrail",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 13. DataDistributionGuard (overridable)
+# ---------------------------------------------------------------------------
+
+class DataDistributionGuard(Guardrail):
+    """Flags data with high missing rates or extreme skew.
+
+    Context keys:
+        missing_rate (float): Fraction of missing values (0.0 - 1.0).
+        skewness (float | None): Optional skewness statistic.
+    """
+
+    def __init__(
+        self,
+        max_missing_rate: float = 0.5,
+        max_skewness: float = 10.0,
+    ) -> None:
+        super().__init__(
+            name="data_distribution",
+            overridable=True,
+            description="Flags data with >50% missing or extreme skew.",
+        )
+        self.max_missing_rate = max_missing_rate
+        self.max_skewness = max_skewness
+
+    def _check(self, context: dict) -> None:
+        missing_rate = context.get("missing_rate", 0.0)
+        if missing_rate > self.max_missing_rate:
+            self._fail(
+                f"High missing rate: {missing_rate:.1%} "
+                f"(threshold: {self.max_missing_rate:.0%}).",
+                source="DataDistributionGuard",
+            )
+
+        skewness = context.get("skewness")
+        if skewness is not None and abs(skewness) > self.max_skewness:
+            self._fail(
+                f"Extreme skewness: {skewness:.2f} "
+                f"(threshold: +/-{self.max_skewness:.1f}).",
+                source="DataDistributionGuard",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 14. ClassImbalanceGuard (overridable)
+# ---------------------------------------------------------------------------
+
+class ClassImbalanceGuard(Guardrail):
+    """Flags when the minority class is below a threshold.
+
+    Context keys:
+        class_distribution (dict[str, float]): Maps class label to fraction.
+    """
+
+    def __init__(self, min_class_fraction: float = 0.05) -> None:
+        super().__init__(
+            name="class_imbalance",
+            overridable=True,
+            description=f"Flags minority class < {min_class_fraction:.0%}.",
+        )
+        self.min_class_fraction = min_class_fraction
+
+    def _check(self, context: dict) -> None:
+        dist = context.get("class_distribution", {})
+        if not dist:
+            return
+
+        min_frac = min(dist.values())
+        if min_frac < self.min_class_fraction:
+            min_class = min(dist, key=dist.get)
+            self._fail(
+                f"Class imbalance: class '{min_class}' is {min_frac:.1%} "
+                f"(threshold: {self.min_class_fraction:.0%}). "
+                f"Consider class weighting or resampling.",
+                source="ClassImbalanceGuard",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 15. ModelComplexityGuard (overridable)
+# ---------------------------------------------------------------------------
+
+class ModelComplexityGuard(Guardrail):
+    """Flags when the number of models exceeds sqrt(samples).
+
+    Context keys:
+        n_models (int): Number of active models.
+        n_samples (int): Number of training samples.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="model_complexity",
+            overridable=True,
+            description="Flags when #models > sqrt(#samples).",
+        )
+
+    def _check(self, context: dict) -> None:
+        import math
+
+        n_models = context.get("n_models", 0)
+        n_samples = context.get("n_samples", 0)
+
+        if n_samples <= 0 or n_models <= 0:
+            return
+
+        threshold = math.sqrt(n_samples)
+        if n_models > threshold:
+            self._fail(
+                f"Too many models ({n_models}) for dataset size ({n_samples}). "
+                f"Threshold: sqrt({n_samples}) = {threshold:.0f}.",
+                source="ModelComplexityGuard",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 16. FeatureCountGuard (overridable)
+# ---------------------------------------------------------------------------
+
+class FeatureCountGuard(Guardrail):
+    """Flags when the number of features exceeds sqrt(samples).
+
+    Context keys:
+        n_features (int): Number of features.
+        n_samples (int): Number of training samples.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name="feature_count",
+            overridable=True,
+            description="Flags when #features > sqrt(#samples).",
+        )
+
+    def _check(self, context: dict) -> None:
+        import math
+
+        n_features = context.get("n_features", 0)
+        n_samples = context.get("n_samples", 0)
+
+        if n_samples <= 0 or n_features <= 0:
+            return
+
+        threshold = math.sqrt(n_samples)
+        if n_features > threshold:
+            self._fail(
+                f"Too many features ({n_features}) for dataset size ({n_samples}). "
+                f"Threshold: sqrt({n_samples}) = {threshold:.0f}. "
+                f"Consider feature selection.",
+                source="FeatureCountGuard",
+            )
+
+
+# ---------------------------------------------------------------------------
+# 17. PredictionSanityGuard (NON-overridable)
+# ---------------------------------------------------------------------------
+
+class PredictionSanityGuard(Guardrail):
+    """Validates that predictions are in [0,1] and not all ~0.5.
+
+    Context keys:
+        predictions (list[float] | ndarray): Model prediction values.
+    """
+
+    def __init__(self, degenerate_threshold: float = 0.01) -> None:
+        super().__init__(
+            name="prediction_sanity",
+            overridable=False,  # NEVER bypass
+            description="Validates predictions in [0,1] and not all ~0.5.",
+        )
+        self.degenerate_threshold = degenerate_threshold
+
+    def _check(self, context: dict) -> None:
+        predictions = context.get("predictions")
+        if predictions is None:
+            return
+
+        import numpy as np
+        preds = np.asarray(predictions, dtype=float)
+
+        if len(preds) == 0:
+            return
+
+        # Check range [0, 1]
+        if np.any(preds < 0.0) or np.any(preds > 1.0):
+            out_of_range = int(np.sum((preds < 0.0) | (preds > 1.0)))
+            self._fail(
+                f"Predictions out of [0, 1] range: {out_of_range} values. "
+                f"Min={preds.min():.4f}, Max={preds.max():.4f}.",
+                source="PredictionSanityGuard",
+            )
+
+        # Check for degenerate predictions (all ~0.5)
+        std = float(np.std(preds))
+        if std < self.degenerate_threshold and len(preds) > 1:
+            self._fail(
+                f"Degenerate predictions: std={std:.6f} "
+                f"(threshold: {self.degenerate_threshold}). "
+                f"Model may not be learning.",
+                source="PredictionSanityGuard",
             )

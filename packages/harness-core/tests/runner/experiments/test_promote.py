@@ -2,7 +2,7 @@
 
 import pytest
 import yaml
-from harnessml.core.runner.experiment_manager import ExperimentManager
+from harnessml.core.runner.experiments.manager import ExperimentManager
 
 
 def test_promote_requires_logged_verdict(tmp_path):

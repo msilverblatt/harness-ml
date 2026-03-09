@@ -1,7 +1,7 @@
 """Tests for do-not-retry registry."""
 
 import pytest
-from harnessml.core.runner.experiment_manager import ExperimentManager
+from harnessml.core.runner.experiments.manager import ExperimentManager
 
 
 def test_do_not_retry_blocks(tmp_path):

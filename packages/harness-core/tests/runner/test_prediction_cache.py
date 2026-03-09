@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-from harnessml.core.runner.prediction_cache import PredictionCache
+from harnessml.core.runner.training.prediction_cache import PredictionCache
 
 
 @pytest.fixture()

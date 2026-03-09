@@ -112,6 +112,9 @@ class MLPModel(BaseModel):
             logger.warning("MLPModel does not support sample_weight; ignoring.")
         import torch
         import torch.nn as nn
+        from harnessml.core.models.device import detect_device
+
+        device = torch.device(detect_device())
 
         hidden_dims = self.params.get("hidden_layers", self.params.get("hidden_dims", [128, 64]))
         dropout = self.params.get("dropout", 0.0)
@@ -121,12 +124,12 @@ class MLPModel(BaseModel):
 
         X = self._normalize_features(X, fit=True)
 
-        X_t = torch.tensor(X, dtype=torch.float32)
+        X_t = torch.tensor(X, dtype=torch.float32).to(device)
         if self._mode == "classifier":
-            y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
+            y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1).to(device)
             criterion = nn.BCEWithLogitsLoss()
         else:
-            y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1)
+            y_t = torch.tensor(y, dtype=torch.float32).unsqueeze(1).to(device)
             criterion = nn.MSELoss()
 
         # Prepare validation data if provided
@@ -139,8 +142,8 @@ class MLPModel(BaseModel):
             else:
                 X_val, y_val = eval_set
             X_val = self._normalize_features(X_val)
-            X_val_t = torch.tensor(X_val, dtype=torch.float32)
-            y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1)
+            X_val_t = torch.tensor(X_val, dtype=torch.float32).to(device)
+            y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1).to(device)
 
         self._models = []
         for i in range(self._n_seeds):
@@ -150,7 +153,7 @@ class MLPModel(BaseModel):
             model = _build_mlp(
                 X.shape[1], hidden_dims, dropout, self._mode,
                 batch_norm=self._batch_norm,
-            )
+            ).to(device)
             optimizer = torch.optim.Adam(
                 model.parameters(), lr=lr, weight_decay=self._weight_decay,
             )
@@ -207,7 +210,8 @@ class MLPModel(BaseModel):
         preds = []
         with torch.no_grad():
             for model in self._models:
-                out = model(X_t).squeeze(1).numpy()
+                device = next(model.parameters()).device
+                out = model(X_t.to(device)).squeeze(1).cpu().numpy()
                 preds.append(out)
         return np.mean(preds, axis=0)
 
@@ -238,7 +242,8 @@ class MLPModel(BaseModel):
         all_probs = []
         with torch.no_grad():
             for model in self._models:
-                margins = model(X_t).squeeze(1).numpy()
+                device = next(model.parameters()).device
+                margins = model(X_t.to(device)).squeeze(1).cpu().numpy()
                 z = margins / scale
                 # Numerically stable logistic sigmoid
                 probs = np.where(

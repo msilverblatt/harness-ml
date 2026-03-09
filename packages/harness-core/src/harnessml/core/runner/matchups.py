@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from harnessml.core.runner.schema import InteractionDef, ModelDef
-from harnessml.core.runner.training import _is_regressor, _margin_to_prob
+from harnessml.core.runner.training.trainer import _is_regressor, _margin_to_prob
 
 logger = logging.getLogger(__name__)
 

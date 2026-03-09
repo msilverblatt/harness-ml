@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from harnessml.core.runner.feature_cache import CacheEntry, FeatureCache
+from harnessml.core.runner.features.cache import CacheEntry, FeatureCache
 
 
 class TestCacheEntry:

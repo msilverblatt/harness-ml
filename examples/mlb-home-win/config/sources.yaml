@@ -1,0 +1,33 @@
+# Data Source Declarations — Temporal Safety & Leakage Tracking
+#
+# Every data source should declare its temporal_safety level:
+#   pre_event   — Uses only data available before the prediction target
+#   post_event  — Contains post-event outcomes (LEAKAGE if used for prediction)
+#   mixed       — Contains both pre and post data (needs careful filtering)
+#   unknown     — Not yet audited (treat as potential leakage)
+#
+# The guardrails.feature_leakage_denylist lists column names that should NEVER
+# be used as model features (e.g., statistics that include target-period outcomes).
+#
+# Example leakage patterns to watch for:
+#   - Final statistics that include target-period outcomes
+#   - Aggregate stats computed from future data
+#   - Rankings/ratings published after the prediction cutoff
+#   - Features derived from outcome data
+
+sources:
+  example_source:
+    module: features.my_features
+    function: compute_features
+    category: strength
+    temporal_safety: pre_event
+    outputs:
+    - feature_a
+    - feature_b
+    leakage_notes: Uses only pre-event data, safe for prediction
+
+guardrails:
+  feature_leakage_denylist: []
+  # Add column names that must never be used as features, e.g.:
+  # - final_period_wins  (includes target-period outcomes)
+  # - career_total_score (includes future outcomes)

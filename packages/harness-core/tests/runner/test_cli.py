@@ -310,7 +310,7 @@ class TestServeWithConfig:
             def run(self):
                 pass  # Don't actually start server
 
-        import harnessml.core.runner.server_gen as sg
+        import harnessml.core.runner.scaffold.server_gen as sg
         monkeypatch.setattr(sg, "FastMCP", MockFastMCP, raising=False)
         # Patch the import in to_fastmcp
         import unittest.mock as mock

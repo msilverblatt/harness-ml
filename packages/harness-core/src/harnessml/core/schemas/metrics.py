@@ -748,38 +748,36 @@ def model_correlations(predictions: dict[str, np.ndarray]) -> dict[str, float]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Backward-compatible dispatch table
-# ---------------------------------------------------------------------------
-
-_METRIC_DISPATCH: dict[str, callable] = {
-    "brier": brier_score,
-    "log_loss": log_loss,
-    "accuracy": accuracy,
-    "ece": ece,
-    "rmse": rmse,
-    "mae": mae,
-    "r_squared": r_squared,
-    "auc_roc": auc_roc,
-    "f1": f1,
-}
-
-
 def model_audit(
     predictions: dict[str, np.ndarray],
     y_true: np.ndarray,
     metrics: list[str],
+    task: str = "binary",
 ) -> dict[str, dict[str, float]]:
     """Per-model metric evaluation.
 
     Returns ``{model_name: {metric_name: value}}`` for each model in
     *predictions* and each metric name in *metrics*.
+
+    Uses MetricRegistry to look up metric functions. Falls back across all
+    registered task types if the metric is not found under *task*.
     """
     result: dict[str, dict[str, float]] = {}
     for model_name, y_prob in predictions.items():
         model_metrics: dict[str, float] = {}
         for metric_name in metrics:
-            fn = _METRIC_DISPATCH[metric_name]
+            fn = MetricRegistry.get(task, metric_name)
+            # Fall back: search all task types if not found under primary task
+            if fn is None:
+                for t in MetricRegistry._metrics:
+                    fn = MetricRegistry.get(t, metric_name)
+                    if fn is not None:
+                        break
+            if fn is None:
+                raise KeyError(
+                    f"Metric {metric_name!r} not found in MetricRegistry "
+                    f"for task {task!r} or any other registered task type"
+                )
             model_metrics[metric_name] = fn(y_true, y_prob)
         result[model_name] = model_metrics
     return result

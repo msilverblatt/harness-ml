@@ -5,9 +5,9 @@ import time
 
 import pandas as pd
 import pytest
-from harnessml.core.runner.guards import GuardrailViolationError
 from harnessml.core.runner.schema import DataConfig
-from harnessml.core.runner.stage_guards import PipelineGuards
+from harnessml.core.runner.validation.guards import GuardrailViolationError
+from harnessml.core.runner.validation.stage_guards import PipelineGuards
 
 
 class TestGuardTrain:

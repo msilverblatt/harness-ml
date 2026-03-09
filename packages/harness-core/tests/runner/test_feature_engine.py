@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.feature_engine import (
+from harnessml.core.runner.features.engine import (
     FeatureResult,
     _resolve_formula,
     _topological_sort_features,

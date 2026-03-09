@@ -135,7 +135,7 @@ class TestEvaluateFoldPredictionsMulticlass:
     """Tests for evaluate_fold_predictions_multiclass."""
 
     def test_returns_metrics_per_model(self):
-        from harnessml.core.runner.diagnostics import evaluate_fold_predictions_multiclass
+        from harnessml.core.runner.analysis.diagnostics import evaluate_fold_predictions_multiclass
 
         df = _make_multiclass_preds_df()
         results = evaluate_fold_predictions_multiclass(df, fold_id=1, target_column="target")
@@ -155,7 +155,7 @@ class TestEvaluateFoldPredictionsMulticlass:
             assert "ece" not in r
 
     def test_accuracy_range(self):
-        from harnessml.core.runner.diagnostics import evaluate_fold_predictions_multiclass
+        from harnessml.core.runner.analysis.diagnostics import evaluate_fold_predictions_multiclass
 
         df = _make_multiclass_preds_df()
         results = evaluate_fold_predictions_multiclass(df, fold_id=0, target_column="target")
@@ -165,7 +165,7 @@ class TestEvaluateFoldPredictionsMulticlass:
             assert r["log_loss"] > 0
 
     def test_no_prob_columns_returns_empty(self):
-        from harnessml.core.runner.diagnostics import evaluate_fold_predictions_multiclass
+        from harnessml.core.runner.analysis.diagnostics import evaluate_fold_predictions_multiclass
 
         df = pd.DataFrame({"target": [0, 1, 2], "feature_a": [1, 2, 3]})
         results = evaluate_fold_predictions_multiclass(df, fold_id=0, target_column="target")
@@ -176,7 +176,7 @@ class TestComputePooledMetricsMulticlass:
     """Tests for compute_pooled_metrics_multiclass."""
 
     def test_pooled_metrics_across_folds(self):
-        from harnessml.core.runner.diagnostics import compute_pooled_metrics_multiclass
+        from harnessml.core.runner.analysis.diagnostics import compute_pooled_metrics_multiclass
 
         df1 = _make_multiclass_preds_df(n=50, seed=1)
         df2 = _make_multiclass_preds_df(n=50, seed=2)
@@ -193,7 +193,7 @@ class TestComputePooledMetricsMulticlass:
             assert m["n_samples"] == 100
 
     def test_empty_input_returns_empty(self):
-        from harnessml.core.runner.diagnostics import compute_pooled_metrics_multiclass
+        from harnessml.core.runner.analysis.diagnostics import compute_pooled_metrics_multiclass
 
         assert compute_pooled_metrics_multiclass([]) == {}
 
@@ -202,7 +202,7 @@ class TestBuildDiagnosticsReportMulticlass:
     """Tests for build_diagnostics_report with task='multiclass'."""
 
     def test_multiclass_report_uses_multiclass_metrics(self):
-        from harnessml.core.runner.reporting import build_diagnostics_report
+        from harnessml.core.runner.analysis.reporting import build_diagnostics_report
 
         fold_data = {
             1: _make_multiclass_preds_df(n=50, seed=1),
@@ -219,7 +219,7 @@ class TestBuildDiagnosticsReportMulticlass:
 
     def test_binary_report_still_works(self):
         """Ensure adding the task param doesn't break binary path."""
-        from harnessml.core.runner.reporting import build_diagnostics_report
+        from harnessml.core.runner.analysis.reporting import build_diagnostics_report
 
         # Binary predictions with prob_ensemble column
         rng = np.random.RandomState(42)

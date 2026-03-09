@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from harnessml.core.runner.schema import RollingStep
-from harnessml.core.runner.view_executor import execute_step
+from harnessml.core.runner.views.executor import execute_step
 
 # ---------------------------------------------------------------------------
 # Helpers

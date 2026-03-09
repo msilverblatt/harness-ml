@@ -6,7 +6,7 @@ import types
 
 import pytest
 from harnessml.core.feature_eng.registry import FeatureRegistry
-from harnessml.core.runner.loaders import load_features, load_sources
+from harnessml.core.runner.data.loaders import load_features, load_sources
 from harnessml.core.runner.schema import FeatureDecl, SourceDecl
 from harnessml.core.runner.sources import SourceRegistry
 

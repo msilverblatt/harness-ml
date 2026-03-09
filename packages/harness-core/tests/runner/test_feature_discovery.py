@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.feature_discovery import (
+from harnessml.core.runner.features.discovery import (
     compute_feature_correlations,
     compute_feature_importance,
     detect_redundant_features,

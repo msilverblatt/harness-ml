@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from harnessml.core.runner.calibration import SplineCalibrator
-from harnessml.core.runner.meta_learner import StackedEnsemble
-from harnessml.core.runner.postprocessing import (
+from harnessml.core.runner.training.calibration import SplineCalibrator
+from harnessml.core.runner.training.meta_learner import StackedEnsemble
+from harnessml.core.runner.training.postprocessing import (
     apply_ensemble_postprocessing,
     apply_logit_adjustments,
     apply_prior_compression,

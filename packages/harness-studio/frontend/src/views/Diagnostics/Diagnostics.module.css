@@ -250,6 +250,34 @@
 
 /* --- Metric Cards (matches Dashboard overviewStat pattern) --- */
 
+.metricsSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.metricsSectionHeader {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.copyBtn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px var(--space-2);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.copyBtn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-text-primary);
+}
+
 .metricsGrid {
     display: grid;
     grid-template-columns: repeat(var(--metric-count), 1fr);
