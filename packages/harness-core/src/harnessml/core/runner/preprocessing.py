@@ -16,29 +16,44 @@ class Preprocessor:
         numeric_strategy: str = "none",  # "none", "zscore", "robust", "quantile"
         categorical_strategy: str = "none",  # "none", "frequency", "ordinal"
         missing_strategy: str = "median",
+        knn_neighbors: int = 5,
     ):
         self.numeric_strategy = numeric_strategy
         self.categorical_strategy = categorical_strategy
         self.missing_strategy = missing_strategy
+        self.knn_neighbors = knn_neighbors
         self._fitted = False
         self._numeric_cols: list[str] = []
         self._categorical_cols: list[str] = []
         self._scaler = None
         self._fill_values: dict[str, float] = {}
         self._frequency_maps: dict[str, dict] = {}
+        self._imputer = None
 
     def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
         self._numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
         self._categorical_cols = list(df.select_dtypes(exclude=[np.number]).columns)
 
         # Fit missing value imputation
-        for col in self._numeric_cols:
-            if self.missing_strategy == "median":
-                self._fill_values[col] = df[col].median()
-            elif self.missing_strategy == "mean":
-                self._fill_values[col] = df[col].mean()
-            elif self.missing_strategy == "zero":
-                self._fill_values[col] = 0.0
+        if self.missing_strategy == "knn":
+            from sklearn.impute import KNNImputer
+
+            self._imputer = KNNImputer(n_neighbors=self.knn_neighbors)
+            self._imputer.fit(df[self._numeric_cols])
+        elif self.missing_strategy == "iterative":
+            from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+            from sklearn.impute import IterativeImputer
+
+            self._imputer = IterativeImputer()
+            self._imputer.fit(df[self._numeric_cols])
+        else:
+            for col in self._numeric_cols:
+                if self.missing_strategy == "median":
+                    self._fill_values[col] = df[col].median()
+                elif self.missing_strategy == "mean":
+                    self._fill_values[col] = df[col].mean()
+                elif self.missing_strategy == "zero":
+                    self._fill_values[col] = 0.0
 
         # Fit scaler
         if self.numeric_strategy != "none" and self._numeric_cols:
@@ -50,8 +65,15 @@ class Preprocessor:
             self._scaler = scaler_map[self.numeric_strategy]()
             # Fill NaNs before fitting scaler
             filled = df[self._numeric_cols].copy()
-            for col in self._numeric_cols:
-                filled[col] = filled[col].fillna(self._fill_values.get(col, 0))
+            if self._imputer is not None:
+                filled = pd.DataFrame(
+                    self._imputer.transform(filled),
+                    columns=self._numeric_cols,
+                    index=filled.index,
+                )
+            else:
+                for col in self._numeric_cols:
+                    filled[col] = filled[col].fillna(self._fill_values.get(col, 0))
             self._scaler.fit(filled)
 
         # Fit categorical encoding
@@ -70,9 +92,14 @@ class Preprocessor:
         result = df.copy()
 
         # Impute missing
-        for col in self._numeric_cols:
-            if col in result.columns:
-                result[col] = result[col].fillna(self._fill_values.get(col, 0))
+        if self._imputer is not None:
+            num_cols = [c for c in self._numeric_cols if c in result.columns]
+            if num_cols:
+                result[num_cols] = self._imputer.transform(result[num_cols])
+        else:
+            for col in self._numeric_cols:
+                if col in result.columns:
+                    result[col] = result[col].fillna(self._fill_values.get(col, 0))
 
         # Scale numeric
         if self._scaler is not None:
