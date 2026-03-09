@@ -1,16 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import type { Event } from '../types/api';
 
-export interface Event {
-    id: number;
-    timestamp: string;
-    tool: string;
-    action: string;
-    params: Record<string, unknown>;
-    result: string;
-    duration_ms: number;
-    status: string;
-    caller?: string;
-}
+export type { Event };
 
 interface UseWebSocketResult {
     events: Event[];
