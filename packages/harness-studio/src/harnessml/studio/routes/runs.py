@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Request
+from harnessml.core.logging import get_logger
 from harnessml.studio.routes.project import resolve_project_dir_from_request
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["runs"])
 
@@ -136,7 +139,8 @@ def _compute_fold_std(run_dir: Path) -> dict[str, float]:
             return {}
         metric_cols = [c for c in df.columns if c not in ("fold", "n_samples")]
         return {col: float(df[col].std()) for col in metric_cols if df[col].dtype.kind == "f"}
-    except Exception:
+    except (FileNotFoundError, OSError, ValueError) as e:
+        logger.warning("failed to compute fold std", path=str(diag_path), error=str(e))
         return {}
 
 
