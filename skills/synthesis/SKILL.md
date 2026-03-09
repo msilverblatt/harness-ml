@@ -112,6 +112,25 @@ Don't declare victory. Instead, present the state of knowledge:
 
 ---
 
+## Persist the Synthesis
+
+Write the synthesis to the notebook so it carries across sessions:
+
+```
+notebook(action="write", type="theory", content="[current understanding of what drives the target]")
+notebook(action="write", type="plan", content="[ranked next steps with reasoning]")
+```
+
+The `theory` entry supersedes the previous one — only the latest is shown in the summary. The `plan` entry becomes the starting point for the next session.
+
+If you ruled out strategies, record those too:
+
+```
+notebook(action="write", type="decision", content="Abandoned [strategy] because [structural reason]")
+```
+
+---
+
 ## Connecting to Other Skills
 
 Synthesis naturally triggers other skills:

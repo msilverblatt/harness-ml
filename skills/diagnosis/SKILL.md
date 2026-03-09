@@ -130,3 +130,11 @@ After every experiment, write:
 ### Next hypothesis
 [What to investigate based on these findings]
 ```
+
+Write key diagnostic findings to the notebook so they persist across sessions:
+
+```
+notebook(action="write", type="finding", content="[diagnosis insight]", experiment_id="...")
+```
+
+Not every diagnostic detail — just the insights that should inform future work.

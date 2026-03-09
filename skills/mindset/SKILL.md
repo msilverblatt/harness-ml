@@ -43,6 +43,49 @@ A "failed" experiment that reveals the model can't separate two classes in a spe
 - Update your running theory of what drives the target
 - Be honest about what you don't understand
 
+## Session Start
+
+At the start of every session, call:
+```
+notebook(action="summary")
+```
+
+This gives you the current theory, current plan, recent findings, and an index of all entities mentioned in the notebook. Read it before doing anything else — this is what you know so far.
+
+## Writing to the Notebook
+
+Write to the notebook **as you go**, not just at the end. The notebook is your working memory — if something is worth remembering, write it down now.
+
+**Write a `finding` after:**
+- Every experiment that teaches you something (most should)
+- Discovering a data quality issue or unexpected pattern
+- A diagnostic insight about model behavior
+
+**Write a `theory` when:**
+- Your understanding of what drives the target changes
+- You can articulate the model's strengths and weaknesses more clearly than before
+- After a batch of experiments that collectively tell a story
+
+**Write a `plan` when:**
+- You finish a line of investigation and need to decide what's next
+- You realize the current approach has diminishing returns
+- Before ending a session (so the next session knows where to pick up)
+
+**Write a `decision` when:**
+- You choose a strategy over alternatives and want to record why
+- You abandon a strategy and want to explain the structural reason
+- You promote or revert an experiment
+
+**Write a `research` when:**
+- Domain research produces hypotheses worth testing
+- You find external knowledge that informs the modeling approach
+
+```
+notebook(action="write", type="finding", content="...", experiment_id="exp-003")
+notebook(action="write", type="theory", content="...")
+notebook(action="write", type="plan", content="...")
+```
+
 ## Available Skills
 
 Load these as needed based on what you're doing:
