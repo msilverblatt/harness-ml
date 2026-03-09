@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "harnessml",
-      "source": ".",
+      "source": "./",
       "description": "MCP server + experiment discipline skills for agentic ML",
       "version": "0.1.0",
       "author": { "name": "msilverblatt" },
