@@ -1,0 +1,119 @@
+.entryCard {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.entryCard:hover {
+    border-color: var(--color-border-subtle);
+    background: var(--color-bg-tertiary);
+}
+
+.entryCardStruck {
+    opacity: 0.5;
+}
+
+.entryCardStruck .entryContent {
+    text-decoration: line-through;
+}
+
+.entryMeta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.typeBadge {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.timestamp {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    cursor: default;
+}
+
+.experimentLink {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-a08);
+}
+
+.experimentLink:hover {
+    background: var(--color-accent-a25);
+}
+
+.entryContent {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-primary);
+}
+
+.tagList {
+    display: flex;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+}
+
+.tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.tag:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.struckReason {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.struckIndicator {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1) 0;
+}
+
+.struckIndicator:hover {
+    color: var(--color-text-secondary);
+}
+
+.entryCompact {
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-left: 3px solid var(--color-border);
+    border-radius: 0;
+    background: transparent;
+}
+
+.entryCompact .entryContent {
+    font-size: var(--font-size-xs);
+    max-height: 3em;
+    overflow: hidden;
+}
