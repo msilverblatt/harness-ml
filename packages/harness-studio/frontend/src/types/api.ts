@@ -137,6 +137,23 @@ export interface ExperimentDetail {
     results?: Record<string, unknown>;
 }
 
+// --- Notebook ---
+
+export type NotebookEntryType = 'theory' | 'finding' | 'research' | 'decision' | 'plan' | 'note';
+
+export interface NotebookEntry {
+    id: string;
+    type: NotebookEntryType;
+    timestamp: string;
+    content: string;
+    tags: string[];
+    auto_tags: string[];
+    struck: boolean;
+    struck_reason: string | null;
+    struck_at: string | null;
+    experiment_id: string | null;
+}
+
 // --- Predictions ---
 
 export interface PredictionSummary {
