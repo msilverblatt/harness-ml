@@ -397,6 +397,13 @@ def run_backtest(
         run_id = run_dir.name
 
     try:
+        # Pre-backtest validation
+        from harnessml.core.runner.validation import Severity, format_validation_issues, validate_project
+        issues = validate_project(project_dir)
+        errors = [i for i in issues if i.severity == Severity.ERROR]
+        if errors:
+            return format_validation_issues(errors)
+
         from harnessml.core.runner.pipeline import PipelineRunner
 
         runner = PipelineRunner(
