@@ -72,8 +72,8 @@ def _distinct(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
     columns = step.get("columns")
     keep = step.get("keep", "first")
     if columns:
-        return lf.unique(subset=columns, keep=keep)
-    return lf.unique(keep=keep)
+        return lf.unique(subset=columns, keep=keep, maintain_order=True)
+    return lf.unique(keep=keep, maintain_order=True)
 
 
 def _head(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
@@ -94,7 +94,7 @@ def _head(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
             descending = [not d for d in descending]
         lf = lf.sort(order_by, descending=descending)
 
-    return lf.group_by(keys).head(n)
+    return lf.group_by(keys, maintain_order=True).head(n)
 
 
 # ---------------------------------------------------------------------------
