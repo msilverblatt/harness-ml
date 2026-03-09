@@ -1,6 +1,7 @@
 """Model and ensemble configuration operations."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
@@ -9,6 +10,41 @@ from harnessml.core.runner.config_writer._helpers import (
     _load_yaml,
     _save_yaml,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _check_feature_existence(
+    project_dir: Path,
+    features: list[str],
+) -> list[str]:
+    """Check feature names against project config.
+
+    Returns a list of warning strings for unknown features. Returns an
+    empty list if all features are known or if the config cannot be loaded.
+    """
+    try:
+        config_dir = _get_config_dir(Path(project_dir))
+    except FileNotFoundError:
+        return []
+
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    feature_defs = pipeline_data.get("data", {}).get("feature_defs", {})
+
+    if not feature_defs:
+        # No declarative features defined — can't validate
+        return []
+
+    known_features = set(feature_defs.keys())
+    unknown = [f for f in features if f not in known_features]
+
+    if unknown:
+        return [
+            f"**Warning**: Unknown feature(s) not found in feature_defs: "
+            f"{', '.join(f'`{u}`' for u in unknown)}. "
+            f"They may be raw columns or misspelled."
+        ]
+    return []
 
 
 def add_model(
@@ -74,17 +110,25 @@ def add_model(
     data["models"][name] = model_def
     _save_yaml(models_path, data)
 
+    # Check for unknown features (warning only, not blocking)
+    warnings: list[str] = []
+    if features:
+        warnings = _check_feature_existence(project_dir, features)
+
     n_features = len(model_def.get("features", []))
     type_str = model_def.get("type", "unknown")
     preset_str = f" (preset: {preset})" if preset else ""
 
-    return (
+    result = (
         f"**Added model**: `{name}`\n"
         f"- Type: {type_str}{preset_str}\n"
         f"- Features: {n_features}\n"
         f"- Active: {active}\n"
         f"- Include in ensemble: {include_in_ensemble}"
     )
+    if warnings:
+        result += "\n\n" + "\n".join(warnings)
+    return result
 
 
 def remove_model(project_dir: Path, name: str, *, purge: bool = False) -> str:

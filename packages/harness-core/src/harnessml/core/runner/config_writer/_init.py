@@ -19,6 +19,17 @@ def scaffold_init(
     """
     project_dir = Path(project_dir)
 
+    # Warn if config directory already exists with files
+    config_dir = project_dir / "config"
+    if config_dir.exists() and any(config_dir.iterdir()):
+        existing = [f.name for f in config_dir.iterdir() if f.is_file()]
+        return (
+            f"**Warning**: Project at `{project_dir}` already has config files: "
+            f"{', '.join(sorted(existing)[:10])}.\n"
+            f"Re-initializing may overwrite existing configuration. "
+            f"Remove the `config/` directory first if you want a fresh start."
+        )
+
     try:
         from harnessml.core.runner.scaffold import scaffold_project
 
