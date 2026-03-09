@@ -16,6 +16,15 @@ from pydantic import BaseModel, Discriminator, Tag, field_validator, model_valid
 # Feature & source declarations
 # -----------------------------------------------------------------------
 
+class FeatureLevel(str, Enum):
+    """Semantic level of a feature in the pipeline."""
+    ENTITY = "entity"
+    INTERACTION = "interaction"
+    REGIME = "regime"
+    QUERY = "query"
+    INSTANCE = "instance"
+
+
 class FeatureType(str, Enum):
     """Semantic type of a declarative feature."""
     ENTITY = "entity"
