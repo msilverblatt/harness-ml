@@ -167,18 +167,32 @@ class EventStore:
         """Aggregate stats for the current session."""
         with self._lock:
             conn = self._get_conn()
-            proj_clause = "AND project = ?" if project else ""
-            proj_vals = [project] if project else []
+            conditions = ["status NOT IN ('running', 'progress')"]
+            params: list = []
+            if project:
+                conditions.append("project = ?")
+                params.append(project)
+            where = " AND ".join(conditions)
+
             total = conn.execute(
-                f"SELECT COUNT(*) AS cnt FROM events WHERE status NOT IN ('running', 'progress') {proj_clause}",
-                proj_vals,
+                f"SELECT COUNT(*) AS cnt FROM events WHERE {where}",
+                params,
             ).fetchone()["cnt"]
+
+            err_conditions = ["status = 'error'"]
+            err_params: list = []
+            if project:
+                err_conditions.append("project = ?")
+                err_params.append(project)
+            err_where = " AND ".join(err_conditions)
+
             errors = conn.execute(
-                f"SELECT COUNT(*) AS cnt FROM events WHERE status = 'error' {proj_clause}",
-                proj_vals,
+                f"SELECT COUNT(*) AS cnt FROM events WHERE {err_where}",
+                err_params,
             ).fetchone()["cnt"]
+
             by_tool_rows = conn.execute(
-                f"SELECT tool, COUNT(*) AS cnt FROM events WHERE status NOT IN ('running', 'progress') {proj_clause} GROUP BY tool",
-                proj_vals,
+                f"SELECT tool, COUNT(*) AS cnt FROM events WHERE {where} GROUP BY tool",
+                params,
             ).fetchall()
         return {"total_calls": total, "errors": errors, "by_tool": {r["tool"]: r["cnt"] for r in by_tool_rows}}
