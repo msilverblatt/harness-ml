@@ -129,8 +129,20 @@ def _group_by(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
             agg_fn = _AGG_MAP.get(func)
             if agg_fn is None:
                 raise ValueError(f"Unknown aggregation: {func}")
-            agg_exprs.append(agg_fn(pl.col(col)).alias(col))
-    return lf.group_by(keys).agg(agg_exprs)
+            # Always use {col}_{func} naming to match pandas behavior
+            agg_exprs.append(agg_fn(pl.col(col)).alias(f"{col}_{func}"))
+    return lf.group_by(keys, maintain_order=True).agg(agg_exprs)
+
+
+_ROLLING_EXPR_MAP = {
+    "mean": lambda c, w, mp: c.rolling_mean(window_size=w, min_samples=mp),
+    "std": lambda c, w, mp: c.rolling_std(window_size=w, min_samples=mp),
+    "sum": lambda c, w, mp: c.rolling_sum(window_size=w, min_samples=mp),
+    "min": lambda c, w, mp: c.rolling_min(window_size=w, min_samples=mp),
+    "max": lambda c, w, mp: c.rolling_max(window_size=w, min_samples=mp),
+    "var": lambda c, w, mp: c.rolling_var(window_size=w, min_samples=mp),
+    "median": lambda c, w, mp: c.rolling_median(window_size=w, min_samples=mp),
+}
 
 
 def _rolling(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
@@ -138,6 +150,7 @@ def _rolling(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
     keys = step["keys"]
     order_by = step["order_by"]
     window = step["window"]
+    min_periods = step.get("min_periods") or window
     lf = lf.sort([*keys, order_by])
 
     for new_col, spec in step["aggs"].items():
@@ -146,13 +159,13 @@ def _rolling(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
             raise ValueError(f"Rolling agg spec must be 'column:func', got {spec!r}")
         src_col, func = parts[0].strip(), parts[1].strip()
 
-        agg_fn = _AGG_MAP.get(func)
-        if agg_fn is None:
-            raise ValueError(f"Unknown rolling aggregation: {func}")
+        builder = _ROLLING_EXPR_MAP.get(func)
+        if builder is None:
+            raise ValueError(
+                f"Polars rolling does not support '{func}' -- falling back to pandas"
+            )
 
-        expr = agg_fn(
-            pl.col(src_col).rolling(index_column=order_by, period=f"{window}i")
-        ).over(keys).alias(new_col)
+        expr = builder(pl.col(src_col), window, min_periods).over(keys).alias(new_col)
         lf = lf.with_columns(expr)
 
     return lf
@@ -162,6 +175,7 @@ def _cond_agg(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
     """Group and aggregate with optional per-agg conditions."""
     keys = step["keys"]
     agg_exprs = []
+    conditional_cols = []
 
     for new_col, spec in step["aggs"].items():
         parts = spec.split(":", 2)
@@ -181,15 +195,30 @@ def _cond_agg(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
             expr = agg_fn(
                 pl.col(src_col).filter(pl.sql_expr(condition))
             ).alias(new_col)
+            conditional_cols.append(new_col)
         else:
             expr = agg_fn(pl.col(src_col)).alias(new_col)
         agg_exprs.append(expr)
 
-    return lf.group_by(keys).agg(agg_exprs)
+    result = lf.group_by(keys, maintain_order=True).agg(agg_exprs)
+
+    # Drop groups where ALL conditional columns are null (matches pandas behavior
+    # where groups not matching a query condition are absent from the result)
+    if conditional_cols:
+        any_non_null = pl.lit(False)
+        for col_name in conditional_cols:
+            any_non_null = any_non_null | pl.col(col_name).is_not_null()
+        result = result.filter(any_non_null)
+
+    return result
 
 
 def _ewm(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
-    """Exponentially weighted moving statistic within groups."""
+    """Exponentially weighted moving statistic within groups.
+
+    Only supports mean -- std/var have subtle behavioral differences vs pandas
+    (e.g. first-row NaN handling), so those fall back to the pandas executor.
+    """
     keys = step["keys"]
     order_by = step["order_by"]
     span = step["span"]
@@ -207,22 +236,10 @@ def _ewm(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
                 .over(keys)
                 .alias(new_col)
             )
-        elif stat == "std":
-            expr = (
-                pl.col(src_col)
-                .ewm_std(span=span, adjust=False)
-                .over(keys)
-                .alias(new_col)
-            )
-        elif stat == "var":
-            expr = (
-                pl.col(src_col)
-                .ewm_var(span=span, adjust=False)
-                .over(keys)
-                .alias(new_col)
-            )
         else:
-            raise ValueError(f"Unsupported EWM stat: {stat}")
+            raise ValueError(
+                f"Polars EWM does not support '{stat}' -- falling back to pandas"
+            )
 
         lf = lf.with_columns(expr)
 
@@ -413,7 +430,7 @@ def _ols_slope(
 def _encode(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
     """Categorical encoding (frequency or ordinal)."""
     col = step["column"]
-    out = step.get("output", f"{col}_encoded")
+    out = step.get("output") or f"{col}_encoded"
     method = step["method"]
 
     if method == "frequency":
@@ -441,7 +458,7 @@ def _encode(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
 def _bin(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
     """Discretize a continuous column into bins."""
     col = step["column"]
-    out = step.get("output", f"{col}_binned")
+    out = step.get("output") or f"{col}_binned"
     method = step["method"]
     n_bins = step["n_bins"]
 

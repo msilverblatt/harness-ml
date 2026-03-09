@@ -103,6 +103,7 @@ def test_group_by_step(sample_lf):
     step = {"op": "group_by", "keys": ["category"], "aggs": {"value": "mean"}}
     result = execute_step(sample_lf, step).collect()
     assert len(result) == 2
+    assert "value_mean" in result.columns
 
 
 def test_group_by_multi_agg(sample_lf):
