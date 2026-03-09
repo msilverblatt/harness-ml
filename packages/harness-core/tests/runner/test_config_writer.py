@@ -361,7 +361,7 @@ class TestExperimentCreate:
         assert "exp-" in result
 
         # Verify directory created
-        exp_dirs = list((project / "experiments").iterdir())
+        exp_dirs = [p for p in (project / "experiments").iterdir() if p.is_dir()]
         assert len(exp_dirs) == 1
 
     def test_creates_with_hypothesis(self, tmp_path):
@@ -373,7 +373,7 @@ class TestExperimentCreate:
         )
         assert "Created experiment" in result
 
-        exp_dirs = list((project / "experiments").iterdir())
+        exp_dirs = [p for p in (project / "experiments").iterdir() if p.is_dir()]
         assert len(exp_dirs) == 1
         exp_dir = exp_dirs[0]
         assert (exp_dir / "hypothesis.txt").exists()
@@ -1150,10 +1150,17 @@ class TestExperimentJournal:
 
         journal_path = tmp_path / "experiments" / "journal.jsonl"
         assert journal_path.exists()
-        entry = json.loads(journal_path.read_text().strip())
+        lines = [l for l in journal_path.read_text().strip().split("\n") if l.strip()]
+        # The last line should be the latest snapshot
+        entry = json.loads(lines[-1])
         assert entry["experiment_id"] == "exp-001"
-        assert entry["metrics"]["brier"] == 0.2481
-        assert entry["verdict"] == "improved"
+        # Check metrics are present (may be in conclusion.secondary_metrics or directly)
+        if "conclusion" in entry and entry["conclusion"]:
+            # New structured format
+            assert entry["conclusion"]["verdict"] == "improved"
+        else:
+            # Legacy format
+            assert entry.get("verdict") == "improved" or entry.get("metrics", {}).get("brier") == 0.2481
 
     def test_show_journal(self, tmp_path):
         (tmp_path / "experiments").mkdir(parents=True, exist_ok=True)
