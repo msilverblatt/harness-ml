@@ -786,7 +786,62 @@ async def competitions(
 
 
 # -----------------------------------------------------------------------
-# 7. pipeline
+# 7. notebook
+# -----------------------------------------------------------------------
+
+
+@mcp.tool()
+@_safe_tool
+async def notebook(
+    action: str,
+    ctx: Context,
+    type: str | None = None,
+    content: str | None = None,
+    tags: str | None = None,
+    query: str | None = None,
+    entry_id: str | None = None,
+    reason: str | None = None,
+    experiment_id: str | None = None,
+    page: int | None = None,
+    per_page: int | None = None,
+    project_dir: str | None = None,
+) -> str:
+    """Project notebook for persistent learnings across sessions.
+
+    Actions:
+      - "write": Add an entry. Requires type + content.
+        type: theory | finding | research | decision | plan | note
+        content: the entry text
+        tags: optional JSON list of tags, e.g. '["model:xgb"]'
+        experiment_id: optional link to an experiment
+      - "read": Read entries (newest first, excludes struck).
+        type: filter by entry type
+        tags: filter by tags (JSON list)
+        page: page number (default 1)
+        per_page: entries per page (default 10)
+      - "search": Full-text search. Requires query.
+      - "strike": Hide an entry with a reason. Requires entry_id + reason.
+      - "summary": Get current theory, plan, recent findings, and entity index.
+        Call this at session start.
+    """
+    return _load_handler("notebook").dispatch(
+        action,
+        ctx=ctx,
+        type=type,
+        content=content,
+        tags=tags,
+        query=query,
+        entry_id=entry_id,
+        reason=reason,
+        experiment_id=experiment_id,
+        page=page,
+        per_page=per_page,
+        project_dir=project_dir,
+    )
+
+
+# -----------------------------------------------------------------------
+# 8. pipeline
 # -----------------------------------------------------------------------
 
 
