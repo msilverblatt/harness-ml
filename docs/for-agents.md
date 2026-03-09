@@ -10,7 +10,7 @@ permalink: /for-agents
 
 Harness ML is an MCP server that gives you structured access to a full ML pipeline — data ingestion, feature engineering, model training, backtesting, calibration, ensembling, and experiment tracking. You never write training loops or ML code. You declare intent through tool calls, and Harness handles execution, validation, and logging.
 
-7 tools. 80+ actions. 12 guardrails. 45 metrics across 6 task types. 8 model wrappers. 22 view transform steps. 4 calibration methods. 5 CV strategies.
+7 tools. 80+ actions. 17 guardrails. 45 metrics across 6 task types. 12 model wrappers. 22 view transform steps. 4 calibration methods. 8 CV strategies.
 
 Everything below is your complete protocol reference.
 
@@ -20,8 +20,8 @@ Everything below is your complete protocol reference.
 
 - Every experiment REQUIRES a hypothesis before creation
 - Every experiment REQUIRES a conclusion after completion
-- 3 non-overridable guardrails: feature leakage, temporal ordering, critical path — cannot be bypassed
-- 9 overridable guardrails: sanity check, naming convention, do-not-retry, single variable, config protection, rate limit, experiment logged, feature staleness, feature diversity
+- 4 non-overridable guardrails: feature leakage, temporal ordering, critical path, prediction sanity — cannot be bypassed
+- 13 overridable guardrails: sanity check, naming convention, do-not-retry, single variable, config protection, rate limit, experiment logged, feature staleness, feature diversity, data distribution, class imbalance, model complexity, feature count
 - Workflow phases: EDA → Feature Discovery → Model Diversity → Feature Engineering → Tuning → Ensemble. Optional hard gates with `workflow.enforce_phases: true`
 - All responses are markdown strings. Errors start with `**Error**:`
 - If you pass an invalid enum value, fuzzy matching will suggest the closest valid option
@@ -155,7 +155,7 @@ remove_batch → items(JSON array of {name, purge?})
 clone        → name(source), items(JSON {new_name, ...overrides})
 ```
 
-Model types: xgboost, lightgbm, catboost, random_forest, logistic_regression, elastic_net, mlp, tabnet.
+Model types: xgboost, lightgbm, catboost, random_forest, logistic_regression, elastic_net, mlp, tabnet, svm, hist_gbm, gam, ngboost.
 
 class_weight: "balanced" or JSON dict {"0": 1.0, "1": 2.5}. Regressors need cdf_scale for probability conversion. params default-merges unless replace_params=true.
 
@@ -247,8 +247,22 @@ Metrics (45 across 6 task types): brier, accuracy, log_loss, ece, auroc, f1, pre
 
 Calibration: spline (PCHIP), isotonic, platt, beta
 
-CV strategies: symmetric_loso, expanding_window, sliding_window, kfold, stratified
+CV strategies: leave_one_out, expanding_window, sliding_window, purged_kfold, stratified_kfold, group_kfold, bootstrap
 
-Models: xgboost, lightgbm, catboost, random_forest, logistic_regression, elastic_net, mlp, tabnet
+Models: xgboost, lightgbm, catboost, random_forest, logistic_regression, elastic_net, mlp, tabnet, svm, hist_gbm, gam, ngboost
+
+Meta-learner types: logistic (default), ridge, gbm
+
+Preprocessing: zscore, robust, quantile scaling (leakage-safe); median, mean, zero, knn, iterative imputation; frequency encoding
+
+Feature selection: k_best, rfe, correlation_cluster
+
+Ensemble diversity: disagreement, q_statistic, kappa, correlation
+
+Drift detection: KS test, PSI, multi-feature drift
+
+Conformal prediction: split-conformal with finite-sample correction
+
+Explainability: SHAP values, partial dependence plots, feature interactions
 
 View steps (22): filter, select, derive, group_by, join, union, unpivot, sort, head, rolling, cast, distinct, rank, isin, cond_agg, lag, ewm, diff, trend, encode, bin, datetime, null_indicator

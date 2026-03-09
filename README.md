@@ -82,9 +82,15 @@ uv sync
 uv run harness-setup
 ```
 
-That's it. The setup command configures the MCP server, installs experiment discipline skills, creates a demo project with sample data, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
+That's it. The setup command configures the MCP server, installs the Claude plugin with experiment discipline skills, creates a demo project with sample data, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
 
-To set up manually instead, see [For Humans](https://msilverblatt.github.io/harness-ml/for-humans).
+Or install the Claude plugin manually:
+
+```bash
+claude plugin add /path/to/harness-ml
+```
+
+For full manual setup options, see [For Humans](https://msilverblatt.github.io/harness-ml/for-humans).
 
 <br>
 
@@ -152,7 +158,7 @@ https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 
 | Package | What it does |
 |---------|-------------|
-| **harness-core** | Engine: schemas, config, guardrails, 8 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources |
+| **harness-core** | Engine: schemas, config, guardrails, 12 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources, preprocessing, feature selection, drift detection, conformal prediction, explainability |
 | **harness-plugin** | MCP server with hot-reloadable handlers — change handler code, no restart needed |
 | **harness-studio** | Companion dashboard — live activity, pipeline DAG, experiments, diagnostics. FastAPI + React + SQLite |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
@@ -176,10 +182,10 @@ https://github.com/user-attachments/assets/c180d2b2-7ed1-4805-a08a-01b6fb3738ac
 ## What's Inside
 
 <details>
-<summary><b>Models</b> — 8 wrappers</summary>
+<summary><b>Models</b> — 12 wrappers</summary>
 <br>
 
-XGBoost · LightGBM · CatBoost · Random Forest · Logistic Regression · ElasticNet · MLP (PyTorch) · TabNet
+XGBoost · LightGBM · CatBoost · Random Forest · Logistic Regression · ElasticNet · MLP (PyTorch) · TabNet · SVM · HistGradientBoosting · GAM (PyGAM) · NGBoost
 
 All configurable via YAML with eval_set/early stopping, normalization, class weighting, and inspect-based kwargs forwarding.
 </details>
@@ -206,10 +212,10 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 </details>
 
 <details>
-<summary><b>CV Strategies</b></summary>
+<summary><b>CV Strategies</b> — 7 strategies</summary>
 <br>
 
-`leave_one_out` (symmetric LOSO) · `expanding_window` · `sliding_window` · `k_fold` · `stratified`
+`leave_one_out` (symmetric LOSO) · `expanding_window` · `sliding_window` · `k_fold` · `purged_kfold` · `stratified_kfold` · `group_kfold` · `bootstrap`
 </details>
 
 <details>
@@ -227,6 +233,16 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 </details>
 
 <details>
+<summary><b>Preprocessing</b></summary>
+<br>
+
+- **Scaling** — zscore, robust, quantile (leakage-safe: fit on train, transform both)
+- **Imputation** — median, mean, zero, KNN, iterative
+- **Encoding** — frequency encoding for categoricals
+- **Feature selection** — k_best, RFE, correlation clustering
+</details>
+
+<details>
 <summary><b>Exploration</b></summary>
 <br>
 
@@ -234,6 +250,19 @@ Spline (PCHIP) · Isotonic · Platt · Beta — all with save/load and fitted st
 - **Feature diversity** — overlap matrix, diversity score, redundant detection
 - **Bayesian search** — Optuna TPE over features, models, hyperparams, ensemble settings
 - **Workflow tracking** — phased gates ensure feature discovery and model diversity before tuning
+</details>
+
+<details>
+<summary><b>Advanced</b></summary>
+<br>
+
+- **Ensemble diversity** — disagreement, Q-statistic, kappa, correlation metrics
+- **Meta-learner types** — logistic (default), ridge, GBM
+- **Drift detection** — KS test, PSI, multi-feature drift monitoring
+- **Conformal prediction** — split-conformal with finite-sample correction
+- **Explainability** — SHAP values, partial dependence plots, feature interactions
+- **Text features** — TF-IDF, count vectorizer extraction
+- **Cyclical encoding** — sin/cos pairs for periodic features
 </details>
 
 <details>

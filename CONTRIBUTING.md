@@ -101,15 +101,23 @@ The `__init__.py` files live inside `core/`, `plugin/`, `studio/`, and `sports/`
 Always use the full namespace path:
 
 ```python
-# Correct
+# Correct -- post-reorganization paths
 from harnessml.core.schemas.contracts import ProjectConfig
-from harnessml.core.models import ModelRegistry
+from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.config_writer import ConfigWriter
+from harnessml.core.runner.training.trainer import Trainer
+from harnessml.core.runner.data.ingest import ingest_data
+from harnessml.core.runner.features.store import FeatureStore
+from harnessml.core.runner.views.executor import ViewExecutor
+from harnessml.core.runner.analysis.reporting import build_pick_log
+from harnessml.core.runner.experiments.manager import ExperimentManager
 from harnessml.plugin.mcp_server import mcp
 
-# Wrong -- old paths, do not use
-from harnessml.schemas import ProjectConfig
-from harnessml.runner import ConfigWriter
+# Wrong -- old flat runner paths, do not use
+from harnessml.core.runner.training import Trainer
+from harnessml.core.runner.data_ingest import ingest_data
+from harnessml.core.runner.feature_store import FeatureStore
+from harnessml.core.runner.view_executor import ViewExecutor
 ```
 
 ---

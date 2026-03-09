@@ -19,7 +19,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 - OmegaConf for config deep merge
 - FastMCP for async MCP server with hot-reload
 - scikit-learn, XGBoost, CatBoost, LightGBM, PyTorch (MLP, TabNet)
-- Optional: shap, matplotlib, pandera, optuna, nbformat, google-api-python-client, kaggle
+- Optional: shap, matplotlib, pandera, optuna, nbformat, google-api-python-client, kaggle, pygam, ngboost
 - Studio: FastAPI, uvicorn, sqlite3 (stdlib), React 19, Vite, bun
 - Namespace packages: no `__init__.py` at `src/harnessml/` level
 
@@ -39,7 +39,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 | `core.schemas` | Pydantic contracts (`contracts.py`) + MetricRegistry with 45 metrics across 6 task types (`metrics.py`) |
 | `core.config` | YAML loading + OmegaConf deep merge |
 | `core.guardrails` | Safety guardrails (leakage, temporal, naming) |
-| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet) + registry |
+| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost) + registry |
 | `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
 | `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
 | `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
@@ -83,7 +83,7 @@ Use the MCP tool or config_writer:
 ## How to Add a New View Step
 
 1. Add Pydantic model to `packages/harness-core/src/harnessml/core/runner/schema.py` (in TransformStep union)
-2. Add executor function to `packages/harness-core/src/harnessml/core/runner/view_executor.py`
+2. Add executor function to `packages/harness-core/src/harnessml/core/runner/views/executor.py`
 3. Register in `_dispatch` dict
 4. Available steps: filter, select, derive, group_by, join, union, unpivot, sort, head, rolling, cast, distinct, rank, isin, cond_agg, lag, ewm, diff, trend, encode, bin, datetime, null_indicator
 
@@ -102,6 +102,21 @@ Use the MCP tool or config_writer:
 - Handler dispatch pattern: `ACTIONS` dict → `dispatch(action, **kwargs)`
 - Changes to handler code: no restart needed (hot-reload)
 - Changes to tool signatures/docstrings: restart required
+
+## Plugin Auto-Discovery
+
+Domain plugins are discovered via Python entry points. harness-plugin declares the
+`harnessml.plugins` entry point group, and harness-sports registers its hooks there:
+
+```toml
+# In harness-plugin/pyproject.toml
+[project.entry-points."harnessml.plugins"]
+sports = "harnessml.sports.hooks:register"
+```
+
+This means `import harnessml.sports` automatically registers sports hooks (column
+candidates, renames, competition narrative) into `HookRegistry`. New domain plugins
+follow the same pattern: add an entry point pointing to a `register()` function.
 
 ## Harness Studio
 

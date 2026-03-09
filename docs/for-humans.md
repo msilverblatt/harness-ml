@@ -20,7 +20,21 @@ The setup command handles everything: writes `.mcp.json` with the MCP server con
 
 ### Manual Setup
 
-If you prefer to configure things yourself, add to your Claude Code MCP config (`.mcp.json`):
+If you prefer to configure things yourself:
+
+**1. Install the Claude Plugin** (recommended)
+
+HarnessML ships as a Claude Code plugin with skills and MCP server config. Install it from the repo root:
+
+```bash
+claude plugin add /path/to/harness-ml
+```
+
+This gives Claude access to 3 experiment discipline skills (`harness-run-experiment`, `harness-explore-space`, `harness-domain-research`) and auto-configures the MCP server.
+
+**2. Or configure the MCP server directly**
+
+Add to your Claude Code MCP config (`.mcp.json`):
 
 ```json
 {
@@ -28,6 +42,20 @@ If you prefer to configure things yourself, add to your Claude Code MCP config (
     "harness-ml": {
       "command": "uv",
       "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"]
+    }
+  }
+}
+```
+
+For dev mode with hot-reload (handler changes take effect without restart):
+
+```json
+{
+  "mcpServers": {
+    "harness-ml": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"],
+      "env": { "HARNESS_DEV": "1" }
     }
   }
 }
@@ -104,7 +132,7 @@ Harness ML is a uv workspace monorepo with four packages:
 └─────────────────────────────────────────────────────────┘
 ```
 
-**harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 8 model wrappers, a declarative view engine with 22 transform steps, 4 calibration methods, 45 metrics across 6 task types, and 12 guardrails (3 non-overridable).
+**harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 12 model wrappers (XGBoost, LightGBM, CatBoost, Random Forest, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost), a declarative view engine with 22 transform steps, 4 calibration methods, 8 CV strategies, 45 metrics across 6 task types, and 17 guardrails (4 non-overridable). Includes leakage-safe preprocessing, feature selection, drift detection, conformal prediction, and SHAP explainability.
 
 **harness-plugin** is a thin async MCP dispatcher. All business logic lives in hot-reloadable handler modules — change a handler, and it takes effect on the next call without restarting the server.
 
