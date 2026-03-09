@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useWebSocket, type Event } from '../../hooks/useWebSocket';
 import { useApi } from '../../hooks/useApi';
 import { ProjectContext } from '../../hooks/useProject';
+import { useToast } from '../Toast/Toast';
 import styles from './Layout.module.css';
 
 interface ProjectStatus {
@@ -225,8 +226,10 @@ export function Layout() {
             ? 'working'
             : 'idle';
 
+    const { addToast } = useToast();
     const [robotMessage, setRobotMessage] = useState<string | null>(null);
     const lastEventCount = useRef(events.length);
+    const toastEventCount = useRef(events.length);
 
     useEffect(() => {
         if (events.length > lastEventCount.current) {
@@ -241,6 +244,32 @@ export function Layout() {
         }
         lastEventCount.current = events.length;
     }, [events.length]);
+
+    // Toast on run completion
+    useEffect(() => {
+        if (events.length <= toastEventCount.current) {
+            toastEventCount.current = events.length;
+            return;
+        }
+        const newEvents = events.slice(toastEventCount.current);
+        toastEventCount.current = events.length;
+        for (const evt of newEvents) {
+            if (evt.tool === 'pipeline' && evt.action === 'run_backtest' && (evt.status === 'success' || evt.status === 'error')) {
+                if (evt.status === 'success') {
+                    addToast('Run completed — metrics updated', 'success');
+                } else {
+                    addToast('Run failed — check logs for details', 'warning');
+                }
+            }
+            if (evt.tool === 'experiments' && evt.action === 'quick_run' && (evt.status === 'success' || evt.status === 'error')) {
+                if (evt.status === 'success') {
+                    addToast('Experiment run completed', 'success');
+                } else {
+                    addToast('Experiment run failed', 'warning');
+                }
+            }
+        }
+    }, [events, addToast]);
 
     useEffect(() => {
         fetch('/api/projects')

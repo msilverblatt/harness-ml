@@ -27,12 +27,14 @@ import { PredictionsView } from './views/Predictions/Predictions';
 import { ConfigView } from './views/Config/Config';
 import { PreferencesView } from './views/Preferences/Preferences';
 import { ProjectRedirect } from './components/ProjectRedirect';
+import { ToastProvider } from './components/Toast/Toast';
 
 function App() {
     const themeCtx = useThemeProvider();
 
     return (
         <ThemeContext.Provider value={themeCtx}>
+            <ToastProvider>
             <BrowserRouter>
                 <Routes>
                     {/* Redirect root to most recent project */}
@@ -55,6 +57,7 @@ function App() {
                     </Route>
                 </Routes>
             </BrowserRouter>
+            </ToastProvider>
         </ThemeContext.Provider>
     );
 }
