@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.feature_engine import _resolve_formula
+from harnessml.core.runner.features.engine import _resolve_formula
 
 # ---------------------------------------------------------------------------
 # Power / distribution functions

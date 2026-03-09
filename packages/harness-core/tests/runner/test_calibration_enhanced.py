@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from harnessml.core.runner.calibration import (
+from harnessml.core.runner.training.calibration import (
     BetaCalibrator,
     bootstrap_ci,
     build_calibrator,

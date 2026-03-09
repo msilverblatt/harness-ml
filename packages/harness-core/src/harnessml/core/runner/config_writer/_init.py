@@ -31,7 +31,7 @@ def scaffold_init(
         )
 
     try:
-        from harnessml.core.runner.scaffold import scaffold_project
+        from harnessml.core.runner.scaffold.scaffold import scaffold_project
 
         scaffold_project(
             project_dir,

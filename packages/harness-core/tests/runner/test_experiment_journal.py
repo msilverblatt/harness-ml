@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from harnessml.core.runner.experiment_journal import ExperimentJournal
-from harnessml.core.runner.experiment_schema import (
+from harnessml.core.runner.experiments.journal import ExperimentJournal
+from harnessml.core.runner.experiments.schema import (
     ExperimentRecord,
     ExperimentStatus,
     ExperimentVerdict,

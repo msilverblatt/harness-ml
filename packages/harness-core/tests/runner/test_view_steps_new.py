@@ -14,7 +14,7 @@ from harnessml.core.runner.schema import (
     NullIndicatorStep,
     TrendStep,
 )
-from harnessml.core.runner.view_executor import execute_step
+from harnessml.core.runner.views.executor import execute_step
 
 # ---------------------------------------------------------------------------
 # Lag step

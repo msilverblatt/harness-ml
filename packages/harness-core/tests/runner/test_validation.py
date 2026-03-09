@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from harnessml.core.runner.config_writer._helpers import _save_yaml
-from harnessml.core.runner.validation import (
+from harnessml.core.runner.validation.validation import (
     Severity,
     ValidationCode,
     ValidationIssue,

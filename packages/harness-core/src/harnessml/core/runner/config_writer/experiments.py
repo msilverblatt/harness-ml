@@ -26,7 +26,7 @@ def experiment_create(
     experiments_dir = Path(project_dir) / "experiments"
     experiments_dir.mkdir(parents=True, exist_ok=True)
 
-    from harnessml.core.runner.experiment import auto_next_id
+    from harnessml.core.runner.experiments.experiment import auto_next_id
 
     exp_id = auto_next_id(experiments_dir)
 
@@ -48,8 +48,8 @@ def experiment_create(
     # Write to JSONL journal
     journal_path = experiments_dir / "journal.jsonl"
     try:
-        from harnessml.core.runner.experiment_journal import ExperimentJournal
-        from harnessml.core.runner.experiment_schema import (
+        from harnessml.core.runner.experiments.journal import ExperimentJournal
+        from harnessml.core.runner.experiments.schema import (
             ExperimentRecord,
             ExperimentStatus,
         )
@@ -257,7 +257,7 @@ def run_experiment(
             (exp_dir / "results.json").write_text(json.dumps(results, indent=2))
 
             # Auto-log
-            from harnessml.core.runner.experiment import auto_log_result
+            from harnessml.core.runner.experiments.experiment import auto_log_result
             auto_log_result(
                 log_path=project_dir / "EXPERIMENT_LOG.md",
                 experiment_id=experiment_id,
@@ -369,9 +369,9 @@ def log_experiment_result(
     journal_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        from harnessml.core.runner.experiment_journal import ExperimentJournal
-        from harnessml.core.runner.experiment_manager import ExperimentManager
-        from harnessml.core.runner.experiment_schema import ExperimentStatus
+        from harnessml.core.runner.experiments.journal import ExperimentJournal
+        from harnessml.core.runner.experiments.manager import ExperimentManager
+        from harnessml.core.runner.experiments.schema import ExperimentStatus
 
         journal = ExperimentJournal(journal_path)
         existing = journal.get(experiment_id)
@@ -407,7 +407,7 @@ def log_experiment_result(
             return f"Logged experiment `{experiment_id}` to journal."
         else:
             # No existing record; create one from scratch
-            from harnessml.core.runner.experiment_schema import ExperimentRecord
+            from harnessml.core.runner.experiments.schema import ExperimentRecord
             hyp = hypothesis or description or "No hypothesis provided"
             record = ExperimentRecord(
                 experiment_id=experiment_id,
@@ -519,7 +519,7 @@ def compare_experiments(
         return "No experiment journal found. Run experiments first."
 
     try:
-        from harnessml.core.runner.experiment_manager import ExperimentManager
+        from harnessml.core.runner.experiments.manager import ExperimentManager
 
         mgr = ExperimentManager(
             experiments_dir=project_dir / "experiments",
@@ -543,7 +543,7 @@ def promote_experiment(
     project_dir = Path(project_dir)
 
     try:
-        from harnessml.core.runner.experiment import promote_experiment as _promote
+        from harnessml.core.runner.experiments.experiment import promote_experiment as _promote
 
         result = _promote(
             experiment_id=experiment_id,

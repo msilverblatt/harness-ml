@@ -6,7 +6,7 @@ import json
 
 import pytest
 import yaml
-from harnessml.core.runner.experiment_manager import (
+from harnessml.core.runner.experiments.manager import (
     ChangeReport,
     ExperimentError,
     ExperimentManager,

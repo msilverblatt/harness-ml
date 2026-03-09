@@ -7,8 +7,8 @@ import harnessml.sports.hooks  # noqa: F401 — used in fixture below
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.diagnostics import compute_model_agreement
-from harnessml.core.runner.reporting import (
+from harnessml.core.runner.analysis.diagnostics import compute_model_agreement
+from harnessml.core.runner.analysis.reporting import (
     build_diagnostics_report,
     build_pick_log,
     export_backtest_artifacts,

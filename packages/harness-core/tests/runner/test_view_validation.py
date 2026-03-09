@@ -12,7 +12,7 @@ from harnessml.core.runner.schema import (
     SourceConfig,
     ViewDef,
 )
-from harnessml.core.runner.validator import _validate_views
+from harnessml.core.runner.validation.validator import _validate_views
 
 
 def _make_config(**data_overrides) -> ProjectConfig:

@@ -221,7 +221,7 @@ def run_transformation_tests(
     project_dir = Path(project_dir)
 
     if df is None:
-        from harnessml.core.runner.data_utils import get_features_path, load_data_config
+        from harnessml.core.runner.data.utils import get_features_path, load_data_config
 
         if features_dir is not None:
             feat_dir = Path(features_dir)

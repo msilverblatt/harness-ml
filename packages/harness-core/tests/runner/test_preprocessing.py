@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.preprocessing import Preprocessor
+from harnessml.core.runner.training.preprocessing import Preprocessor
 
 
 def test_preprocessing_fits_on_train_transforms_test():

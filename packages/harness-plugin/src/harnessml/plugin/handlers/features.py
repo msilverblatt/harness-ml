@@ -95,7 +95,7 @@ async def _handle_discover(*, top_n, method, ctx, project_dir, **_kwargs):
 
 def _handle_diversity(*, project_dir, **_kwargs):
     import yaml
-    from harnessml.core.runner.feature_diversity import format_diversity_report
+    from harnessml.core.runner.features.diversity import format_diversity_report
 
     proj = resolve_project_dir(project_dir)
     config_path = proj / "config" / "pipeline.yaml"

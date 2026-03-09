@@ -2,8 +2,8 @@
 from pathlib import Path
 
 import pytest
-from harnessml.core.runner.experiment_journal import ExperimentJournal
-from harnessml.core.runner.experiment_manager import migrate_markdown_to_jsonl
+from harnessml.core.runner.experiments.journal import ExperimentJournal
+from harnessml.core.runner.experiments.manager import migrate_markdown_to_jsonl
 
 
 def test_migrate_markdown_to_jsonl(tmp_path):

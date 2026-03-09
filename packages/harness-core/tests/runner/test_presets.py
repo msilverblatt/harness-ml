@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from harnessml.core.runner.presets import apply_preset, get_preset, list_presets
+from harnessml.core.runner.scaffold.presets import apply_preset, get_preset, list_presets
 from harnessml.core.runner.schema import ModelDef
 
 # -----------------------------------------------------------------------

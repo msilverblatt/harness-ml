@@ -61,7 +61,7 @@ def configure_backtest(
 def show_config(project_dir: Path) -> str:
     """Show the resolved project configuration."""
     config_dir = _get_config_dir(Path(project_dir))
-    from harnessml.core.runner.validator import validate_project
+    from harnessml.core.runner.validation.validator import validate_project
 
     result = validate_project(str(config_dir))
 
@@ -135,7 +135,7 @@ def check_guardrails(project_dir: Path) -> str:
     # 1b. Auto-detect leaky features (name patterns + correlation)
     try:
         from harnessml.core.guardrails.inventory import detect_leaky_columns
-        from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+        from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
 
         config = load_data_config(project_dir)
         df = get_features_df(project_dir, config)
@@ -214,7 +214,7 @@ def list_runs(project_dir: Path) -> str:
     if not outputs_dir:
         return "No outputs_dir configured."
 
-    from harnessml.core.runner.run_manager import RunManager
+    from harnessml.core.runner.workflow.run_manager import RunManager
 
     abs_outputs = project_dir / outputs_dir
     mgr = RunManager(abs_outputs)
@@ -391,14 +391,14 @@ def run_backtest(
     pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
     outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
     if outputs_dir:
-        from harnessml.core.runner.run_manager import RunManager
+        from harnessml.core.runner.workflow.run_manager import RunManager
         mgr = RunManager(project_dir / outputs_dir)
         run_dir = mgr.new_run()
         run_id = run_dir.name
 
     try:
         # Pre-backtest validation
-        from harnessml.core.runner.validation import Severity, format_validation_issues, validate_project
+        from harnessml.core.runner.validation.validation import Severity, format_validation_issues, validate_project
         issues = validate_project(project_dir)
         errors = [i for i in issues if i.severity == Severity.ERROR]
         if errors:
@@ -873,7 +873,7 @@ def show_diagnostics(
 
     else:
         # Binary diagnostics
-        from harnessml.core.runner.diagnostics import (
+        from harnessml.core.runner.analysis.diagnostics import (
             compute_brier_score,
             compute_calibration_curve,
             compute_ece,
@@ -959,14 +959,14 @@ def show_diagnostics(
 
     # Feature importance (if we can load the config and data)
     try:
-        from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+        from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
         config = load_data_config(project_dir)
         df = get_features_df(project_dir, config)
         _pi_data = _load_yaml(_get_config_dir(project_dir) / "pipeline.yaml")
         _pi_fold_col = _pi_data.get("backtest", {}).get("fold_column")
         feature_cols = get_feature_columns(df, config, fold_column=_pi_fold_col)
         if feature_cols and config.target_column in df.columns:
-            from harnessml.core.runner.feature_discovery import compute_feature_importance
+            from harnessml.core.runner.features.discovery import compute_feature_importance
             importance_df = compute_feature_importance(
                 df, feature_columns=feature_cols, top_n=15,
             )
@@ -1004,8 +1004,8 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
     except ImportError:
         return "**Error**: `shap` package is not installed. Install with `pip install shap`."
 
-    from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
-    from harnessml.core.runner.explainability import compute_shap_summary, format_shap_report
+    from harnessml.core.runner.analysis.explainability import compute_shap_summary, format_shap_report
+    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
 
     project_dir = Path(project_dir)
     config_dir = _get_config_dir(project_dir)
@@ -1016,7 +1016,7 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
         return "**Error**: No outputs_dir configured."
 
     # Find the run directory
-    from harnessml.core.runner.run_manager import RunManager
+    from harnessml.core.runner.workflow.run_manager import RunManager
     mgr = RunManager(project_dir / outputs_dir)
 
     if run_id:
@@ -1090,7 +1090,7 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
     target_col = pipeline_data.get("data", {}).get("target_column", "target")
 
     # Find run directory
-    from harnessml.core.runner.run_manager import RunManager
+    from harnessml.core.runner.workflow.run_manager import RunManager
     mgr = RunManager(project_dir / outputs_dir)
 
     if run_id:
@@ -1197,7 +1197,7 @@ def run_exploration(
     Delegates to :func:`harnessml.runner.exploration.run_exploration` and
     returns the markdown report.
     """
-    from harnessml.core.runner.exploration import run_exploration as _run_exploration
+    from harnessml.core.runner.optimization.exploration import run_exploration as _run_exploration
 
     project_dir = Path(project_dir)
     config_dir = _get_config_dir(project_dir)

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.data_ingest import (
+from harnessml.core.runner.data.ingest import (
     IngestResult,
     _auto_clean,
     _compute_correlation_preview,
@@ -89,7 +89,7 @@ class TestDetectJoinKeysConfigAware:
     """_detect_join_keys uses exclude_cols as negative filter."""
 
     def test_excludes_specified_columns(self):
-        from harnessml.core.runner.data_ingest import _detect_join_keys
+        from harnessml.core.runner.data.ingest import _detect_join_keys
 
         new_df = pd.DataFrame({"season": [2020], "outcome": [1], "feat": [0.5]})
         existing_df = pd.DataFrame({"season": [2020], "outcome": [0], "diff_x": [1.0]})
@@ -104,7 +104,7 @@ class TestDetectJoinKeysConfigAware:
         assert "season" in keys
 
     def test_exclude_cols_case_insensitive(self):
-        from harnessml.core.runner.data_ingest import _detect_join_keys
+        from harnessml.core.runner.data.ingest import _detect_join_keys
 
         new_df = pd.DataFrame({"Season": [2020], "Result": [1]})
         existing_df = pd.DataFrame({"Season": [2020], "Result": [0]})
@@ -888,7 +888,7 @@ class TestEndToEndConfigDrivenPath:
         df.to_parquet(features_dir / "my_dataset.parquet", index=False)
 
         # Verify config loads correctly
-        from harnessml.core.runner.data_utils import get_features_path, load_data_config
+        from harnessml.core.runner.data.utils import get_features_path, load_data_config
 
         config = load_data_config(tmp_path)
         assert config.features_file == "my_dataset.parquet"
@@ -898,7 +898,7 @@ class TestEndToEndConfigDrivenPath:
         assert parquet_path.exists()
 
         # Verify profiler works with config
-        from harnessml.core.runner.data_profiler import profile_dataset
+        from harnessml.core.runner.data.profiler import profile_dataset
 
         profile = profile_dataset(parquet_path, config=config)
         assert profile.n_rows == 10
@@ -912,7 +912,7 @@ class TestEndToEndConfigDrivenPath:
         assert "feat_a" in feature_names
 
         # Verify guards work with config
-        from harnessml.core.runner.stage_guards import PipelineGuards
+        from harnessml.core.runner.validation.stage_guards import PipelineGuards
 
         guards = PipelineGuards(config, tmp_path)
         guards.guard_train()  # Should not raise
@@ -981,7 +981,7 @@ class TestDropRows:
 
 class TestSampleData:
     def test_sample_fraction(self, tmp_path):
-        from harnessml.core.runner.data_ingest import sample_data
+        from harnessml.core.runner.data.ingest import sample_data
 
         features_dir = tmp_path / "data" / "features"
         features_dir.mkdir(parents=True)
@@ -995,7 +995,7 @@ class TestSampleData:
         assert 80 <= len(df2) <= 120  # ~100 rows
 
     def test_sample_creates_backup(self, tmp_path):
-        from harnessml.core.runner.data_ingest import sample_data
+        from harnessml.core.runner.data.ingest import sample_data
 
         features_dir = tmp_path / "data" / "features"
         features_dir.mkdir(parents=True)
@@ -1008,7 +1008,7 @@ class TestSampleData:
         assert len(df_full) == 100
 
     def test_sample_restore(self, tmp_path):
-        from harnessml.core.runner.data_ingest import restore_full_data, sample_data
+        from harnessml.core.runner.data.ingest import restore_full_data, sample_data
 
         features_dir = tmp_path / "data" / "features"
         features_dir.mkdir(parents=True)
@@ -1024,11 +1024,11 @@ class TestSampleData:
         assert not (features_dir / "features_full.parquet").exists()
 
     def test_sample_no_features(self, tmp_path):
-        from harnessml.core.runner.data_ingest import sample_data
+        from harnessml.core.runner.data.ingest import sample_data
         result = sample_data(tmp_path, fraction=0.1)
         assert "Error" in result
 
     def test_restore_no_backup(self, tmp_path):
-        from harnessml.core.runner.data_ingest import restore_full_data
+        from harnessml.core.runner.data.ingest import restore_full_data
         result = restore_full_data(tmp_path)
         assert "Error" in result

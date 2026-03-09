@@ -83,7 +83,7 @@ def add_model(
     model_def: dict = {}
 
     if preset:
-        from harnessml.core.runner.presets import apply_preset
+        from harnessml.core.runner.scaffold.presets import apply_preset
         model_def = apply_preset(preset, overrides=params or {})
     elif model_type:
         model_def["type"] = model_type
@@ -307,7 +307,7 @@ def show_model(project_dir: Path, name: str) -> str:
 
 def show_presets() -> str:
     """List available model presets."""
-    from harnessml.core.runner.presets import get_preset, list_presets
+    from harnessml.core.runner.scaffold.presets import get_preset, list_presets
 
     preset_names = list_presets()
     if not preset_names:

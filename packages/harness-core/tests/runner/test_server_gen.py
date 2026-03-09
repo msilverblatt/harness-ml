@@ -5,8 +5,8 @@ import asyncio
 from pathlib import Path
 
 import yaml
+from harnessml.core.runner.scaffold.server_gen import ToolSpec, generate_server
 from harnessml.core.runner.schema import GuardrailDef, ServerDef, ServerToolDef
-from harnessml.core.runner.server_gen import ToolSpec, generate_server
 
 # -----------------------------------------------------------------------
 # Helpers

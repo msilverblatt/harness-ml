@@ -4,8 +4,8 @@ from __future__ import annotations
 import pytest
 from click.testing import CliRunner
 from harnessml.core.runner.cli import main
-from harnessml.core.runner.scaffold import scaffold_project
-from harnessml.core.runner.validator import validate_project
+from harnessml.core.runner.scaffold.scaffold import scaffold_project
+from harnessml.core.runner.validation.validator import validate_project
 
 # -----------------------------------------------------------------------
 # Tests: scaffold_project

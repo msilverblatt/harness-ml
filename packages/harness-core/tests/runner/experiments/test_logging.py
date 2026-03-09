@@ -1,7 +1,7 @@
 """Tests for experiment logging and mandatory logging enforcement."""
 
 import pytest
-from harnessml.core.runner.experiment_manager import ExperimentManager
+from harnessml.core.runner.experiments.manager import ExperimentManager
 
 
 def test_log_experiment(tmp_path):

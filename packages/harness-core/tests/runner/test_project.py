@@ -336,7 +336,7 @@ class TestYamlSerialization:
         config_dir = tmp_path / "saved_config"
         project.save_to_yaml(config_dir)
 
-        from harnessml.core.runner.validator import validate_project
+        from harnessml.core.runner.validation.validator import validate_project
 
         result = validate_project(config_dir)
         assert result.valid, f"Roundtrip failed: {result.format()}"

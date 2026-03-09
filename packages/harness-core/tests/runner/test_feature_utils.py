@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from harnessml.core.runner.feature_utils import (
+from harnessml.core.runner.features.utils import (
     group_features_by_category,
     inject_features,
     resolve_model_features,

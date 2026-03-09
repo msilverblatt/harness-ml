@@ -74,7 +74,7 @@ def _expand_dot_keys(flat: dict) -> dict:
         _expand_dot_keys({"models.xgb.features": ["a", "b"]})
         # -> {"models": {"xgb": {"features": ["a", "b"]}}}
     """
-    from harnessml.core.runner.sweep import set_nested_key
+    from harnessml.core.runner.optimization.sweep import set_nested_key
 
     result: dict = {}
     for key, value in flat.items():

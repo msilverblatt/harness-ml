@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from harnessml.core.models.registry import ModelRegistry
 from harnessml.core.runner.schema import ModelDef
-from harnessml.core.runner.training import (
+from harnessml.core.runner.training.trainer import (
     _augment_matchup_symmetry,
     _filter_train_folds,
     _fit_cdf_scale,

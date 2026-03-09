@@ -1,6 +1,6 @@
 import polars as pl
 import pytest
-from harnessml.core.runner.view_executor_polars import execute_step
+from harnessml.core.runner.views.executor_polars import execute_step
 
 
 @pytest.fixture

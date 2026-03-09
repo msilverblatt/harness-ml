@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from harnessml.core.runner.sweep import expand_sweep, get_nested_key, set_nested_key
+from harnessml.core.runner.optimization.sweep import expand_sweep, get_nested_key, set_nested_key
 
 # -----------------------------------------------------------------------
 # set_nested_key

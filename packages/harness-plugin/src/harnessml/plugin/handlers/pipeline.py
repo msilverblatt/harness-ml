@@ -306,7 +306,7 @@ def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs)
     err = validate_enum(destination, {"colab", "kaggle", "local"}, "destination")
     if err:
         return err
-    from harnessml.core.runner.notebook import generate_notebook
+    from harnessml.core.runner.scaffold.notebook import generate_notebook
 
     pdir = resolve_project_dir(project_dir)
     out = None
@@ -320,7 +320,7 @@ def _handle_export_notebook(*, destination, output_path, project_dir, **_kwargs)
 
 def _handle_progress(*, project_dir, **_kwargs):
     import yaml
-    from harnessml.core.runner.workflow_tracker import WorkflowTracker
+    from harnessml.core.runner.workflow.tracker import WorkflowTracker
 
     proj = resolve_project_dir(project_dir)
     config_dir = proj / "config"

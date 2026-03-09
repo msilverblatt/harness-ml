@@ -57,8 +57,8 @@ def add_feature(
         if error is not None:
             return f"**Error**: {error}"
 
-    from harnessml.core.runner.data_utils import load_data_config
-    from harnessml.core.runner.feature_store import FeatureStore
+    from harnessml.core.runner.data.utils import load_data_config
+    from harnessml.core.runner.features.store import FeatureStore
     from harnessml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
 
     config = load_data_config(project_dir)
@@ -153,9 +153,9 @@ def add_features_batch(
     pairwise_mode, category, description. Handles @-references between
     features via topological ordering.
     """
-    from harnessml.core.runner.data_utils import load_data_config
-    from harnessml.core.runner.feature_engine import _topological_sort_features
-    from harnessml.core.runner.feature_store import FeatureStore
+    from harnessml.core.runner.data.utils import load_data_config
+    from harnessml.core.runner.features.engine import _topological_sort_features
+    from harnessml.core.runner.features.store import FeatureStore
     from harnessml.core.runner.schema import FeatureDef, FeatureType, PairwiseMode
 
     project_dir = Path(project_dir)
@@ -216,7 +216,7 @@ def test_feature_transformations(
     test_interactions: bool = True,
 ) -> str:
     """Test mathematical transformations of features."""
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_features_df, load_data_config
     from harnessml.core.runner.transformation_tester import run_transformation_tests
 
     project_dir = Path(project_dir)
@@ -253,7 +253,7 @@ def discover_features(
     on_progress: callable | None = None,
 ) -> str:
     """Run feature discovery analysis."""
-    from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
     from harnessml.core.runner.schema import DataConfig
 
     def _report(step, total, msg):
@@ -291,7 +291,7 @@ def discover_features(
     if _denylist and feature_cols:
         feature_cols = [c for c in feature_cols if c not in _denylist]
 
-    from harnessml.core.runner.feature_discovery import (
+    from harnessml.core.runner.features.discovery import (
         compute_feature_correlations,
         compute_feature_importance,
         detect_redundant_features,
@@ -341,8 +341,8 @@ def auto_search_features(
     str
         Markdown-formatted report of top candidates.
     """
-    from harnessml.core.runner.auto_search import auto_search, format_auto_search_report
-    from harnessml.core.runner.data_utils import get_feature_columns, get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
+    from harnessml.core.runner.features.auto_search import auto_search, format_auto_search_report
     from harnessml.core.runner.schema import DataConfig
 
     project_dir = Path(project_dir)

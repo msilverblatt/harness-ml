@@ -1,9 +1,9 @@
-"""Tests for harnessml.core.runner.hpo utilities."""
+"""Tests for harnessml.core.runner.optimization.hpo utilities."""
 import pytest
 
 
 def test_create_pruner_median():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     pruner = create_pruner("median")
     import optuna
@@ -12,7 +12,7 @@ def test_create_pruner_median():
 
 
 def test_create_pruner_hyperband():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     pruner = create_pruner("hyperband")
     import optuna
@@ -21,7 +21,7 @@ def test_create_pruner_hyperband():
 
 
 def test_create_pruner_threshold():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     pruner = create_pruner("threshold", upper=0.9)
     import optuna
@@ -30,7 +30,7 @@ def test_create_pruner_threshold():
 
 
 def test_create_pruner_none():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     pruner = create_pruner("none")
     import optuna
@@ -39,21 +39,21 @@ def test_create_pruner_none():
 
 
 def test_create_pruner_with_kwargs():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     pruner = create_pruner("median", n_startup_trials=10, n_warmup_steps=5)
     assert pruner is not None
 
 
 def test_create_pruner_unknown():
-    from harnessml.core.runner.hpo import create_pruner
+    from harnessml.core.runner.optimization.hpo import create_pruner
 
     with pytest.raises(ValueError, match="Unknown pruner strategy"):
         create_pruner("nonexistent")
 
 
 def test_multi_objective_study():
-    from harnessml.core.runner.hpo import create_multi_objective_study
+    from harnessml.core.runner.optimization.hpo import create_multi_objective_study
 
     study = create_multi_objective_study(
         objectives=["brier", "accuracy"],
@@ -69,7 +69,7 @@ def test_multi_objective_study():
 
 
 def test_multi_objective_study_default_directions():
-    from harnessml.core.runner.hpo import create_multi_objective_study
+    from harnessml.core.runner.optimization.hpo import create_multi_objective_study
 
     study = create_multi_objective_study(objectives=["a", "b", "c"])
 
@@ -82,7 +82,7 @@ def test_multi_objective_study_default_directions():
 
 
 def test_multi_objective_study_direction_length_mismatch():
-    from harnessml.core.runner.hpo import create_multi_objective_study
+    from harnessml.core.runner.optimization.hpo import create_multi_objective_study
 
     with pytest.raises(ValueError, match="Length mismatch"):
         create_multi_objective_study(
@@ -93,7 +93,7 @@ def test_multi_objective_study_direction_length_mismatch():
 
 def test_analyze_importance():
     import optuna
-    from harnessml.core.runner.hpo import analyze_importance
+    from harnessml.core.runner.optimization.hpo import analyze_importance
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study()
@@ -110,7 +110,7 @@ def test_analyze_importance():
 
 
 def test_get_pareto_front():
-    from harnessml.core.runner.hpo import (
+    from harnessml.core.runner.optimization.hpo import (
         create_multi_objective_study,
         get_pareto_front,
     )

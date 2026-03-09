@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from harnessml.core.runner.meta_learner import StackedEnsemble, train_meta_learner_loso
+from harnessml.core.runner.training.meta_learner import StackedEnsemble, train_meta_learner_loso
 
 # -----------------------------------------------------------------------
 # Helpers

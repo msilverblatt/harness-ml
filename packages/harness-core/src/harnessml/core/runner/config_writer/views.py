@@ -195,7 +195,7 @@ def list_views(project_dir: Path) -> str:
 
 def preview_view(project_dir: Path, name: str, n_rows: int = 5) -> str:
     """Materialize a view and show schema + first N rows."""
-    from harnessml.core.runner.data_utils import load_data_config
+    from harnessml.core.runner.data.utils import load_data_config
 
     config = load_data_config(Path(project_dir))
 
@@ -204,7 +204,7 @@ def preview_view(project_dir: Path, name: str, n_rows: int = 5) -> str:
         return f"**Error**: `{name}` not found. Available: {sorted(all_names)}"
 
     try:
-        from harnessml.core.runner.view_resolver import ViewResolver
+        from harnessml.core.runner.views.resolver import ViewResolver
         resolver = ViewResolver(project_dir, config)
         df = resolver.resolve(name)
     except Exception as e:
@@ -255,7 +255,7 @@ def set_features_view(project_dir: Path, name: str) -> str:
 
 def view_dag(project_dir: Path) -> str:
     """Show the full view dependency graph."""
-    from harnessml.core.runner.data_utils import load_data_config
+    from harnessml.core.runner.data.utils import load_data_config
 
     config = load_data_config(Path(project_dir))
 

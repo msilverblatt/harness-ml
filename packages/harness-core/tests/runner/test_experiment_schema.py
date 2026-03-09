@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 
 import pytest
-from harnessml.core.runner.experiment_schema import (
+from harnessml.core.runner.experiments.schema import (
     ConfigChange,
     ExperimentRecord,
     ExperimentStatus,

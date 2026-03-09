@@ -455,7 +455,7 @@ class FeatureDiversityGuardrail(Guardrail):
         self.min_diversity_score = min_diversity_score
 
     def _check(self, context: dict) -> None:
-        from harnessml.core.runner.feature_diversity import compute_diversity_score
+        from harnessml.core.runner.features.diversity import compute_diversity_score
 
         models = context.get("models", {})
         if not models:

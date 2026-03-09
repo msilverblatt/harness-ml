@@ -264,7 +264,7 @@ def add_dataset(
     Uses DataPipeline when sources are configured in DataConfig,
     falls back to direct ingest otherwise.
     """
-    from harnessml.core.runner.data_utils import load_data_config
+    from harnessml.core.runner.data.utils import load_data_config
 
     project_dir = Path(project_dir)
     try:
@@ -274,7 +274,7 @@ def add_dataset(
 
     # Use DataPipeline if config has sources configured
     if config is not None and config.sources:
-        from harnessml.core.runner.data_pipeline import DataPipeline
+        from harnessml.core.runner.data.pipeline import DataPipeline
         from harnessml.core.runner.schema import SourceConfig
 
         pipeline = DataPipeline(project_dir, config)
@@ -298,7 +298,7 @@ def add_dataset(
         return "\n".join(lines)
 
     # Fallback to direct ingest
-    from harnessml.core.runner.data_ingest import ingest_dataset
+    from harnessml.core.runner.data.ingest import ingest_dataset
     result = ingest_dataset(
         project_dir=project_dir,
         data_path=data_path,
@@ -319,7 +319,7 @@ def derive_column(
     dtype: str | None = None,
 ) -> str:
     """Derive a new column from a pandas expression and save to the feature store."""
-    from harnessml.core.runner.data_ingest import derive_column as _derive
+    from harnessml.core.runner.data.ingest import derive_column as _derive
 
     return _derive(
         Path(project_dir),
@@ -337,7 +337,7 @@ def drop_rows(
     condition: str = "null",
 ) -> str:
     """Drop rows from the feature store by condition."""
-    from harnessml.core.runner.data_ingest import drop_rows as _drop
+    from harnessml.core.runner.data.ingest import drop_rows as _drop
 
     return _drop(
         Path(project_dir),
@@ -348,13 +348,13 @@ def drop_rows(
 
 def sample_data(project_dir: Path, *, fraction=0.1, stratify_column=None, seed=42) -> str:
     """Sample the feature store for fast iteration."""
-    from harnessml.core.runner.data_ingest import sample_data as _sample
+    from harnessml.core.runner.data.ingest import sample_data as _sample
     return _sample(Path(project_dir), fraction=fraction, stratify_column=stratify_column, seed=seed)
 
 
 def restore_full_data(project_dir: Path) -> str:
     """Restore the full feature store from backup."""
-    from harnessml.core.runner.data_ingest import restore_full_data as _restore
+    from harnessml.core.runner.data.ingest import restore_full_data as _restore
     return _restore(Path(project_dir))
 
 
@@ -383,7 +383,7 @@ def inspect_data(project_dir: Path, *, column: str | None = None) -> str:
     Without column: overview of all columns (shape, dtypes, null counts).
     With column: detailed statistics for that specific column.
     """
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_features_df, load_data_config
     from harnessml.core.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
@@ -470,7 +470,7 @@ def _inspect_column(df, column: str) -> str:
 
 def profile_data(project_dir: Path, category: str | None = None) -> str:
     """Profile the features dataset."""
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_features_df, load_data_config
     from harnessml.core.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
@@ -484,7 +484,7 @@ def profile_data(project_dir: Path, category: str | None = None) -> str:
     except FileNotFoundError:
         return "**Error**: No feature data found. Ingest data or set a features_view."
 
-    from harnessml.core.runner.data_profiler import profile_dataset
+    from harnessml.core.runner.data.profiler import profile_dataset
 
     profile = profile_dataset(config=config, df=df)
 
@@ -503,7 +503,7 @@ def available_features(
     If the project uses the declarative feature store, shows features
     grouped by type. Otherwise falls back to column listing.
     """
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_features_df, load_data_config
     from harnessml.core.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
@@ -514,7 +514,7 @@ def available_features(
 
     # Check for declarative feature store
     if config.feature_defs:
-        from harnessml.core.runner.feature_store import FeatureStore
+        from harnessml.core.runner.features.store import FeatureStore
         from harnessml.core.runner.schema import FeatureType
 
         store = FeatureStore(project_dir, config)
@@ -562,7 +562,7 @@ def feature_store_status(project_dir: Path) -> str:
     Returns: row count, column count, target distribution,
     time column range, source count.
     """
-    from harnessml.core.runner.data_utils import get_features_df, load_data_config
+    from harnessml.core.runner.data.utils import get_features_df, load_data_config
     from harnessml.core.runner.schema import DataConfig
 
     project_dir = Path(project_dir)
@@ -591,7 +591,7 @@ def feature_store_status(project_dir: Path) -> str:
         import os
         from datetime import datetime
 
-        from harnessml.core.runner.data_utils import get_features_path
+        from harnessml.core.runner.data.utils import get_features_path
         parquet_path = get_features_path(project_dir, config)
         lines.append(f"- **File**: `{parquet_path.relative_to(project_dir)}`")
         if parquet_path.exists():

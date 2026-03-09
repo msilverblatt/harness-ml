@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 class TestComputeShapSummary:
     def test_compute_shap_summary(self):
         shap = pytest.importorskip("shap")
-        from harnessml.core.runner.explainability import compute_shap_summary
+        from harnessml.core.runner.analysis.explainability import compute_shap_summary
         from sklearn.ensemble import GradientBoostingClassifier
 
         rng = np.random.default_rng(42)
@@ -27,7 +27,7 @@ class TestComputeShapSummary:
 
     def test_compute_shap_top_n_limits(self):
         shap = pytest.importorskip("shap")
-        from harnessml.core.runner.explainability import compute_shap_summary
+        from harnessml.core.runner.analysis.explainability import compute_shap_summary
         from sklearn.ensemble import GradientBoostingClassifier
 
         rng = np.random.default_rng(42)
@@ -44,7 +44,7 @@ class TestComputeShapSummary:
 
 class TestFormatShapReport:
     def test_format_shap_report(self):
-        from harnessml.core.runner.explainability import format_shap_report
+        from harnessml.core.runner.analysis.explainability import format_shap_report
 
         results = [("feat_a", 0.1234), ("feat_b", 0.0567), ("feat_c", 0.0123)]
         output = format_shap_report(results, model_name="xgb_core")
@@ -54,7 +54,7 @@ class TestFormatShapReport:
         assert "SHAP" in output
 
     def test_format_shap_report_no_model_name(self):
-        from harnessml.core.runner.explainability import format_shap_report
+        from harnessml.core.runner.analysis.explainability import format_shap_report
 
         results = [("feat_a", 0.1)]
         output = format_shap_report(results)
@@ -75,14 +75,14 @@ def fitted_rf_model():
 
 class TestComputeShapValues:
     def test_shap_values_shape(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_shap_values
+        from harnessml.core.runner.analysis.explainability import compute_shap_values
 
         model, X, y = fitted_rf_model
         shap_values = compute_shap_values(model, X)
         assert shap_values.shape == X.shape
 
     def test_shap_values_max_samples(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_shap_values
+        from harnessml.core.runner.analysis.explainability import compute_shap_values
 
         model, X, y = fitted_rf_model
         shap_values = compute_shap_values(model, X, max_samples=50)
@@ -91,7 +91,7 @@ class TestComputeShapValues:
 
 class TestComputePdp:
     def test_pdp_values(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_pdp
+        from harnessml.core.runner.analysis.explainability import compute_pdp
 
         model, X, y = fitted_rf_model
         pdp = compute_pdp(model, X, feature_idx=0)
@@ -101,7 +101,7 @@ class TestComputePdp:
         assert len(pdp["avg_predictions"]) > 0
 
     def test_pdp_by_column_name(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_pdp
+        from harnessml.core.runner.analysis.explainability import compute_pdp
 
         model, X, y = fitted_rf_model
         pdp = compute_pdp(model, X, feature_idx="f0")
@@ -111,7 +111,7 @@ class TestComputePdp:
 
 class TestComputeFeatureInteractions:
     def test_feature_interactions(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_feature_interactions
+        from harnessml.core.runner.analysis.explainability import compute_feature_interactions
 
         model, X, y = fitted_rf_model
         interactions = compute_feature_interactions(
@@ -123,7 +123,7 @@ class TestComputeFeatureInteractions:
         assert "interaction_strength" in interactions[0]
 
     def test_feature_interactions_auto_names(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_feature_interactions
+        from harnessml.core.runner.analysis.explainability import compute_feature_interactions
 
         model, X, y = fitted_rf_model
         interactions = compute_feature_interactions(model, X)
@@ -132,7 +132,7 @@ class TestComputeFeatureInteractions:
         assert interactions[0]["feature_1"].startswith("f")
 
     def test_feature_interactions_top_k(self, fitted_rf_model):
-        from harnessml.core.runner.explainability import compute_feature_interactions
+        from harnessml.core.runner.analysis.explainability import compute_feature_interactions
 
         model, X, y = fitted_rf_model
         interactions = compute_feature_interactions(model, X, top_k=3)

@@ -18,15 +18,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from harnessml.core.runner import config_writer
-from harnessml.core.runner.data_ingest import (
+from harnessml.core.runner.data.ingest import (
     drop_duplicates,
     fill_nulls,
     ingest_dataset,
     rename_columns,
     validate_dataset,
 )
-from harnessml.core.runner.data_utils import get_feature_columns, load_data_config
-from harnessml.core.runner.feature_discovery import (
+from harnessml.core.runner.data.utils import get_feature_columns, load_data_config
+from harnessml.core.runner.features.discovery import (
     compute_feature_correlations,
     compute_feature_importance,
     detect_redundant_features,
@@ -34,9 +34,9 @@ from harnessml.core.runner.feature_discovery import (
     suggest_feature_groups,
     suggest_features,
 )
-from harnessml.core.runner.pipeline_planner import plan_execution
-from harnessml.core.runner.presets import list_presets
-from harnessml.core.runner.scaffold import scaffold_project
+from harnessml.core.runner.optimization.pipeline_planner import plan_execution
+from harnessml.core.runner.scaffold.presets import list_presets
+from harnessml.core.runner.scaffold.scaffold import scaffold_project
 from harnessml.core.runner.schema import DataConfig, ProjectConfig
 from harnessml.core.runner.transformation_tester import run_transformation_tests
 

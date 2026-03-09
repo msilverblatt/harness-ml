@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.drift import detect_drift, detect_multi_feature_drift
+from harnessml.core.runner.analysis.drift import detect_drift, detect_multi_feature_drift
 
 
 def test_ks_no_drift():

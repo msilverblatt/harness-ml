@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.feature_selection import select_features
+from harnessml.core.runner.features.selection import select_features
 
 
 @pytest.fixture

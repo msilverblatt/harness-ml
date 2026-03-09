@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from harnessml.core.runner.experiment_manager import ExperimentManager
-from harnessml.core.runner.experiment_schema import ExperimentStatus, ExperimentVerdict
+from harnessml.core.runner.experiments.manager import ExperimentManager
+from harnessml.core.runner.experiments.schema import ExperimentStatus, ExperimentVerdict
 
 
 @pytest.fixture

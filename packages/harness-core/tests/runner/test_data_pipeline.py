@@ -51,8 +51,8 @@ class TestDataPipelineRefresh:
         return tmp_path
 
     def test_refresh_bootstrap(self, project_with_source):
-        from harnessml.core.runner.data_pipeline import DataPipeline
-        from harnessml.core.runner.data_utils import load_data_config
+        from harnessml.core.runner.data.pipeline import DataPipeline
+        from harnessml.core.runner.data.utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -68,8 +68,8 @@ class TestDataPipelineRefresh:
         assert pd.api.types.is_numeric_dtype(df["adj_de"])
 
     def test_refresh_specific_source(self, project_with_source):
-        from harnessml.core.runner.data_pipeline import DataPipeline
-        from harnessml.core.runner.data_utils import load_data_config
+        from harnessml.core.runner.data.pipeline import DataPipeline
+        from harnessml.core.runner.data.utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -77,8 +77,8 @@ class TestDataPipelineRefresh:
         assert result.sources_processed == 1
 
     def test_refresh_nonexistent_source_error(self, project_with_source):
-        from harnessml.core.runner.data_pipeline import DataPipeline
-        from harnessml.core.runner.data_utils import load_data_config
+        from harnessml.core.runner.data.pipeline import DataPipeline
+        from harnessml.core.runner.data.utils import load_data_config
 
         config = load_data_config(project_with_source)
         pipeline = DataPipeline(project_with_source, config)
@@ -87,7 +87,7 @@ class TestDataPipelineRefresh:
 
     def test_refresh_disabled_source_skipped(self, tmp_path):
         """Disabled sources are skipped during refresh."""
-        from harnessml.core.runner.data_pipeline import DataPipeline
+        from harnessml.core.runner.data.pipeline import DataPipeline
 
         config = DataConfig(
             sources={
@@ -103,7 +103,7 @@ class TestCleaningRuleCascade:
     """Cleaning rules cascade: column > source > global."""
 
     def test_column_overrides_source_default(self):
-        from harnessml.core.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.core.runner.data.pipeline import resolve_cleaning_rule
 
         source = SourceConfig(
             name="test",
@@ -116,7 +116,7 @@ class TestCleaningRuleCascade:
         assert rule.null_strategy == "zero"
 
     def test_source_default_used_when_no_column_rule(self):
-        from harnessml.core.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.core.runner.data.pipeline import resolve_cleaning_rule
 
         source = SourceConfig(
             name="test",
@@ -128,7 +128,7 @@ class TestCleaningRuleCascade:
         assert rule.null_strategy == "median"
 
     def test_global_used_as_final_fallback(self):
-        from harnessml.core.runner.data_pipeline import resolve_cleaning_rule
+        from harnessml.core.runner.data.pipeline import resolve_cleaning_rule
 
         source = SourceConfig(name="test")
         global_default = ColumnCleaningRule(null_strategy="mode")
@@ -141,7 +141,7 @@ class TestApplyCleaningRule:
     """apply_cleaning_rule applies transformations correctly."""
 
     def test_coerce_numeric(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series(["1.5", "2.3", "bad", "4.0"])
         rule = ColumnCleaningRule(coerce_numeric=True, null_strategy="zero")
@@ -150,7 +150,7 @@ class TestApplyCleaningRule:
         assert result.isna().sum() == 0  # "bad" coerced to NaN then filled with zero
 
     def test_null_fill_median(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([1.0, 2.0, np.nan, 4.0])
         rule = ColumnCleaningRule(null_strategy="median")
@@ -159,7 +159,7 @@ class TestApplyCleaningRule:
         assert result.iloc[2] == 2.0  # median of [1, 2, 4] = 2
 
     def test_null_fill_zero(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([1.0, np.nan, 3.0])
         rule = ColumnCleaningRule(null_strategy="zero")
@@ -167,7 +167,7 @@ class TestApplyCleaningRule:
         assert result.iloc[1] == 0.0
 
     def test_null_fill_constant(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([1.0, np.nan, 3.0])
         rule = ColumnCleaningRule(null_strategy="constant", null_fill_value=-999)
@@ -175,7 +175,7 @@ class TestApplyCleaningRule:
         assert result.iloc[1] == -999
 
     def test_zscore_normalize(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([10.0, 20.0, 30.0, 40.0, 50.0])
         rule = ColumnCleaningRule(normalize="zscore")
@@ -184,7 +184,7 @@ class TestApplyCleaningRule:
         assert abs(result.std() - 1.0) < 0.01
 
     def test_minmax_normalize(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([10.0, 20.0, 30.0])
         rule = ColumnCleaningRule(normalize="minmax")
@@ -193,7 +193,7 @@ class TestApplyCleaningRule:
         assert result.max() == 1.0
 
     def test_clip_outliers(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series(list(range(100)) + [1000])
         rule = ColumnCleaningRule(clip_outliers=(1.0, 99.0))
@@ -201,7 +201,7 @@ class TestApplyCleaningRule:
         assert result.max() < 1000
 
     def test_log_transform(self):
-        from harnessml.core.runner.data_pipeline import apply_cleaning_rule
+        from harnessml.core.runner.data.pipeline import apply_cleaning_rule
 
         s = pd.Series([1.0, 10.0, 100.0])
         rule = ColumnCleaningRule(log_transform=True)
@@ -213,7 +213,7 @@ class TestAddSource:
     """DataPipeline.add_source() registers and ingests."""
 
     def test_add_source(self, tmp_path):
-        from harnessml.core.runner.data_pipeline import DataPipeline
+        from harnessml.core.runner.data.pipeline import DataPipeline
 
         raw_dir = tmp_path / "data" / "raw"
         raw_dir.mkdir(parents=True)
@@ -233,7 +233,7 @@ class TestRemoveSource:
     """DataPipeline.remove_source() removes tracked source."""
 
     def test_remove_source(self, tmp_path):
-        from harnessml.core.runner.data_pipeline import DataPipeline
+        from harnessml.core.runner.data.pipeline import DataPipeline
 
         config = DataConfig(
             sources={

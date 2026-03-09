@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import polars as pl
-from harnessml.core.runner.polars_compat import to_lazy, to_pandas
+from harnessml.core.runner.views.polars_compat import to_lazy, to_pandas
 
 
 def test_pandas_to_lazy_roundtrip():

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from harnessml.core.runner.ensemble_diversity import compute_diversity
+from harnessml.core.runner.analysis.ensemble_diversity import compute_diversity
 
 
 def test_identical_models_zero_disagreement():

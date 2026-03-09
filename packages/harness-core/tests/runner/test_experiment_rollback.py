@@ -1,7 +1,7 @@
 """Tests for ExperimentManager.rollback()."""
 import pytest
 import yaml
-from harnessml.core.runner.experiment_manager import ExperimentError, ExperimentManager
+from harnessml.core.runner.experiments.manager import ExperimentError, ExperimentManager
 
 
 @pytest.fixture

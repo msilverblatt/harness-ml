@@ -131,10 +131,20 @@ MCP server, making the entire pipeline agent-readable and agent-writable.
 | `core.config` | YAML loading + OmegaConf deep merge for experiment overlays |
 | `core.guardrails` | Safety guardrails: leakage detection, temporal validation, naming conventions |
 | `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet) + ModelRegistry |
-| `core.runner` | Pipeline orchestration, training, meta-learner, calibration, feature store, views, config writer, diagnostics, exploration |
+| `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
+| `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
+| `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
+| `core.runner.training` | Trainer, CV strategies, preprocessing, meta-learner, calibration, postprocessing, prediction cache, fingerprint |
+| `core.runner.experiments` | Experiment schema, journal, manager, logger |
+| `core.runner.views` | View executor (pandas + polars), resolver, polars compat |
+| `core.runner.analysis` | Diagnostics, reporting, explainability, drift, conformal, ensemble diversity, viz |
+| `core.runner.optimization` | HPO, exploration, sweep, pipeline planner |
+| `core.runner.validation` | Guards, stage guards, validation, validator |
+| `core.runner.scaffold` | Project scaffold, presets, server gen, notebook generation |
+| `core.runner.workflow` | Workflow tracker, run manager |
+| `core.runner.config_writer` | Config writing helpers |
 | `core.runner.sources` | Source registry, freshness tracking, schema validation, adapters (file/url/api/computed) |
 | `core.runner.drives` | Cloud adapters: Google Drive (OAuth), Kaggle (dataset/notebook upload) |
-| `core.runner.notebook` | Jupyter notebook generation (Colab, Kaggle, local destinations) |
 | `core.feature_eng` | Feature engineering registry + transforms |
 
 ---

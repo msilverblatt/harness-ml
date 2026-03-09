@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 import yaml
 from harnessml.core.runner import config_writer
-from harnessml.core.runner.data_utils import get_features_df, load_data_config
-from harnessml.core.runner.scaffold import scaffold_project
+from harnessml.core.runner.data.utils import get_features_df, load_data_config
+from harnessml.core.runner.scaffold.scaffold import scaffold_project
 
 # ---------------------------------------------------------------------------
 # Helpers

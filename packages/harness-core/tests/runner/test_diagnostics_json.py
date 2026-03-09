@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.diagnostics import build_diagnostics_json
+from harnessml.core.runner.analysis.diagnostics import build_diagnostics_json
 
 
 def _make_fold_predictions(n_folds: int = 3, n_rows: int = 50) -> list[pd.DataFrame]:

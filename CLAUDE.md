@@ -40,10 +40,20 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 | `core.config` | YAML loading + OmegaConf deep merge |
 | `core.guardrails` | Safety guardrails (leakage, temporal, naming) |
 | `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet) + registry |
-| `core.runner` | Pipeline, training, meta-learner, calibration (Spline/Isotonic/Platt/Beta), feature store, views, config writer, diagnostics, exploration, sources |
+| `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
+| `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
+| `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
+| `core.runner.training` | Trainer, CV strategies, preprocessing, meta-learner, calibration (Spline/Isotonic/Platt/Beta), postprocessing, prediction cache, fingerprint |
+| `core.runner.experiments` | Experiment schema, journal, manager, logger |
+| `core.runner.views` | View executor (pandas + polars), resolver, polars compat |
+| `core.runner.analysis` | Diagnostics, reporting, explainability, drift, conformal, ensemble diversity, viz |
+| `core.runner.optimization` | HPO, exploration, sweep, pipeline planner |
+| `core.runner.validation` | Guards, stage guards, validation, validator |
+| `core.runner.scaffold` | Project scaffold, presets, server gen, notebook generation |
+| `core.runner.workflow` | Workflow tracker, run manager |
+| `core.runner.config_writer` | Config writing helpers |
 | `core.runner.sources` | Source registry, freshness tracking, schema validation, adapters (file/url/api/computed) |
 | `core.runner.drives` | Cloud adapters: Google Drive (OAuth upload/folders), Kaggle (dataset/notebook upload) |
-| `core.runner.notebook` | Jupyter notebook generation from project config (colab/kaggle/local destinations) |
 | `core.feature_eng` | Feature engineering registry + transforms |
 
 ## Key Conventions

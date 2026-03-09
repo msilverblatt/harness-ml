@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from harnessml.core.runner.conformal import ConformalPredictor
+from harnessml.core.runner.analysis.conformal import ConformalPredictor
 
 
 def test_conformal_prediction_coverage():

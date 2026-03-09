@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from harnessml.core.runner.auto_search import (
+from harnessml.core.runner.features.auto_search import (
     SearchResult,
     _safe_corr,
     _search_interactions,

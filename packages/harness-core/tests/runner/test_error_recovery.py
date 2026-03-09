@@ -91,7 +91,7 @@ def test_partial_results_on_model_failure(tmp_path):
 
     # Patch train_single_model to fail for 'bad_model'
     original_train = __import__(
-        "harnessml.core.runner.training", fromlist=["train_single_model"]
+        "harnessml.core.runner.training.trainer", fromlist=["train_single_model"]
     ).train_single_model
 
     def _failing_train(model_name, *args, **kwargs):

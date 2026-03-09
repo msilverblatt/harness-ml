@@ -137,7 +137,7 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
     # Workflow phase gate: check if exploration is premature
     try:
         import yaml
-        from harnessml.core.runner.workflow_tracker import WorkflowTracker
+        from harnessml.core.runner.workflow.tracker import WorkflowTracker
 
         proj = resolve_project_dir(project_dir)
         config_dir = proj / "config"

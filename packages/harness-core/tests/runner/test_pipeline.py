@@ -674,7 +674,7 @@ class TestProviderModelsBacktest:
 
     def test_fingerprint_propagation(self, tmp_path):
         """Provider fingerprint changes propagate to dependents."""
-        from harnessml.core.runner.fingerprint import compute_fingerprint
+        from harnessml.core.runner.training.fingerprint import compute_fingerprint
 
         provider_config = {"type": "logistic_regression", "features": ["diff_x"]}
         consumer_config = {"type": "logistic_regression", "features": ["diff_x", "diff_score"]}
@@ -701,7 +701,7 @@ class TestProviderModelsBacktest:
 
     def test_fingerprint_stable_without_upstream_change(self, tmp_path):
         """Consumer fingerprint stable when provider fingerprint is unchanged."""
-        from harnessml.core.runner.fingerprint import compute_fingerprint
+        from harnessml.core.runner.training.fingerprint import compute_fingerprint
 
         provider_fp = compute_fingerprint({"type": "logistic_regression"})
         consumer_config = {"type": "logistic_regression", "features": ["diff_score"]}
@@ -726,7 +726,7 @@ class TestPredictionCacheIntegration:
 
     def test_first_run_all_misses(self, tmp_path):
         """First backtest with cache → all misses, no hits."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         # 4 folds → LOSO with min_train=1 gives 4 holdout folds (symmetric)
         config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
@@ -748,7 +748,7 @@ class TestPredictionCacheIntegration:
 
     def test_second_run_all_hits(self, tmp_path):
         """Second backtest with same cache → all hits, no misses."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
         cache = PredictionCache(tmp_path / "cache")
@@ -778,7 +778,7 @@ class TestPredictionCacheIntegration:
 
     def test_cache_produces_same_metrics(self, tmp_path):
         """Cached predictions produce identical metrics to uncached run."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
         cache = PredictionCache(tmp_path / "cache")
@@ -809,7 +809,7 @@ class TestPredictionCacheIntegration:
 
     def test_different_model_config_misses(self, tmp_path):
         """Changing model config causes cache misses."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         cache = PredictionCache(tmp_path / "cache")
         n_folds = 4  # 4 fold values, LOSO symmetric → 4 folds
@@ -860,7 +860,7 @@ class TestPredictionCacheIntegration:
 
     def test_multi_model_partial_cache(self, tmp_path):
         """With 2 models, changing one causes misses only for that model."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         cache = PredictionCache(tmp_path / "cache")
         n_folds = 4  # 4 fold values, LOSO symmetric → 4 folds
@@ -931,7 +931,7 @@ class TestPredictionCacheIntegration:
 
     def test_provider_not_cached(self, tmp_path):
         """Provider models are always retrained (not cached)."""
-        from harnessml.core.runner.prediction_cache import PredictionCache
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
 
         cache = PredictionCache(tmp_path / "cache")
         models = {

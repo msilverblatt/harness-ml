@@ -1,6 +1,6 @@
 """Tests for ExperimentManager.compare()."""
 import pytest
-from harnessml.core.runner.experiment_manager import ExperimentManager
+from harnessml.core.runner.experiments.manager import ExperimentManager
 
 
 @pytest.fixture

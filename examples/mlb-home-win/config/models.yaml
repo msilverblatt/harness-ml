@@ -1,0 +1,110 @@
+models:
+  lr_baseline:
+    type: logistic_regression
+    params:
+      C: 1
+      max_iter: 1000
+    features:
+    - era_diff_30d
+    - era_diff_14d
+    - starter_era_diff
+    - win_pct_diff_30d
+    - run_diff_diff_30d
+    - k_rate_diff_30d
+    - bullpen_era_diff_30d
+    - pyth_wpct_diff
+    active: true
+    include_in_ensemble: true
+  catboost_mix:
+    type: catboost
+    params:
+      iterations: 250
+      depth: 4
+      learning_rate: 0.05
+      l2_leaf_reg: 3
+    features:
+    - home_win_pct
+    - away_win_pct
+    - home_run_diff_per_game
+    - away_run_diff_per_game
+    - home_team_era
+    - away_team_era
+    - home_starter_era
+    - away_starter_era
+    - home_bullpen_era
+    - away_bullpen_era
+    - home_14d_team_era
+    - away_14d_team_era
+    - home_14d_run_diff_per_game
+    - away_14d_run_diff_per_game
+    - era_diff_30d
+    - era_diff_14d
+    - win_pct_diff_30d
+    - run_diff_diff_30d
+    - starter_era_diff
+    - games_in_window
+    - pyth_wpct_diff
+    active: true
+    include_in_ensemble: true
+  mlp_30d:
+    type: mlp
+    params:
+      hidden_layer_sizes:
+      - 64
+      - 32
+      learning_rate: 0.001
+      max_iter: 200
+      batch_norm: true
+      early_stopping: true
+      normalize: true
+      weight_decay: 0.0005
+    features:
+    - era_diff_30d
+    - starter_era_diff
+    - win_pct_diff_30d
+    - run_diff_diff_30d
+    - k_rate_diff_30d
+    - bullpen_era_diff_30d
+    - whiff_rate_diff_30d
+    - barrel_rate_diff_30d
+    - games_in_window
+    - pyth_wpct_diff
+    active: true
+    include_in_ensemble: true
+    zero_fill_features:
+    - era_diff_30d
+    - starter_era_diff
+    - win_pct_diff_30d
+    - run_diff_diff_30d
+    - k_rate_diff_30d
+    - bullpen_era_diff_30d
+    - whiff_rate_diff_30d
+    - barrel_rate_diff_30d
+  xgb_mix:
+    type: xgboost
+    params:
+      n_estimators: 150
+      max_depth: 3
+      learning_rate: 0.03
+      subsample: 0.8
+      colsample_bytree: 0.6
+      reg_alpha: 0.1
+      reg_lambda: 1
+    features:
+    - home_win_pct
+    - away_win_pct
+    - home_team_era
+    - away_team_era
+    - home_starter_era
+    - away_starter_era
+    - era_diff_30d
+    - era_diff_14d
+    - starter_era_diff
+    - win_pct_diff_30d
+    - run_diff_diff_30d
+    - k_rate_diff_30d
+    - bullpen_era_diff_30d
+    - games_in_window
+    - pyth_wpct_diff
+    active: true
+    include_in_ensemble: true

@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from harnessml.core.runner.feature_store import FeatureStore
+from harnessml.core.runner.features.store import FeatureStore
 from harnessml.core.runner.schema import (
     DataConfig,
     FeatureDef,
@@ -101,7 +101,7 @@ def _setup_full_project(tmp_path: Path) -> Path:
 
 def _make_data_config(project_dir: Path) -> DataConfig:
     """Load the DataConfig from the project's pipeline.yaml."""
-    from harnessml.core.runner.data_utils import load_data_config
+    from harnessml.core.runner.data.utils import load_data_config
 
     return load_data_config(project_dir)
 

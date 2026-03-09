@@ -5,7 +5,7 @@ import json
 
 import pytest
 import yaml
-from harnessml.core.runner.workflow_tracker import WorkflowGateError, WorkflowStatus, WorkflowTracker
+from harnessml.core.runner.workflow.tracker import WorkflowGateError, WorkflowStatus, WorkflowTracker
 
 # ---------------------------------------------------------------------------
 # WorkflowStatus unit tests

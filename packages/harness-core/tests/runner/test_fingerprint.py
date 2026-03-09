@@ -1,7 +1,7 @@
 """Tests for fingerprint caching."""
 from __future__ import annotations
 
-from harnessml.core.runner.fingerprint import (
+from harnessml.core.runner.training.fingerprint import (
     compute_feature_schema,
     compute_fingerprint,
     compute_meta_fingerprint,

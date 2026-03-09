@@ -1,7 +1,7 @@
 """Tests for ExperimentManager._build_conclusion()."""
 import pytest
-from harnessml.core.runner.experiment_manager import ExperimentManager
-from harnessml.core.runner.experiment_schema import ExperimentVerdict
+from harnessml.core.runner.experiments.manager import ExperimentManager
+from harnessml.core.runner.experiments.schema import ExperimentVerdict
 
 
 @pytest.fixture

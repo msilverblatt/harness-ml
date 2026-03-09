@@ -23,28 +23,28 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from harnessml.core.runner.meta_learner import StackedEnsemble
+    from harnessml.core.runner.training.meta_learner import StackedEnsemble
 
 import numpy as np
 import pandas as pd
 from harnessml.core.logging import get_logger
 from harnessml.core.models.backtest import BacktestRunner
 from harnessml.core.models.registry import ModelRegistry
-from harnessml.core.runner.cv_strategies import generate_cv_folds
 from harnessml.core.runner.dag import build_provider_map, infer_dependencies, topological_waves
-from harnessml.core.runner.fingerprint import compute_fingerprint
 from harnessml.core.runner.hooks import get_column_renames, get_entity_column_candidates
-from harnessml.core.runner.meta_learner import train_meta_learner_loso
-from harnessml.core.runner.postprocessing import apply_ensemble_postprocessing
-from harnessml.core.runner.prediction_cache import PredictionCache
 from harnessml.core.runner.schema import ModelDef, ProjectConfig
-from harnessml.core.runner.stage_guards import PipelineGuards
-from harnessml.core.runner.training import (
+from harnessml.core.runner.training.cv_strategies import generate_cv_folds
+from harnessml.core.runner.training.fingerprint import compute_fingerprint
+from harnessml.core.runner.training.meta_learner import train_meta_learner_loso
+from harnessml.core.runner.training.postprocessing import apply_ensemble_postprocessing
+from harnessml.core.runner.training.prediction_cache import PredictionCache
+from harnessml.core.runner.training.trainer import (
     compute_feature_medians,
     predict_single_model,
     train_single_model,
 )
-from harnessml.core.runner.validator import validate_project
+from harnessml.core.runner.validation.stage_guards import PipelineGuards
+from harnessml.core.runner.validation.validator import validate_project
 
 logger = get_logger(__name__)
 
@@ -307,14 +307,14 @@ class PipelineRunner:
 
         # Validate model features against declared feature registry
         if self.config.features:
-            from harnessml.core.runner.feature_utils import validate_model_features
+            from harnessml.core.runner.features.utils import validate_model_features
             for model_name, model_def in self.config.models.items():
                 warnings = validate_model_features(model_def, self.config.features, model_name)
                 for w in warnings:
                     logger.warning(w)
 
         # Validate model types against model registry
-        from harnessml.core.runner.feature_utils import validate_registry_coverage
+        from harnessml.core.runner.features.utils import validate_registry_coverage
         registry_warnings = validate_registry_coverage(self.config, self._registry)
         for w in registry_warnings:
             logger.warning(w)
@@ -389,14 +389,14 @@ class PipelineRunner:
         Also loads entity features if any model has
         ``provides_level="team"``.
         """
-        from harnessml.core.runner.data_utils import get_features_df
+        from harnessml.core.runner.data.utils import get_features_df
 
         self._df = get_features_df(self.project_dir, self.config.data)
         self._normalize_columns()
 
         # If declarative features are configured, compute them via FeatureStore
         if self.config.data.feature_defs:
-            from harnessml.core.runner.feature_store import FeatureStore
+            from harnessml.core.runner.features.store import FeatureStore
 
             store = FeatureStore(self.project_dir, self.config.data)
 
@@ -474,7 +474,7 @@ class PipelineRunner:
 
     def _apply_injections(self) -> None:
         """Apply configured feature injections to the loaded data."""
-        from harnessml.core.runner.feature_utils import inject_features
+        from harnessml.core.runner.features.utils import inject_features
 
         fold_col = self.config.backtest.fold_column
 
@@ -567,7 +567,7 @@ class PipelineRunner:
                     )
 
                     # Compute fingerprint including upstream dependencies
-                    from harnessml.core.runner.fingerprint import save_fingerprint
+                    from harnessml.core.runner.training.fingerprint import save_fingerprint
                     upstream_fps = {
                         dep: model_fingerprints[dep]
                         for dep in model_deps
@@ -648,7 +648,7 @@ class PipelineRunner:
 
         # Resolve feature_sets if feature declarations are configured
         if self.config.features:
-            from harnessml.core.runner.feature_utils import resolve_model_features
+            from harnessml.core.runner.features.utils import resolve_model_features
             for model_name, model_def in list(active_models.items()):
                 if model_def.feature_sets:
                     resolved = resolve_model_features(model_def, self.config.features)
@@ -1126,7 +1126,7 @@ class PipelineRunner:
 
         If ``run_dir`` is set, exports all artifacts to that directory.
         """
-        from harnessml.core.runner.reporting import (
+        from harnessml.core.runner.analysis.reporting import (
             build_diagnostics_report,
             build_pick_log,
             export_backtest_artifacts,
@@ -1281,7 +1281,7 @@ class PipelineRunner:
         # Resolve feature_sets if feature declarations are configured
         resolved_models = dict(active_models)
         if self.config.features:
-            from harnessml.core.runner.feature_utils import resolve_model_features
+            from harnessml.core.runner.features.utils import resolve_model_features
             for model_name, model_def in active_models.items():
                 if model_def.feature_sets:
                     resolved = resolve_model_features(model_def, self.config.features)

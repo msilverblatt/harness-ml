@@ -13,7 +13,7 @@ from harnessml.core.runner.schema import (
     SourceConfig,
     ViewDef,
 )
-from harnessml.core.runner.view_resolver import ViewResolver
+from harnessml.core.runner.views.resolver import ViewResolver
 
 # ---------------------------------------------------------------------------
 # Helpers

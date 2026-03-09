@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 import click
-from harnessml.core.runner.validator import validate_project
+from harnessml.core.runner.validation.validator import validate_project
 
 # -----------------------------------------------------------------------
 # Helper: load and validate config, exit on failure
@@ -157,14 +157,14 @@ def inspect_data(ctx: click.Context, columns: str | None, nulls: bool) -> None:
     gender = ctx.obj["gender"]
     result = _load_config(config_dir, gender)
 
-    from harnessml.core.runner.data_utils import get_features_path
+    from harnessml.core.runner.data.utils import get_features_path
     parquet_path = get_features_path(Path.cwd(), result.config.data)
 
     if not parquet_path.exists():
         click.echo(f"Data file not found: {parquet_path}", err=True)
         raise SystemExit(1)
 
-    from harnessml.core.runner.data_profiler import profile_dataset
+    from harnessml.core.runner.data.profiler import profile_dataset
 
     profile = profile_dataset(parquet_path, config=result.config.data)
 
@@ -189,7 +189,7 @@ def experiment(ctx: click.Context) -> None:
 
 def _get_experiment_manager(config):
     """Build ExperimentManager from ProjectConfig."""
-    from harnessml.core.runner.experiment_manager import ExperimentManager
+    from harnessml.core.runner.experiments.manager import ExperimentManager
 
     exp_cfg = config.experiments
     if exp_cfg is None:
@@ -306,7 +306,7 @@ def experiment_run(
     gender = ctx.obj["gender"]
 
     import yaml as _yaml
-    from harnessml.core.runner.experiment import (
+    from harnessml.core.runner.experiments.experiment import (
         compute_deltas,
         detect_experiment_changes,
         format_change_summary,
@@ -508,7 +508,7 @@ def run_list(ctx: click.Context) -> None:
     gender = ctx.obj["gender"]
     result = _load_config(config_dir, gender)
 
-    from harnessml.core.runner.run_manager import RunManager
+    from harnessml.core.runner.workflow.run_manager import RunManager
 
     outputs_dir = result.config.data.outputs_dir
     if not outputs_dir:
@@ -535,7 +535,7 @@ def run_promote(ctx: click.Context, run_id: str) -> None:
     gender = ctx.obj["gender"]
     result = _load_config(config_dir, gender)
 
-    from harnessml.core.runner.run_manager import RunManager
+    from harnessml.core.runner.workflow.run_manager import RunManager
 
     outputs_dir = result.config.data.outputs_dir
     if not outputs_dir:
@@ -567,7 +567,7 @@ def serve(ctx: click.Context) -> None:
         click.echo("No server configuration found in server.yaml", err=True)
         raise SystemExit(1)
 
-    from harnessml.core.runner.server_gen import generate_server
+    from harnessml.core.runner.scaffold.server_gen import generate_server
 
     server = generate_server(
         result.config.server,
@@ -587,7 +587,7 @@ def serve(ctx: click.Context) -> None:
 @click.option("--name", default=None, help="Project name (defaults to directory name).")
 def init(project_dir: str, name: str | None) -> None:
     """Initialize a new harnessml project."""
-    from harnessml.core.runner.scaffold import scaffold_project
+    from harnessml.core.runner.scaffold.scaffold import scaffold_project
 
     path = Path(project_dir)
     try:

@@ -1,0 +1,430 @@
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+  features_file: features.parquet
+  outputs_dir: outputs
+  task: binary
+  target_column: home_win
+  views:
+    home_offense_14d:
+      source: team_offense_14d
+      steps:
+      - op: select
+        columns:
+        - team
+        - as_of_date
+        - runs_per_game
+        - runs_allowed_per_game
+        - run_diff_per_game
+        - total_runs
+        - win_pct
+        - games_in_window
+      description: Home team 14d offense features
+    away_offense_14d:
+      source: team_offense_14d
+      steps:
+      - op: select
+        columns:
+        - team
+        - as_of_date
+        - runs_per_game
+        - runs_allowed_per_game
+        - run_diff_per_game
+        - total_runs
+        - win_pct
+        - games_in_window
+      description: Away team 14d offense features
+    home_pitching_14d:
+      source: team_pitching_14d
+      steps:
+      - op: select
+        columns:
+        - team
+        - as_of_date
+        - team_k_rate
+        - team_bb_rate
+        - team_hr_rate
+        - team_era
+        - team_hard_hit_rate_allowed
+        - team_whiff_rate
+        - team_barrel_rate_allowed
+        - bullpen_era
+        - bullpen_k_rate
+        - bullpen_bb_rate
+        - bullpen_whiff_rate
+        - starter_era
+        - pitching_games_in_window
+      description: Home team 14d pitching features
+    away_pitching_14d:
+      source: team_pitching_14d
+      steps:
+      - op: select
+        columns:
+        - team
+        - as_of_date
+        - team_k_rate
+        - team_bb_rate
+        - team_hr_rate
+        - team_era
+        - team_hard_hit_rate_allowed
+        - team_whiff_rate
+        - team_barrel_rate_allowed
+        - bullpen_era
+        - bullpen_k_rate
+        - bullpen_bb_rate
+        - bullpen_whiff_rate
+        - starter_era
+        - pitching_games_in_window
+      description: Away team 14d pitching features
+    enriched_games:
+      source: base_games
+      steps:
+      - op: join
+        other: home_offense_14d
+        'on':
+          home_abbr: team
+          game_date: as_of_date
+        prefix: home_14d_
+      - op: join
+        other: away_offense_14d
+        'on':
+          away_abbr: team
+          game_date: as_of_date
+        prefix: away_14d_
+      - op: join
+        other: home_pitching_14d
+        'on':
+          home_abbr: team
+          game_date: as_of_date
+        prefix: home_14d_
+      - op: join
+        other: away_pitching_14d
+        'on':
+          away_abbr: team
+          game_date: as_of_date
+        prefix: away_14d_
+      description: Games enriched with 14d team offense and pitching features
+    pitcher_qs_preview:
+      source: pitcher_qs
+      steps:
+      - op: select
+        columns:
+        - pitcher
+        - game_pk
+        - game_date
+        - season
+        - teamid
+        - ERA
+        - FIP
+        - xFIP
+        - K%
+        - BB%
+        - SwStr%
+        - FBv
+        - WHIP
+        - rolling30d_era
+        - rolling30d_k_rate
+        - rolling30d_whiff_rate
+      description: Preview pitcher QS data with key columns
+    game_pitcher_join:
+      source: base_games
+      steps:
+      - op: select
+        columns:
+        - game_pk
+        - home_abbr
+        - away_abbr
+      - op: join
+        other: pitcher_qs_preview
+        'on':
+          game_pk: game_pk
+      description: Join game data with pitcher data to derive teamid mapping
+    pitcher_with_side:
+      source: pitcher_qs
+      steps:
+      - op: select
+        columns:
+        - pitcher
+        - game_pk
+        - game_date
+        - season
+        - teamid
+        - FIP
+        - xFIP
+        - K%
+        - BB%
+        - SwStr%
+        - FBv
+        - WHIP
+        - rolling30d_era
+        - rolling30d_k_rate
+        - rolling30d_whiff_rate
+        - rolling30d_bb_rate
+        - rolling30d_chase_rate
+      description: Pitcher QS with selected columns for joining
+  features_view: enriched_games
+  key_columns:
+  - game_pk
+  - game_date
+  - home_abbr
+  - away_abbr
+  time_column: season
+  sources:
+    team_offense_14d:
+      name: team_offense_14d
+      path: /Volumes/Extreme SSD/mlb2/data/gold/features/team/v20260119/team_offense_14d.parquet
+      format: auto
+    team_pitching_14d:
+      name: team_pitching_14d
+      path: /Volumes/Extreme SSD/mlb2/data/gold/features/team/v20260119/team_pitching_14d.parquet
+      format: auto
+    base_games:
+      name: base_games
+      path: /Volumes/Extreme SSD/mlb2/data/gold/datasets/home_win/latest/train.parquet
+      format: auto
+    pitcher_qs:
+      name: pitcher_qs
+      path: /Volumes/Extreme SSD/mlb2/data/gold/datasets/pitcher_quality_start/v20260119_151459/train.parquet
+      format: auto
+  exclude_columns:
+  - game_pk
+  - game_date
+  - home_abbr
+  - away_abbr
+  - season
+  feature_defs:
+    era_diff_30d:
+      name: era_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_team_era - home_team_era
+      condition: null
+      pairwise_mode: diff
+      description: 30d team ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    era_diff_14d:
+      name: era_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_14d_team_era - home_14d_team_era
+      condition: null
+      pairwise_mode: diff
+      description: 14d team ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    starter_era_diff:
+      name: starter_era_diff
+      type: pairwise
+      source: null
+      column: null
+      formula: away_starter_era - home_starter_era
+      condition: null
+      pairwise_mode: diff
+      description: 30d starting pitcher ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    starter_era_diff_14d:
+      name: starter_era_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_14d_starter_era - home_14d_starter_era
+      condition: null
+      pairwise_mode: diff
+      description: 14d starting pitcher ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    win_pct_diff_30d:
+      name: win_pct_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_win_pct - away_win_pct
+      condition: null
+      pairwise_mode: diff
+      description: 30d win pct differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    win_pct_diff_14d:
+      name: win_pct_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_14d_win_pct - away_14d_win_pct
+      condition: null
+      pairwise_mode: diff
+      description: 14d win pct differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    run_diff_diff_30d:
+      name: run_diff_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_run_diff_per_game - away_run_diff_per_game
+      condition: null
+      pairwise_mode: diff
+      description: 30d run differential per game diff
+      nan_strategy: median
+      category: general
+      enabled: true
+    run_diff_diff_14d:
+      name: run_diff_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_14d_run_diff_per_game - away_14d_run_diff_per_game
+      condition: null
+      pairwise_mode: diff
+      description: 14d run differential per game diff
+      nan_strategy: median
+      category: general
+      enabled: true
+    k_rate_diff_30d:
+      name: k_rate_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_team_k_rate - home_team_k_rate
+      condition: null
+      pairwise_mode: diff
+      description: 30d team K rate differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    k_rate_diff_14d:
+      name: k_rate_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_14d_team_k_rate - home_14d_team_k_rate
+      condition: null
+      pairwise_mode: diff
+      description: 14d team K rate differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    bullpen_era_diff_30d:
+      name: bullpen_era_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_bullpen_era - home_bullpen_era
+      condition: null
+      pairwise_mode: diff
+      description: 30d bullpen ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    bullpen_era_diff_14d:
+      name: bullpen_era_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_14d_bullpen_era - home_14d_bullpen_era
+      condition: null
+      pairwise_mode: diff
+      description: 14d bullpen ERA differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    whiff_rate_diff_30d:
+      name: whiff_rate_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_team_whiff_rate - home_team_whiff_rate
+      condition: null
+      pairwise_mode: diff
+      description: 30d whiff rate differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    whiff_rate_diff_14d:
+      name: whiff_rate_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: away_14d_team_whiff_rate - home_14d_team_whiff_rate
+      condition: null
+      pairwise_mode: diff
+      description: 14d whiff rate differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    barrel_rate_diff_30d:
+      name: barrel_rate_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_team_barrel_rate_allowed - away_team_barrel_rate_allowed
+      condition: null
+      pairwise_mode: diff
+      description: 30d barrel rate allowed differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    barrel_rate_diff_14d:
+      name: barrel_rate_diff_14d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_14d_team_barrel_rate_allowed - away_14d_team_barrel_rate_allowed
+      condition: null
+      pairwise_mode: diff
+      description: 14d barrel rate allowed differential
+      nan_strategy: median
+      category: general
+      enabled: true
+    pyth_wpct_diff:
+      name: pyth_wpct_diff
+      type: pairwise
+      source: null
+      column: null
+      formula: (home_runs_per_game**2 / (home_runs_per_game**2 + home_runs_allowed_per_game**2))
+        - (away_runs_per_game**2 / (away_runs_per_game**2 + away_runs_allowed_per_game**2))
+      condition: null
+      pairwise_mode: diff
+      description: Pythagorean win% differential (30d) - true team quality gap based
+        on run production/prevention
+      nan_strategy: median
+      category: domain
+      enabled: true
+    hard_hit_diff_30d:
+      name: hard_hit_diff_30d
+      type: pairwise
+      source: null
+      column: null
+      formula: home_team_hard_hit_rate_allowed - away_team_hard_hit_rate_allowed
+      condition: null
+      pairwise_mode: diff
+      description: 30d hard-hit rate allowed differential - quality of contact metric
+        beyond ERA
+      nan_strategy: median
+      category: domain
+      enabled: true
+backtest:
+  cv_strategy: leave_one_out
+  fold_values:
+  - 2019
+  - 2020
+  - 2021
+  - 2022
+  - 2023
+  metrics:
+  - brier
+  - accuracy
+  - log_loss
+  - auc
+  min_train_folds: 3
+  fold_column: season
