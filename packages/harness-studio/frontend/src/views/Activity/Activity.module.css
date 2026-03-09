@@ -360,3 +360,65 @@
     white-space: nowrap;
     flex-shrink: 0;
 }
+
+/* Context Bar */
+.contextBar {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.contextItem {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 200px;
+}
+
+.contextText {
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+    color: var(--color-text-primary);
+    max-height: 3em;
+    overflow: hidden;
+}
+
+.contextExpBadge {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--color-orange-a15);
+    color: var(--color-orange);
+    white-space: nowrap;
+}
+
+.contextVerdict {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.contextLink {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.contextLink:hover {
+    text-decoration: underline;
+}
