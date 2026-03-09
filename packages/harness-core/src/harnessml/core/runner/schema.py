@@ -998,6 +998,8 @@ class ServerDef(BaseModel):
 class ProjectConfig(BaseModel):
     """Top-level project configuration, assembled from YAML files."""
 
+    config_version: str = "1.0"
+
     data: DataConfig
     models: dict[str, ModelDef]
     ensemble: EnsembleDef
@@ -1010,3 +1012,12 @@ class ProjectConfig(BaseModel):
     experiments: ExperimentDef | None = None
     guardrails: GuardrailDef | None = None
     server: ServerDef | None = None
+
+    def compute_config_hash(self) -> str:
+        """Compute a deterministic SHA-256 hash of the config (excluding version)."""
+        import hashlib
+        import json
+
+        data = self.model_dump(exclude={"config_version"})
+        canonical = json.dumps(data, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode()).hexdigest()
