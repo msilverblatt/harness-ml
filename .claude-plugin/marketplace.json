@@ -12,7 +12,7 @@
       "name": "harnessml",
       "source": "./",
       "description": "MCP server + experiment discipline skills for agentic ML",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "author": { "name": "msilverblatt" },
       "repository": "https://github.com/msilverblatt/harness-ml",
       "license": "MIT",
