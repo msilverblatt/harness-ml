@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ExpandableRow } from '../../components/ExpandableRow/ExpandableRow';
 import { MarkdownRenderer } from '../../components/MarkdownRenderer/MarkdownRenderer';
 import type { Event } from '../../hooks/useWebSocket';
+import { humanizeTimestamp, formatTimestamp } from '../../utils/time';
 import styles from './Activity.module.css';
 
 interface EventRowProps {
@@ -22,23 +23,7 @@ function getToolColor(tool: string): string {
 }
 
 function formatRelativeTime(timestamp: string): string {
-    const now = Date.now();
-    const then = new Date(timestamp).getTime();
-    const diffMs = now - then;
-
-    if (diffMs < 0 || diffMs < 10000) return 'just now';
-
-    const seconds = Math.floor(diffMs / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return humanizeTimestamp(timestamp);
 }
 
 function formatElapsed(timestamp: string): string {
@@ -242,7 +227,7 @@ export function EventRow({ event }: EventRowProps) {
 
     const summary = (
         <div className={styles.eventSummary}>
-            <span className={styles.timestamp}>{formatRelativeTime(event.timestamp)}</span>
+            <span className={styles.timestamp} title={formatTimestamp(event.timestamp)}>{formatRelativeTime(event.timestamp)}</span>
             {isRunning ? (
                 <span className={styles.runningBadge}>{event.tool}</span>
             ) : (
