@@ -2,9 +2,7 @@
   "name": "harnessml",
   "version": "0.1.0",
   "description": "AI-driven ML experimentation — add data, discover features, build models, run experiments via natural language",
-  "author": {
-    "name": "harnessml"
-  },
+  "author": { "name": "harnessml" },
   "skills": "./skills",
   "mcpServers": "./.mcp.json"
 }
