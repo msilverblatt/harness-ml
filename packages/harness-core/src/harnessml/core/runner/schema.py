@@ -393,6 +393,8 @@ class ViewDef(BaseModel):
     steps: list[TransformStep] = []
     description: str = ""
     cache: bool = True
+    depends_on: list[str] = []  # explicit view dependencies
+    cache_ttl_seconds: int | None = None  # cache expiry
 
 
 # -----------------------------------------------------------------------
