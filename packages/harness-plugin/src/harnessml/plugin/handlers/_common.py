@@ -2,22 +2,26 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 # Module-level emitter reference, set by _safe_tool before each tool call.
 # This avoids circular imports between handlers and mcp_server.
 _active_emitter = None
+_emitter_lock = threading.Lock()
 
 
 def set_active_emitter(emitter):
     """Set the active emitter for the current tool call."""
     global _active_emitter
-    _active_emitter = emitter
+    with _emitter_lock:
+        _active_emitter = emitter
 
 
 def get_active_emitter():
     """Get the active emitter set by _safe_tool."""
-    return _active_emitter
+    with _emitter_lock:
+        return _active_emitter
 
 
 def resolve_project_dir(project_dir: str | None, *, allow_missing: bool = False) -> Path:

@@ -38,9 +38,9 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
     # Get current max ID so we only stream new events
     try:
         conn = store._get_conn()
-        row = conn.execute("SELECT MAX(id) FROM events").fetchone()
-        if row and row[0]:
-            last_id = row[0]
+        row = conn.execute("SELECT MAX(id) AS max_id FROM events").fetchone()
+        if row and row["max_id"]:
+            last_id = row["max_id"]
     except Exception:
         pass
 
@@ -54,23 +54,24 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
                 (last_id,),
             ).fetchall()
             for r in rows:
-                ts = r[1]
+                ts = r["timestamp"]
                 if isinstance(ts, (int, float)):
                     ts = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+                params_raw = r["params"]
                 event = {
-                    "id": r[0],
+                    "id": r["id"],
                     "timestamp": ts,
-                    "tool": r[2],
-                    "action": r[3],
-                    "params": r[4] if isinstance(r[4], dict) else _json.loads(r[4]) if isinstance(r[4], str) else {},
-                    "result": r[5],
-                    "duration_ms": r[6],
-                    "status": r[7],
-                    "project": r[8] if len(r) > 8 else "",
-                    "caller": r[9] if len(r) > 9 else "",
+                    "tool": r["tool"],
+                    "action": r["action"],
+                    "params": params_raw if isinstance(params_raw, dict) else _json.loads(params_raw) if isinstance(params_raw, str) else {},
+                    "result": r["result"],
+                    "duration_ms": r["duration_ms"],
+                    "status": r["status"],
+                    "project": r["project"],
+                    "caller": r["caller"] if "caller" in r.keys() else "",
                 }
                 broadcaster.notify(event)
-                last_id = r[0]
+                last_id = r["id"]
         except Exception:
             pass
 

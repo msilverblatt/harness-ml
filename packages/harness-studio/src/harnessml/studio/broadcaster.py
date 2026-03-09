@@ -7,11 +7,12 @@ import asyncio
 class EventBroadcaster:
     """Fan-out new events to connected WebSocket clients."""
 
-    def __init__(self):
+    def __init__(self, maxsize: int = 100):
+        self._maxsize = maxsize
         self._subscribers: list[asyncio.Queue] = []
 
     def subscribe(self) -> asyncio.Queue:
-        q: asyncio.Queue = asyncio.Queue()
+        q: asyncio.Queue = asyncio.Queue(maxsize=self._maxsize)
         self._subscribers.append(q)
         return q
 
@@ -21,6 +22,11 @@ class EventBroadcaster:
 
     def notify(self, event: dict) -> None:
         for q in self._subscribers:
+            if q.full():
+                try:
+                    q.get_nowait()  # Drop oldest
+                except asyncio.QueueEmpty:
+                    pass
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:

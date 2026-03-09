@@ -67,3 +67,24 @@ class TestEventStore:
         params = events[0]["params"]
         assert params["name"] == "xgb_1"
         assert params["features"] == ["a", "b"]
+
+    def test_query_events_with_project_filter(self, store):
+        """Verify project filtering uses parameterized queries."""
+        store.init()
+        store.record(tool="test", action="a", params={}, result="", duration_ms=0, status="success", project="proj1")
+        store.record(tool="test", action="b", params={}, result="", duration_ms=0, status="success", project="proj2")
+        events = store.query(project="proj1")
+        assert all(e["project"] == "proj1" for e in events)
+        assert len(events) == 1
+
+    def test_session_stats_with_project_filter(self, store):
+        """Verify session_stats project filtering uses parameterized queries."""
+        store.init()
+        store.record(tool="pipeline", action="run", params={}, result="", duration_ms=100, status="success", project="proj1")
+        store.record(tool="models", action="add", params={}, result="", duration_ms=50, status="error", project="proj1")
+        store.record(tool="pipeline", action="run", params={}, result="", duration_ms=200, status="success", project="proj2")
+        stats = store.session_stats(project="proj1")
+        assert stats["total_calls"] == 2
+        assert stats["errors"] == 1
+        assert stats["by_tool"]["pipeline"] == 1
+        assert stats["by_tool"]["models"] == 1
