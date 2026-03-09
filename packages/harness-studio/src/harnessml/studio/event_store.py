@@ -140,7 +140,7 @@ class EventStore:
             row = conn.execute(
                 "SELECT project_dir FROM projects WHERE name = ?", (name,)
             ).fetchone()
-        return row[0] if row else None
+        return row["project_dir"] if row else None
 
     def list_projects(self) -> list[str]:
         """Return distinct project names that have events."""
@@ -149,7 +149,7 @@ class EventStore:
             rows = conn.execute(
                 "SELECT DISTINCT project FROM events WHERE project != '' ORDER BY project"
             ).fetchall()
-        return [r[0] for r in rows]
+        return [r["project"] for r in rows]
 
     def list_projects_with_dirs(self) -> list[dict]:
         """Return all registered projects with name, dir, and last_seen."""
@@ -159,7 +159,7 @@ class EventStore:
                 "SELECT name, project_dir, last_seen FROM projects ORDER BY last_seen DESC"
             ).fetchall()
         return [
-            {"name": r[0], "project_dir": r[1], "last_seen": r[2]}
+            {"name": r["name"], "project_dir": r["project_dir"], "last_seen": r["last_seen"]}
             for r in rows
         ]
 
@@ -170,15 +170,15 @@ class EventStore:
             proj_clause = "AND project = ?" if project else ""
             proj_vals = [project] if project else []
             total = conn.execute(
-                f"SELECT COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause}",
+                f"SELECT COUNT(*) AS cnt FROM events WHERE status NOT IN ('running', 'progress') {proj_clause}",
                 proj_vals,
-            ).fetchone()[0]
+            ).fetchone()["cnt"]
             errors = conn.execute(
-                f"SELECT COUNT(*) FROM events WHERE status = 'error' {proj_clause}",
+                f"SELECT COUNT(*) AS cnt FROM events WHERE status = 'error' {proj_clause}",
                 proj_vals,
-            ).fetchone()[0]
+            ).fetchone()["cnt"]
             by_tool_rows = conn.execute(
-                f"SELECT tool, COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause} GROUP BY tool",
+                f"SELECT tool, COUNT(*) AS cnt FROM events WHERE status NOT IN ('running', 'progress') {proj_clause} GROUP BY tool",
                 proj_vals,
             ).fetchall()
-        return {"total_calls": total, "errors": errors, "by_tool": {r[0]: r[1] for r in by_tool_rows}}
+        return {"total_calls": total, "errors": errors, "by_tool": {r["tool"]: r["cnt"] for r in by_tool_rows}}
