@@ -1020,6 +1020,8 @@ class PipelineRunner:
 
         failed = sorted(self._failed_models)
         result["models_failed"] = failed
+        if self._fold_errors:
+            result["model_errors"] = self._fold_errors
         if failed:
             result["models_trained"] = [
                 m for m in result.get("models_trained", [])
