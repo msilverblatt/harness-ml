@@ -106,4 +106,36 @@ class ModelRegistry:
         except ImportError:
             logger.debug("Optional dependency not available: %s", "pytorch-tabnet (tabnet)")
 
+        # SVM (sklearn — always available)
+        try:
+            from harnessml.core.models.wrappers.svm import SVMModel
+
+            registry.register("svm", SVMModel)
+        except ImportError:
+            logger.debug("Optional dependency not available: %s", "sklearn (svm)")
+
+        # HistGradientBoosting (sklearn — always available)
+        try:
+            from harnessml.core.models.wrappers.hist_gbm import HistGradientBoostingModel
+
+            registry.register("hist_gradient_boosting", HistGradientBoostingModel)
+        except ImportError:
+            logger.debug("Optional dependency not available: %s", "sklearn (hist_gradient_boosting)")
+
+        # GAM (optional — requires pygam)
+        try:
+            from harnessml.core.models.wrappers.gam import GAMModel
+
+            registry.register("gam", GAMModel)
+        except ImportError:
+            logger.debug("Optional dependency not available: %s", "pygam (gam)")
+
+        # NGBoost (optional — requires ngboost)
+        try:
+            from harnessml.core.models.wrappers.ngboost import NGBoostModel
+
+            registry.register("ngboost", NGBoostModel)
+        except ImportError:
+            logger.debug("Optional dependency not available: %s", "ngboost")
+
         return registry
