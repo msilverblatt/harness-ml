@@ -13,6 +13,24 @@ from harnessml.core.runner.config_writer._helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _validate_formula_syntax(formula: str) -> str | None:
+    """Validate formula syntax by attempting to compile it.
+
+    Returns an error message string if the formula is invalid, None if valid.
+    """
+    try:
+        compile(formula, "<formula>", "eval")
+    except SyntaxError as exc:
+        detail = f"line {exc.lineno}, col {exc.offset}" if exc.lineno else ""
+        msg = exc.msg if exc.msg else "invalid syntax"
+        parts = [f"Invalid formula syntax: {msg}"]
+        if detail:
+            parts.append(f" ({detail})")
+        parts.append(f"\n  Formula: `{formula}`")
+        return "".join(parts)
+    return None
+
+
 def add_feature(
     project_dir: Path,
     name: str,
@@ -32,6 +50,12 @@ def add_feature(
     it is inferred: formula -> pairwise, condition -> regime, source -> team.
     """
     project_dir = Path(project_dir)
+
+    # Validate formula syntax before proceeding
+    if formula is not None:
+        error = _validate_formula_syntax(formula)
+        if error is not None:
+            return f"**Error**: {error}"
 
     from harnessml.core.runner.data_utils import load_data_config
     from harnessml.core.runner.feature_store import FeatureStore
