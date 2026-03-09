@@ -92,3 +92,104 @@ def test_unknown_step(sample_lf):
     step = {"op": "nonexistent"}
     with pytest.raises(ValueError, match="Unknown view step"):
         execute_step(sample_lf, step)
+
+
+# ---------------------------------------------------------------------------
+# Aggregation steps
+# ---------------------------------------------------------------------------
+
+
+def test_group_by_step(sample_lf):
+    step = {"op": "group_by", "keys": ["category"], "aggs": {"value": "mean"}}
+    result = execute_step(sample_lf, step).collect()
+    assert len(result) == 2
+
+
+def test_group_by_multi_agg(sample_lf):
+    step = {
+        "op": "group_by",
+        "keys": ["category"],
+        "aggs": {"value": ["mean", "sum"]},
+    }
+    result = execute_step(sample_lf, step).collect()
+    assert "value_mean" in result.columns
+    assert "value_sum" in result.columns
+
+
+def test_rolling_step():
+    lf = pl.LazyFrame(
+        {
+            "team": ["A"] * 5,
+            "game": list(range(5)),
+            "points": [10.0, 20.0, 30.0, 40.0, 50.0],
+        }
+    )
+    step = {
+        "op": "rolling",
+        "keys": ["team"],
+        "order_by": "game",
+        "window": 3,
+        "aggs": {"avg_pts_3": "points:mean"},
+    }
+    result = execute_step(lf, step).collect()
+    assert "avg_pts_3" in result.columns
+
+
+def test_rank_step(sample_lf):
+    step = {"op": "rank", "columns": {"value_rank": "value"}, "ascending": False}
+    result = execute_step(sample_lf, step).collect()
+    assert "value_rank" in result.columns
+    # Highest value (50) should get rank 1 when descending
+    row_50 = result.filter(pl.col("value") == 50.0)
+    assert row_50["value_rank"][0] == 1.0
+
+
+def test_rank_step_with_keys(sample_lf):
+    step = {
+        "op": "rank",
+        "columns": {"value_rank": "value"},
+        "keys": ["category"],
+        "ascending": True,
+    }
+    result = execute_step(sample_lf, step).collect()
+    assert "value_rank" in result.columns
+
+
+def test_cond_agg_step():
+    lf = pl.LazyFrame(
+        {
+            "team": ["A", "A", "A", "B", "B"],
+            "result": [1, 0, 1, 1, 0],
+            "points": [10, 20, 30, 40, 50],
+        }
+    )
+    step = {
+        "op": "cond_agg",
+        "keys": ["team"],
+        "aggs": {
+            "win_avg_pts": "points:mean:result = 1",
+            "total_games": "points:count",
+        },
+    }
+    result = execute_step(lf, step).collect()
+    assert "win_avg_pts" in result.columns
+    assert "total_games" in result.columns
+
+
+def test_ewm_step():
+    lf = pl.LazyFrame(
+        {
+            "team": ["A"] * 5,
+            "game": list(range(5)),
+            "points": [10.0, 20.0, 30.0, 40.0, 50.0],
+        }
+    )
+    step = {
+        "op": "ewm",
+        "keys": ["team"],
+        "order_by": "game",
+        "span": 3,
+        "aggs": {"ewm_pts": "points:mean"},
+    }
+    result = execute_step(lf, step).collect()
+    assert "ewm_pts" in result.columns

@@ -96,6 +96,164 @@ def _head(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
 
 
 # ---------------------------------------------------------------------------
+# Aggregation steps: group_by, rolling, cond_agg, ewm, rank
+# ---------------------------------------------------------------------------
+
+_AGG_MAP = {
+    "mean": lambda c: c.mean(),
+    "sum": lambda c: c.sum(),
+    "min": lambda c: c.min(),
+    "max": lambda c: c.max(),
+    "count": lambda c: c.count(),
+    "std": lambda c: c.std(),
+    "var": lambda c: c.var(),
+    "median": lambda c: c.median(),
+    "first": lambda c: c.first(),
+    "last": lambda c: c.last(),
+}
+
+
+def _group_by(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    keys = step["keys"]
+    agg_exprs = []
+    for col, func in step["aggs"].items():
+        if isinstance(func, list):
+            for f in func:
+                agg_fn = _AGG_MAP.get(f)
+                if agg_fn is None:
+                    raise ValueError(f"Unknown aggregation: {f}")
+                agg_exprs.append(agg_fn(pl.col(col)).alias(f"{col}_{f}"))
+        else:
+            agg_fn = _AGG_MAP.get(func)
+            if agg_fn is None:
+                raise ValueError(f"Unknown aggregation: {func}")
+            agg_exprs.append(agg_fn(pl.col(col)).alias(col))
+    return lf.group_by(keys).agg(agg_exprs)
+
+
+def _rolling(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Rolling window aggregation partitioned by keys."""
+    keys = step["keys"]
+    order_by = step["order_by"]
+    window = step["window"]
+    lf = lf.sort([*keys, order_by])
+
+    for new_col, spec in step["aggs"].items():
+        parts = spec.split(":")
+        if len(parts) != 2:
+            raise ValueError(f"Rolling agg spec must be 'column:func', got {spec!r}")
+        src_col, func = parts[0].strip(), parts[1].strip()
+
+        agg_fn = _AGG_MAP.get(func)
+        if agg_fn is None:
+            raise ValueError(f"Unknown rolling aggregation: {func}")
+
+        expr = agg_fn(
+            pl.col(src_col).rolling(index_column=order_by, period=f"{window}i")
+        ).over(keys).alias(new_col)
+        lf = lf.with_columns(expr)
+
+    return lf
+
+
+def _cond_agg(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Group and aggregate with optional per-agg conditions."""
+    keys = step["keys"]
+    agg_exprs = []
+
+    for new_col, spec in step["aggs"].items():
+        parts = spec.split(":", 2)
+        if len(parts) < 2:
+            raise ValueError(
+                f"cond_agg spec must be 'column:func' or 'column:func:condition', "
+                f"got {spec!r}"
+            )
+        src_col, func = parts[0].strip(), parts[1].strip()
+        condition = parts[2].strip() if len(parts) == 3 else None
+
+        agg_fn = _AGG_MAP.get(func)
+        if agg_fn is None:
+            raise ValueError(f"Unknown aggregation: {func}")
+
+        if condition:
+            expr = agg_fn(
+                pl.col(src_col).filter(pl.sql_expr(condition))
+            ).alias(new_col)
+        else:
+            expr = agg_fn(pl.col(src_col)).alias(new_col)
+        agg_exprs.append(expr)
+
+    return lf.group_by(keys).agg(agg_exprs)
+
+
+def _ewm(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Exponentially weighted moving statistic within groups."""
+    keys = step["keys"]
+    order_by = step["order_by"]
+    span = step["span"]
+
+    lf = lf.sort([*keys, order_by])
+
+    for new_col, spec in step["aggs"].items():
+        src_col, stat = spec.rsplit(":", 1)
+        src_col, stat = src_col.strip(), stat.strip()
+
+        if stat == "mean":
+            expr = (
+                pl.col(src_col)
+                .ewm_mean(span=span, adjust=False)
+                .over(keys)
+                .alias(new_col)
+            )
+        elif stat == "std":
+            expr = (
+                pl.col(src_col)
+                .ewm_std(span=span, adjust=False)
+                .over(keys)
+                .alias(new_col)
+            )
+        elif stat == "var":
+            expr = (
+                pl.col(src_col)
+                .ewm_var(span=span, adjust=False)
+                .over(keys)
+                .alias(new_col)
+            )
+        else:
+            raise ValueError(f"Unsupported EWM stat: {stat}")
+
+        lf = lf.with_columns(expr)
+
+    return lf
+
+
+def _rank(lf: pl.LazyFrame, step: dict, ctx: dict | None) -> pl.LazyFrame:
+    """Add rank columns, optionally within groups."""
+    ascending = step.get("ascending", True)
+    keys = step.get("keys")
+    method = step.get("method", "average")
+    pct = step.get("pct", False)
+    descending = not ascending
+
+    for new_col, src_col in step["columns"].items():
+        if keys:
+            rank_expr = pl.col(src_col).rank(method=method, descending=descending).over(keys)
+        else:
+            rank_expr = pl.col(src_col).rank(method=method, descending=descending)
+
+        if pct:
+            if keys:
+                count_expr = pl.col(src_col).count().over(keys)
+            else:
+                count_expr = pl.col(src_col).count()
+            rank_expr = rank_expr / count_expr
+
+        lf = lf.with_columns(rank_expr.alias(new_col))
+
+    return lf
+
+
+# ---------------------------------------------------------------------------
 # Dispatch table
 # ---------------------------------------------------------------------------
 
@@ -106,4 +264,9 @@ _DISPATCH: dict[str, callable] = {
     "sort": _sort,
     "distinct": _distinct,
     "head": _head,
+    "group_by": _group_by,
+    "rolling": _rolling,
+    "cond_agg": _cond_agg,
+    "ewm": _ewm,
+    "rank": _rank,
 }
