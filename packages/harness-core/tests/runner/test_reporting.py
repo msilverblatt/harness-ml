@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamB support
+import harnessml.sports.hooks  # noqa: F401 — used in fixture below
 import numpy as np
 import pandas as pd
 import pytest
@@ -87,6 +87,12 @@ class TestComputeModelAgreement:
 
 class TestBuildPickLog:
     """Test pick log construction."""
+
+    @pytest.fixture(autouse=True)
+    def _register_sports_hooks(self):
+        """Re-register sports hooks (may be cleared by test_hooks autouse fixture)."""
+        harnessml.sports.hooks.register()
+        yield
 
     def test_basic_pick_log(self):
         """Build pick log from simple predictions."""
