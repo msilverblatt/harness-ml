@@ -24,6 +24,9 @@ import type { Event } from '../../hooks/useWebSocket';
 import { useTheme } from '../../hooks/useTheme';
 import type { ThemeColors } from '../../styles/colors';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
+import type { NotebookEntry } from '../../types/api';
+import { TypeBadge } from '../../components/NotebookEntry/NotebookEntry';
+import { MarkdownRenderer } from '../../components/MarkdownRenderer/MarkdownRenderer';
 import styles from './Dashboard.module.css';
 
 // -- Types --
@@ -756,6 +759,65 @@ function DagWidget({ refreshKey }: { refreshKey?: number }) {
     );
 }
 
+// ===== Narrative Widget =====
+
+function NarrativeWidget({ entries }: { entries: NotebookEntry[] }) {
+    const nonStruck = useMemo(() => entries.filter(e => !e.struck), [entries]);
+    const latestTheory = nonStruck.find(e => e.type === 'theory') ?? null;
+    const latestPlan = nonStruck.find(e => e.type === 'plan') ?? null;
+    const recentFindings = nonStruck.filter(e => e.type === 'finding').slice(0, 3);
+
+    if (!latestTheory && !latestPlan && recentFindings.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className={`${styles.widget} ${styles.narrativeWidget}`}>
+            <div className={styles.widgetHeader}>
+                <span className={styles.widgetTitle}>Agent Narrative</span>
+                <Link to="../notebook" className={styles.widgetLink}>Full notebook</Link>
+            </div>
+            <div className={styles.widgetBody}>
+                <div className={styles.narrativeGrid}>
+                    {latestTheory && (
+                        <div className={styles.narrativeCard}>
+                            <div className={styles.narrativeLabel}>
+                                <TypeBadge type="theory" /> Current Theory
+                            </div>
+                            <div className={styles.narrativeContent}>
+                                <MarkdownRenderer content={latestTheory.content} />
+                            </div>
+                        </div>
+                    )}
+                    {latestPlan && (
+                        <div className={styles.narrativeCard}>
+                            <div className={styles.narrativeLabel}>
+                                <TypeBadge type="plan" /> Current Plan
+                            </div>
+                            <div className={styles.narrativeContent}>
+                                <MarkdownRenderer content={latestPlan.content} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+                {recentFindings.length > 0 && (
+                    <div className={styles.narrativeFindings}>
+                        <div className={styles.narrativeFindingsLabel}>Recent Findings</div>
+                        {recentFindings.map(f => (
+                            <div key={f.id} className={styles.narrativeFinding}>
+                                <TypeBadge type="finding" />
+                                <div className={styles.narrativeFindingContent}>
+                                    <MarkdownRenderer content={f.content} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ===== Main Dashboard =====
 
 export function Dashboard() {
@@ -767,9 +829,13 @@ export function Dashboard() {
     const dagKey = useRefreshKey(events, ['models', 'features', 'config', 'pipeline']);
     const expKey = useRefreshKey(events, ['experiments', 'pipeline']);
 
+    const nbKey = useRefreshKey(events, ['notebook']);
+
     const { data: status } = useApi<ProjectStatus>('/api/project/status', allKey, project);
     const { data: runs } = useApi<RunSummary[]>('/api/runs', expKey, project);
     const { data: experiments } = useApi<Experiment[]>('/api/experiments', expKey, project);
+    const { data: notebookEntries } = useApi<NotebookEntry[]>('/api/notebook', nbKey, project);
+    const nbEntries = notebookEntries ?? [];
 
     const latestRun = useMemo(() => {
         if (!runs || runs.length === 0) return null;
@@ -780,6 +846,7 @@ export function Dashboard() {
 
     return (
         <div className={styles.dashboard}>
+            <NarrativeWidget entries={nbEntries} />
             <ProjectOverviewWidget status={status} experiments={exps} latestRun={latestRun} />
             <ExperimentsWidget experiments={exps} latestRun={latestRun} />
             <ActivityWidget events={events} />
