@@ -798,6 +798,14 @@ class BacktestConfig(BaseModel):
             )
         return v
 
+    @model_validator(mode="after")
+    def _validate_strategy_params(self) -> BacktestConfig:
+        if self.cv_strategy == "sliding_window" and self.window_size is None:
+            raise ValueError("sliding_window strategy requires window_size")
+        if self.cv_strategy == "purged_kfold" and self.n_folds is None:
+            raise ValueError("purged_kfold strategy requires n_folds")
+        return self
+
 
 # -----------------------------------------------------------------------
 # Experiment definition
