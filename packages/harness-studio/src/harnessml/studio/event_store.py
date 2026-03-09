@@ -20,6 +20,7 @@ class EventStore:
     def init(self) -> None:
         """Create the database and events table if needed."""
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS events (
@@ -43,6 +44,7 @@ class EventStore:
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tool ON events(tool)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_project ON events(project)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_events_tool_project ON events(tool, project)")
         # Project registry table
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS projects (
@@ -103,20 +105,20 @@ class EventStore:
 
         results = []
         for r in rows:
-            ts = r[1]
+            ts = r["timestamp"]
             if isinstance(ts, (int, float)):
                 ts = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-            params = r[4]
+            params = r["params"]
             if isinstance(params, str):
                 try:
                     params = json.loads(params)
                 except (json.JSONDecodeError, TypeError):
                     params = {}
             results.append({
-                "id": r[0], "timestamp": ts, "tool": r[2], "action": r[3],
-                "params": params, "result": r[5], "duration_ms": r[6],
-                "status": r[7], "project": r[8],
-                "caller": r[9] if len(r) > 9 else "",
+                "id": r["id"], "timestamp": ts, "tool": r["tool"], "action": r["action"],
+                "params": params, "result": r["result"], "duration_ms": r["duration_ms"],
+                "status": r["status"], "project": r["project"],
+                "caller": r["caller"] if "caller" in r.keys() else "",
             })
         return results
 
@@ -138,7 +140,7 @@ class EventStore:
             row = conn.execute(
                 "SELECT project_dir FROM projects WHERE name = ?", (name,)
             ).fetchone()
-        return row[0] if row else None
+        return row["project_dir"] if row else None
 
     def list_projects(self) -> list[str]:
         """Return distinct project names that have events."""
@@ -147,7 +149,7 @@ class EventStore:
             rows = conn.execute(
                 "SELECT DISTINCT project FROM events WHERE project != '' ORDER BY project"
             ).fetchall()
-        return [r[0] for r in rows]
+        return [r["project"] for r in rows]
 
     def list_projects_with_dirs(self) -> list[dict]:
         """Return all registered projects with name, dir, and last_seen."""
@@ -157,7 +159,7 @@ class EventStore:
                 "SELECT name, project_dir, last_seen FROM projects ORDER BY last_seen DESC"
             ).fetchall()
         return [
-            {"name": r[0], "project_dir": r[1], "last_seen": r[2]}
+            {"name": r["name"], "project_dir": r["project_dir"], "last_seen": r["last_seen"]}
             for r in rows
         ]
 
@@ -165,18 +167,32 @@ class EventStore:
         """Aggregate stats for the current session."""
         with self._lock:
             conn = self._get_conn()
-            proj_clause = "AND project = ?" if project else ""
-            proj_vals = [project] if project else []
+            conditions = ["status NOT IN ('running', 'progress')"]
+            params: list = []
+            if project:
+                conditions.append("project = ?")
+                params.append(project)
+            where = " AND ".join(conditions)
+
             total = conn.execute(
-                f"SELECT COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause}",
-                proj_vals,
-            ).fetchone()[0]
+                f"SELECT COUNT(*) AS cnt FROM events WHERE {where}",
+                params,
+            ).fetchone()["cnt"]
+
+            err_conditions = ["status = 'error'"]
+            err_params: list = []
+            if project:
+                err_conditions.append("project = ?")
+                err_params.append(project)
+            err_where = " AND ".join(err_conditions)
+
             errors = conn.execute(
-                f"SELECT COUNT(*) FROM events WHERE status = 'error' {proj_clause}",
-                proj_vals,
-            ).fetchone()[0]
+                f"SELECT COUNT(*) AS cnt FROM events WHERE {err_where}",
+                err_params,
+            ).fetchone()["cnt"]
+
             by_tool_rows = conn.execute(
-                f"SELECT tool, COUNT(*) FROM events WHERE status NOT IN ('running', 'progress') {proj_clause} GROUP BY tool",
-                proj_vals,
+                f"SELECT tool, COUNT(*) AS cnt FROM events WHERE {where} GROUP BY tool",
+                params,
             ).fetchall()
-        return {"total_calls": total, "errors": errors, "by_tool": {r[0]: r[1] for r in by_tool_rows}}
+        return {"total_calls": total, "errors": errors, "by_tool": {r["tool"]: r["cnt"] for r in by_tool_rows}}

@@ -35,3 +35,18 @@ class TestEventBroadcaster:
     def test_notify_no_subscribers_is_safe(self):
         b = EventBroadcaster()
         b.notify({"tool": "test"})  # should not raise
+
+    def test_bounded_queue_drops_oldest(self):
+        b = EventBroadcaster(maxsize=3)
+        q = b.subscribe()
+        # Fill beyond capacity
+        for i in range(5):
+            b.notify({"event": i})
+        # Should have most recent 3
+        events = []
+        while not q.empty():
+            events.append(q.get_nowait())
+        assert len(events) == 3
+        assert events[0]["event"] == 2  # oldest dropped
+        assert events[1]["event"] == 3
+        assert events[2]["event"] == 4
