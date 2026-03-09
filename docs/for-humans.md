@@ -10,31 +10,29 @@ Setup, Studio, architecture, and how to work alongside the agent.
 
 ## Getting Started
 
+### Install the Plugin
+
+```bash
+claude plugin add github:msilverblatt/harness-ml
+```
+
+This installs the MCP server and 3 experiment discipline skills (`harness-run-experiment`, `harness-explore-space`, `harness-domain-research`). Then just tell Claude what you want to predict.
+
+### Full Setup (with Studio + Demo)
+
+If you also want the companion dashboard and a demo project to try:
+
 ```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
 uv run harness-setup
 ```
 
-The setup command handles everything: writes `.mcp.json` with the MCP server config, installs 3 experiment discipline skills, creates a demo project with the California Housing dataset, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
+The setup command configures everything, creates a demo project with the California Housing dataset, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
 
-### Manual Setup
+### Manual MCP Setup
 
-If you prefer to configure things yourself:
-
-**1. Install the Claude Plugin** (recommended)
-
-HarnessML ships as a Claude Code plugin with skills and MCP server config. Install it from the repo root:
-
-```bash
-claude plugin add /path/to/harness-ml
-```
-
-This gives Claude access to 3 experiment discipline skills (`harness-run-experiment`, `harness-explore-space`, `harness-domain-research`) and auto-configures the MCP server.
-
-**2. Or configure the MCP server directly**
-
-Add to your Claude Code MCP config (`.mcp.json`):
+If you prefer to configure the MCP server directly without the plugin, add to your `.mcp.json`:
 
 ```json
 {

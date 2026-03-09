@@ -77,20 +77,20 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 ## Quick Start
 
 ```bash
+claude plugin add github:msilverblatt/harness-ml
+```
+
+That's it. This installs the MCP server, experiment discipline skills, and everything Claude needs to start building models.
+
+To also get Studio (the companion dashboard) and a demo project:
+
+```bash
 git clone https://github.com/msilverblatt/harness-ml.git && cd harness-ml
 uv sync
 uv run harness-setup
 ```
 
-That's it. The setup command configures the MCP server, installs the Claude plugin with experiment discipline skills, creates a demo project with sample data, starts Studio at http://localhost:8421, and launches Claude Code with a demo prompt.
-
-Or install the Claude plugin manually:
-
-```bash
-claude plugin add /path/to/harness-ml
-```
-
-For full manual setup options, see [For Humans](https://msilverblatt.github.io/harness-ml/for-humans).
+For full setup options, see [For Humans](https://msilverblatt.github.io/harness-ml/for-humans).
 
 <br>
 
