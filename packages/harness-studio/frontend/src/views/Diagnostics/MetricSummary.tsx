@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useApi } from '../../hooks/useApi';
 import { useProject } from '../../hooks/useProject';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
@@ -22,6 +23,49 @@ function formatValue(value: unknown): string {
     return String(value);
 }
 
+function metricsToMarkdown(metrics: Record<string, number>): string {
+    const header = '| Metric | Value |';
+    const divider = '| --- | --- |';
+    const rows = Object.entries(metrics).map(
+        ([name, value]) => `| ${name} | ${formatValue(value)} |`
+    );
+    return [header, divider, ...rows].join('\n');
+}
+
+function CopyButton({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch {
+            // Fallback for non-HTTPS contexts
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        }
+    }, [text]);
+
+    return (
+        <button
+            className={styles.copyBtn}
+            onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+            title="Copy to clipboard"
+        >
+            {copied ? 'Copied!' : 'Copy'}
+        </button>
+    );
+}
+
 export function MetricSummary({ runId }: MetricSummaryProps) {
     const project = useProject();
     const { data, loading, error } = useApi<MetricsResponse>(`/api/runs/${runId}/metrics`, undefined, project);
@@ -39,22 +83,26 @@ export function MetricSummary({ runId }: MetricSummaryProps) {
     }
 
     const metrics = data.metrics;
-
     const count = Object.keys(metrics).length;
 
     return (
-        <div
-            className={styles.metricsGrid}
-            style={{ '--metric-count': count } as React.CSSProperties}
-        >
-            {Object.entries(metrics).map(([name, value]) => (
-                <div key={name} className={styles.metricCard} title={name}>
-                    <span className={styles.metricValue}>
-                        {formatValue(value)}
-                    </span>
-                    <span className={styles.metricName}><MetricLabel name={name} /></span>
-                </div>
-            ))}
+        <div className={styles.metricsSection}>
+            <div className={styles.metricsSectionHeader}>
+                <CopyButton text={metricsToMarkdown(metrics)} />
+            </div>
+            <div
+                className={styles.metricsGrid}
+                style={{ '--metric-count': count } as React.CSSProperties}
+            >
+                {Object.entries(metrics).map(([name, value]) => (
+                    <div key={name} className={styles.metricCard} title={`Click to copy ${name}: ${formatValue(value)}`}>
+                        <span className={styles.metricValue}>
+                            {formatValue(value)}
+                        </span>
+                        <span className={styles.metricName}><MetricLabel name={name} /></span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
