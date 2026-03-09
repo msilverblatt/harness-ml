@@ -12,8 +12,11 @@ Setup, Studio, architecture, and how to work alongside the agent.
 
 ### Install the Plugin
 
-```bash
-claude plugin add github:msilverblatt/harness-ml
+In Claude Code:
+
+```
+/plugin marketplace add msilverblatt/harness-ml
+/plugin install harnessml@msilverblatt-harness-ml
 ```
 
 This installs the MCP server and 3 experiment discipline skills (`harness-run-experiment`, `harness-explore-space`, `harness-domain-research`). Then just tell Claude what you want to predict.
