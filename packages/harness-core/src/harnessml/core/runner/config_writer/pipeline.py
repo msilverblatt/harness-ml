@@ -1375,12 +1375,15 @@ def suggest_cv(project_dir: Path) -> str:
 
     try:
         df = get_features_df(project_dir, config)
-    except FileNotFoundError:
+    except (FileNotFoundError, Exception) as exc:
         return (
-            "**Error**: No features data found. "
+            f"**Error**: Could not load features data: {exc}. "
             "Run the data pipeline first to generate features.parquet "
             "or configure a features_view."
         )
+
+    if df.empty:
+        return "**Error**: Features DataFrame is empty. Add data before suggesting a CV strategy."
 
     target_col = config.target_column
     time_col = config.time_column

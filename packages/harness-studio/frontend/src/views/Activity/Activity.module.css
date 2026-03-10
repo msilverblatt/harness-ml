@@ -64,7 +64,7 @@
 .showMore {
     background: none;
     border: none;
-    color: var(--accent);
+    color: var(--color-accent);
     cursor: pointer;
     padding: var(--space-1) 0;
     font-size: var(--font-sm);
@@ -76,7 +76,7 @@
     left: 0;
     right: 0;
     height: 32px;
-    background: linear-gradient(transparent, var(--bg-primary));
+    background: linear-gradient(transparent, var(--color-bg-primary));
     pointer-events: none;
 }
 

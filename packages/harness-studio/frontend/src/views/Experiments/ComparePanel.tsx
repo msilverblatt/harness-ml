@@ -1,5 +1,6 @@
 import type { Experiment } from './ExperimentTable';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
+import { isImprovement as checkImprovement } from '../../utils/metrics';
 import styles from './Experiments.module.css';
 
 interface ComparePanelProps {
@@ -7,13 +8,9 @@ interface ComparePanelProps {
     selectedIds: string[];
 }
 
-const LOWER_IS_BETTER = new Set(['brier', 'ece', 'log_loss', 'mae', 'mse', 'rmse']);
-
 function deltaClass(metricName: string, delta: number): string {
     if (delta === 0) return '';
-    const lowerBetter = LOWER_IS_BETTER.has(metricName);
-    const isImprovement = lowerBetter ? delta < 0 : delta > 0;
-    return isImprovement ? styles.deltaPositive : styles.deltaNegative;
+    return checkImprovement(metricName, delta) ? styles.deltaPositive : styles.deltaNegative;
 }
 
 function formatValue(v: number | undefined): string {

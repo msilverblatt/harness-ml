@@ -25,7 +25,6 @@ function mergeEvents(events: Event[]): Event[] {
 
     const openGroups = new Map<string, Event[]>();
     const merged: Event[] = [];
-    const consumed = new Set<number>();
 
     for (const event of chronological) {
         const key = `${event.tool}:${event.action}`;
@@ -46,7 +45,6 @@ function mergeEvents(events: Event[]): Event[] {
                 const group = list[list.length - 1];
                 group.result = event.result;
                 group.params = event.params;
-                consumed.add(event.id);
             }
             continue;
         }

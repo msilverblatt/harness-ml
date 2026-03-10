@@ -251,10 +251,7 @@ export function EventRow({ event, defaultExpanded, autoExpand }: EventRowProps) 
                 {event.action}
                 {isRunning && !hasProgressData && ' ...'}
                 {hasProgressData && ` (${progressParams.current}/${progressParams.total})`}
-                {isProgress && (() => {
-                    const p = event.params as { current?: number; total?: number };
-                    return p.total ? ` (${p.current}/${p.total})` : '';
-                })()}
+                {isProgress && progressParams.total ? ` (${progressParams.current}/${progressParams.total})` : ''}
             </span>
             {event.caller && (
                 <span className={styles.callerBadge}>{event.caller}</span>

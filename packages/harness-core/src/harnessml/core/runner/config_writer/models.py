@@ -197,6 +197,7 @@ def update_model(
         return f"**Error**: Model `{name}` not found. Available: {sorted(models.keys())}"
 
     model_def = models[name]
+    had_no_features = False
 
     if features is not None:
         model_def["features"] = features
