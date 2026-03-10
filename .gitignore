@@ -40,6 +40,7 @@ projects/
 **/data/features/cache/
 **/outputs/
 **/experiments/
+!**/src/harnessml/**/experiments/
 !**/src/views/Experiments/
 
 # Jekyll
