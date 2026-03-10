@@ -11,33 +11,36 @@
 **An Agent-Computer Interface (ACI) for machine learning.**<br>
 Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-[![harness-core](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=core)](https://pypi.org/project/harness-core/)
-[![harness-plugin](https://img.shields.io/pypi/v/harness-plugin?style=flat-square&label=plugin)](https://pypi.org/project/harness-plugin/)
-[![harness-studio](https://img.shields.io/pypi/v/harness-studio?style=flat-square&label=studio)](https://pypi.org/project/harness-studio/)
-[![harness-sports](https://img.shields.io/pypi/v/harness-sports?style=flat-square&label=sports)](https://pypi.org/project/harness-sports/)
-
 [![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
 [![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/2f3d3f20d7fedaca8332a75394eb7864/raw/tests.json)](https://github.com/msilverblatt/harness-ml/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Lines of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/176db496aed8a6532131c9aa7447f59c/raw/loc.json)](https://github.com/msilverblatt/harness-ml)
-
-[![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/uv-de5fe9.svg?style=flat-square&logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+
+[![harness-core](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=core)](https://pypi.org/project/harness-core/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-f7931e.svg?style=flat-square&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-189fdd.svg?style=flat-square)](https://xgboost.readthedocs.io/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-2980b9.svg?style=flat-square)](https://lightgbm.readthedocs.io/)
+[![CatBoost](https://img.shields.io/badge/CatBoost-ffcc00.svg?style=flat-square)](https://catboost.ai/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c.svg?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Optuna](https://img.shields.io/badge/Optuna-0078d4.svg?style=flat-square)](https://optuna.org/)
+[![SHAP](https://img.shields.io/badge/SHAP-7c3aed.svg?style=flat-square)](https://shap.readthedocs.io/)
+
+[![harness-plugin](https://img.shields.io/pypi/v/harness-plugin?style=flat-square&label=plugin)](https://pypi.org/project/harness-plugin/)
+[![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+
+[![harness-studio](https://img.shields.io/pypi/v/harness-studio?style=flat-square&label=studio)](https://pypi.org/project/harness-studio/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57.svg?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![React 19](https://img.shields.io/badge/React-19-61dafb.svg?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-646cff.svg?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
 
-[![XGBoost](https://img.shields.io/badge/XGBoost-189fdd.svg?style=flat-square)](https://xgboost.readthedocs.io/)
-[![LightGBM](https://img.shields.io/badge/LightGBM-2980b9.svg?style=flat-square)](https://lightgbm.readthedocs.io/)
-[![CatBoost](https://img.shields.io/badge/CatBoost-ffcc00.svg?style=flat-square)](https://catboost.ai/)
-[![scikit-learn](https://img.shields.io/badge/scikit--learn-f7931e.svg?style=flat-square&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c.svg?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![Optuna](https://img.shields.io/badge/Optuna-0078d4.svg?style=flat-square)](https://optuna.org/)
-[![SHAP](https://img.shields.io/badge/SHAP-7c3aed.svg?style=flat-square)](https://shap.readthedocs.io/)
+[![harness-sports](https://img.shields.io/pypi/v/harness-sports?style=flat-square&label=sports)](https://pypi.org/project/harness-sports/)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
 
 </div>
 
