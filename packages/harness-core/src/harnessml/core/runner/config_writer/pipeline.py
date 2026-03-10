@@ -40,7 +40,21 @@ def configure_backtest(
 
     if cv_strategy is not None:
         from harnessml.core.runner.schema import _CV_STRATEGY_ALIASES
-        bt["cv_strategy"] = _CV_STRATEGY_ALIASES.get(cv_strategy, cv_strategy)
+        resolved_strategy = _CV_STRATEGY_ALIASES.get(cv_strategy, cv_strategy)
+
+        # Validate required companion parameters
+        effective_n_folds = n_folds or bt.get("n_folds")
+        effective_window = window_size or bt.get("window_size")
+        effective_group = group_column or bt.get("group_column")
+
+        if resolved_strategy in ("stratified_kfold", "purged_kfold") and not effective_n_folds:
+            return f"**Error**: `{resolved_strategy}` strategy requires `n_folds`. Pass n_folds=5 (or similar)."
+        if resolved_strategy == "sliding_window" and not effective_window:
+            return "**Error**: `sliding_window` strategy requires `window_size`. Pass window_size=3 (or similar)."
+        if resolved_strategy == "group_kfold" and not effective_group:
+            return "**Error**: `group_kfold` strategy requires `group_column`. Pass group_column='col_name'."
+
+        bt["cv_strategy"] = resolved_strategy
     if fold_values is not None:
         bt["fold_values"] = fold_values
     if metrics is not None:
@@ -307,9 +321,28 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
 
     models_failed = result.get("models_failed", [])
     if models_failed:
+        model_errors = result.get("model_errors", [])
         lines.append(f"\n### Models Failed ({len(models_failed)})\n")
+        # Build a map of model name -> first error message
+        error_by_model = {}
+        for err_line in model_errors:
+            # Format: "  - model_name (fold N): error message"
+            stripped = err_line.strip().lstrip("- ")
+            for m in models_failed:
+                if stripped.startswith(m):
+                    if m not in error_by_model:
+                        # Extract just the error part after the colon
+                        colon_idx = stripped.find("): ")
+                        if colon_idx >= 0:
+                            error_by_model[m] = stripped[colon_idx + 3:]
+                        else:
+                            error_by_model[m] = stripped
+                    break
         for m in models_failed:
-            lines.append(f"- `{m}` (failed during backtest -- check logs)")
+            if m in error_by_model:
+                lines.append(f"- `{m}`: {error_by_model[m]}")
+            else:
+                lines.append(f"- `{m}` (failed during backtest -- check logs)")
 
     # Meta-learner coefficients
     meta_coeff = result.get("meta_coefficients")

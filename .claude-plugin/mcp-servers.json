@@ -1,6 +1,6 @@
 {
   "harness-ml": {
     "command": "uvx",
-    "args": ["--from", "harness-plugin@latest", "harness-ml"]
+    "args": ["--from", "harness-plugin[models]@latest", "harness-ml"]
   }
 }
