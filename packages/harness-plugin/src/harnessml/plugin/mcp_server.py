@@ -675,6 +675,10 @@ async def configure(
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
     fold_column: str | None = None,
+    n_folds: int | None = None,
+    window_size: int | None = None,
+    group_column: str | None = None,
+    eval_filter: str | None = None,
     add_columns: list[str] | None = None,
     remove_columns: list[str] | None = None,
     detail: str | None = None,
@@ -698,7 +702,13 @@ async def configure(
         spline_prob_max (float, upper clip for spline calibration, default 0.985),
         spline_n_bins (int, number of bins for spline calibration, default 20).
       - "backtest": Update backtest config.
-        Optional: cv_strategy, fold_values, metrics, min_train_folds, fold_column.
+        Optional: cv_strategy (stratified_kfold/group_kfold/leave_one_out/
+        bootstrap/purged_kfold/sliding_window/expanding_window),
+        fold_values, metrics, min_train_folds, fold_column,
+        n_folds (required for stratified_kfold/purged_kfold),
+        window_size (required for sliding_window),
+        group_column (required for group_kfold),
+        eval_filter (pandas query to filter test folds before metrics).
       - "show": Show the full resolved project configuration.
         Optional: detail ("summary" for key settings only, "full" (default) for
         everything), section (e.g. "models", "ensemble", "backtest" to show only
@@ -744,6 +754,10 @@ async def configure(
         metrics=metrics,
         min_train_folds=min_train_folds,
         fold_column=fold_column,
+        n_folds=n_folds,
+        window_size=window_size,
+        group_column=group_column,
+        eval_filter=eval_filter,
         add_columns=add_columns,
         remove_columns=remove_columns,
         detail=detail,

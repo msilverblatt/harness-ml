@@ -23,6 +23,10 @@ def configure_backtest(
     metrics: list[str] | None = None,
     min_train_folds: int | None = None,
     fold_column: str | None = None,
+    n_folds: int | None = None,
+    window_size: int | None = None,
+    group_column: str | None = None,
+    eval_filter: str | None = None,
 ) -> str:
     """Update backtest section of pipeline.yaml."""
     config_dir = _get_config_dir(Path(project_dir))
@@ -45,6 +49,14 @@ def configure_backtest(
         bt["min_train_folds"] = min_train_folds
     if fold_column is not None:
         bt["fold_column"] = fold_column
+    if n_folds is not None:
+        bt["n_folds"] = n_folds
+    if window_size is not None:
+        bt["window_size"] = window_size
+    if group_column is not None:
+        bt["group_column"] = group_column
+    if eval_filter is not None:
+        bt["eval_filter"] = eval_filter
 
     _save_yaml(pipeline_path, data)
 

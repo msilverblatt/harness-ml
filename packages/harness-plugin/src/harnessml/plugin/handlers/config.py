@@ -50,7 +50,8 @@ def _handle_ensemble(*, method, temperature, exclude_models, calibration, pre_ca
     return cw.configure_ensemble(resolve_project_dir(project_dir), **kw)
 
 
-def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, fold_column, project_dir, **_kwargs):
+def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, fold_column,
+                     n_folds, window_size, group_column, eval_filter, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     return cw.configure_backtest(
@@ -60,6 +61,10 @@ def _handle_backtest(*, cv_strategy, fold_values, metrics, min_train_folds, fold
         metrics=metrics,
         min_train_folds=min_train_folds,
         fold_column=fold_column,
+        n_folds=n_folds,
+        window_size=window_size,
+        group_column=group_column,
+        eval_filter=eval_filter,
     )
 
 
