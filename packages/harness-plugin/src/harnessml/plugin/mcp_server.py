@@ -393,6 +393,7 @@ async def models(
     cdf_scale: float | None = None,
     zero_fill_features: list[str] | None = None,
     class_weight: str | dict | None = None,
+    new_name: str | None = None,
     items: str | list | None = None,
     purge: bool = False,
     replace_params: bool = False,
@@ -430,12 +431,14 @@ async def models(
       - "remove_batch": Remove multiple models. Requires items (JSON array of
         {name, purge?} objects).
       - "clone": Clone an existing model with a new name. Requires name (source)
-        and items (JSON with {new_name, ...overrides}).
+        and new_name (target). Optional override params (features, params, active,
+        etc.) are applied on top of the cloned config.
     """
     return _load_handler("models").dispatch(
         action,
         ctx=ctx,
         name=name,
+        new_name=new_name,
         model_type=model_type,
         preset=preset,
         features=features,

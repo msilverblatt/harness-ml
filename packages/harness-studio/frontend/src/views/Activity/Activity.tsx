@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useLayoutContext } from '../../components/Layout/Layout';
 import { useApi } from '../../hooks/useApi';
@@ -44,6 +44,45 @@ function verdictClass(verdict?: string): string {
     }
 }
 
+function NarrativeCard({ label, badge, content }: { label: string; badge: React.ReactNode; content: string | null }) {
+    const [expanded, setExpanded] = useState(false);
+    const [overflows, setOverflows] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    const checkOverflow = useCallback(() => {
+        const el = contentRef.current;
+        if (el) {
+            setOverflows(el.scrollHeight > 120);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkOverflow();
+    }, [content, checkOverflow]);
+
+    return (
+        <div className={styles.narrativeCard}>
+            <div className={styles.narrativeLabel}>
+                {badge} {label}
+            </div>
+            <div
+                ref={contentRef}
+                className={`${styles.narrativeContent}${expanded ? ` ${styles.narrativeContentExpanded}` : ''}`}
+            >
+                {content ? stripMarkdown(content) : (
+                    <span className={styles.narrativeEmpty}>No {label.toLowerCase()} logged yet</span>
+                )}
+                {!expanded && overflows && <div className={styles.narrativeFade} />}
+            </div>
+            {overflows && (
+                <button className={styles.showMore} onClick={() => setExpanded(e => !e)}>
+                    {expanded ? 'Show less' : 'Show more'}
+                </button>
+            )}
+        </div>
+    );
+}
+
 function ContextCards({ entries, experiments }: { entries: NotebookEntry[]; experiments: Experiment[] }) {
     const { project } = useParams<{ project: string }>();
     const nonStruck = useMemo(() => entries.filter(e => !e.struck), [entries]);
@@ -54,26 +93,16 @@ function ContextCards({ entries, experiments }: { entries: NotebookEntry[]; expe
     return (
         <div className={styles.contextSection}>
             <div className={styles.cardRow}>
-                <div className={styles.narrativeCard}>
-                    <div className={styles.narrativeLabel}>
-                        <TypeBadge type="theory" /> Current Theory
-                    </div>
-                    <div className={styles.narrativeContent}>
-                        {latestTheory ? stripMarkdown(latestTheory.content) : (
-                            <span className={styles.narrativeEmpty}>No theory logged yet</span>
-                        )}
-                    </div>
-                </div>
-                <div className={styles.narrativeCard}>
-                    <div className={styles.narrativeLabel}>
-                        <TypeBadge type="plan" /> Current Plan
-                    </div>
-                    <div className={styles.narrativeContent}>
-                        {latestPlan ? stripMarkdown(latestPlan.content) : (
-                            <span className={styles.narrativeEmpty}>No plan logged yet</span>
-                        )}
-                    </div>
-                </div>
+                <NarrativeCard
+                    label="Current Theory"
+                    badge={<TypeBadge type="theory" />}
+                    content={latestTheory?.content ?? null}
+                />
+                <NarrativeCard
+                    label="Current Plan"
+                    badge={<TypeBadge type="plan" />}
+                    content={latestPlan?.content ?? null}
+                />
             </div>
             {latestExperiment && (
                 <div className={styles.experimentBar}>

@@ -30,6 +30,9 @@ async def list_experiments(request: Request, project: str | None = None):
         except json.JSONDecodeError:
             continue
 
+        if "created_at" in entry and "timestamp" not in entry:
+            entry["timestamp"] = entry["created_at"]
+
         exp_id = entry.get("experiment_id", "")
 
         # Enrich with results.json if available

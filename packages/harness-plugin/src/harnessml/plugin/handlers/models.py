@@ -148,26 +148,25 @@ def _handle_remove_batch(*, items, project_dir, **_kwargs):
     return summary
 
 
-def _handle_clone(*, name, items, project_dir, **_kwargs):
+def _handle_clone(*, name, new_name=None, features=None, params=None, active=None,
+                   include_in_ensemble=None, mode=None, prediction_type=None,
+                   cdf_scale=None, zero_fill_features=None, class_weight=None,
+                   project_dir, **_kwargs):
     """Clone an existing model with a new name and optional overrides."""
+    import copy
+
     import yaml
 
     err = validate_required(name, "name (source model)")
     if err:
         return err
-    if not items:
-        return "**Error**: `items` (JSON with {new_name, ...overrides}) is required for clone."
-    parsed = parse_json_param(items) if isinstance(items, str) else items
-    if isinstance(parsed, list):
-        parsed = parsed[0] if parsed else {}
-    new_name = parsed.get("new_name")
     if not new_name:
-        return "**Error**: `new_name` is required in the items object for clone."
+        return "**Error**: `new_name` is required for clone."
 
     proj = resolve_project_dir(project_dir)
-    config_path = proj / "config" / "pipeline.yaml"
+    config_path = proj / "config" / "models.yaml"
     if not config_path.exists():
-        return "**Error**: No pipeline.yaml found. Run `configure(action='init')` first."
+        return "**Error**: No models.yaml found. Run `configure(action='init')` first."
 
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
@@ -176,19 +175,45 @@ def _handle_clone(*, name, items, project_dir, **_kwargs):
     if name not in models:
         return f"**Error**: Source model `{name}` not found. Available: {', '.join(sorted(models.keys()))}"
 
+    if new_name in models:
+        return f"**Error**: Model `{new_name}` already exists. Use a different name or remove it first."
+
     # Deep copy the source model config
-    import copy
     new_config = copy.deepcopy(models[name])
 
-    # Apply overrides from the items object
-    overrides = {k: v for k, v in parsed.items() if k != "new_name"}
-    if "params" in overrides:
-        overrides["params"] = parse_json_param(overrides["params"])
-    for k, v in overrides.items():
-        if k == "params" and isinstance(v, dict) and isinstance(new_config.get("params"), dict):
-            new_config["params"].update(v)
+    # Apply overrides from explicit parameters
+    parsed_params = parse_json_param(params) if params is not None else None
+    override_count = 0
+    if features is not None:
+        new_config["features"] = features
+        override_count += 1
+    if parsed_params is not None:
+        if isinstance(parsed_params, dict) and isinstance(new_config.get("params"), dict):
+            new_config["params"].update(parsed_params)
         else:
-            new_config[k] = v
+            new_config["params"] = parsed_params
+        override_count += 1
+    if active is not None:
+        new_config["active"] = active
+        override_count += 1
+    if include_in_ensemble is not None:
+        new_config["include_in_ensemble"] = include_in_ensemble
+        override_count += 1
+    if mode is not None:
+        new_config["mode"] = mode
+        override_count += 1
+    if prediction_type is not None:
+        new_config["prediction_type"] = prediction_type
+        override_count += 1
+    if cdf_scale is not None:
+        new_config["cdf_scale"] = cdf_scale
+        override_count += 1
+    if zero_fill_features is not None:
+        new_config["zero_fill_features"] = zero_fill_features
+        override_count += 1
+    if class_weight is not None:
+        new_config["class_weight"] = class_weight
+        override_count += 1
 
     # Write the cloned model
     models[new_name] = new_config
@@ -196,7 +221,7 @@ def _handle_clone(*, name, items, project_dir, **_kwargs):
     with open(config_path, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
-    return f"Cloned model `{name}` as `{new_name}` with {len(overrides)} override(s)."
+    return f"Cloned model `{name}` as `{new_name}` with {override_count} override(s)."
 
 
 def _with_defaults(item: dict, for_update: bool = False) -> dict:

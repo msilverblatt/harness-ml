@@ -262,3 +262,18 @@ When a strategy shows initial promise or ambiguous results, the following patter
 **Skipping diagnostics**: Moving from one attempt to the next without understanding why the previous one failed. Diagnosis drives the next attempt's design.
 
 **Modifying production config directly**: Always use experiment overlays. The overlay system exists to keep production config safe and experiment history clean.
+
+### Rule 8: Experiment Sequencing (Programmatic Gates)
+
+The following gates are enforced IN CODE by `config_writer/experiments.py`. Attempts to create, run, or quick_run experiments will return an error if any gate fails. You cannot skip them.
+
+**Hard gates (code-enforced — will block you):**
+1. **Plan required** — `notebook(action="write", type="plan", ...)` must exist before any experiment can be created or run. Without it, `experiment_create`, `run_experiment`, and `quick_run_experiment` return an error.
+2. **Log before next** — If the most recent experiment is completed but has no conclusion, you must call `experiments(action="log_result", ...)` before creating or running the next experiment. The system will block you otherwise.
+3. **Plan freshness** — After 3 experiments since the last plan update, you must write a new plan. The system will block further experiments until you do.
+
+**Soft conventions (follow these, but code won't block you):**
+- Write a theory (`type="theory"`) before writing a plan
+- Record a finding (`type="finding"`) after each experiment with what was learned
+- On phase transitions, summarize the old phase and write a new theory + plan
+- Check `notebook(action="summary")` at session start

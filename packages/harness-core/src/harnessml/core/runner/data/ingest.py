@@ -826,8 +826,20 @@ def derive_column(
         else:
             result = eval(expression, {"__builtins__": {}}, _build_eval_ns(df))  # noqa: S307
     except (NameError, SyntaxError, TypeError, ValueError, KeyError, ZeroDivisionError) as exc:
+        available_cols = ", ".join(sorted(df.columns[:20]))
+        if len(df.columns) > 20:
+            available_cols += f", ... ({len(df.columns)} total)"
         raise ValueError(
-            f"Failed to evaluate expression '{expression}': {exc}"
+            f"Failed to evaluate expression '{expression}': {exc}\n\n"
+            f"**Available columns**: {available_cols}\n\n"
+            f"**Expression tips**:\n"
+            f"- Reference columns by name: `col_a - col_b`, `col_a / col_b`\n"
+            f"- Shifts (use group_by for correctness): `col.shift(1)`, `col.shift(-1)`\n"
+            f"- Rolling: `col.rolling(3).mean()`, `col.rolling(5).std()`\n"
+            f"- NumPy: `np.log(col + 1)`, `np.where(col > 0, 1, 0)`, `np.clip(col, 0, 100)`\n"
+            f"- Boolean: `(col > threshold).astype(int)`\n"
+            f"- Datetime: `col.dt.year`, `col.dt.dayofweek`\n"
+            f"- Builtins: abs(), round(), min(), max(), len(), int, float, str, bool"
         ) from exc
 
     if dtype is not None:

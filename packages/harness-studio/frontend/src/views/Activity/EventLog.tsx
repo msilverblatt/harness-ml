@@ -23,8 +23,7 @@ function mergeEvents(events: Event[]): Event[] {
         return a.id - b.id;
     });
 
-    // Track open "running" events by tool+action
-    const openGroups = new Map<string, Event>();
+    const openGroups = new Map<string, Event[]>();
     const merged: Event[] = [];
     const consumed = new Set<number>();
 
@@ -32,37 +31,43 @@ function mergeEvents(events: Event[]): Event[] {
         const key = `${event.tool}:${event.action}`;
 
         if (event.status === 'running') {
-            // Start a new group
-            openGroups.set(key, { ...event });
+            const list = openGroups.get(key);
+            if (list) {
+                list.push({ ...event });
+            } else {
+                openGroups.set(key, [{ ...event }]);
+            }
             continue;
         }
 
         if (event.status === 'progress') {
-            // Update the open group's display
-            const group = openGroups.get(key);
-            if (group) {
+            const list = openGroups.get(key);
+            if (list && list.length > 0) {
+                const group = list[list.length - 1];
                 group.result = event.result;
                 group.params = event.params;
                 consumed.add(event.id);
             }
-            // Never show progress events as standalone rows
             continue;
         }
 
         if (event.status === 'success' || event.status === 'error') {
-            // Close the open group — replace with completion event
-            if (openGroups.has(key)) {
-                openGroups.delete(key);
-                // The completed event supersedes the running one
+            const list = openGroups.get(key);
+            if (list && list.length > 0) {
+                list.shift();
+                if (list.length === 0) {
+                    openGroups.delete(key);
+                }
             }
         }
 
         merged.push(event);
     }
 
-    // Add still-open groups (currently running)
-    for (const group of openGroups.values()) {
-        merged.push(group);
+    for (const list of openGroups.values()) {
+        for (const group of list) {
+            merged.push(group);
+        }
     }
 
     // Sort newest first
@@ -196,7 +201,7 @@ export function EventLog({ wsEvents }: EventLogProps) {
                             key={event.id}
                             className={newEventIds.current.has(event.id) ? styles.newEvent : undefined}
                         >
-                            <EventRow event={event} defaultExpanded={i === 0} />
+                            <EventRow event={event} autoExpand={i === 0} />
                         </div>
                     ))
                 )}

@@ -202,6 +202,7 @@ def update_model(
         model_def["features"] = features
     if append_features:
         existing = model_def.get("features", [])
+        had_no_features = not existing
         model_def["features"] = existing + [f for f in append_features if f not in existing]
     if remove_features:
         existing = model_def.get("features", [])
@@ -234,6 +235,14 @@ def update_model(
     n_feat = len(model_def.get("features", []))
     in_ens = "yes" if model_def.get("include_in_ensemble", True) else "no"
 
+    warning = ""
+    if append_features and had_no_features:
+        warning = (
+            "\n\n**Warning**: This model had no explicit `features` list (it used all columns). "
+            "By using `append_features`, it is now restricted to ONLY the appended features. "
+            "Consider using the `features` parameter instead to set the full feature list."
+        )
+
     return (
         f"**Updated model**: `{name}`\n"
         f"- Type: {model_def.get('type', '?')}\n"
@@ -241,6 +250,7 @@ def update_model(
         f"- Features: {n_feat}\n"
         f"- Ensemble: {in_ens}\n"
         f"- Params: {model_def.get('params', {})}"
+        f"{warning}"
     )
 
 

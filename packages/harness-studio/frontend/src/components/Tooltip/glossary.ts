@@ -17,6 +17,26 @@ export const GLOSSARY: Record<string, string> = {
         'Logarithmic loss — measures the quality of probabilistic predictions. Heavily penalizes confident wrong predictions. Lower is better; 0 is perfect.',
     auc:
         'Area Under the ROC Curve — measures how well the model separates classes across all thresholds. 1.0 is perfect separation, 0.5 is random guessing.',
+    auc_roc:
+        'Area under receiver operating characteristic curve. Higher is better.',
+    auc_pr:
+        'Area under precision-recall curve. Better for imbalanced datasets. Higher is better.',
+    f1:
+        'Harmonic mean of precision and recall. Higher is better.',
+    precision:
+        'Fraction of positive predictions that are correct. Higher is better.',
+    recall:
+        'Fraction of actual positives correctly identified. Higher is better.',
+    brier_score:
+        'Mean squared error of probability estimates. Lower is better.',
+    f1_macro:
+        'F1 averaged across classes (unweighted). Higher is better.',
+    f1_weighted:
+        'F1 averaged across classes (weighted by support). Higher is better.',
+    positive_rate:
+        'Fraction of samples in the positive class.',
+    class_balance:
+        'Ratio of minority to majority class size.',
 
     // ── Metrics: regression ─────────────────────────────────────
     rmse:

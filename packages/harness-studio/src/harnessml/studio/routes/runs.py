@@ -204,6 +204,25 @@ async def run_metrics(request: Request, run_id: str, project: str | None = None)
             result["metrics"] = raw
         if "meta_coefficients" in raw:
             result["meta_coefficients"] = raw["meta_coefficients"]
+
+        run_dir = project_dir / "outputs" / run_id
+        try:
+            pred_df = _load_predictions(run_dir)
+            if pred_df is not None:
+                target_col = _detect_target_col(pred_df)
+                if target_col is not None:
+                    y = pred_df[target_col].dropna()
+                    unique_vals = set(y.unique())
+                    if unique_vals.issubset({0, 1, 0.0, 1.0}) and len(y) > 0:
+                        positive_rate = float(y.mean())
+                        result["class_balance"] = {
+                            "positive_rate": positive_rate,
+                            "n_positive": int(y.sum()),
+                            "n_total": len(y),
+                        }
+        except Exception:
+            pass
+
         return result
     except Exception as e:
         return error_response(e)

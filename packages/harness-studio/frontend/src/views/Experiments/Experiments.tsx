@@ -95,6 +95,7 @@ export function Experiments() {
                     selectedIds={compareIds}
                     onToggleCompare={handleToggleCompare}
                     initialExpandedId={initialExpandedId}
+                    allMetricKeys={availableMetrics}
                 />
             </div>
             {compareIds.length >= 2 && (

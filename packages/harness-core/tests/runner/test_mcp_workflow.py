@@ -264,6 +264,21 @@ class TestMCPWorkflow:
         """Step 7: Create experiment + write overlay."""
         project_dir, _ = _scaffold_with_data(tmp_path)
 
+        # Discipline gate requires a notebook plan before experiments
+        import json
+        from datetime import datetime, timezone
+        notebook_dir = project_dir / "notebook"
+        notebook_dir.mkdir(parents=True, exist_ok=True)
+        plan_entry = {
+            "id": "nb-001",
+            "type": "plan",
+            "content": "Test plan for MCP workflow.",
+            "tags": [],
+            "auto_tags": [],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        (notebook_dir / "entries.jsonl").write_text(json.dumps(plan_entry) + "\n")
+
         # Create experiment
         result = config_writer.experiment_create(
             project_dir,

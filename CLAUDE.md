@@ -159,6 +159,20 @@ uv run pytest -v                                 # verbose
 - Use `pipeline(action="progress")` to check workflow phase completion
 - Optional hard gates: set `workflow.enforce_phases: true` in pipeline.yaml to block premature tuning
 
+## Experiment Discipline (Programmatic Gates)
+
+The following are enforced in code (`config_writer/experiments.py`). Experiment creation, running, and quick_run will return errors if gates fail:
+
+1. **No experiments without a plan** — A `notebook(action="write", type="plan", ...)` entry must exist before any experiment can be created or run
+2. **No next experiment without logging the previous one** — If the most recent experiment is completed but has no conclusion, you must call `experiments(action="log_result", ...)` before creating/running the next
+3. **No more than 3 experiments without updating the plan** — After 3 experiments since the last plan entry, you must write a new plan before continuing
+
+Additional conventions (not code-enforced):
+- Write a theory (`notebook(action="write", type="theory", ...)`) before writing a plan
+- Record findings after each experiment: `notebook(action="write", type="finding", experiment_id="...", ...)`
+- On phase transitions, write both a finding summary and a new theory + plan
+- Check `notebook(action="summary")` at session start
+
 ## Skills (docs/skills/)
 
 | Skill | Purpose |

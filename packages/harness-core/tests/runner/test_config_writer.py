@@ -37,6 +37,24 @@ from harnessml.core.runner.config_writer import (
 )
 
 
+def _setup_notebook_plan(project_dir: Path) -> None:
+    """Create a minimal notebook plan entry to satisfy discipline gates."""
+    import json
+    from datetime import datetime, timezone
+
+    notebook_dir = project_dir / "notebook"
+    notebook_dir.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "id": "nb-001",
+        "type": "plan",
+        "content": "Test plan for experiments.",
+        "tags": [],
+        "auto_tags": [],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    (notebook_dir / "entries.jsonl").write_text(json.dumps(entry) + "\n")
+
+
 def _setup_project(tmp_path: Path) -> Path:
     """Create a minimal project structure for testing."""
     config_dir = tmp_path / "config"
@@ -353,6 +371,7 @@ class TestExperimentCreate:
 
     def test_creates_experiment(self, tmp_path):
         project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
         result = experiment_create(
             project, "Test hypothesis about coaching data",
             hypothesis="Coaching features improve predictions",
@@ -366,6 +385,7 @@ class TestExperimentCreate:
 
     def test_creates_with_hypothesis(self, tmp_path):
         project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
         result = experiment_create(
             project,
             "Test coaching data",
@@ -381,15 +401,86 @@ class TestExperimentCreate:
 
     def test_requires_hypothesis(self, tmp_path):
         project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
         result = experiment_create(project, "Test something")
         assert "Error" in result
         assert "hypothesis" in result.lower()
 
     def test_rejects_empty_hypothesis(self, tmp_path):
         project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
         result = experiment_create(project, "Test something", hypothesis="   ")
         assert "Error" in result
         assert "hypothesis" in result.lower()
+
+    def test_blocks_without_plan(self, tmp_path):
+        """Discipline gate: experiment creation requires a notebook plan."""
+        project = _setup_project(tmp_path)
+        result = experiment_create(
+            project, "Test something",
+            hypothesis="This should be blocked because no plan exists",
+        )
+        assert "Discipline gate" in result
+        assert "plan" in result.lower()
+
+    def test_blocks_without_logging_previous(self, tmp_path):
+        """Discipline gate: previous experiment must be logged before creating next."""
+        project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
+
+        # Create first experiment
+        result = experiment_create(
+            project, "First experiment",
+            hypothesis="Testing first hypothesis",
+        )
+        assert "Created experiment" in result
+
+        # Mark it completed but without conclusion (simulating run without log_result)
+        journal_path = project / "experiments" / "journal.jsonl"
+        import json
+        lines = journal_path.read_text().strip().split("\n")
+        entry = json.loads(lines[-1])
+        entry["status"] = "completed"
+        # No conclusion field
+        with open(journal_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        # Try to create second experiment — should be blocked
+        result = experiment_create(
+            project, "Second experiment",
+            hypothesis="Testing second hypothesis",
+        )
+        assert "Discipline gate" in result
+        assert "conclusion" in result.lower()
+
+    def test_blocks_after_too_many_without_plan_update(self, tmp_path):
+        """Discipline gate: max 3 experiments without plan update."""
+        project = _setup_project(tmp_path)
+        _setup_notebook_plan(project)
+
+        # Create and properly log 3 experiments
+        for i in range(3):
+            result = experiment_create(
+                project, f"Experiment {i+1}",
+                hypothesis=f"Hypothesis {i+1}",
+            )
+            assert "Created experiment" in result
+            # Log it with conclusion
+            import re
+            exp_id = re.search(r"(exp-\d+)", result).group(1)
+            log_experiment_result(
+                project, exp_id,
+                conclusion=f"Learned from experiment {i+1}",
+                verdict="partial",
+            )
+
+        # Fourth experiment should be blocked — plan is stale
+        result = experiment_create(
+            project, "Fourth experiment",
+            hypothesis="This should be blocked — too many since plan update",
+        )
+        assert "Discipline gate" in result
+        assert "plan" in result.lower()
 
 
 class TestWriteOverlay:

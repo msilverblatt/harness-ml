@@ -95,6 +95,8 @@ Add and evaluate features one at a time to isolate each hypothesis's contributio
    features(action="add", name="simultaneous_maxout_count", formula="sum(utilization > 0.9) group_by borrower_id, statement_month")
    ```
 
+   > **Note:** `features(action="add")` registers a feature in the **feature registry** (entity, pairwise, or regime types — computed during pipeline execution). For simple derived columns using pandas expressions (e.g., arithmetic, `.shift()`, `.rolling()`, `np` functions), use `data(action="derive_column", name="...", expression="...")` instead. That writes directly to the feature store.
+
 2. **Test correlation with target** before adding to any model — a feature with zero univariate signal may still matter in interactions, but start by checking direct relationships.
 
 3. **Run a single-variable experiment** using the `harness-run-experiment` skill for proper experiment discipline.

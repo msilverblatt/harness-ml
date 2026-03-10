@@ -97,8 +97,16 @@ def show_config(project_dir: Path) -> str:
     config = result.config
     lines = ["## Project Configuration\n"]
 
+    # Data
+    lines.append("### Data\n")
+    lines.append(f"- Features file: {config.data.paths.features_file}")
+    lines.append(f"- Target column: {config.data.target_column}")
+    exclude_cols = config.data.ml_problem.exclude_columns
+    if exclude_cols:
+        lines.append(f"- Excluded features ({len(exclude_cols)}): {', '.join(exclude_cols)}")
+
     # Models
-    lines.append(f"### Models ({len(config.models)})\n")
+    lines.append(f"\n### Models ({len(config.models)})\n")
     for name, m in sorted(config.models.items()):
         status = "active" if m.active else "inactive"
         lines.append(f"- **{name}**: {m.type} ({status}, {len(m.features)} features)")
@@ -340,7 +348,12 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
                     break
         for m in models_failed:
             if m in error_by_model:
-                lines.append(f"- `{m}`: {error_by_model[m]}")
+                err_text = error_by_model[m]
+                err_lines = err_text.strip().split("\n")
+                truncated = "\n".join(err_lines[:5])
+                if len(err_lines) > 5:
+                    truncated += "\n  ..."
+                lines.append(f"- `{m}`:\n  ```\n  {truncated}\n  ```")
             else:
                 lines.append(f"- `{m}` (failed during backtest -- check logs)")
 
@@ -373,6 +386,18 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
         lines.append("|-------|--------------|")
         for name, scale in sorted(cdf_scales.items()):
             lines.append(f"| {name} | {scale:.3f} |")
+
+    # Cache stats
+    cache_stats = result.get("cache_stats", {})
+    if cache_stats:
+        hits = cache_stats.get("hits", 0)
+        misses = cache_stats.get("misses", 0)
+        total = hits + misses
+        if total > 0:
+            pct = hits / total * 100
+            lines.append("\n### Prediction Cache")
+            lines.append(f"- **{hits}/{total}** model-fold predictions served from cache ({pct:.0f}% hit rate)")
+            lines.append(f"- **{misses}** trained from scratch\n")
 
     # Per-fold breakdown
     per_fold = result.get("per_fold", {})
@@ -450,6 +475,9 @@ def run_backtest(
             return format_validation_issues(errors)
 
         from harnessml.core.runner.pipeline import PipelineRunner
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
+
+        cache = PredictionCache(project_dir / ".cache" / "predictions")
 
         runner = PipelineRunner(
             project_dir=project_dir,
@@ -457,6 +485,7 @@ def run_backtest(
             variant=variant,
             overlay=overlay,
             run_dir=run_dir,
+            prediction_cache=cache,
         )
         runner.load()
         result = runner.backtest(on_progress=on_progress)
@@ -1042,16 +1071,8 @@ def show_diagnostics(
     return "\n".join(lines)
 
 
-def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | None = None, top_n: int = 10) -> str:
-    """Run SHAP explainability on a trained model from a backtest run."""
-    try:
-        import shap  # noqa: F401
-    except ImportError:
-        return "**Error**: `shap` package is not installed. Install with `pip install shap`."
-
-    from harnessml.core.runner.analysis.explainability import compute_shap_summary, format_shap_report
-    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
-
+def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | None = None, top_n: int = 10, method: str = "shap") -> str:
+    """Run explainability on a trained model from a backtest run."""
     project_dir = Path(project_dir)
     config_dir = _get_config_dir(project_dir)
     pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
@@ -1097,6 +1118,36 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
 
     with open(model_file, "rb") as f:
         model = pickle.load(f)
+
+    if method == "builtin":
+        if not hasattr(model, "feature_importances_"):
+            return f"**Error**: Model `{model_file.stem}` does not have `feature_importances_` attribute. Use `method='shap'` or choose a tree-based model."
+
+        from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
+        config = load_data_config(project_dir)
+        df = get_features_df(project_dir, config)
+        fold_column = pipeline_data.get("backtest", {}).get("fold_column")
+        feature_cols = get_feature_columns(df, config, fold_column=fold_column)
+
+        importances = model.feature_importances_
+        feat_imp = dict(zip(feature_cols, importances))
+        sorted_imp = dict(sorted(feat_imp.items(), key=lambda x: -abs(x[1]))[:top_n])
+
+        lines = [f"## Built-in Feature Importance: `{model_file.stem}`\n"]
+        lines.append("| Feature | Importance |")
+        lines.append("|---------|------------|")
+        for feat, imp in sorted_imp.items():
+            lines.append(f"| {feat} | {imp:.6f} |")
+        return "\n".join(lines)
+
+    # Default: SHAP method
+    try:
+        import shap  # noqa: F401
+    except ImportError:
+        return "**Error**: `shap` package is not installed. Install with `pip install shap`."
+
+    from harnessml.core.runner.analysis.explainability import compute_shap_summary, format_shap_report
+    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
 
     # Load feature data
     config = load_data_config(project_dir)

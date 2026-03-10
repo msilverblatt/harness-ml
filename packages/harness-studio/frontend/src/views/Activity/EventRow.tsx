@@ -8,6 +8,7 @@ import styles from './Activity.module.css';
 interface EventRowProps {
     event: Event;
     defaultExpanded?: boolean;
+    autoExpand?: boolean;
 }
 
 const TOOL_COLOR_MAP: Record<string, string> = {
@@ -207,7 +208,7 @@ function FoldProgressBar({ current, total, message, phases }: {
     );
 }
 
-export function EventRow({ event, defaultExpanded }: EventRowProps) {
+export function EventRow({ event, defaultExpanded, autoExpand }: EventRowProps) {
     const isRunning = event.status === 'running';
     const isProgress = event.status === 'progress';
     const isError = event.status === 'error';
@@ -294,7 +295,7 @@ export function EventRow({ event, defaultExpanded }: EventRowProps) {
 
     return (
         <div className={rowClass} style={{ borderLeftColor: borderColor }}>
-            <ExpandableRow detail={<MarkdownRenderer content={detail} />} defaultOpen={defaultExpanded}>
+            <ExpandableRow detail={<MarkdownRenderer content={detail} />} defaultOpen={defaultExpanded} autoExpand={autoExpand}>
                 {summary}
             </ExpandableRow>
         </div>
