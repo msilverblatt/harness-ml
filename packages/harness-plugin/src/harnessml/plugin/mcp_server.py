@@ -25,26 +25,109 @@ _STUDIO_PORT = int(os.environ.get("HARNESS_STUDIO_PORT", "8421"))
 _init_lock = threading.Lock()
 
 
-def _is_studio_running() -> bool:
-    """Check if Studio is already running via HTTP health check."""
+_PID_PATH = None  # lazily set to ~/.harnessml/studio.pid
+
+
+def _get_pid_path():
+    global _PID_PATH
+    if _PID_PATH is None:
+        from pathlib import Path
+        _PID_PATH = Path.home() / ".harnessml" / "studio.pid"
+    return _PID_PATH
+
+
+def _get_expected_version() -> str:
+    """Get the installed harness-studio version (what we expect to be running)."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("harness-studio")
+    except PackageNotFoundError:
+        return "dev"
+
+
+def _check_studio() -> tuple[bool, str | None]:
+    """Health-check Studio. Returns (is_running, version_or_None)."""
     import urllib.request
     try:
         resp = urllib.request.urlopen(
             f"http://localhost:{_STUDIO_PORT}/api/health", timeout=2,
         )
-        return resp.status == 200
+        if resp.status != 200:
+            return False, None
+        import json as _j
+        data = _j.loads(resp.read())
+        return True, data.get("version")
     except Exception:
-        return False
+        return False, None
+
+
+def _read_pid() -> int | None:
+    """Read Studio PID from file. Returns None if missing/invalid."""
+    pid_path = _get_pid_path()
+    try:
+        text = pid_path.read_text().strip()
+        return int(text) if text else None
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def _kill_studio(pid: int) -> None:
+    """Terminate a Studio process: SIGTERM → wait 3s → SIGKILL."""
+    import signal
+    import time as _t
+
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        return
+
+    # Wait up to 3s for graceful exit
+    for _ in range(30):
+        try:
+            os.kill(pid, 0)  # check if alive
+            _t.sleep(0.1)
+        except (ProcessLookupError, OSError):
+            return  # exited
+
+    # Still alive — force kill
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+
+
+def _launch_studio() -> None:
+    """Launch a fresh Studio subprocess."""
+    import subprocess
+    import sys
+
+    pid_path = _get_pid_path()
+    pid_path.parent.mkdir(parents=True, exist_ok=True)
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "harnessml.studio.cli", "--port", str(_STUDIO_PORT)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    pid_path.write_text(str(proc.pid))
+
+    # Wait for Studio to become healthy (up to 2.5s)
+    import time as _t
+    for _ in range(5):
+        _t.sleep(0.5)
+        running, _ = _check_studio()
+        if running:
+            return
 
 
 def _start_studio():
-    """Launch Studio as a shared background process if not already running.
+    """Ensure Studio is running with the correct version.
 
-    Multiple MCP sessions share a single Studio instance. The first session
-    to start launches Studio; subsequent sessions detect it via health check
-    and skip. Studio is launched with start_new_session=True so it survives
-    MCP server exit — this is intentional because other sessions may still
-    need it.
+    Multiple MCP sessions share one Studio instance. On each MCP startup:
+    1. Health check — if healthy and same version, reuse it
+    2. If healthy but wrong version, kill and relaunch
+    3. If not responding, clean up stale PID and launch fresh
     """
     global _studio_started
     if _studio_started:
@@ -52,31 +135,32 @@ def _start_studio():
     _studio_started = True
 
     import logging
-    import subprocess
-    import sys
-    from pathlib import Path
-
     logger = logging.getLogger("harnessml.studio")
 
-    # If Studio is already running (from another session), just use it
-    if _is_studio_running():
-        logger.debug("Studio already running on port %d, reusing", _STUDIO_PORT)
+    running, running_version = _check_studio()
+    expected_version = _get_expected_version()
+
+    if running and running_version == expected_version:
+        logger.debug("Studio v%s already running on port %d, reusing",
+                      running_version, _STUDIO_PORT)
         return
 
-    pid_path = Path.home() / ".harnessml" / "studio.pid"
-    pid_path.parent.mkdir(parents=True, exist_ok=True)
+    # Need to (re)start — kill whatever is on the port
+    pid = _read_pid()
+    if pid is not None:
+        if running:
+            logger.debug("Studio v%s running but expected v%s, replacing",
+                          running_version, expected_version)
+        else:
+            logger.debug("Stale Studio PID %d, cleaning up", pid)
+        _kill_studio(pid)
+        _get_pid_path().unlink(missing_ok=True)
 
     try:
-        proc = subprocess.Popen(
-            [sys.executable, "-m", "harnessml.studio.cli", "--port", str(_STUDIO_PORT)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        pid_path.write_text(str(proc.pid))
-        logger.debug("Started Studio (pid=%d) on port %d", proc.pid, _STUDIO_PORT)
+        _launch_studio()
+        logger.debug("Started Studio v%s on port %d", expected_version, _STUDIO_PORT)
     except Exception:
-        logger.debug("Failed to launch Studio subprocess (non-fatal)", exc_info=True)
+        logger.debug("Failed to launch Studio (non-fatal)", exc_info=True)
 
 
 def _get_emitter(project_dir: str | None = None):

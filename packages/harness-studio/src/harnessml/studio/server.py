@@ -134,7 +134,12 @@ app.include_router(ws.router)
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok"}
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        v = version("harness-studio")
+    except PackageNotFoundError:
+        v = "dev"
+    return {"status": "ok", "version": v}
 
 
 # Serve pre-built frontend static files (must be AFTER API routes)
