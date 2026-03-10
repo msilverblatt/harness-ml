@@ -53,6 +53,7 @@ _SAFE_FUNCTIONS: dict[str, object] = {
     # --- composition ---
     "safe_div": lambda x, y: np.where(y != 0, x / y, 0.0),
     "pct_of_total": lambda x, y: np.where(y != 0, x / y * 100, 0.0),
+    "np": np,
 }
 
 # Pattern to match @feature references

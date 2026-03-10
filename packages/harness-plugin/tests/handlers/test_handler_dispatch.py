@@ -151,6 +151,7 @@ class TestDataDispatch:
             "add_views_batch", "sample", "restore", "check_freshness",
             "refresh", "refresh_all", "validate_source", "fetch_url",
             "upload_drive", "upload_kaggle",
+            "snapshot", "restore_snapshot",
         }
         assert set(ACTIONS.keys()) == expected
 
@@ -267,6 +268,7 @@ class TestConfigDispatch:
             "init", "update_data", "ensemble", "backtest", "show",
             "check_guardrails", "exclude_columns", "set_denylist",
             "add_target", "list_targets", "set_target", "studio",
+            "suggest_cv",
         }
         assert set(ACTIONS.keys()) == expected
 

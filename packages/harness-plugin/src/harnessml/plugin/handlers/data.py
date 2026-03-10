@@ -400,6 +400,84 @@ def _handle_upload_drive(*, files, folder_id, folder_name, name, project_dir, **
     return "\n".join(lines)
 
 
+def _handle_snapshot(*, name, project_dir, **_kwargs):
+    """Snapshot all config YAMLs and features parquet for later restore."""
+    import shutil
+    from datetime import datetime
+
+    pdir = resolve_project_dir(project_dir)
+    snapshot_name = name or datetime.now().strftime("snap_%Y%m%d_%H%M%S")
+    snap_dir = pdir / "snapshots" / snapshot_name
+    snap_dir.mkdir(parents=True, exist_ok=True)
+
+    copied = []
+
+    config_dir = pdir / "config"
+    if config_dir.is_dir():
+        snap_config_dir = snap_dir / "config"
+        snap_config_dir.mkdir(parents=True, exist_ok=True)
+        for yaml_file in config_dir.glob("*.yaml"):
+            shutil.copy2(yaml_file, snap_config_dir / yaml_file.name)
+            copied.append(f"config/{yaml_file.name}")
+
+    features_parquet = pdir / "features.parquet"
+    if features_parquet.is_file():
+        shutil.copy2(features_parquet, snap_dir / "features.parquet")
+        copied.append("features.parquet")
+
+    if not copied:
+        return "**Warning**: No config YAMLs or features.parquet found to snapshot."
+
+    lines = [f"Snapshot **{snapshot_name}** created with {len(copied)} file(s):"]
+    for f in copied:
+        lines.append(f"- {f}")
+    return "\n".join(lines)
+
+
+def _handle_restore_snapshot(*, name, project_dir, **_kwargs):
+    """Restore config YAMLs and features parquet from a named snapshot."""
+    import shutil
+
+    err = validate_required(name, "name")
+    if err:
+        return err
+
+    pdir = resolve_project_dir(project_dir)
+    snap_dir = pdir / "snapshots" / name
+    if not snap_dir.is_dir():
+        available = []
+        snapshots_root = pdir / "snapshots"
+        if snapshots_root.is_dir():
+            available = [d.name for d in snapshots_root.iterdir() if d.is_dir()]
+        msg = f"**Error**: Snapshot `{name}` not found."
+        if available:
+            msg += f" Available snapshots: {', '.join(sorted(available))}"
+        return msg
+
+    restored = []
+
+    snap_config_dir = snap_dir / "config"
+    if snap_config_dir.is_dir():
+        config_dir = pdir / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        for yaml_file in snap_config_dir.glob("*.yaml"):
+            shutil.copy2(yaml_file, config_dir / yaml_file.name)
+            restored.append(f"config/{yaml_file.name}")
+
+    snap_features = snap_dir / "features.parquet"
+    if snap_features.is_file():
+        shutil.copy2(snap_features, pdir / "features.parquet")
+        restored.append("features.parquet")
+
+    if not restored:
+        return f"**Warning**: Snapshot `{name}` exists but contains no restorable files."
+
+    lines = [f"Restored **{name}** — {len(restored)} file(s):"]
+    for f in restored:
+        lines.append(f"- {f}")
+    return "\n".join(lines)
+
+
 def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_kwargs):
     if not dataset_slug:
         return "**Error**: `dataset_slug` (e.g. 'username/dataset-name') is required."
@@ -459,6 +537,8 @@ ACTIONS = {
     "fetch_url": _handle_fetch_url,
     "upload_drive": _handle_upload_drive,
     "upload_kaggle": _handle_upload_kaggle,
+    "snapshot": _handle_snapshot,
+    "restore_snapshot": _handle_restore_snapshot,
 }
 
 

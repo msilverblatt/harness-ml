@@ -75,10 +75,14 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 
 ## How to Add a New Feature
 
-Use the MCP tool or config_writer:
-1. `features(action="add", name="...", formula="...", type="grouped|instance|formula|regime")`
+**For the feature registry** (FeatureStore — declarative features used in training):
+1. `features(action="add", name="...", formula="...", type="entity|pairwise|regime")` — type is auto-inferred if omitted (formula→pairwise, condition→regime, source→entity)
 2. For batch: `features(action="add_batch", features=[{...}, ...])`
 3. For auto-discovery: `features(action="auto_search", features=[...], search_types=["interactions","lags","rolling"])`
+
+**For simple derived columns** (pandas expressions applied to the data directly):
+- `data(action="derive_column", name="col_name", expression="df['a'] + df['b']")`
+- Use this for straightforward column transforms before feature engineering
 
 ## How to Add a New View Step
 
@@ -99,9 +103,18 @@ Use the MCP tool or config_writer:
 - `handlers/*.py` — all business logic, hot-reloadable in dev mode
 - `handlers/_validation.py` — enum validation with fuzzy match, cross-parameter hints
 - `handlers/_common.py` — shared helpers (resolve_project_dir, parse_json_param)
-- Handler dispatch pattern: `ACTIONS` dict → `dispatch(action, **kwargs)`
+- Handler dispatch pattern: each handler file defines an `ACTIONS` dict mapping action names to functions; the MCP server dispatches via `action` parameter
 - Changes to handler code: no restart needed (hot-reload)
 - Changes to tool signatures/docstrings: restart required
+
+### Notable MCP Actions
+
+- `data(action="snapshot", name="...")` / `data(action="restore_snapshot", name="...")` — save and restore config YAMLs + features.parquet for rollback
+- `data(action="derive_column", name="...", expression="...")` — derive a new column from a pandas expression
+- `configure(action="suggest_cv")` — analyze features data and recommend a CV strategy
+- `experiments(action="run", baseline_run_id="...")` — compare experiment results against a specific historical run
+- `models(action="clone", name="source", new_name="target")` — clone a model config with optional overrides (features, params, active)
+- `pipeline(action="explain_model", method="builtin")` — use tree `feature_importances_` instead of SHAP (faster, no extra dependency)
 
 ## Plugin Auto-Discovery
 
@@ -158,6 +171,20 @@ uv run pytest -v                                 # verbose
 - **Workflow phases**: EDA → Feature Discovery → Model Diversity → Feature Engineering → Tuning → Ensemble
 - Use `pipeline(action="progress")` to check workflow phase completion
 - Optional hard gates: set `workflow.enforce_phases: true` in pipeline.yaml to block premature tuning
+
+## Experiment Discipline (Programmatic Gates)
+
+The following are enforced in code (`config_writer/experiments.py`). Experiment creation, running, and quick_run will return errors if gates fail:
+
+1. **No experiments without a plan** — A `notebook(action="write", type="plan", ...)` entry must exist before any experiment can be created or run
+2. **No next experiment without logging the previous one** — If the most recent experiment is completed but has no conclusion, you must call `experiments(action="log_result", ...)` before creating/running the next
+3. **No more than 3 experiments without updating the plan** — After 3 experiments since the last plan entry, you must write a new plan before continuing
+
+Additional conventions (not code-enforced):
+- Write a theory (`notebook(action="write", type="theory", ...)`) before writing a plan
+- Record findings after each experiment: `notebook(action="write", type="finding", experiment_id="...", ...)`
+- On phase transitions, write both a finding summary and a new theory + plan
+- Check `notebook(action="summary")` at session start
 
 ## Skills (docs/skills/)
 

@@ -18,6 +18,7 @@ if platform.system() == "Darwin":
     os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1022,6 +1023,9 @@ class PipelineRunner:
                 for name, vals in self._model_cdf_scales.items()
             }
 
+        if self._pred_cache is not None:
+            result["cache_stats"] = dict(self._cache_stats)
+
         return result
 
     def _run_folds_sequential(
@@ -1439,8 +1443,9 @@ class PipelineRunner:
                         "failed to train/predict model for fold",
                         model=model_name, fold=test_fold,
                     )
+                    tb = traceback.format_exc()
                     self._failed_models.add(model_name)
-                    self._fold_errors.append(f"  - {model_name} (fold {test_fold}): {exc}")
+                    self._fold_errors.append(f"  - {model_name} (fold {test_fold}): {exc}\n{tb}")
                     continue
 
         # Check we got at least one model

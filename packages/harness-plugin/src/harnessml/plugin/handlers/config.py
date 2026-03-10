@@ -301,6 +301,12 @@ def _handle_studio(*, project_dir, **_kwargs):
     return f"**Harness Studio** → {base_url}"
 
 
+def _handle_suggest_cv(*, project_dir, **_kwargs):
+    from harnessml.core.runner.config_writer.pipeline import suggest_cv
+
+    return suggest_cv(resolve_project_dir(project_dir))
+
+
 ACTIONS = {
     "init": _handle_init,
     "update_data": _handle_update_data,
@@ -314,6 +320,7 @@ ACTIONS = {
     "list_targets": _handle_list_targets,
     "set_target": _handle_set_target,
     "studio": _handle_studio,
+    "suggest_cv": _handle_suggest_cv,
 }
 
 

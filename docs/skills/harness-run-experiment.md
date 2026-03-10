@@ -237,13 +237,20 @@ When a strategy shows initial promise or ambiguous results, the following patter
 | Create with parent | `experiments(action="create", description="...", hypothesis="...", parent_id="exp-001")` |
 | Write config overlay | `experiments(action="write_overlay", experiment_id="...", overlay={...})` |
 | Run with baseline comparison | `experiments(action="run", experiment_id="...", primary_metric="...")` |
+| Run against a saved run | `experiments(action="run", experiment_id="...", baseline_run_id="run-...")` |
 | One-shot experiment | `experiments(action="quick_run", description="...", hypothesis="...", overlay={...})` |
+| One-shot against saved run | `experiments(action="quick_run", ..., baseline_run_id="run-...")` |
 | Compare experiments | `experiments(action="compare", experiment_ids=["exp-001", "exp-002"])` |
 | Bayesian search | `experiments(action="explore", search_space={...})` |
 | Promote to production | `experiments(action="promote", experiment_id="...", primary_metric="...")` |
 | Log with metrics | `experiments(action="log_result", experiment_id="...", conclusion="...", verdict="...", metrics={...}, baseline_metrics={...})` |
 | View experiment journal | `experiments(action="journal")` |
 | Run diagnostics | `pipeline(action="diagnostics")` |
+| Write notebook entry | `notebook(action="write", type="plan\|theory\|finding\|research\|decision\|note", content="...")` |
+| Read notebook entries | `notebook(action="read", type="...", tags="[...]")` |
+| Search notebook | `notebook(action="search", query="...")` |
+| Strike notebook entry | `notebook(action="strike", entry_id="...", reason="...")` |
+| Notebook summary | `notebook(action="summary")` |
 
 ---
 
@@ -262,3 +269,18 @@ When a strategy shows initial promise or ambiguous results, the following patter
 **Skipping diagnostics**: Moving from one attempt to the next without understanding why the previous one failed. Diagnosis drives the next attempt's design.
 
 **Modifying production config directly**: Always use experiment overlays. The overlay system exists to keep production config safe and experiment history clean.
+
+### Rule 8: Experiment Sequencing (Programmatic Gates)
+
+The following gates are enforced IN CODE by `config_writer/experiments.py`. Attempts to create, run, or quick_run experiments will return an error if any gate fails. You cannot skip them.
+
+**Hard gates (code-enforced — will block you):**
+1. **Plan required** — `notebook(action="write", type="plan", ...)` must exist before any experiment can be created or run. Without it, `experiment_create`, `run_experiment`, and `quick_run_experiment` return an error.
+2. **Log before next** — If the most recent experiment is completed but has no conclusion, you must call `experiments(action="log_result", ...)` before creating or running the next experiment. The system will block you otherwise.
+3. **Plan freshness** — After 3 experiments since the last plan update, you must write a new plan. The system will block further experiments until you do.
+
+**Soft conventions (follow these, but code won't block you):**
+- Write a theory (`type="theory"`) before writing a plan
+- Record a finding (`type="finding"`) after each experiment with what was learned
+- On phase transitions, summarize the old phase and write a new theory + plan
+- Check `notebook(action="summary")` at session start

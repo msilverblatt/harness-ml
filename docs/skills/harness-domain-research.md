@@ -90,16 +90,23 @@ Add and evaluate features one at a time to isolate each hypothesis's contributio
 
 ### Process
 
-1. **Add the feature**:
+1. **Snapshot first** — before adding features, save a snapshot so you can roll back if needed:
+   ```
+   data(action="snapshot", name="pre_feature_test")
+   ```
+
+2. **Add the feature**:
    ```
    features(action="add", name="simultaneous_maxout_count", formula="sum(utilization > 0.9) group_by borrower_id, statement_month")
    ```
 
-2. **Test correlation with target** before adding to any model — a feature with zero univariate signal may still matter in interactions, but start by checking direct relationships.
+   > **Note:** `features(action="add")` registers a feature in the **feature registry** (entity, pairwise, or regime types — computed during pipeline execution). For simple derived columns using pandas expressions (e.g., arithmetic, `.shift()`, `.rolling()`, `np` functions), use `data(action="derive_column", name="...", expression="...")` instead. That writes directly to the feature store.
 
-3. **Run a single-variable experiment** using the `harness-run-experiment` skill for proper experiment discipline.
+3. **Test correlation with target** before adding to any model — a feature with zero univariate signal may still matter in interactions, but start by checking direct relationships.
 
-4. **Document the full cycle**: hypothesis, feature definition, correlation, experiment result, learning.
+4. **Run a single-variable experiment** using the `harness-run-experiment` skill for proper experiment discipline.
+
+5. **Document the full cycle**: hypothesis, feature definition, correlation, experiment result, learning.
 
 ### Key Discipline
 

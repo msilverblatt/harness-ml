@@ -4,11 +4,21 @@ import { useProject } from '../../hooks/useProject';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
 import styles from './Diagnostics.module.css';
 
+interface ClassBalance {
+    positive_rate: number;
+    n_positive: number;
+    n_total: number;
+}
+
 interface MetricsResponse {
     metrics?: Record<string, number>;
     meta_coefficients?: Record<string, number>;
+    class_balance?: ClassBalance;
     error?: string;
 }
+
+const IMBALANCE_THRESHOLD = 0.05;
+const IMBALANCE_HIGHLIGHT_METRICS = new Set(['auc_pr', 'f1', 'precision', 'recall']);
 
 interface MetricSummaryProps {
     runId: string;
@@ -84,24 +94,43 @@ export function MetricSummary({ runId }: MetricSummaryProps) {
 
     const metrics = data.metrics;
     const count = Object.keys(metrics).length;
+    const classBalance = data.class_balance;
+    const isImbalanced = classBalance != null && classBalance.positive_rate < IMBALANCE_THRESHOLD;
 
     return (
         <div className={styles.metricsSection}>
+            {isImbalanced && (
+                <div className={styles.imbalanceBanner}>
+                    Highly imbalanced ({(classBalance.positive_rate * 100).toFixed(1)}% positive). Focus on AUC-PR, F1, Precision, Recall.
+                </div>
+            )}
             <div className={styles.metricsSectionHeader}>
+                {classBalance != null && (
+                    <span className={styles.positiveRateBadge}>
+                        {(classBalance.positive_rate * 100).toFixed(1)}% positive
+                    </span>
+                )}
                 <CopyButton text={metricsToMarkdown(metrics)} />
             </div>
             <div
                 className={styles.metricsGrid}
                 style={{ '--metric-count': count } as React.CSSProperties}
             >
-                {Object.entries(metrics).map(([name, value]) => (
-                    <div key={name} className={styles.metricCard} title={`Click to copy ${name}: ${formatValue(value)}`}>
-                        <span className={styles.metricValue}>
-                            {formatValue(value)}
-                        </span>
-                        <span className={styles.metricName}><MetricLabel name={name} /></span>
-                    </div>
-                ))}
+                {Object.entries(metrics).map(([name, value]) => {
+                    const highlight = isImbalanced && IMBALANCE_HIGHLIGHT_METRICS.has(name.toLowerCase());
+                    return (
+                        <div
+                            key={name}
+                            className={`${styles.metricCard}${highlight ? ` ${styles.metricCardAccent}` : ''}`}
+                            title={`Click to copy ${name}: ${formatValue(value)}`}
+                        >
+                            <span className={styles.metricValue}>
+                                {formatValue(value)}
+                            </span>
+                            <span className={styles.metricName}><MetricLabel name={name} /></span>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );

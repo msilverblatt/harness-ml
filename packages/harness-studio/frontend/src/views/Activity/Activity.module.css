@@ -52,7 +52,32 @@
     color: var(--color-text-secondary);
     white-space: pre-line;
     flex: 1;
+    max-height: 120px;
     overflow: hidden;
+    position: relative;
+}
+
+.narrativeContentExpanded {
+    max-height: none;
+}
+
+.showMore {
+    background: none;
+    border: none;
+    color: var(--color-accent);
+    cursor: pointer;
+    padding: var(--space-1) 0;
+    font-size: var(--font-sm);
+}
+
+.narrativeFade {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    background: linear-gradient(transparent, var(--color-bg-primary));
+    pointer-events: none;
 }
 
 .narrativeEmpty {
@@ -219,10 +244,9 @@
 .runningEvent {
     border-left: 3px solid var(--color-accent);
     background: var(--color-accent-a06);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-2) var(--space-4);
     box-shadow: var(--shadow-glow-accent);
     border-radius: var(--radius-sm);
-    margin: var(--space-1) 0;
     position: relative;
 }
 
@@ -243,7 +267,7 @@
 }
 
 .foldProgress {
-    margin-top: var(--space-2);
+    margin-top: var(--space-1);
 }
 
 .foldTrack {
@@ -326,7 +350,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: var(--space-1);
+    margin-top: 2px;
 }
 
 .foldCount {

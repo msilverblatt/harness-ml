@@ -630,9 +630,9 @@ def run_sweep(
         Keys: ``is_sweep``, ``experiment_id``, ``n_variants``,
         ``results`` (ranked), ``best``, ``total_cache_stats``.
     """
+    from harnessml.core.runner.optimization.sweep import expand_sweep
     from harnessml.core.runner.pipeline import PipelineRunner
     from harnessml.core.runner.training.prediction_cache import PredictionCache
-    from harnessml.core.runner.optimization.sweep import expand_sweep
 
     overlay = yaml.safe_load(overlay_path.read_text()) or {}
     variants = expand_sweep(overlay)

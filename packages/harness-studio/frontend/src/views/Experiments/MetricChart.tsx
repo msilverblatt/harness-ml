@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContai
 import type { Experiment } from './ExperimentTable';
 import { useTheme } from '../../hooks/useTheme';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
+import { isLowerBetter } from '../../utils/metrics';
 import styles from './Experiments.module.css';
 
 interface MetricChartProps {
@@ -12,13 +13,11 @@ interface MetricChartProps {
     onMetricChange: (metric: string) => void;
 }
 
-const LOWER_IS_BETTER = new Set(['brier', 'ece', 'log_loss', 'mae', 'mse', 'rmse']);
-
 export function MetricChart({ experiments, metricKey, availableMetrics, onMetricChange }: MetricChartProps) {
     const { colors } = useTheme();
     const chronological = [...experiments].reverse();
 
-    const isLowerBetter = LOWER_IS_BETTER.has(metricKey);
+    const lowerBetter = isLowerBetter(metricKey);
 
     const data = useMemo(() => {
         const points = chronological
@@ -34,14 +33,14 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
             if (runningBest === null) {
                 runningBest = p.value;
             } else {
-                runningBest = isLowerBetter
+                runningBest = lowerBetter
                     ? Math.min(runningBest, p.value)
                     : Math.max(runningBest, p.value);
             }
             const isNewBest = p.value === runningBest;
             return { ...p, isNewBest };
         });
-    }, [chronological, metricKey, isLowerBetter]);
+    }, [chronological, metricKey, lowerBetter]);
 
     const hasErrorBars = data.some(d => d.errorY > 0);
 
@@ -55,7 +54,7 @@ export function MetricChart({ experiments, metricKey, availableMetrics, onMetric
     const baselineValue = withBaseline?.baseline_metrics?.[metricKey];
 
     const allValues = data.map(d => d.value);
-    const bestValue = isLowerBetter ? Math.min(...allValues) : Math.max(...allValues);
+    const bestValue = lowerBetter ? Math.min(...allValues) : Math.max(...allValues);
 
     if (baselineValue != null) allValues.push(baselineValue);
     allValues.push(bestValue);

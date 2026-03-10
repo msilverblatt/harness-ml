@@ -12,6 +12,136 @@ from harnessml.core.runner.config_writer._helpers import (
     _load_yaml,
 )
 
+# ── Experiment discipline gates ──────────────────────────────────────
+
+_MAX_EXPERIMENTS_WITHOUT_PLAN_UPDATE = 3
+
+
+def _check_discipline(project_dir: Path) -> str | None:
+    """Enforce experiment discipline programmatically.
+
+    Returns an error string if a gate fails, or None if all gates pass.
+
+    Gates:
+    1. Previous experiment must be logged (has conclusion) before running next
+    2. A notebook plan entry must exist before any experiment
+    3. No more than N experiments since the last plan update
+    """
+    journal_path = project_dir / "experiments" / "journal.jsonl"
+    if not journal_path.exists():
+        # First experiment — only check for plan
+        return _check_plan_exists(project_dir)
+
+    try:
+        from harnessml.core.runner.experiments.journal import ExperimentJournal
+        from harnessml.core.runner.experiments.schema import ExperimentStatus
+
+        journal = ExperimentJournal(journal_path)
+        snapshots = journal._latest_snapshots()
+
+        if not snapshots:
+            return _check_plan_exists(project_dir)
+
+        # Gate 1: Previous experiment must have conclusion
+        completed_or_run = [
+            r for r in snapshots.values()
+            if r.status in (ExperimentStatus.COMPLETED, ExperimentStatus.RUNNING)
+        ]
+        if completed_or_run:
+            latest = max(completed_or_run, key=lambda r: r.created_at)
+            if latest.status == ExperimentStatus.COMPLETED and latest.conclusion is None:
+                return (
+                    f"**Discipline gate**: Experiment `{latest.experiment_id}` was completed "
+                    f"but has no conclusion logged. Log results with "
+                    f"`experiments(action=\"log_result\", experiment_id=\"{latest.experiment_id}\", "
+                    f"conclusion=\"...\", verdict=\"...\")` before starting a new experiment."
+                )
+
+        # Gate 2: Plan must exist
+        plan_err = _check_plan_exists(project_dir)
+        if plan_err:
+            return plan_err
+
+        # Gate 3: No more than N experiments since last plan update
+        plan_count_err = _check_plan_freshness(project_dir, snapshots)
+        if plan_count_err:
+            return plan_count_err
+
+    except Exception:
+        pass  # Fail-safe: don't block experiments if discipline check itself errors
+
+    return None
+
+
+def _check_plan_exists(project_dir: Path) -> str | None:
+    """Check that at least one notebook plan entry exists."""
+    notebook_path = project_dir / "notebook" / "entries.jsonl"
+    if not notebook_path.exists():
+        return (
+            "**Discipline gate**: No notebook plan found. Write a plan before running experiments: "
+            "`notebook(action=\"write\", type=\"plan\", content=\"...\")`"
+        )
+
+    try:
+        has_plan = False
+        for line in notebook_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("type") == "plan" and not entry.get("struck"):
+                has_plan = True
+                break
+        if not has_plan:
+            return (
+                "**Discipline gate**: No notebook plan found. Write a plan before running experiments: "
+                "`notebook(action=\"write\", type=\"plan\", content=\"...\")`"
+            )
+    except Exception:
+        pass  # Fail-safe
+
+    return None
+
+
+def _check_plan_freshness(project_dir: Path, snapshots: dict) -> str | None:
+    """Check that plan has been updated within the last N experiments."""
+    notebook_path = project_dir / "notebook" / "entries.jsonl"
+    if not notebook_path.exists():
+        return None
+
+    try:
+        from datetime import datetime
+
+        # Find latest plan timestamp
+        latest_plan_time = None
+        for line in notebook_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("type") == "plan" and not entry.get("struck"):
+                ts = entry.get("timestamp")
+                if ts:
+                    latest_plan_time = datetime.fromisoformat(ts)
+
+        if latest_plan_time is None:
+            return None
+
+        # Count experiments created after the latest plan
+        experiments_since_plan = 0
+        for r in snapshots.values():
+            if r.created_at.replace(tzinfo=None) > latest_plan_time.replace(tzinfo=None):
+                experiments_since_plan += 1
+
+        if experiments_since_plan >= _MAX_EXPERIMENTS_WITHOUT_PLAN_UPDATE:
+            return (
+                f"**Discipline gate**: {experiments_since_plan} experiments since last plan update "
+                f"(max {_MAX_EXPERIMENTS_WITHOUT_PLAN_UPDATE}). Update your plan before continuing: "
+                f"`notebook(action=\"write\", type=\"plan\", content=\"...\")`"
+            )
+    except Exception:
+        pass  # Fail-safe
+
+    return None
+
 
 def experiment_create(
     project_dir: Path,
@@ -23,7 +153,14 @@ def experiment_create(
     phase: str = "",
 ) -> str:
     """Create a new experiment directory with auto-generated ID."""
-    experiments_dir = Path(project_dir) / "experiments"
+    project_dir = Path(project_dir)
+
+    # Discipline gates
+    discipline_err = _check_discipline(project_dir)
+    if discipline_err:
+        return discipline_err
+
+    experiments_dir = project_dir / "experiments"
     experiments_dir.mkdir(parents=True, exist_ok=True)
 
     from harnessml.core.runner.experiments.experiment import auto_next_id
@@ -108,22 +245,70 @@ def write_overlay(
     )
 
 
+def _resolve_baseline_from_run(
+    project_dir: Path,
+    baseline_run_id: str,
+) -> dict | None:
+    """Load saved baseline metrics from a historical run directory.
+
+    Looks for ``{outputs_dir}/{baseline_run_id}/diagnostics/pooled_metrics.json``
+    first, then falls back to ``{outputs_dir}/{baseline_run_id}/pooled_metrics.json``.
+
+    Returns a dict with ``metrics`` key (and empty ``per_fold``), or *None* if
+    the run or metrics file cannot be found.
+    """
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return None
+
+    run_dir = project_dir / outputs_dir / baseline_run_id
+    if not run_dir.exists():
+        return None
+
+    # Prefer diagnostics/ subdir (canonical save location)
+    for candidate in (
+        run_dir / "diagnostics" / "pooled_metrics.json",
+        run_dir / "pooled_metrics.json",
+    ):
+        if candidate.exists():
+            try:
+                raw = json.loads(candidate.read_text())
+                return {
+                    "metrics": {k: v for k, v in raw.items() if isinstance(v, (int, float))},
+                    "per_fold": {},
+                }
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    return None
+
+
 def run_experiment(
     project_dir: Path,
     experiment_id: str,
     *,
     primary_metric: str = "brier",
     variant: str | None = None,
+    baseline_run_id: str | None = None,
     on_progress=None,
 ) -> str:
     """Run a full experiment: backtest with overlay, compare to baseline.
 
     Steps:
     1. Load experiment overlay and run backtest
-    2. Load baseline results (from last run or re-run without overlay)
+    2. Load baseline results (from a saved run if baseline_run_id is given,
+       otherwise re-run without overlay)
     3. Compute deltas
     4. Auto-log results
     5. Return comprehensive comparison
+
+    Parameters
+    ----------
+    baseline_run_id : str | None
+        If provided, load baseline metrics from ``runs/{baseline_run_id}/``
+        instead of re-running the baseline backtest.
 
     Returns
     -------
@@ -133,6 +318,12 @@ def run_experiment(
     from harnessml.core.runner.config_writer.pipeline import _format_backtest_result
 
     project_dir = Path(project_dir)
+
+    # Discipline gates
+    discipline_err = _check_discipline(project_dir)
+    if discipline_err:
+        return discipline_err
+
     config_dir = _get_config_dir(project_dir)
 
     # Load experiment overlay
@@ -151,6 +342,10 @@ def run_experiment(
 
     try:
         from harnessml.core.runner.pipeline import PipelineRunner
+        from harnessml.core.runner.training.prediction_cache import PredictionCache
+
+        # Shared cache — baseline reuses predictions for unchanged models
+        cache = PredictionCache(project_dir / ".cache" / "predictions")
 
         # Run experiment backtest (with overlay)
         runner = PipelineRunner(
@@ -158,18 +353,30 @@ def run_experiment(
             config_dir=config_dir,
             variant=variant,
             overlay=overlay,
+            prediction_cache=cache,
         )
         runner.load()
         exp_result = runner.backtest(on_progress=on_progress)
 
-        # Run baseline backtest (without overlay)
-        baseline_runner = PipelineRunner(
-            project_dir=project_dir,
-            config_dir=config_dir,
-            variant=variant,
-        )
-        baseline_runner.load()
-        baseline_result = baseline_runner.backtest(on_progress=on_progress)
+        # Load or run baseline
+        if baseline_run_id:
+            baseline_result = _resolve_baseline_from_run(project_dir, baseline_run_id)
+            if baseline_result is None:
+                return (
+                    f"**Error**: Could not load baseline metrics from run "
+                    f"'{baseline_run_id}'. Check that the run exists and "
+                    f"contains a pooled_metrics.json file."
+                )
+        else:
+            # Run baseline backtest (without overlay)
+            baseline_runner = PipelineRunner(
+                project_dir=project_dir,
+                config_dir=config_dir,
+                variant=variant,
+                prediction_cache=cache,
+            )
+            baseline_runner.load()
+            baseline_result = baseline_runner.backtest(on_progress=on_progress)
 
         # Build comparison
         exp_metrics = exp_result.get("metrics", {})
@@ -283,11 +490,19 @@ def quick_run_experiment(
     *,
     hypothesis: str = "",
     primary_metric: str = "brier",
+    baseline_run_id: str | None = None,
     on_progress=None,
 ) -> str:
     """Create, configure, and run an experiment in a single call.
 
     Combines experiment_create + write_overlay + run_experiment.
+
+    Parameters
+    ----------
+    baseline_run_id : str | None
+        If provided, load baseline metrics from ``runs/{baseline_run_id}/``
+        instead of re-running the baseline backtest.
+
     Returns the combined results or error at any step.
     """
     if not description:
@@ -296,6 +511,11 @@ def quick_run_experiment(
         return "**Error**: 'hypothesis' is required for quick_run. State what you expect and why."
 
     project_dir = Path(project_dir)
+
+    # Discipline gates
+    discipline_err = _check_discipline(project_dir)
+    if discipline_err:
+        return discipline_err
 
     # Step 1: Create experiment
     create_result = experiment_create(project_dir, description, hypothesis=hypothesis)
@@ -324,6 +544,7 @@ def quick_run_experiment(
         project_dir,
         experiment_id,
         primary_metric=primary_metric,
+        baseline_run_id=baseline_run_id,
         on_progress=on_progress,
     )
 
@@ -486,8 +707,8 @@ def show_journal(project_dir: Path, *, last_n: int = 20) -> str:
                 metric_keys.append(k)
 
     lines = ["## Experiment Journal\n"]
-    header = "| # | ID | Description | " + " | ".join(metric_keys) + " | Verdict |"
-    sep = "|---|----|-----------| " + " | ".join("------" for _ in metric_keys) + " |---------|"
+    header = "| # | ID | Description | " + " | ".join(metric_keys) + " | Verdict | Changes |"
+    sep = "|---|----|-----------| " + " | ".join("------" for _ in metric_keys) + " |---------|---------|"
     lines.extend([header, sep])
 
     _dash = "\u2014"
@@ -499,7 +720,10 @@ def show_journal(project_dir: Path, *, last_n: int = 20) -> str:
         )
         verdict = e.get("verdict", "")
         desc = e.get("description", "")[:40]
-        lines.append(f"| {i} | {e['experiment_id']} | {desc} | {vals} | {verdict} |")
+        overlay = e.get("overlay_summary", "")
+        if len(overlay) > 60:
+            overlay = overlay[:60] + "..."
+        lines.append(f"| {i} | {e['experiment_id']} | {desc} | {vals} | {verdict} | {overlay} |")
 
     return "\n".join(lines)
 

@@ -1147,3 +1147,131 @@ class TestCdfScaleInDiagnostics:
         assert "xgb_regressor" in result["model_cdf_scales"]
         assert isinstance(result["model_cdf_scales"]["xgb_regressor"], float)
         assert result["model_cdf_scales"]["xgb_regressor"] > 0
+
+
+# -----------------------------------------------------------------------
+# Tests — cache wiring in config_writer entry points
+# -----------------------------------------------------------------------
+
+
+class TestConfigWriterCacheWiring:
+    """run_backtest and run_experiment create PredictionCache automatically."""
+
+    def test_run_backtest_creates_cache(self, tmp_path):
+        """run_backtest creates .cache/predictions/ and uses it."""
+        from harnessml.core.runner.config_writer.pipeline import run_backtest
+
+        config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        result = run_backtest(tmp_path)
+
+        assert "Backtest Results" in result
+        cache_dir = tmp_path / ".cache" / "predictions"
+        assert cache_dir.exists()
+        # Should have parquet files (1 model x 4 folds)
+        parquets = list(cache_dir.rglob("*.parquet"))
+        assert len(parquets) == 4
+
+    def test_run_backtest_second_run_hits_cache(self, tmp_path):
+        """Second run_backtest with same config reports cache hits."""
+        from harnessml.core.runner.config_writer.pipeline import run_backtest
+
+        _setup_project(tmp_path, n_rows=300, n_seasons=4)
+
+        # First run — fills cache
+        result1 = run_backtest(tmp_path)
+        assert "trained from scratch" in result1
+
+        # Second run — should hit cache
+        result2 = run_backtest(tmp_path)
+        assert "served from cache" in result2
+
+    def test_run_backtest_cache_stats_in_output(self, tmp_path):
+        """Cache stats appear in formatted backtest output."""
+        from harnessml.core.runner.config_writer.pipeline import run_backtest
+
+        _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        result = run_backtest(tmp_path)
+
+        assert "Prediction Cache" in result
+        assert "4" in result  # 4 misses on first run
+
+    def test_run_experiment_uses_shared_cache(self, tmp_path):
+        """run_experiment shares cache between experiment and baseline runs."""
+        from harnessml.core.runner.config_writer.experiments import (
+            experiment_create,
+            run_experiment,
+            write_overlay,
+        )
+
+        _setup_project(tmp_path, n_rows=300, n_seasons=4)
+
+        # Discipline gate requires a notebook plan
+        import json
+        from datetime import datetime, timezone
+        nb_dir = tmp_path / "notebook"
+        nb_dir.mkdir(parents=True, exist_ok=True)
+        (nb_dir / "entries.jsonl").write_text(
+            json.dumps({"id": "nb-001", "type": "plan", "content": "Test plan.", "tags": [], "auto_tags": [], "timestamp": datetime.now(timezone.utc).isoformat()}) + "\n"
+        )
+
+        # Create experiment with no actual changes (overlay = {})
+        experiment_create(tmp_path, "test experiment", hypothesis="Test that cache works")
+        exp_id = sorted((tmp_path / "experiments").iterdir())[0].name
+
+        result = run_experiment(tmp_path, exp_id)
+
+        # Both runs used the same cache dir
+        cache_dir = tmp_path / ".cache" / "predictions"
+        assert cache_dir.exists()
+
+        # With no overlay changes, baseline should hit cache from experiment run
+        # (4 model-fold combos cached by experiment, reused by baseline)
+        assert "served from cache" in result
+
+    def test_run_experiment_overlay_causes_misses(self, tmp_path):
+        """Experiment with changed model config causes cache misses."""
+        from harnessml.core.runner.config_writer.experiments import (
+            experiment_create,
+            run_experiment,
+            write_overlay,
+        )
+
+        _setup_project(
+            tmp_path,
+            n_rows=300,
+            n_seasons=4,
+            models={
+                "logreg": {
+                    "type": "logistic_regression",
+                    "features": ["diff_x"],
+                    "params": {"max_iter": 200, "C": 1.0},
+                    "active": True,
+                },
+            },
+        )
+
+        # Discipline gate requires a notebook plan
+        import json
+        from datetime import datetime, timezone
+        nb_dir = tmp_path / "notebook"
+        nb_dir.mkdir(parents=True, exist_ok=True)
+        (nb_dir / "entries.jsonl").write_text(
+            json.dumps({"id": "nb-001", "type": "plan", "content": "Test plan.", "tags": [], "auto_tags": [], "timestamp": datetime.now(timezone.utc).isoformat()}) + "\n"
+        )
+
+        experiment_create(tmp_path, "test C change", hypothesis="Changing C should change results")
+        exp_id = sorted((tmp_path / "experiments").iterdir())[0].name
+
+        # Overlay changes the C parameter — should cause cache misses for experiment
+        write_overlay(tmp_path, exp_id, {"models": {"logreg": {"params": {"C": 0.1}}}})
+
+        result = run_experiment(tmp_path, exp_id)
+
+        # Cache dir was created
+        cache_dir = tmp_path / ".cache" / "predictions"
+        assert cache_dir.exists()
+
+        # Should have parquet files from both runs
+        parquets = list(cache_dir.rglob("*.parquet"))
+        # Experiment run: 4 misses (new fingerprint), baseline: 4 misses (different fingerprint)
+        assert len(parquets) == 8

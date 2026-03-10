@@ -59,14 +59,19 @@ This skill enforces a **phased workflow with hard gates** between phases. You ma
 
 ### Steps
 
-1. **Establish a baseline** — start with the simplest model that makes sense:
+1. **Pick the right CV strategy** before any modeling — let the framework suggest one based on your data:
+   ```
+   configure(action="suggest_cv")
+   ```
+
+2. **Establish a baseline** — start with the simplest model that makes sense:
    ```
    models(action="add", model_type="logistic_regression", name="lr_baseline")
    pipeline(action="run_backtest")
    ```
    Record baseline metrics. This is your floor.
 
-2. **Systematically try every model family:**
+3. **Systematically try every model family:**
 
    **Linear models:**
    ```
@@ -92,18 +97,18 @@ This skill enforces a **phased workflow with hard gates** between phases. You ma
    models(action="add", model_type="tabnet", ...)
    ```
 
-3. **Give each model type a fair shot** — at least 2-3 configurations before dismissing any model type. Vary:
+4. **Give each model type a fair shot** — at least 2-3 configurations before dismissing any model type. Vary:
    - Feature subsets (not every model needs every feature)
    - Key structural parameters (depth, regularization strength)
    - Do NOT do full hyperparameter sweeps yet — just enough to evaluate the model family
 
-4. **Check diversity regularly:**
+5. **Check diversity regularly:**
    ```
    features(action="diversity")
    ```
    If two models have >0.95 prediction correlation, they are not adding diversity. Differentiate them with different feature sets or replace one.
 
-5. **Target: 4-6 diverse models in the ensemble** before any hyperparameter tuning.
+6. **Target: 4-6 diverse models in the ensemble** before any hyperparameter tuning.
 
 ### Gate: Phase 2 -> Phase 3
 - At least 4 distinct model types have been tried
@@ -119,22 +124,27 @@ This skill enforces a **phased workflow with hard gates** between phases. You ma
 
 ### Steps
 
-1. **Domain research** — use the harness-domain-research skill to generate hypothesis-driven features based on domain expertise for the problem at hand.
+1. **Snapshot before big changes** — save a snapshot of your current config and features so you can restore if feature engineering goes sideways:
+   ```
+   data(action="snapshot", name="pre_feature_engineering")
+   ```
 
-2. **Test features individually** — use single-variable experiments to isolate the impact of each new feature:
+2. **Domain research** — use the harness-domain-research skill to generate hypothesis-driven features based on domain expertise for the problem at hand.
+
+3. **Test features individually** — use single-variable experiments to isolate the impact of each new feature:
    ```
    experiments(action="create", name="test_feature_X", changes={"features": {"add": [...]}})
    experiments(action="run", name="test_feature_X")
    ```
 
-3. **Systematic interaction discovery:**
+4. **Systematic interaction discovery:**
    ```
    features(action="auto_search", features=[...], search_types=["interactions"])
    ```
 
-4. **Try different feature sets per model** — this is a key source of genuine ensemble diversity. A linear model may benefit from binned features that a tree model does not need.
+5. **Try different feature sets per model** — this is a key source of genuine ensemble diversity. A linear model may benefit from binned features that a tree model does not need.
 
-5. **Re-run diversity analysis** after feature changes:
+6. **Re-run diversity analysis** after feature changes:
    ```
    features(action="diversity")
    ```
@@ -162,11 +172,17 @@ This skill enforces a **phased workflow with hard gates** between phases. You ma
    experiments(action="explore", search_space="{ ... }")
    ```
 
-2. **Compare tuned vs. untuned** — measure the actual gain from tuning. If the gain is marginal, stop tuning that model and move on.
+2. **Check feature importance** — use builtin importances for a fast check (no SHAP dependency needed), or SHAP for richer explanations:
+   ```
+   pipeline(action="explain", method="builtin")
+   pipeline(action="explain", method="shap")
+   ```
 
-3. **Watch for diminishing returns** — the first round of tuning gives the biggest gains. A second round rarely justifies the time.
+3. **Compare tuned vs. untuned** — measure the actual gain from tuning. If the gain is marginal, stop tuning that model and move on.
 
-4. **Re-check diversity after tuning** — aggressive tuning can cause models to converge in behavior:
+4. **Watch for diminishing returns** — the first round of tuning gives the biggest gains. A second round rarely justifies the time.
+
+5. **Re-check diversity after tuning** — aggressive tuning can cause models to converge in behavior:
    ```
    features(action="diversity")
    ```

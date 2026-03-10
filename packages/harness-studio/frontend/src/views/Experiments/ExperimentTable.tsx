@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MetricLabel, Tooltip } from '../../components/Tooltip/Tooltip';
 import { humanizeTimestamp, formatTimestamp } from '../../utils/time';
+import { isImprovement } from '../../utils/metrics';
 import styles from './Experiments.module.css';
 
 export interface Experiment {
@@ -19,13 +20,14 @@ export interface Experiment {
     [key: string]: unknown;
 }
 
-type SortKey = 'experiment_id' | 'timestamp' | 'hypothesis' | 'verdict' | 'primary_delta';
+type SortKey = 'experiment_id' | 'timestamp' | 'hypothesis' | 'verdict' | 'primary_delta' | `metric_${string}`;
 
 interface ExperimentTableProps {
     experiments: Experiment[];
     selectedIds: string[];
     onToggleCompare: (id: string) => void;
     initialExpandedId?: string | null;
+    allMetricKeys: string[];
 }
 
 interface ExperimentDetail {
@@ -35,8 +37,6 @@ interface ExperimentDetail {
     overlay?: Record<string, unknown>;
     results?: Record<string, unknown>;
 }
-
-const LOWER_IS_BETTER = new Set(['brier', 'ece', 'log_loss', 'mae', 'mse', 'rmse']);
 
 function formatDate(ts?: string): string {
     if (!ts) return '--';
@@ -77,17 +77,14 @@ function formatDelta(delta?: number, primaryMetric?: string): { text: string; cl
     const sign = delta > 0 ? '+' : '';
     const text = `${sign}${delta.toFixed(4)}`;
     if (delta === 0) return { text, className: '' };
-    const lowerBetter = primaryMetric ? LOWER_IS_BETTER.has(primaryMetric) : false;
-    const isImprovement = lowerBetter ? delta < 0 : delta > 0;
-    const className = isImprovement ? styles.deltaPositive : styles.deltaNegative;
+    const improved = primaryMetric ? isImprovement(primaryMetric, delta) : delta > 0;
+    const className = improved ? styles.deltaPositive : styles.deltaNegative;
     return { text, className };
 }
 
 function metricDeltaClass(metricName: string, delta: number): string {
     if (delta === 0) return '';
-    const lowerBetter = LOWER_IS_BETTER.has(metricName);
-    const isImprovement = lowerBetter ? delta < 0 : delta > 0;
-    return isImprovement ? styles.deltaPositive : styles.deltaNegative;
+    return isImprovement(metricName, delta) ? styles.deltaPositive : styles.deltaNegative;
 }
 
 function getBaseUrl(): string {
@@ -114,7 +111,7 @@ function summarizeOverlay(overlay: Record<string, unknown>): string[] {
     return lines;
 }
 
-function DetailPanel({ experiment }: { experiment: Experiment }) {
+function DetailPanel({ experiment, colSpan }: { experiment: Experiment; colSpan: number }) {
     const [detail, setDetail] = useState<ExperimentDetail | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -149,7 +146,7 @@ function DetailPanel({ experiment }: { experiment: Experiment }) {
 
     return (
         <tr className={styles.detailRow}>
-            <td colSpan={7} className={styles.detailCell}>
+            <td colSpan={colSpan} className={styles.detailCell}>
                 <div className={styles.detailPanel}>
                     <div className={styles.detailGrid}>
                         <div className={styles.detailBlock}>
@@ -215,10 +212,12 @@ function DetailPanel({ experiment }: { experiment: Experiment }) {
     );
 }
 
-export function ExperimentTable({ experiments, selectedIds, onToggleCompare, initialExpandedId }: ExperimentTableProps) {
+export function ExperimentTable({ experiments, selectedIds, onToggleCompare, initialExpandedId, allMetricKeys }: ExperimentTableProps) {
     const [sortKey, setSortKey] = useState<SortKey>('timestamp');
     const [sortAsc, setSortAsc] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(initialExpandedId ?? null);
+
+    const totalColumns = 7 + allMetricKeys.length;
 
     function handleSort(key: SortKey) {
         if (sortKey === key) {
@@ -240,6 +239,13 @@ export function ExperimentTable({ experiments, selectedIds, onToggleCompare, ini
             case 'hypothesis': return exp.hypothesis ?? '';
             case 'verdict': return exp.verdict ?? '';
             case 'primary_delta': return exp.primary_delta ?? 0;
+            default: {
+                if (key.startsWith('metric_')) {
+                    const metricName = key.slice(7);
+                    return exp.metrics?.[metricName] ?? 0;
+                }
+                return '';
+            }
         }
     }
 
@@ -260,37 +266,56 @@ export function ExperimentTable({ experiments, selectedIds, onToggleCompare, ini
     }
 
     return (
-        <table className={styles.table}>
-            <thead>
-                <tr>
-                    <th className={styles.th} style={{ width: 32 }}></th>
-                    <th className={styles.th} style={{ width: 24 }}></th>
-                    <th className={styles.th} onClick={() => handleSort('experiment_id')}>ID{sortArrow('experiment_id')}</th>
-                    <th className={styles.th} onClick={() => handleSort('timestamp')}>Date{sortArrow('timestamp')}</th>
-                    <th className={styles.th} onClick={() => handleSort('hypothesis')}>Hypothesis{sortArrow('hypothesis')}</th>
-                    <th className={styles.th} onClick={() => handleSort('verdict')}>Verdict{sortArrow('verdict')}</th>
-                    <th className={styles.th} onClick={() => handleSort('primary_delta')}>Delta{sortArrow('primary_delta')}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {sorted.map(exp => {
-                    const isExpanded = expandedId === exp.experiment_id;
-                    const delta = formatDelta(exp.primary_delta, exp.primary_metric);
-                    return (
-                        <ExperimentRow
-                            key={exp.experiment_id}
-                            experiment={exp}
-                            isExpanded={isExpanded}
-                            isCompareSelected={selectedIds.includes(exp.experiment_id)}
-                            delta={delta}
-                            onRowClick={handleRowClick}
-                            onToggleCompare={onToggleCompare}
-                        />
-                    );
-                })}
-            </tbody>
-        </table>
+        <div style={{ overflowX: 'auto' }}>
+            <table className={styles.table}>
+                <thead>
+                    <tr>
+                        <th className={styles.th} style={{ width: 32 }}></th>
+                        <th className={styles.th} style={{ width: 24 }}></th>
+                        <th className={styles.th} onClick={() => handleSort('experiment_id')}>ID{sortArrow('experiment_id')}</th>
+                        <th className={styles.th} onClick={() => handleSort('timestamp')}>Date{sortArrow('timestamp')}</th>
+                        <th className={styles.th} onClick={() => handleSort('hypothesis')}>Hypothesis{sortArrow('hypothesis')}</th>
+                        <th className={styles.th} onClick={() => handleSort('verdict')}>Verdict{sortArrow('verdict')}</th>
+                        <th className={styles.th} onClick={() => handleSort('primary_delta')}>Delta{sortArrow('primary_delta')}</th>
+                        {allMetricKeys.map(mk => (
+                            <th key={mk} className={styles.th} onClick={() => handleSort(`metric_${mk}`)}>
+                                <MetricLabel name={mk} />{sortArrow(`metric_${mk}`)}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {sorted.map(exp => {
+                        const isExpanded = expandedId === exp.experiment_id;
+                        const delta = formatDelta(exp.primary_delta, exp.primary_metric);
+                        return (
+                            <ExperimentRow
+                                key={exp.experiment_id}
+                                experiment={exp}
+                                isExpanded={isExpanded}
+                                isCompareSelected={selectedIds.includes(exp.experiment_id)}
+                                delta={delta}
+                                onRowClick={handleRowClick}
+                                onToggleCompare={onToggleCompare}
+                                allMetricKeys={allMetricKeys}
+                                totalColumns={totalColumns}
+                            />
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
     );
+}
+
+function formatMetricCell(experiment: Experiment, metricName: string): { text: string; className: string } {
+    const val = experiment.metrics?.[metricName];
+    if (val == null) return { text: '--', className: '' };
+    const base = experiment.baseline_metrics?.[metricName];
+    if (base == null) return { text: val.toFixed(4), className: '' };
+    const delta = val - base;
+    if (delta === 0) return { text: val.toFixed(4), className: '' };
+    return { text: val.toFixed(4), className: isImprovement(metricName, delta) ? styles.deltaPositive : styles.deltaNegative };
 }
 
 function ExperimentRow({
@@ -300,6 +325,8 @@ function ExperimentRow({
     delta,
     onRowClick,
     onToggleCompare,
+    allMetricKeys,
+    totalColumns,
 }: {
     experiment: Experiment;
     isExpanded: boolean;
@@ -307,6 +334,8 @@ function ExperimentRow({
     delta: { text: string; className: string };
     onRowClick: (id: string) => void;
     onToggleCompare: (id: string) => void;
+    allMetricKeys: string[];
+    totalColumns: number;
 }) {
     return (
         <>
@@ -340,8 +369,12 @@ function ExperimentRow({
                     </span>
                 </td>
                 <td className={`${styles.td} ${delta.className}`}>{delta.text}</td>
+                {allMetricKeys.map(mk => {
+                    const cell = formatMetricCell(experiment, mk);
+                    return <td key={mk} className={`${styles.td} ${cell.className}`}>{cell.text}</td>;
+                })}
             </tr>
-            {isExpanded && <DetailPanel experiment={experiment} />}
+            {isExpanded && <DetailPanel experiment={experiment} colSpan={totalColumns} />}
         </>
     );
 }

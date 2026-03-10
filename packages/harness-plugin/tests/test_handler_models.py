@@ -15,7 +15,7 @@ class TestModelsDispatch:
         from harnessml.plugin.handlers.models import dispatch
 
         defaults = dict(
-            action="add", name=None, model_type=None, preset=None,
+            action="add", name=None, new_name=None, model_type=None, preset=None,
             features=None, params=None, active=None, include_in_ensemble=None,
             mode=None, prediction_type=None, cdf_scale=None,
             zero_fill_features=None, items=None, replace_params=None,
@@ -99,7 +99,7 @@ class TestModelsDispatch:
         try:
             result = self._dispatch(
                 action="clone", name="xgb_1",
-                items='{"new_name": "xgb_2"}',
+                new_name="xgb_2",
             )
             mock_fn.assert_called_once()
             assert "Cloned" in result
@@ -129,14 +129,14 @@ class TestModelsDispatch:
         assert "name" in result
 
     def test_clone_missing_name(self):
-        result = self._dispatch(action="clone", name=None, items='{"new_name": "x"}')
+        result = self._dispatch(action="clone", name=None, new_name="x")
         assert "**Error**" in result
         assert "name" in result
 
-    def test_clone_missing_items(self):
-        result = self._dispatch(action="clone", name="xgb_1", items=None)
+    def test_clone_missing_new_name(self):
+        result = self._dispatch(action="clone", name="xgb_1", new_name=None)
         assert "**Error**" in result
-        assert "items" in result.lower()
+        assert "new_name" in result.lower()
 
     def test_add_batch_missing_items(self):
         result = self._dispatch(action="add_batch", items=None)

@@ -41,7 +41,7 @@ def compute_overlap_matrix(
         matrix[(name, name)] = 1.0
 
     for a, b in combinations(names, 2):
-        overlap = _jaccard(active[a]["features"], active[b]["features"])
+        overlap = _jaccard(active[a].get("features", []), active[b].get("features", []))
         matrix[(a, b)] = overlap
         matrix[(b, a)] = overlap
 
