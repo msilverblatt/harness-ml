@@ -6,6 +6,7 @@ on:
       - "core-v*"
       - "plugin-v*"
       - "sports-v*"
+      - "studio-v*"
 
 jobs:
   publish:
@@ -40,6 +41,9 @@ jobs:
           elif [[ "$TAG" == sports-v* ]]; then
             echo "dir=packages/harness-sports" >> "$GITHUB_OUTPUT"
             echo "name=harness-sports" >> "$GITHUB_OUTPUT"
+          elif [[ "$TAG" == studio-v* ]]; then
+            echo "dir=packages/harness-studio" >> "$GITHUB_OUTPUT"
+            echo "name=harness-studio" >> "$GITHUB_OUTPUT"
           else
             echo "Unknown tag prefix: $TAG" >&2
             exit 1
