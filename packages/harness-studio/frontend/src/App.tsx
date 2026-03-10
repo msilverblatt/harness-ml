@@ -24,6 +24,7 @@ import { FeaturesView } from './views/Features/Features';
 import { ModelsView } from './views/Models/Models';
 import { EnsembleView } from './views/Ensemble/Ensemble';
 import { PredictionsView } from './views/Predictions/Predictions';
+import { Notebook } from './views/Notebook/Notebook';
 import { ConfigView } from './views/Config/Config';
 import { PreferencesView } from './views/Preferences/Preferences';
 import { ProjectRedirect } from './components/ProjectRedirect';
@@ -47,6 +48,7 @@ function App() {
                         <Route path="activity" element={<ErrorBoundary><Activity /></ErrorBoundary>} />
                         <Route path="dag" element={<ErrorBoundary><DAG /></ErrorBoundary>} />
                         <Route path="experiments" element={<ErrorBoundary><Experiments /></ErrorBoundary>} />
+                        <Route path="notebook" element={<ErrorBoundary><Notebook /></ErrorBoundary>} />
                         <Route path="data" element={<ErrorBoundary><DataView /></ErrorBoundary>} />
                         <Route path="features" element={<ErrorBoundary><FeaturesView /></ErrorBoundary>} />
                         <Route path="models" element={<ErrorBoundary><ModelsView /></ErrorBoundary>} />

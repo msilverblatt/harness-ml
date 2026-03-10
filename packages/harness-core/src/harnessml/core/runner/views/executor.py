@@ -105,8 +105,8 @@ def _execute_step_polars(
     resolver: Callable[[str], pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
     """Execute a step using the Polars backend."""
-    from harnessml.core.runner.views.polars_compat import to_lazy, to_pandas
     from harnessml.core.runner.views.executor_polars import execute_step as polars_execute
+    from harnessml.core.runner.views.polars_compat import to_lazy, to_pandas
 
     step_dict = step.model_dump()
 

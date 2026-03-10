@@ -191,12 +191,12 @@ export function EventLog({ wsEvents }: EventLogProps) {
                         </div>
                     </div>
                 ) : (
-                    filtered.map(event => (
+                    filtered.map((event, i) => (
                         <div
                             key={event.id}
                             className={newEventIds.current.has(event.id) ? styles.newEvent : undefined}
                         >
-                            <EventRow event={event} />
+                            <EventRow event={event} defaultExpanded={i === 0} />
                         </div>
                     ))
                 )}

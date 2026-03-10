@@ -24,20 +24,11 @@ import type { Event } from '../../hooks/useWebSocket';
 import { useTheme } from '../../hooks/useTheme';
 import type { ThemeColors } from '../../styles/colors';
 import { MetricLabel } from '../../components/Tooltip/Tooltip';
+import type { NotebookEntry } from '../../types/api';
+import { TypeBadge } from '../../components/NotebookEntry/NotebookEntry';
 import styles from './Dashboard.module.css';
 
 // -- Types --
-
-interface ProjectStatus {
-    project_name: string;
-    task: string;
-    model_types_tried: number;
-    active_models: number;
-    experiments_run: number;
-    run_count: number;
-    feature_count: number;
-    latest_metrics: Record<string, number>;
-}
 
 interface Experiment {
     experiment_id: string;
@@ -157,7 +148,7 @@ const MINI_NODE_WIDTH = 120;
 function miniLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[], colors: ThemeColors): { nodes: Node[]; edges: Edge[] } {
     const g = new dagre.graphlib.Graph();
     g.setDefaultEdgeLabel(() => ({}));
-    g.setGraph({ rankdir: 'LR', nodesep: 20, ranksep: 50 });
+    g.setGraph({ rankdir: 'LR', nodesep: 5, ranksep: 30, edgesep: 5 });
 
     const NODE_HEIGHT = 28;
     apiNodes.forEach(n => {
@@ -244,10 +235,6 @@ function verdictClass(verdict?: string): string {
     }
 }
 
-function formatMetric(val: number): string {
-    if (Math.abs(val) >= 100) return val.toFixed(1);
-    return val.toFixed(4);
-}
 
 function mergeEventsForDashboard(events: Event[]): Event[] {
     const chronological = [...events].sort((a, b) => {
@@ -295,139 +282,6 @@ function mergeEventsForDashboard(events: Event[]): Event[] {
     return merged;
 }
 
-// ===== TOP ROW: Project Overview (left) + Performance (right) =====
-
-function ProjectOverviewWidget({ status, experiments, latestRun }: {
-    status: ProjectStatus | null;
-    experiments: Experiment[];
-    latestRun: RunSummary | null;
-}) {
-    const { colors } = useTheme();
-    const VERDICT_COLORS = useMemo(() => getVerdictColors(colors), [colors]);
-
-    // Best performance metrics
-    const primaryMetric = useMemo(() => {
-        for (const exp of experiments) {
-            if (exp.primary_metric) return exp.primary_metric;
-        }
-        if (latestRun) {
-            const keys = Object.keys(latestRun.metrics);
-            if (keys.includes('brier')) return 'brier';
-            if (keys.includes('accuracy')) return 'accuracy';
-            return keys[0] ?? null;
-        }
-        return null;
-    }, [experiments, latestRun]);
-
-    const isLowerBetter = primaryMetric ? LOWER_IS_BETTER.has(primaryMetric) : false;
-
-    const bestExperiment = useMemo(() => {
-        if (!primaryMetric) return null;
-        let best: Experiment | null = null;
-        let bestVal: number | null = null;
-        for (const exp of experiments) {
-            const val = exp.metrics?.[primaryMetric];
-            if (val == null) continue;
-            if (bestVal === null
-                || (isLowerBetter && val < bestVal)
-                || (!isLowerBetter && val > bestVal)
-            ) {
-                bestVal = val;
-                best = exp;
-            }
-        }
-        return best;
-    }, [experiments, primaryMetric, isLowerBetter]);
-
-    const displayMetrics = bestExperiment?.metrics ?? latestRun?.metrics ?? null;
-
-    // Verdict breakdown for bar chart — logical order
-    const VERDICT_ORDER = ['positive', 'neutral', 'pending', 'negative'];
-    const verdictData = useMemo(() => {
-        const counts: Record<string, number> = {};
-        for (const exp of experiments) {
-            const key = normalizeVerdict(exp.verdict);
-            counts[key] = (counts[key] ?? 0) + 1;
-        }
-        return VERDICT_ORDER
-            .filter(v => counts[v])
-            .map(verdict => ({
-                verdict,
-                count: counts[verdict],
-                color: VERDICT_COLORS[verdict] ?? 'var(--color-text-muted)',
-            }));
-    }, [experiments, VERDICT_COLORS]);
-
-    return (
-        <div className={`${styles.widget} ${styles.overviewWidget}`}>
-            <div className={styles.widgetHeader}>
-                <span className={styles.widgetTitle}>Project Overview</span>
-                <Link to="../diagnostics" className={styles.widgetLink}>Diagnostics</Link>
-            </div>
-            <div className={styles.widgetBody}>
-                <div className={styles.overviewGrid}>
-                    <div className={styles.overviewStat}>
-                        <span className={styles.overviewValue}>{status?.feature_count ?? 0}</span>
-                        <span className={styles.overviewLabel}>Features</span>
-                    </div>
-                    <div className={styles.overviewStat}>
-                        <span className={styles.overviewValue}>{status?.active_models ?? 0}</span>
-                        <span className={styles.overviewLabel}>Models</span>
-                    </div>
-                    <div className={styles.overviewStat}>
-                        <span className={styles.overviewValue}>{status?.experiments_run ?? 0}</span>
-                        <span className={styles.overviewLabel}>Experiments</span>
-                    </div>
-                    <div className={styles.overviewStat}>
-                        <span className={styles.overviewValue}>{status?.run_count ?? 0}</span>
-                        <span className={styles.overviewLabel}>Runs</span>
-                    </div>
-                </div>
-                {displayMetrics && (
-                    <>
-                        <div className={styles.sectionLabel}>Best Iteration</div>
-                        <div className={styles.latestMetrics}>
-                            {Object.entries(displayMetrics).map(([name, value]) => (
-                                <div key={name} className={styles.latestMetricItem}>
-                                    <span className={styles.latestMetricValue}>{formatMetric(value)}</span>
-                                    <span className={styles.latestMetricName}><MetricLabel name={name} /></span>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-                {verdictData.length > 0 && (
-                    <div className={styles.verdictSection}>
-                        <div className={styles.verdictBarLabel}>
-                            {experiments.length} experiments
-                        </div>
-                        <div className={styles.verdictBar}>
-                            {verdictData.map(d => (
-                                <div
-                                    key={d.verdict}
-                                    className={styles.verdictSegment}
-                                    style={{
-                                        flex: d.count,
-                                        backgroundColor: d.color,
-                                    }}
-                                    title={`${d.verdict}: ${d.count}`}
-                                />
-                            ))}
-                        </div>
-                        <div className={styles.verdictLegend}>
-                            {verdictData.map(d => (
-                                <span key={d.verdict} className={styles.verdictLegendItem}>
-                                    <span className={styles.verdictDot} style={{ background: d.color }} />
-                                    {d.verdict} ({d.count})
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
 
 function ExperimentsWidget({ experiments, latestRun }: {
     experiments: Experiment[];
@@ -481,6 +335,22 @@ function ExperimentsWidget({ experiments, latestRun }: {
     const yMin = allValues.length > 0 ? Math.min(...allValues) : 0;
     const yMax = allValues.length > 0 ? Math.max(...allValues) : 1;
     const padding = (yMax - yMin) * 0.2 || 0.01;
+
+    const VERDICT_ORDER = ['positive', 'neutral', 'pending', 'negative'];
+    const verdictData = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const exp of experiments) {
+            const key = normalizeVerdict(exp.verdict);
+            counts[key] = (counts[key] ?? 0) + 1;
+        }
+        return VERDICT_ORDER
+            .filter(v => counts[v])
+            .map(verdict => ({
+                verdict,
+                count: counts[verdict],
+                color: VERDICT_COLORS[verdict] ?? 'var(--color-text-muted)',
+            }));
+    }, [experiments, VERDICT_COLORS]);
 
     const recent = useMemo(() => {
         return [...experiments]
@@ -576,6 +446,34 @@ function ExperimentsWidget({ experiments, latestRun }: {
                         </ResponsiveContainer>
                     </div>
                 )}
+                {verdictData.length > 0 && (
+                    <div className={styles.verdictSection}>
+                        <div className={styles.verdictBarLabel}>
+                            {experiments.length} experiments
+                        </div>
+                        <div className={styles.verdictBar}>
+                            {verdictData.map(d => (
+                                <div
+                                    key={d.verdict}
+                                    className={styles.verdictSegment}
+                                    style={{
+                                        flex: d.count,
+                                        backgroundColor: d.color,
+                                    }}
+                                    title={`${d.verdict}: ${d.count}`}
+                                />
+                            ))}
+                        </div>
+                        <div className={styles.verdictLegend}>
+                            {verdictData.map(d => (
+                                <span key={d.verdict} className={styles.verdictLegendItem}>
+                                    <span className={styles.verdictDot} style={{ background: d.color }} />
+                                    {d.verdict} ({d.count})
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {recent.length === 0 ? (
                     <div className={styles.emptyState}>No experiments yet</div>
                 ) : (
@@ -606,55 +504,50 @@ function ExperimentsWidget({ experiments, latestRun }: {
 
 // ===== BOTTOM WIDGETS =====
 
-function ActivityWidget({ events }: { events: Event[] }) {
+function ActivityStrip({ events }: { events: Event[] }) {
     const merged = useMemo(() => mergeEventsForDashboard(events), [events]);
-    const recent = merged.slice(0, 12);
+    const latest = merged[0] ?? null;
+    const previous = merged[1] ?? null;
+
+    function EventRow({ event, faded }: { event: Event; faded?: boolean }) {
+        return (
+            <div className={`${styles.stripRow} ${faded ? styles.stripRowFaded : ''} ${event.status === 'running' ? styles.stripRowRunning : ''}`}>
+                <span className={styles.miniEventTime}>
+                    {formatRelativeTime(event.timestamp)}
+                </span>
+                <span
+                    className={styles.miniEventTool}
+                    style={{ backgroundColor: TOOL_COLOR_MAP[event.tool] ?? 'var(--color-text-muted)' }}
+                >
+                    {event.tool}
+                </span>
+                <span className={styles.miniEventAction}>{event.action}</span>
+                {event.caller && (
+                    <span className={styles.miniEventCaller}>{event.caller}</span>
+                )}
+                {event.status !== 'running' && (
+                    <span className={styles.miniEventDuration}>{event.duration_ms}ms</span>
+                )}
+                {event.status === 'running' && (
+                    <span className={styles.miniEventDuration} style={{ color: 'var(--color-accent)' }}>...</span>
+                )}
+            </div>
+        );
+    }
 
     return (
-        <div className={`${styles.widget} ${styles.activityWidget}`}>
-            <div className={styles.widgetHeader}>
-                <span className={styles.widgetTitle}>Activity <span className={styles.mcpBadge}>MCP</span></span>
-                <Link to="../activity" className={styles.widgetLink}>View all</Link>
-            </div>
-            <div className={styles.widgetBody}>
-                {recent.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <div className={styles.emptyPulse}>
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                            </svg>
-                        </div>
-                        <span className={styles.emptyPulseText}>Listening for tool calls...</span>
-                    </div>
+        <div className={styles.activityStrip}>
+            <Link to="../activity" className={styles.stripLabel}>
+                <span className={styles.mcpBadge}>MCP</span>
+            </Link>
+            <div className={styles.stripEvents}>
+                {latest ? (
+                    <>
+                        <EventRow event={latest} />
+                        {previous && <EventRow event={previous} faded />}
+                    </>
                 ) : (
-                    recent.map(event => (
-                        <div
-                            key={event.id}
-                            className={`${styles.miniEventRow} ${event.status === 'running' ? styles.miniEventRunning : ''}`}
-                        >
-                            <span className={styles.miniEventTime}>
-                                {formatRelativeTime(event.timestamp)}
-                            </span>
-                            <span
-                                className={styles.miniEventTool}
-                                style={{ backgroundColor: TOOL_COLOR_MAP[event.tool] ?? 'var(--color-text-muted)' }}
-                            >
-                                {event.tool}
-                            </span>
-                            <span className={styles.miniEventAction}>{event.action}</span>
-                            {event.caller && (
-                                <span className={styles.miniEventCaller}>{event.caller}</span>
-                            )}
-                            {event.status !== 'running' && (
-                                <span className={styles.miniEventDuration}>{event.duration_ms}ms</span>
-                            )}
-                            {event.status === 'running' && (
-                                <span className={styles.miniEventDuration} style={{ color: 'var(--color-accent)' }}>
-                                    ...
-                                </span>
-                            )}
-                        </div>
-                    ))
+                    <span className={styles.stripIdle}>Listening for tool calls...</span>
                 )}
             </div>
         </div>
@@ -756,6 +649,55 @@ function DagWidget({ refreshKey }: { refreshKey?: number }) {
     );
 }
 
+// ===== Narrative Widget =====
+
+/** Strip markdown syntax to plain text, keeping substance. */
+function stripMarkdown(content: string): string {
+    return content
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !/^#+\s/.test(l) && !/^---/.test(l))
+        .map(l => l
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^\d+\.\s+/, '• ')
+            .replace(/^[-*]\s+/, '• ')
+        )
+        .join('\n');
+}
+
+function NarrativeWidget({ entries }: { entries: NotebookEntry[] }) {
+    const nonStruck = useMemo(() => entries.filter(e => !e.struck), [entries]);
+    const latestTheory = nonStruck.find(e => e.type === 'theory') ?? null;
+    const latestPlan = nonStruck.find(e => e.type === 'plan') ?? null;
+
+    return (
+        <>
+            <div className={styles.narrativeCard}>
+                <div className={styles.narrativeLabel}>
+                    <TypeBadge type="theory" /> Current Theory
+                </div>
+                <div className={styles.narrativeContent}>
+                    {latestTheory ? stripMarkdown(latestTheory.content) : (
+                        <span className={styles.narrativeEmpty}>No theory logged yet</span>
+                    )}
+                </div>
+            </div>
+            <div className={styles.narrativeCard}>
+                <div className={styles.narrativeLabel}>
+                    <TypeBadge type="plan" /> Current Plan
+                </div>
+                <div className={styles.narrativeContent}>
+                    {latestPlan ? stripMarkdown(latestPlan.content) : (
+                        <span className={styles.narrativeEmpty}>No plan logged yet</span>
+                    )}
+                </div>
+            </div>
+        </>
+    );
+}
+
 // ===== Main Dashboard =====
 
 export function Dashboard() {
@@ -763,13 +705,15 @@ export function Dashboard() {
     const project = useProject();
 
     // Refresh keys — re-fetch API data whenever relevant tool calls complete
-    const allKey = useRefreshKey(events);
     const dagKey = useRefreshKey(events, ['models', 'features', 'config', 'pipeline']);
     const expKey = useRefreshKey(events, ['experiments', 'pipeline']);
 
-    const { data: status } = useApi<ProjectStatus>('/api/project/status', allKey, project);
+    const nbKey = useRefreshKey(events, ['notebook']);
+
     const { data: runs } = useApi<RunSummary[]>('/api/runs', expKey, project);
     const { data: experiments } = useApi<Experiment[]>('/api/experiments', expKey, project);
+    const { data: notebookEntries } = useApi<NotebookEntry[]>('/api/notebook', nbKey, project);
+    const nbEntries = notebookEntries ?? [];
 
     const latestRun = useMemo(() => {
         if (!runs || runs.length === 0) return null;
@@ -780,9 +724,9 @@ export function Dashboard() {
 
     return (
         <div className={styles.dashboard}>
-            <ProjectOverviewWidget status={status} experiments={exps} latestRun={latestRun} />
+            <ActivityStrip events={events} />
+            <NarrativeWidget entries={nbEntries} />
             <ExperimentsWidget experiments={exps} latestRun={latestRun} />
-            <ActivityWidget events={events} />
             <DagWidget refreshKey={dagKey} />
         </div>
     );

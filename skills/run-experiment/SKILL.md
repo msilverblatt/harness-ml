@@ -95,6 +95,14 @@ The conclusion is about **what you learned**, not just what the numbers say. A g
 
 A bad conclusion restates the metrics.
 
+Also record the learning in the project notebook:
+
+```
+notebook(action="write", type="finding", content="...", experiment_id="exp-001")
+```
+
+The experiment journal captures the structured result. The notebook captures the insight — what this means for the bigger picture. If your theory of the target changed, write a `theory` entry too.
+
 ### 6. Decide What's Next
 
 Every experiment ends with one of:

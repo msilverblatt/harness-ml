@@ -16,6 +16,7 @@ from harnessml.studio.routes import (
     experiments,
     features,
     models,
+    notebook,
     predictions,
     project,
     runs,
@@ -126,6 +127,7 @@ app.include_router(features.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 app.include_router(ensemble.router, prefix="/api")
 app.include_router(predictions.router, prefix="/api")
+app.include_router(notebook.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(ws.router)
 

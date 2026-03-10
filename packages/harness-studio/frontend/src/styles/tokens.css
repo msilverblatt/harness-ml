@@ -65,6 +65,21 @@
     --color-tool-experiments: #f0883e;
     --color-tool-config: #d29922;
 
+    /* Notebook entry type colors */
+    --color-nb-theory: #d2a8ff;
+    --color-nb-finding: #58a6ff;
+    --color-nb-research: #56d364;
+    --color-nb-decision: #f0883e;
+    --color-nb-plan: #3fb950;
+    --color-nb-note: #6e7681;
+
+    --color-nb-theory-a15: rgba(210, 168, 255, 0.15);
+    --color-nb-finding-a15: rgba(88, 166, 255, 0.15);
+    --color-nb-research-a15: rgba(86, 211, 100, 0.15);
+    --color-nb-decision-a15: rgba(240, 136, 62, 0.15);
+    --color-nb-plan-a15: rgba(63, 185, 80, 0.15);
+    --color-nb-note-a15: rgba(110, 118, 129, 0.15);
+
     /* Typography */
     --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

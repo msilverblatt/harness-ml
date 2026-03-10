@@ -5,39 +5,113 @@
     overflow: hidden;
 }
 
-.statBar {
-    border-bottom: 1px solid var(--color-border);
-}
+/* ===== Context Section (theory/plan cards + experiment bar) ===== */
 
-.statGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 1px;
-    background: var(--color-border);
-}
-
-.stat {
+.contextSection {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-3) var(--space-2);
-    background: var(--color-bg-primary);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
 }
 
-.statValue {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-lg);
-    font-weight: 700;
-    color: var(--color-text-primary);
+.cardRow {
+    display: flex;
+    gap: var(--space-3);
 }
 
-.statLabel {
+.narrativeCard {
+    flex: 1;
+    min-width: 0;
+    min-height: 100px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.narrativeLabel {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.narrativeContent {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+    white-space: pre-line;
+    flex: 1;
+    overflow: hidden;
+}
+
+.narrativeEmpty {
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+.experimentBar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+}
+
+.expId {
+    font-weight: 600;
+    color: var(--color-accent);
+    white-space: nowrap;
+}
+
+.expHypothesis {
+    color: var(--color-text-secondary);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.expVerdict {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.verdictKeep {
+    color: var(--color-success);
+}
+
+.verdictPartial {
+    color: var(--color-warning);
+}
+
+.verdictRevert {
+    color: var(--color-error);
+}
+
+.expLink {
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.expLink:hover {
+    text-decoration: underline;
 }
 
 .eventLog {
@@ -45,6 +119,7 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    border-top: 1px solid var(--color-border);
 }
 
 .filterBar {
@@ -52,8 +127,9 @@
     flex-direction: row;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--color-border);
+    padding-left: calc(var(--space-4) + 3px);
     background: var(--color-bg-secondary);
+    border-left: 3px solid var(--color-accent);
 }
 
 .filterInput,
@@ -266,6 +342,14 @@
     font-size: var(--font-size-xs);
 }
 
+.statusDefault {
+    border-left: 3px solid transparent;
+}
+
+.statusSuccess {
+    border-left: 3px solid var(--color-success);
+}
+
 .statusError {
     border-left: 3px solid var(--color-error);
 }
@@ -360,3 +444,4 @@
     white-space: nowrap;
     flex-shrink: 0;
 }
+
