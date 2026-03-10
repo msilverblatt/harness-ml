@@ -38,28 +38,39 @@ def _is_studio_running() -> bool:
         return False
 
 
-def _kill_stale_studio():
-    """Kill any stale Studio process from a previous session."""
+def _kill_studio_on_port():
+    """Kill ALL processes listening on the Studio port."""
     import signal
-    from pathlib import Path
-
-    pid_path = Path.home() / ".harnessml" / "studio.pid"
-    if not pid_path.exists():
-        return
+    import subprocess as _sp
 
     try:
-        old_pid = int(pid_path.read_text().strip())
-        os.kill(old_pid, signal.SIGTERM)
-    except (ValueError, ProcessLookupError, PermissionError, OSError):
+        result = _sp.run(
+            ["lsof", "-ti", f":{_STUDIO_PORT}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.stdout.strip():
+            for pid_str in result.stdout.strip().split("\n"):
+                try:
+                    pid = int(pid_str.strip())
+                    # Don't kill ourselves
+                    if pid != os.getpid():
+                        os.kill(pid, signal.SIGKILL)
+                except (ValueError, ProcessLookupError, PermissionError, OSError):
+                    pass
+    except Exception:
         pass
-    finally:
-        pid_path.unlink(missing_ok=True)
+
+    # Also clean up PID file
+    from pathlib import Path
+    pid_path = Path.home() / ".harnessml" / "studio.pid"
+    pid_path.unlink(missing_ok=True)
 
 
 def _start_studio():
-    """Launch Studio as a detached subprocess (survives MCP shutdown).
+    """Launch Studio as a child subprocess (dies with MCP server).
 
-    Kills any stale Studio process first, then starts a fresh one.
+    Kills any existing process on the Studio port first.
+    Uses start_new_session=False so Studio dies when the MCP server exits.
     """
     global _studio_started
     if _studio_started:
@@ -73,16 +84,11 @@ def _start_studio():
 
     logger = logging.getLogger("harnessml.studio")
 
-    # Kill stale Studio from previous session before checking health
-    _kill_stale_studio()
+    # Kill everything on the port — no zombies
+    _kill_studio_on_port()
 
-    # Wait briefly for the old process to release the port
-    if _is_studio_running():
-        import time as _t
-        _t.sleep(1)
-        if _is_studio_running():
-            logger.debug("Studio still running on port %d after cleanup, skipping", _STUDIO_PORT)
-            return
+    import time as _t
+    _t.sleep(0.5)
 
     pid_path = Path.home() / ".harnessml" / "studio.pid"
     pid_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,7 +96,6 @@ def _start_studio():
     try:
         proc = subprocess.Popen(
             [sys.executable, "-m", "harnessml.studio.cli", "--port", str(_STUDIO_PORT)],
-            start_new_session=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -100,10 +105,13 @@ def _start_studio():
         def _cleanup_studio():
             """Kill Studio and clean up PID file on exit."""
             try:
-                import signal
-                os.kill(proc.pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
+                proc.terminate()
+                proc.wait(timeout=3)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
             finally:
                 pid_path.unlink(missing_ok=True)
 
