@@ -38,8 +38,29 @@ def _is_studio_running() -> bool:
         return False
 
 
+def _kill_stale_studio():
+    """Kill any stale Studio process from a previous session."""
+    import signal
+    from pathlib import Path
+
+    pid_path = Path.home() / ".harnessml" / "studio.pid"
+    if not pid_path.exists():
+        return
+
+    try:
+        old_pid = int(pid_path.read_text().strip())
+        os.kill(old_pid, signal.SIGTERM)
+    except (ValueError, ProcessLookupError, PermissionError, OSError):
+        pass
+    finally:
+        pid_path.unlink(missing_ok=True)
+
+
 def _start_studio():
-    """Launch Studio as a detached subprocess (survives MCP shutdown)."""
+    """Launch Studio as a detached subprocess (survives MCP shutdown).
+
+    Kills any stale Studio process first, then starts a fresh one.
+    """
     global _studio_started
     if _studio_started:
         return
@@ -52,9 +73,16 @@ def _start_studio():
 
     logger = logging.getLogger("harnessml.studio")
 
+    # Kill stale Studio from previous session before checking health
+    _kill_stale_studio()
+
+    # Wait briefly for the old process to release the port
     if _is_studio_running():
-        logger.debug("Studio already running on port %d", _STUDIO_PORT)
-        return
+        import time as _t
+        _t.sleep(1)
+        if _is_studio_running():
+            logger.debug("Studio still running on port %d after cleanup, skipping", _STUDIO_PORT)
+            return
 
     pid_path = Path.home() / ".harnessml" / "studio.pid"
     pid_path.parent.mkdir(parents=True, exist_ok=True)
@@ -70,8 +98,13 @@ def _start_studio():
         logger.debug("Started Studio (pid=%d) on port %d", proc.pid, _STUDIO_PORT)
 
         def _cleanup_studio():
-            """Clean up Studio PID file on exit."""
-            if pid_path.exists():
+            """Kill Studio and clean up PID file on exit."""
+            try:
+                import signal
+                os.kill(proc.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+            finally:
                 pid_path.unlink(missing_ok=True)
 
         atexit.register(_cleanup_studio)
