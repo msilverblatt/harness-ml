@@ -1,0 +1,40 @@
+name: Lines of Code
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  loc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cloc
+        run: sudo apt-get install -y cloc
+
+      - name: Count lines of code
+        id: cloc
+        run: |
+          total=$(cloc packages/ --include-lang=Python,TypeScript,CSS --json | jq '.SUM.code')
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+      - name: Update gist
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          total="${{ steps.cloc.outputs.total }}"
+          if [ "$total" -ge 1000 ]; then
+            formatted="$(echo "scale=1; $total / 1000" | bc)k"
+          else
+            formatted="$total"
+          fi
+          cat > loc.json <<EOJSON
+          {
+            "schemaVersion": 1,
+            "label": "lines of code",
+            "message": "${formatted}",
+            "color": "blue"
+          }
+          EOJSON
+          gh gist edit 176db496aed8a6532131c9aa7447f59c -f loc.json loc.json

@@ -11,11 +11,17 @@
 **An Agent-Computer Interface (ACI) for machine learning.**<br>
 Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
 
-[![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/ci.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
+[![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![PyPI](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=PyPI)](https://pypi.org/project/harness-core/)
+[![Lines of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/176db496aed8a6532131c9aa7447f59c/raw/loc.json)](https://github.com/msilverblatt/harness-ml)
+[![React 19](https://img.shields.io/badge/React-19-61dafb.svg?style=flat-square&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![Vite](https://img.shields.io/badge/Vite-646cff.svg?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
 
 </div>
 
