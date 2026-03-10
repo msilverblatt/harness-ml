@@ -237,13 +237,20 @@ When a strategy shows initial promise or ambiguous results, the following patter
 | Create with parent | `experiments(action="create", description="...", hypothesis="...", parent_id="exp-001")` |
 | Write config overlay | `experiments(action="write_overlay", experiment_id="...", overlay={...})` |
 | Run with baseline comparison | `experiments(action="run", experiment_id="...", primary_metric="...")` |
+| Run against a saved run | `experiments(action="run", experiment_id="...", baseline_run_id="run-...")` |
 | One-shot experiment | `experiments(action="quick_run", description="...", hypothesis="...", overlay={...})` |
+| One-shot against saved run | `experiments(action="quick_run", ..., baseline_run_id="run-...")` |
 | Compare experiments | `experiments(action="compare", experiment_ids=["exp-001", "exp-002"])` |
 | Bayesian search | `experiments(action="explore", search_space={...})` |
 | Promote to production | `experiments(action="promote", experiment_id="...", primary_metric="...")` |
 | Log with metrics | `experiments(action="log_result", experiment_id="...", conclusion="...", verdict="...", metrics={...}, baseline_metrics={...})` |
 | View experiment journal | `experiments(action="journal")` |
 | Run diagnostics | `pipeline(action="diagnostics")` |
+| Write notebook entry | `notebook(action="write", type="plan\|theory\|finding\|research\|decision\|note", content="...")` |
+| Read notebook entries | `notebook(action="read", type="...", tags="[...]")` |
+| Search notebook | `notebook(action="search", query="...")` |
+| Strike notebook entry | `notebook(action="strike", entry_id="...", reason="...")` |
+| Notebook summary | `notebook(action="summary")` |
 
 ---
 
