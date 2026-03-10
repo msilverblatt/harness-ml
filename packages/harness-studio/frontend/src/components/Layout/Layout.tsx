@@ -373,6 +373,19 @@ export function Layout() {
                                 <span className={styles.headerStatValue}>{status.target_column}</span>
                             </div>
                         )}
+                        {status?.latest_metrics && Object.keys(status.latest_metrics).length > 0 && (
+                            <>
+                                <span className={styles.divider} />
+                                {Object.entries(status.latest_metrics).map(([name, value]) => (
+                                    <div key={name} className={styles.headerStat}>
+                                        <span className={styles.headerStatLabel}>{name}</span>
+                                        <span className={styles.headerStatValue}>
+                                            {Math.abs(value) >= 100 ? value.toFixed(1) : value.toFixed(4)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                         {(status?.task || status?.target_column) && <span className={styles.divider} />}
                         {projects.length > 0 ? (
                             <div className={styles.projectSelector}>

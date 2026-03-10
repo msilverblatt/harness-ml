@@ -126,12 +126,315 @@
     border-color: var(--color-warning-a40);
 }
 
+/* --- Timeline stats bar --- */
+
+.timelineStats {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.statPill {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.statCount {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.statDivider {
+    width: 1px;
+    height: 16px;
+    background: var(--color-border);
+}
+
+.statTotal {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin-left: auto;
+}
+
 /* --- Timeline view --- */
+
+.timelineWrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
 
 .timeline {
     display: flex;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-top: var(--space-2);
+    padding-bottom: 28px;
+    position: relative;
+}
+
+/* Each column is a fixed-width cell containing card + dot + date */
+.timelineColumn {
+    display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    width: 200px;
+    min-width: 200px;
+    flex-shrink: 0;
+}
+
+.timelineCardSlot {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 var(--space-1);
+}
+
+.timelineLabelSlot {
+    height: 20px;
+    text-align: center;
+}
+
+.timelineDotSlot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 24px;
+    position: relative;
+}
+
+/* Each dot slot draws a line across its full width */
+.timelineDotSlot::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--color-border);
+    transform: translateY(-50%);
+}
+
+.timelineDateSlot {
+    text-align: center;
+    padding: 0 var(--space-1);
+    position: relative;
+}
+
+/* Compact card for timeline — fixed height with markdown, overflow hidden */
+.timelineCardCompact {
+    height: 180px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    padding: var(--space-2);
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+}
+
+/* Fade-out gradient at the bottom so truncation looks clean */
+.timelineCardCompact::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to bottom, transparent, var(--color-bg-secondary));
+    pointer-events: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.timelineCardCompact:hover {
+    border-color: var(--color-accent);
+}
+
+.timelineCardCompactStruck {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
+.timelineCardCompactSelected {
+    border-color: var(--color-accent);
+    box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 8px var(--color-accent-a12);
+}
+
+.timelineCardCompactMeta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-bottom: var(--space-1);
+}
+
+.timelineCardCompactTime {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-text-muted);
+}
+
+.timelineCardCompactBody {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    line-height: 1.4;
+}
+
+.timelineDot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    border: 2px solid var(--color-bg-primary);
+    box-shadow: 0 0 0 2px var(--color-border);
+    position: relative;
+    z-index: 1;
+}
+
+/* Latest (rightmost) dot gets a glow */
+.timelineDotLatest {
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px var(--color-success), 0 0 8px var(--color-success-a30);
+}
+
+.timelineDate {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: var(--space-1) 0;
+}
+
+.timelineSelectedLabel {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--color-accent);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding-top: var(--space-1);
+}
+
+.timelineDirection {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.05em;
+}
+
+.timelineDirectionLine {
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.timelineDirectionLabel {
+    white-space: nowrap;
+}
+
+.timelineCellClickable {
+    cursor: pointer;
+}
+
+/* Connector line — positioned absolutely so it doesn't affect layout */
+.timelineConnectorLine {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    width: 2px;
+    height: 28px;
+    background: var(--color-accent);
+    transform: translateX(-50%);
+}
+
+/* --- Timeline detail panel --- */
+
+.timelineDetail {
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    padding: var(--space-4);
+    box-shadow: 0 0 0 1px var(--color-accent), 0 0 8px var(--color-accent-a12);
+    animation: detailSlideIn 0.15s ease-out;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes detailSlideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.detailHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detailClose {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+}
+
+.detailClose:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+}
+
+.detailContent {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-text-primary);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.detailMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+.detailMetaItem {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.detailMetaItem strong {
+    color: var(--color-text-secondary);
 }
 
 /* --- Journal view --- */

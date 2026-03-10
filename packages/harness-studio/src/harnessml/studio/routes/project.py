@@ -107,8 +107,11 @@ async def project_status(request: Request, project: str | None = None):
                 all_feats.update(mdef.get("features", []))
         feature_count = len(all_feats)
 
-    # Latest metrics
-    latest_metrics = {}
+    # Latest metrics — best from runs or experiments
+    _LOWER_IS_BETTER = {"brier", "ece", "log_loss", "mae", "mse", "rmse"}
+    candidates: list[dict] = []
+
+    # Collect from run outputs
     if outputs_dir.exists():
         run_dirs = sorted([d for d in outputs_dir.iterdir() if d.is_dir()], reverse=True)
         for rd in run_dirs:
@@ -116,10 +119,56 @@ async def project_status(request: Request, project: str | None = None):
             if mp.exists():
                 try:
                     raw = _json.loads(mp.read_text())
-                    latest_metrics = raw.get("ensemble", raw) if isinstance(raw.get("ensemble"), dict) else raw
+                    metrics = raw.get("ensemble", raw) if isinstance(raw.get("ensemble"), dict) else raw
+                    if metrics:
+                        candidates.append(metrics)
                 except (_json.JSONDecodeError, KeyError, ValueError) as e:
                     logger.warning("failed to parse pooled_metrics.json", path=str(mp), error=str(e))
                 break
+
+    # Collect from experiment result files
+    exp_dir = project_dir / "experiments"
+    if exp_dir.exists():
+        for child in exp_dir.iterdir():
+            if not child.is_dir():
+                continue
+            results_path = child / "results.json"
+            if results_path.exists():
+                try:
+                    results = _json.loads(results_path.read_text())
+                    exp_metrics = results.get("metrics", {})
+                    if exp_metrics:
+                        candidates.append(exp_metrics)
+                except (_json.JSONDecodeError, KeyError, ValueError):
+                    continue
+
+    # Pick best candidate by primary metric
+    latest_metrics: dict = {}
+    if candidates:
+        # Determine primary metric
+        primary_metric: str | None = None
+        for c in candidates:
+            if "brier" in c:
+                primary_metric = "brier"
+                break
+            if "accuracy" in c:
+                primary_metric = "accuracy"
+                break
+        if primary_metric is None:
+            primary_metric = next(iter(candidates[0]), None)
+
+        if primary_metric:
+            lower = primary_metric in _LOWER_IS_BETTER
+            best_val: float | None = None
+            for c in candidates:
+                val = c.get(primary_metric)
+                if val is None:
+                    continue
+                if best_val is None or (lower and val < best_val) or (not lower and val > best_val):
+                    best_val = val
+                    latest_metrics = c
+        else:
+            latest_metrics = candidates[0]
 
     return {
         "project_name": project_name,

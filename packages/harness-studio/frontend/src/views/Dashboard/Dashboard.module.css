@@ -1,27 +1,16 @@
 .dashboard {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr auto;
     gap: var(--space-4);
     padding: var(--space-4);
-    height: 100%;
+    min-height: 100%;
     overflow-y: auto;
     box-sizing: border-box;
 }
 
-.overviewWidget {
-    grid-column: 1;
-    grid-row: 1;
-    overflow: visible;
-}
-
-.overviewWidget .widgetBody {
-    overflow: visible;
-}
-
 .experimentsWidget {
-    grid-column: 2;
-    grid-row: 1 / 3;
+    grid-column: 1;
+    grid-row: 3;
     overflow: visible;
 }
 
@@ -116,41 +105,6 @@
     letter-spacing: 0.04em;
     vertical-align: middle;
     margin-left: var(--space-1);
-}
-
-/* ===== Project Overview Widget ===== */
-
-.overviewGrid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
-    gap: 1px;
-    background: var(--color-border);
-    border-bottom: 1px solid var(--color-border);
-}
-
-.overviewStat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-1) var(--space-2);
-    background: var(--color-bg-secondary);
-}
-
-.overviewValue {
-    font-family: var(--font-mono);
-    font-size: var(--font-size-base);
-    font-weight: 700;
-    color: var(--color-text-primary);
-}
-
-.overviewLabel {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-top: 2px;
 }
 
 .verdictSection {
@@ -261,12 +215,54 @@
 
 /* ===== Activity Widget ===== */
 
-.activityWidget {
-    min-height: 180px;
+/* ===== Activity Strip ===== */
+
+.activityStrip {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
 }
 
-.activityWidget .widgetBody {
+.stripLabel {
+    text-decoration: none;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.stripEvents {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.stripRow {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
     font-size: var(--font-size-xs);
+    padding: 2px 0;
+}
+
+.stripRowFaded {
+    opacity: 0.4;
+}
+
+.stripRowRunning {
+    color: var(--color-accent);
+}
+
+.stripIdle {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    padding: 2px 0;
 }
 
 .miniEventRow {
@@ -397,7 +393,8 @@
 /* ===== DAG Widget ===== */
 
 .dagWidget {
-    grid-column: 1 / -1;
+    grid-column: 2;
+    grid-row: 3;
 }
 
 .dagWidget :global(.react-flow__node) {
@@ -479,35 +476,24 @@
     text-transform: uppercase;
 }
 
-/* ===== Narrative Widget ===== */
-
-.narrativeWidget {
-    grid-column: 1 / -1;
-    order: -1;
-}
-
-.narrativeGrid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-3);
-}
-
-@media (max-width: 768px) {
-    .narrativeGrid {
-        grid-template-columns: 1fr;
-    }
-}
+/* ===== Narrative Cards ===== */
 
 .narrativeCard {
     padding: var(--space-3);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    background: var(--color-bg-primary);
+    background: var(--color-bg-secondary);
+    min-width: 0;
+    min-height: 100px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .narrativeLabel {
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
+    font-weight: 600;
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -518,42 +504,16 @@
 }
 
 .narrativeContent {
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
-    color: var(--color-text-primary);
-    max-height: 8em;
-    overflow: hidden;
-}
-
-.narrativeFindings {
-    margin-top: var(--space-3);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-}
-
-.narrativeFindingsLabel {
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.narrativeFinding {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-2);
-    border-left: 2px solid var(--color-nb-finding);
-    background: var(--color-nb-finding-a15);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.narrativeFindingContent {
-    font-size: var(--font-size-xs);
     line-height: 1.4;
-    color: var(--color-text-primary);
-    max-height: 3em;
+    color: var(--color-text-secondary);
+    white-space: pre-line;
+    flex: 1;
     overflow: hidden;
+}
+
+.narrativeEmpty {
+    color: var(--color-text-muted);
+    font-style: italic;
 }

@@ -5,53 +5,92 @@ import { useApi } from '../../hooks/useApi';
 import { useRefreshKey } from '../../hooks/useRefreshKey';
 import { useProject } from '../../hooks/useProject';
 import { TypeBadge } from '../../components/NotebookEntry/NotebookEntry';
-import { MarkdownRenderer } from '../../components/MarkdownRenderer/MarkdownRenderer';
 import type { NotebookEntry, Experiment } from '../../types/api';
-import { StatBar } from './StatBar';
 import { EventLog } from './EventLog';
 import styles from './Activity.module.css';
 
-function ContextBar({ entries, experiments }: { entries: NotebookEntry[]; experiments: Experiment[] }) {
+/** Strip markdown syntax to plain text, keeping substance. */
+function stripMarkdown(content: string): string {
+    return content
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !/^#+\s/.test(l) && !/^---/.test(l))
+        .map(l => l
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^\d+\.\s+/, '• ')
+            .replace(/^[-*]\s+/, '• ')
+        )
+        .join('\n');
+}
+
+function normalizeVerdict(v: string | undefined): string {
+    if (!v) return 'pending';
+    const lower = v.toLowerCase();
+    if (['keep', 'improved', 'positive'].includes(lower)) return 'positive';
+    if (['revert', 'regressed', 'negative', 'failed'].includes(lower)) return 'negative';
+    if (['partial', 'neutral', 'baseline'].includes(lower)) return 'neutral';
+    return 'pending';
+}
+
+function verdictClass(verdict?: string): string {
+    const normalized = normalizeVerdict(verdict);
+    switch (normalized) {
+        case 'positive': return styles.verdictKeep;
+        case 'neutral': return styles.verdictPartial;
+        case 'negative': return styles.verdictRevert;
+        default: return '';
+    }
+}
+
+function ContextCards({ entries, experiments }: { entries: NotebookEntry[]; experiments: Experiment[] }) {
     const { project } = useParams<{ project: string }>();
     const nonStruck = useMemo(() => entries.filter(e => !e.struck), [entries]);
     const latestTheory = nonStruck.find(e => e.type === 'theory') ?? null;
     const latestPlan = nonStruck.find(e => e.type === 'plan') ?? null;
     const latestExperiment = experiments.length > 0 ? experiments[0] : null;
 
-    if (!latestTheory && !latestPlan && !latestExperiment) return null;
-
     return (
-        <div className={styles.contextBar}>
-            {latestTheory && (
-                <div className={styles.contextItem}>
-                    <TypeBadge type="theory" />
-                    <div className={styles.contextText}>
-                        <MarkdownRenderer content={latestTheory.content} />
+        <div className={styles.contextSection}>
+            <div className={styles.cardRow}>
+                <div className={styles.narrativeCard}>
+                    <div className={styles.narrativeLabel}>
+                        <TypeBadge type="theory" /> Current Theory
+                    </div>
+                    <div className={styles.narrativeContent}>
+                        {latestTheory ? stripMarkdown(latestTheory.content) : (
+                            <span className={styles.narrativeEmpty}>No theory logged yet</span>
+                        )}
                     </div>
                 </div>
-            )}
-            {latestPlan && (
-                <div className={styles.contextItem}>
-                    <TypeBadge type="plan" />
-                    <div className={styles.contextText}>
-                        <MarkdownRenderer content={latestPlan.content} />
+                <div className={styles.narrativeCard}>
+                    <div className={styles.narrativeLabel}>
+                        <TypeBadge type="plan" /> Current Plan
+                    </div>
+                    <div className={styles.narrativeContent}>
+                        {latestPlan ? stripMarkdown(latestPlan.content) : (
+                            <span className={styles.narrativeEmpty}>No plan logged yet</span>
+                        )}
                     </div>
                 </div>
-            )}
+            </div>
             {latestExperiment && (
-                <div className={styles.contextItem}>
-                    <span className={styles.contextExpBadge}>{latestExperiment.experiment_id}</span>
-                    <div className={styles.contextText}>
+                <div className={styles.experimentBar}>
+                    <span className={styles.expId}>{latestExperiment.experiment_id}</span>
+                    <span className={styles.expHypothesis}>
                         {latestExperiment.hypothesis ?? latestExperiment.description ?? '--'}
-                    </div>
+                    </span>
                     {latestExperiment.verdict && (
-                        <span className={styles.contextVerdict}>{latestExperiment.verdict}</span>
+                        <span className={`${styles.expVerdict} ${verdictClass(latestExperiment.verdict)}`}>
+                            {latestExperiment.verdict}
+                        </span>
                     )}
+                    <Link to={`/${project}/experiments`} className={styles.expLink}>
+                        View all
+                    </Link>
                 </div>
             )}
-            <Link to={`/${project}/notebook`} className={styles.contextLink}>
-                Notebook
-            </Link>
         </div>
     );
 }
@@ -66,8 +105,7 @@ export function Activity() {
 
     return (
         <div className={styles.activity}>
-            <ContextBar entries={notebookEntries ?? []} experiments={experiments ?? []} />
-            <StatBar />
+            <ContextCards entries={notebookEntries ?? []} experiments={experiments ?? []} />
             <EventLog wsEvents={events} />
         </div>
     );

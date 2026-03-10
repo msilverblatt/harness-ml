@@ -7,6 +7,7 @@ import styles from './Activity.module.css';
 
 interface EventRowProps {
     event: Event;
+    defaultExpanded?: boolean;
 }
 
 const TOOL_COLOR_MAP: Record<string, string> = {
@@ -206,7 +207,7 @@ function FoldProgressBar({ current, total, message, phases }: {
     );
 }
 
-export function EventRow({ event }: EventRowProps) {
+export function EventRow({ event, defaultExpanded }: EventRowProps) {
     const isRunning = event.status === 'running';
     const isProgress = event.status === 'progress';
     const isError = event.status === 'error';
@@ -216,9 +217,16 @@ export function EventRow({ event }: EventRowProps) {
 
     const elapsed = useElapsedTime(event.timestamp, isRunning);
 
+    const isSuccess = event.status === 'success';
     const rowClass = isRunning ? styles.runningEvent
         : isError ? styles.statusError
-        : undefined;
+        : isSuccess ? styles.statusSuccess
+        : styles.statusDefault;
+
+    const borderColor = isRunning ? 'var(--color-accent)'
+        : isError ? 'var(--color-error)'
+        : isSuccess ? 'var(--color-success)'
+        : getToolColor(event.tool);
 
     const foldsCurrent = progressParams.current ?? 0;
     const foldsTotal = progressParams.total ?? 0;
@@ -268,7 +276,7 @@ export function EventRow({ event }: EventRowProps) {
 
     if (isRunning || isProgress) {
         return (
-            <div className={rowClass}>
+            <div className={rowClass} style={{ borderLeftColor: borderColor }}>
                 {summary}
                 {hasProgressData && (
                     <FoldProgressBar
@@ -285,8 +293,8 @@ export function EventRow({ event }: EventRowProps) {
     const detail = getExpandedDetail(event);
 
     return (
-        <div className={rowClass}>
-            <ExpandableRow detail={<MarkdownRenderer content={detail} />}>
+        <div className={rowClass} style={{ borderLeftColor: borderColor }}>
+            <ExpandableRow detail={<MarkdownRenderer content={detail} />} defaultOpen={defaultExpanded}>
                 {summary}
             </ExpandableRow>
         </div>
