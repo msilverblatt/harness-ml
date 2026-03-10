@@ -18,6 +18,8 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/badge/uv-de5fe9.svg?style=flat-square&logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 
+</div>
+
 [![harness-core](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=core)](https://pypi.org/project/harness-core/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-f7931e.svg?style=flat-square&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
@@ -41,8 +43,6 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 [![harness-sports](https://img.shields.io/pypi/v/harness-sports?style=flat-square&label=sports)](https://pypi.org/project/harness-sports/)
 [![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-e92063.svg?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-
-</div>
 
 ## Claude Code for Machine Learning
 
