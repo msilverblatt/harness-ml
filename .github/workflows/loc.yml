@@ -19,7 +19,7 @@ jobs:
           total=$(cloc packages/ --include-lang=Python,TypeScript,CSS --json | jq '.SUM.code')
           echo "total=$total" >> "$GITHUB_OUTPUT"
 
-      - name: Update gist
+      - name: Update LOC gist
         env:
           GH_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
@@ -38,3 +38,35 @@ jobs:
           }
           EOJSON
           gh gist edit 176db496aed8a6532131c9aa7447f59c -f loc.json loc.json
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+
+      - name: Count tests
+        id: tests
+        run: |
+          count=$(uv run pytest --co -q 2>&1 | tail -1 | grep -oP '^\d+')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Update tests gist
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          count="${{ steps.tests.outputs.count }}"
+          cat > tests.json <<EOJSON
+          {
+            "schemaVersion": 1,
+            "label": "tests",
+            "message": "${count} passing",
+            "color": "brightgreen"
+          }
+          EOJSON
+          gh gist edit 2f3d3f20d7fedaca8332a75394eb7864 -f tests.json tests.json

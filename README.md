@@ -18,6 +18,7 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 [![harness-sports](https://img.shields.io/pypi/v/harness-sports?style=flat-square&label=sports)](https://pypi.org/project/harness-sports/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Lines of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/176db496aed8a6532131c9aa7447f59c/raw/loc.json)](https://github.com/msilverblatt/harness-ml)
+[![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/2f3d3f20d7fedaca8332a75394eb7864/raw/tests.json)](https://github.com/msilverblatt/harness-ml/actions)
 
 [![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
