@@ -206,8 +206,75 @@ def _check_studio_url_once() -> bool:
         return True
 
 
+# Map of Python import names to pip package names (where they differ)
+_IMPORT_TO_PACKAGE = {
+    "pytorch_tabnet": "pytorch-tabnet",
+    "sklearn": "scikit-learn",
+    "cv2": "opencv-python",
+    "yaml": "pyyaml",
+    "google": "google-api-python-client",
+    "googleapiclient": "google-api-python-client",
+    "google_auth_oauthlib": "google-auth-oauthlib",
+}
+
+
+def _ensure_pip() -> bool:
+    """Ensure pip is available in the running Python environment."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "--version"],
+        capture_output=True, timeout=10,
+    )
+    if result.returncode == 0:
+        return True
+    # Bootstrap pip via stdlib ensurepip
+    result = subprocess.run(
+        [sys.executable, "-m", "ensurepip", "--default-pip"],
+        capture_output=True, timeout=60,
+    )
+    return result.returncode == 0
+
+
+def _auto_install(module_name: str) -> bool:
+    """Auto-install a missing package into the running environment.
+
+    Uses ensurepip (stdlib) to bootstrap pip if needed, then pip to install.
+    Works on any platform with Python 3.11+, no external tool assumptions.
+    """
+    import subprocess
+    import sys
+
+    if not _ensure_pip():
+        return False
+
+    package = _IMPORT_TO_PACKAGE.get(module_name, module_name)
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--quiet", package],
+            capture_output=True, timeout=120,
+            check=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+async def _run_tool(fn, *args, **kwargs):
+    """Run a tool function, awaiting if it returns a coroutine."""
+    result = fn(*args, **kwargs)
+    if asyncio.iscoroutine(result):
+        result = await result
+    return result
+
+
 def _safe_tool(fn):
-    """Wrap a tool function so unhandled exceptions become markdown errors."""
+    """Wrap a tool function so unhandled exceptions become markdown errors.
+
+    If a tool call fails with ModuleNotFoundError, auto-installs the
+    missing package and retries once.
+    """
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
         _check_studio_url_once()
@@ -231,9 +298,7 @@ def _safe_tool(fn):
 
         start = _time.monotonic()
         try:
-            result = fn(*args, **kwargs)
-            if asyncio.iscoroutine(result):
-                result = await result
+            result = await _run_tool(fn, *args, **kwargs)
             elapsed = int((_time.monotonic() - start) * 1000)
             emitter.clear_current()
             emitter.emit(
@@ -242,6 +307,41 @@ def _safe_tool(fn):
                 duration_ms=elapsed, status="success",
             )
             return result
+        except ModuleNotFoundError as e:
+            # Auto-install and retry once
+            module_name = e.name
+            package = _IMPORT_TO_PACKAGE.get(module_name, module_name)
+            emitter.emit(
+                tool=tool_name, action=action, params=clean_params,
+                result=f"Installing {package}...", duration_ms=0, status="progress",
+            )
+            if _auto_install(module_name):
+                try:
+                    result = await _run_tool(fn, *args, **kwargs)
+                    elapsed = int((_time.monotonic() - start) * 1000)
+                    emitter.clear_current()
+                    emitter.emit(
+                        tool=tool_name, action=action, params=clean_params,
+                        result=result[:20000] if isinstance(result, str) else str(result)[:20000],
+                        duration_ms=elapsed, status="success",
+                    )
+                    return result
+                except Exception as retry_err:
+                    error_result = f"**Error**: {retry_err} (after installing {package})"
+                    elapsed = int((_time.monotonic() - start) * 1000)
+                    emitter.emit(
+                        tool=tool_name, action=action, params=clean_params,
+                        result=error_result[:20000], duration_ms=elapsed, status="error",
+                    )
+                    return error_result
+            else:
+                error_result = f"**Error**: Missing package `{package}`. Auto-install failed."
+                elapsed = int((_time.monotonic() - start) * 1000)
+                emitter.emit(
+                    tool=tool_name, action=action, params=clean_params,
+                    result=error_result[:20000], duration_ms=elapsed, status="error",
+                )
+                return error_result
         except json.JSONDecodeError as e:
             error_result = f"**Error**: Invalid JSON input: {e}"
             elapsed = int((_time.monotonic() - start) * 1000)

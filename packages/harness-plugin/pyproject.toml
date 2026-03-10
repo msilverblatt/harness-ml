@@ -1,6 +1,6 @@
 [project]
 name = "harness-plugin"
-version = "0.1.7"
+version = "0.1.8"
 description = "Claude Code plugin for AI-driven ML experimentation"
 requires-python = ">=3.11"
 license = "MIT"
@@ -15,18 +15,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "harness-core[xgboost,lightgbm,catboost]>=0.1.0,<1.0",
+    "harness-core>=0.1.0,<1.0",
     "harness-studio>=0.1.0,<1.0",
     "mcp>=1.0",
     "click>=8.0",
-]
-
-[project.optional-dependencies]
-neural = [
-    "harness-core[neural]>=0.1.0,<1.0",
-]
-all = [
-    "harness-plugin[neural]",
 ]
 
 [project.scripts]

@@ -8,6 +8,17 @@ from harnessml.core.models.base import BaseModel
 
 logger = logging.getLogger(__name__)
 
+# Model types that can be auto-installed: {model_type: (pip_package, wrapper_module, class_name)}
+_INSTALLABLE_MODELS = {
+    "xgboost": ("xgboost", "xgboost", "XGBoostModel"),
+    "lightgbm": ("lightgbm", "lightgbm", "LightGBMModel"),
+    "catboost": ("catboost", "catboost", "CatBoostModel"),
+    "mlp": ("torch", "mlp", "MLPModel"),
+    "tabnet": ("pytorch-tabnet", "tabnet", "TabNetModel"),
+    "gam": ("pygam", "gam", "GAMModel"),
+    "ngboost": ("ngboost", "ngboost", "NGBoostModel"),
+}
+
 
 class ModelRegistry:
     """Registry mapping model type strings to model classes."""
@@ -20,7 +31,18 @@ class ModelRegistry:
 
     def create(self, name: str, params: dict | None = None, **kwargs) -> BaseModel:
         if name not in self._registry:
-            raise KeyError(f"Unknown model type: {name!r}")
+            # Try auto-installing the missing package
+            if name in _INSTALLABLE_MODELS:
+                pip_pkg, wrapper_mod, cls_name = _INSTALLABLE_MODELS[name]
+                if self._try_install_and_register(name, pip_pkg, wrapper_mod, cls_name):
+                    logger.info("Auto-installed %s for model type %r", pip_pkg, name)
+                else:
+                    raise KeyError(
+                        f"Unknown model type: {name!r}. "
+                        f"Package `{pip_pkg}` is required but could not be installed."
+                    )
+            else:
+                raise KeyError(f"Unknown model type: {name!r}")
         model_cls = self._registry[name]
         if kwargs:
             sig = inspect.signature(model_cls)
@@ -47,6 +69,49 @@ class ModelRegistry:
     def create_from_config(self, config) -> BaseModel:
         """Create from a ModelConfig schema."""
         return self.create(config.type, params=config.params)
+
+    def _try_install_and_register(
+        self, name: str, pip_pkg: str, wrapper_mod: str, cls_name: str,
+    ) -> bool:
+        """Try to pip-install a package and register the model. Returns True on success."""
+        import subprocess
+        import sys
+
+        # Ensure pip is available (bootstrap via ensurepip if needed)
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "--version"],
+                capture_output=True, timeout=10,
+            )
+            if result.returncode != 0:
+                subprocess.run(
+                    [sys.executable, "-m", "ensurepip", "--default-pip"],
+                    capture_output=True, timeout=60, check=True,
+                )
+        except Exception:
+            logger.debug("Failed to bootstrap pip", exc_info=True)
+            return False
+
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--quiet", pip_pkg],
+                capture_output=True, timeout=120, check=True,
+            )
+        except Exception:
+            logger.debug("Failed to install %s", pip_pkg, exc_info=True)
+            return False
+
+        try:
+            import importlib
+            mod = importlib.import_module(
+                f"harnessml.core.models.wrappers.{wrapper_mod}"
+            )
+            model_cls = getattr(mod, cls_name)
+            self.register(name, model_cls)
+            return True
+        except Exception:
+            logger.debug("Failed to import %s after install", wrapper_mod, exc_info=True)
+            return False
 
     def __contains__(self, name: str) -> bool:
         return name in self._registry
