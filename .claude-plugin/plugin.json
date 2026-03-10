@@ -4,5 +4,5 @@
   "description": "AI-driven ML experimentation — add data, discover features, build models, run experiments via natural language",
   "author": { "name": "harnessml" },
   "skills": "./skills",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.claude-plugin/mcp-servers.json"
 }
