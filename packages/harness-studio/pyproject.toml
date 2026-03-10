@@ -1,6 +1,6 @@
 [project]
 name = "harness-studio"
-version = "0.1.3"
+version = "0.1.4"
 description = "Companion web dashboard for HarnessML"
 requires-python = ">=3.11"
 license = "MIT"
