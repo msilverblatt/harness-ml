@@ -855,6 +855,7 @@ source = { editable = "packages/harness-plugin" }
 dependencies = [
     { name = "click" },
     { name = "harness-core" },
+    { name = "harness-studio" },
     { name = "mcp" },
 ]
 
@@ -862,6 +863,7 @@ dependencies = [
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "harness-core", editable = "packages/harness-core" },
+    { name = "harness-studio", editable = "packages/harness-studio" },
     { name = "mcp", specifier = ">=1.0" },
 ]
 
@@ -902,6 +904,8 @@ name = "harnessml"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "harness-core" },
+    { name = "harness-studio" },
     { name = "tabulate" },
 ]
 
@@ -931,9 +935,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "harness-core", editable = "packages/harness-core" },
     { name = "harness-core", extras = ["all"], marker = "extra == 'all'", editable = "packages/harness-core" },
     { name = "harness-plugin", marker = "extra == 'all'", editable = "packages/harness-plugin" },
     { name = "harness-sports", marker = "extra == 'all'", editable = "packages/harness-sports" },
+    { name = "harness-studio", editable = "packages/harness-studio" },
     { name = "tabulate", specifier = ">=0.10.0" },
 ]
 provides-extras = ["all"]

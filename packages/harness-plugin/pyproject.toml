@@ -16,6 +16,7 @@ classifiers = [
 ]
 dependencies = [
     "harness-core>=0.1.0,<1.0",
+    "harness-studio>=0.1.0,<1.0",
     "mcp>=1.0",
     "click>=8.0",
 ]
@@ -34,6 +35,7 @@ Issues = "https://github.com/msilverblatt/harness-ml/issues"
 
 [tool.uv.sources]
 harness-core = { workspace = true }
+harness-studio = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
