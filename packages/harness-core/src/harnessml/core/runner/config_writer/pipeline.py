@@ -1348,3 +1348,275 @@ def format_target_comparison(results: dict[str, dict]) -> str:
         lines.append(f"- {k}: **{best_name}** ({vals[best_name]:.4f})")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# suggest_cv — analyze data and recommend a CV strategy
+# ---------------------------------------------------------------------------
+
+
+def suggest_cv(project_dir: Path) -> str:
+    """Analyze the project data and recommend a cross-validation strategy.
+
+    Inspects the features dataset for temporal columns, group columns,
+    class balance, and dataset size to recommend the most appropriate
+    CV strategy from the 7 available options.
+
+    Returns markdown with the recommended strategy and reasoning.
+    """
+    import pandas as pd
+    from harnessml.core.runner.data.utils import (
+        get_features_df,
+        load_data_config,
+    )
+
+    project_dir = Path(project_dir)
+    config = load_data_config(project_dir)
+
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return (
+            "**Error**: No features data found. "
+            "Run the data pipeline first to generate features.parquet "
+            "or configure a features_view."
+        )
+
+    target_col = config.target_column
+    time_col = config.time_column
+    key_cols = config.key_columns
+
+    n_rows = len(df)
+    signals: list[str] = []
+    recommendation: str | None = None
+    config_hint: dict[str, str] = {}
+
+    # --- Check 1: Temporal columns ---
+    temporal_cols: list[str] = []
+    if time_col and time_col in df.columns:
+        temporal_cols.append(time_col)
+
+    # Also scan for date/time-like columns by dtype and name
+    date_patterns = ("date", "year", "season", "period", "month", "week", "timestamp")
+    for col in df.columns:
+        if col in temporal_cols:
+            continue
+        col_lower = col.lower()
+        is_datetime_dtype = pd.api.types.is_datetime64_any_dtype(df[col])
+        has_date_name = any(pat in col_lower for pat in date_patterns)
+        if is_datetime_dtype or has_date_name:
+            temporal_cols.append(col)
+
+    has_temporal = len(temporal_cols) > 0
+
+    if has_temporal:
+        signals.append(
+            f"Temporal columns detected: {temporal_cols}. "
+            "Data appears to have a time dimension."
+        )
+
+    # --- Check 2: Group columns ---
+    group_candidates: list[str] = []
+    group_patterns = (
+        "_id", "team", "user", "player", "group", "cluster",
+        "customer", "account", "session", "subject",
+    )
+    for col in df.columns:
+        col_lower = col.lower()
+        if any(pat in col_lower for pat in group_patterns):
+            if col not in (key_cols or []) and col != target_col:
+                n_unique = df[col].nunique()
+                # Only consider as a group column if it has a reasonable
+                # number of groups (more than 1, fewer than half the rows)
+                if 1 < n_unique < n_rows // 2:
+                    group_candidates.append(col)
+
+    # Also include key_columns as potential group columns
+    key_group_candidates: list[str] = []
+    for col in (key_cols or []):
+        if col in df.columns:
+            n_unique = df[col].nunique()
+            if 1 < n_unique < n_rows // 2:
+                key_group_candidates.append(col)
+
+    has_groups = len(group_candidates) > 0 or len(key_group_candidates) > 0
+
+    if has_groups:
+        all_groups = group_candidates + key_group_candidates
+        signals.append(
+            f"Group-like columns detected: {all_groups}. "
+            "Data may have group structure (e.g., repeated subjects/entities)."
+        )
+
+    # --- Check 3: Class balance (classification only) ---
+    is_classification = config.task in ("classification", "binary", "multiclass")
+    class_balance_ratio = None
+
+    if is_classification and target_col in df.columns:
+        value_counts = df[target_col].value_counts()
+        if len(value_counts) >= 2:
+            minority = value_counts.min()
+            majority = value_counts.max()
+            class_balance_ratio = minority / majority if majority > 0 else 1.0
+            if class_balance_ratio < 0.3:
+                signals.append(
+                    f"Class imbalance detected: minority/majority ratio = "
+                    f"{class_balance_ratio:.3f}. "
+                    f"Class distribution: {dict(value_counts)}."
+                )
+            else:
+                signals.append(
+                    f"Classes are reasonably balanced: ratio = "
+                    f"{class_balance_ratio:.3f}."
+                )
+
+    # --- Check 4: Dataset size ---
+    signals.append(f"Dataset size: {n_rows:,} rows, {len(df.columns)} columns.")
+
+    # --- Decision logic ---
+    reasons: list[str] = []
+
+    if has_temporal:
+        # Temporal data: check if we have a fold-like column
+        # with a small number of distinct values (e.g., seasons/years)
+        best_fold_col = time_col
+        best_n_unique = 0
+        for col in temporal_cols:
+            if col in df.columns:
+                n_unique = df[col].nunique()
+                # Prefer columns with a reasonable number of unique values
+                # for leave-one-out (3-30 is ideal)
+                if 3 <= n_unique <= 30:
+                    if n_unique > best_n_unique:
+                        best_fold_col = col
+                        best_n_unique = n_unique
+
+        if best_n_unique >= 3:
+            recommendation = "leave_one_out"
+            reasons.append(
+                f"Your data has a temporal column `{best_fold_col}` with "
+                f"{best_n_unique} distinct values, making it ideal for "
+                f"leave-one-out (LOSO) cross-validation."
+            )
+            reasons.append(
+                "This respects temporal ordering and prevents future data "
+                "from leaking into training."
+            )
+            config_hint = {
+                "cv_strategy": "leave_one_out",
+                "fold_column": best_fold_col,
+            }
+        else:
+            recommendation = "expanding_window"
+            reasons.append(
+                "Your data has temporal structure but no column with a "
+                "suitable number of fold values for LOSO."
+            )
+            reasons.append(
+                "Expanding window trains on all data up to each time point, "
+                "respecting temporal order."
+            )
+            config_hint = {"cv_strategy": "expanding_window"}
+
+    elif has_groups:
+        recommendation = "group_kfold"
+        best_group = (group_candidates + key_group_candidates)[0]
+        n_groups = df[best_group].nunique()
+        reasons.append(
+            f"Your data has group structure via `{best_group}` "
+            f"({n_groups} groups). group_kfold ensures no group appears "
+            f"in both train and test."
+        )
+        reasons.append(
+            "This prevents data leakage from correlated observations "
+            "within the same group."
+        )
+        config_hint = {
+            "cv_strategy": "group_kfold",
+            "group_column": best_group,
+            "n_folds": str(min(5, n_groups)),
+        }
+
+    elif is_classification and class_balance_ratio is not None and class_balance_ratio < 0.3:
+        recommendation = "stratified_kfold"
+        reasons.append(
+            "Your data has class imbalance. stratified_kfold preserves "
+            "the class distribution in each fold."
+        )
+        reasons.append(
+            "This ensures each fold has representative samples of "
+            "the minority class."
+        )
+        n_folds = 5 if n_rows >= 500 else 3
+        config_hint = {
+            "cv_strategy": "stratified_kfold",
+            "n_folds": str(n_folds),
+        }
+
+    elif n_rows < 200:
+        recommendation = "leave_one_out"
+        reasons.append(
+            f"Your dataset is small ({n_rows:,} rows). "
+            f"Leave-one-out maximizes training data per fold."
+        )
+        config_hint = {"cv_strategy": "leave_one_out"}
+
+    elif is_classification:
+        recommendation = "stratified_kfold"
+        n_folds = 5 if n_rows >= 500 else 3
+        reasons.append(
+            f"Your dataset has {n_rows:,} rows with a classification task. "
+            f"stratified_kfold with {n_folds} folds is a solid default."
+        )
+        reasons.append(
+            "It preserves class proportions while providing enough data "
+            "per fold for reliable estimates."
+        )
+        config_hint = {
+            "cv_strategy": "stratified_kfold",
+            "n_folds": str(n_folds),
+        }
+
+    else:
+        # Regression or other
+        recommendation = "purged_kfold"
+        n_folds = 5 if n_rows >= 500 else 3
+        reasons.append(
+            f"Your dataset has {n_rows:,} rows with a non-classification task. "
+            f"purged_kfold with {n_folds} folds provides train/test separation "
+            f"with purging to reduce leakage."
+        )
+        config_hint = {
+            "cv_strategy": "purged_kfold",
+            "n_folds": str(n_folds),
+        }
+
+    # --- Build output ---
+    lines = [f"## CV Strategy Recommendation: `{recommendation}`\n"]
+
+    lines.append("### Reasoning\n")
+    for reason in reasons:
+        lines.append(f"- {reason}")
+
+    lines.append("\n### Data Signals\n")
+    for signal in signals:
+        lines.append(f"- {signal}")
+
+    lines.append("\n### Suggested Configuration\n")
+    lines.append("```")
+    config_args = ", ".join(f'{k}="{v}"' for k, v in config_hint.items())
+    lines.append(f'configure(action="backtest", {config_args})')
+    lines.append("```")
+
+    lines.append("\n### All Available Strategies\n")
+    lines.append("| Strategy | Best For |")
+    lines.append("|----------|----------|")
+    lines.append("| `leave_one_out` | Temporal data with discrete folds (seasons, years) |")
+    lines.append("| `expanding_window` | Time series with continuous timestamps |")
+    lines.append("| `sliding_window` | Time series where old data becomes irrelevant |")
+    lines.append("| `stratified_kfold` | Classification with class imbalance |")
+    lines.append("| `group_kfold` | Data with group structure (repeated subjects) |")
+    lines.append("| `purged_kfold` | General purpose with leakage protection |")
+    lines.append("| `bootstrap` | Small datasets, uncertainty estimation |")
+
+    return "\n".join(lines)

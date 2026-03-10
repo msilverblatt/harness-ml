@@ -602,6 +602,12 @@ async def data(
       - "upload_kaggle": Upload file(s) as a Kaggle dataset. Requires files
         (list of paths), dataset_slug (e.g. "username/dataset-name").
         Optional: title.
+      - "snapshot": Save a snapshot of all config YAMLs and features parquet
+        for later restore. Optional: name (auto-generates timestamp-based
+        name if omitted). Snapshots are stored in snapshots/{name}/.
+      - "restore_snapshot": Restore config YAMLs and features parquet from a
+        previously saved snapshot. Requires name. Lists available snapshots
+        if the given name is not found.
     """
     return _load_handler("data").dispatch(
         action,
@@ -733,6 +739,7 @@ async def experiments(
     overlay: str | dict | None = None,
     primary_metric: str = "brier",
     variant: str | None = None,
+    baseline_run_id: str | None = None,
     search_space: str | dict | None = None,
     trial: int | None = None,
     detail: str | None = None,
@@ -750,12 +757,12 @@ async def experiments(
         Keys support dot-notation ("models.xgb.params.lr": 0.01) or
         dict values to set whole blocks ("models.new_model": {"type": ...}).
       - "run": Run experiment (backtest with overlay vs baseline). Requires
-        experiment_id. Optional: primary_metric, variant.
+        experiment_id. Optional: primary_metric, variant, baseline_run_id.
       - "promote": Promote experiment config to production. Requires
         experiment_id. Optional: primary_metric.
       - "quick_run": Create, configure, and run an experiment in one call.
         Requires description, overlay (JSON string), hypothesis.
-        Optional: primary_metric.
+        Optional: primary_metric, baseline_run_id.
       - "explore": Run Bayesian exploration over a search space. Requires
         search_space (JSON with axes, budget, primary_metric). Runs
         Optuna-driven trials, returns full report with best config,
@@ -771,6 +778,12 @@ async def experiments(
         with descriptions, metrics, and verdicts. Optional: last_n (default 20).
       - "log_result": Manually log an experiment result. Requires experiment_id.
         Optional: description, hypothesis, conclusion (what was learned), verdict.
+
+    Common optional parameters:
+      - baseline_run_id: Compare against a specific historical run instead of
+        re-running the baseline. Pass a run ID (e.g. "run-2026-03-10-001")
+        and metrics will be loaded from that run's saved artifacts.
+        Works with "run" and "quick_run" actions.
     """
     return await _load_handler("experiments").dispatch(
         action,
@@ -783,6 +796,7 @@ async def experiments(
         overlay=overlay,
         primary_metric=primary_metric,
         variant=variant,
+        baseline_run_id=baseline_run_id,
         search_space=search_space,
         trial=trial,
         detail=detail,
@@ -875,6 +889,10 @@ async def configure(
       - "set_target": Set a named target profile as the active target.
         Requires: name. Updates data.target_column, data.task, and
         backtest.metrics (if the profile defines metrics).
+      - "suggest_cv": Analyze the features data and recommend a CV strategy.
+        Checks for temporal columns, group columns, class balance, and dataset
+        size. Returns markdown with the recommended strategy and reasoning.
+        No extra parameters needed — reads from the project data.
       - "studio": Get the Harness Studio dashboard URL for this session.
         Studio auto-starts with the MCP server — no setup needed.
     """

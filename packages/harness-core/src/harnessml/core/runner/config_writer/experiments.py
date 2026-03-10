@@ -245,22 +245,70 @@ def write_overlay(
     )
 
 
+def _resolve_baseline_from_run(
+    project_dir: Path,
+    baseline_run_id: str,
+) -> dict | None:
+    """Load saved baseline metrics from a historical run directory.
+
+    Looks for ``{outputs_dir}/{baseline_run_id}/diagnostics/pooled_metrics.json``
+    first, then falls back to ``{outputs_dir}/{baseline_run_id}/pooled_metrics.json``.
+
+    Returns a dict with ``metrics`` key (and empty ``per_fold``), or *None* if
+    the run or metrics file cannot be found.
+    """
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return None
+
+    run_dir = project_dir / outputs_dir / baseline_run_id
+    if not run_dir.exists():
+        return None
+
+    # Prefer diagnostics/ subdir (canonical save location)
+    for candidate in (
+        run_dir / "diagnostics" / "pooled_metrics.json",
+        run_dir / "pooled_metrics.json",
+    ):
+        if candidate.exists():
+            try:
+                raw = json.loads(candidate.read_text())
+                return {
+                    "metrics": {k: v for k, v in raw.items() if isinstance(v, (int, float))},
+                    "per_fold": {},
+                }
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    return None
+
+
 def run_experiment(
     project_dir: Path,
     experiment_id: str,
     *,
     primary_metric: str = "brier",
     variant: str | None = None,
+    baseline_run_id: str | None = None,
     on_progress=None,
 ) -> str:
     """Run a full experiment: backtest with overlay, compare to baseline.
 
     Steps:
     1. Load experiment overlay and run backtest
-    2. Load baseline results (from last run or re-run without overlay)
+    2. Load baseline results (from a saved run if baseline_run_id is given,
+       otherwise re-run without overlay)
     3. Compute deltas
     4. Auto-log results
     5. Return comprehensive comparison
+
+    Parameters
+    ----------
+    baseline_run_id : str | None
+        If provided, load baseline metrics from ``runs/{baseline_run_id}/``
+        instead of re-running the baseline backtest.
 
     Returns
     -------
@@ -310,15 +358,25 @@ def run_experiment(
         runner.load()
         exp_result = runner.backtest(on_progress=on_progress)
 
-        # Run baseline backtest (without overlay)
-        baseline_runner = PipelineRunner(
-            project_dir=project_dir,
-            config_dir=config_dir,
-            variant=variant,
-            prediction_cache=cache,
-        )
-        baseline_runner.load()
-        baseline_result = baseline_runner.backtest(on_progress=on_progress)
+        # Load or run baseline
+        if baseline_run_id:
+            baseline_result = _resolve_baseline_from_run(project_dir, baseline_run_id)
+            if baseline_result is None:
+                return (
+                    f"**Error**: Could not load baseline metrics from run "
+                    f"'{baseline_run_id}'. Check that the run exists and "
+                    f"contains a pooled_metrics.json file."
+                )
+        else:
+            # Run baseline backtest (without overlay)
+            baseline_runner = PipelineRunner(
+                project_dir=project_dir,
+                config_dir=config_dir,
+                variant=variant,
+                prediction_cache=cache,
+            )
+            baseline_runner.load()
+            baseline_result = baseline_runner.backtest(on_progress=on_progress)
 
         # Build comparison
         exp_metrics = exp_result.get("metrics", {})
@@ -432,11 +490,19 @@ def quick_run_experiment(
     *,
     hypothesis: str = "",
     primary_metric: str = "brier",
+    baseline_run_id: str | None = None,
     on_progress=None,
 ) -> str:
     """Create, configure, and run an experiment in a single call.
 
     Combines experiment_create + write_overlay + run_experiment.
+
+    Parameters
+    ----------
+    baseline_run_id : str | None
+        If provided, load baseline metrics from ``runs/{baseline_run_id}/``
+        instead of re-running the baseline backtest.
+
     Returns the combined results or error at any step.
     """
     if not description:
@@ -478,6 +544,7 @@ def quick_run_experiment(
         project_dir,
         experiment_id,
         primary_metric=primary_metric,
+        baseline_run_id=baseline_run_id,
         on_progress=on_progress,
     )
 

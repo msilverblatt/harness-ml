@@ -43,7 +43,7 @@ def _handle_write_overlay(*, experiment_id, overlay, project_dir, **_kwargs):
     )
 
 
-async def _handle_run(*, experiment_id, primary_metric, variant, ctx, project_dir, **_kwargs):
+async def _handle_run(*, experiment_id, primary_metric, variant, baseline_run_id=None, ctx, project_dir, **_kwargs):
     import asyncio
 
     from harnessml.core.runner import config_writer as cw
@@ -65,6 +65,7 @@ async def _handle_run(*, experiment_id, primary_metric, variant, ctx, project_di
             experiment_id,
             primary_metric=primary_metric,
             variant=variant,
+            baseline_run_id=baseline_run_id,
             on_progress=_progress_callback,
         ),
     )
@@ -88,7 +89,7 @@ def _handle_promote(*, experiment_id, primary_metric, project_dir, **_kwargs):
     )
 
 
-async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, ctx, project_dir, **_kwargs):
+async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, baseline_run_id=None, ctx, project_dir, **_kwargs):
     import asyncio
 
     from harnessml.core.runner import config_writer as cw
@@ -114,6 +115,7 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
             overlay,
             hypothesis=hypothesis,
             primary_metric=primary_metric,
+            baseline_run_id=baseline_run_id,
             on_progress=_progress_callback,
         ),
     )
