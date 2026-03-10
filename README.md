@@ -12,7 +12,10 @@
 Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 [![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
-[![PyPI](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=PyPI)](https://pypi.org/project/harness-core/)
+[![harness-core](https://img.shields.io/pypi/v/harness-core?style=flat-square&label=core)](https://pypi.org/project/harness-core/)
+[![harness-plugin](https://img.shields.io/pypi/v/harness-plugin?style=flat-square&label=plugin)](https://pypi.org/project/harness-plugin/)
+[![harness-studio](https://img.shields.io/pypi/v/harness-studio?style=flat-square&label=studio)](https://pypi.org/project/harness-studio/)
+[![harness-sports](https://img.shields.io/pypi/v/harness-sports?style=flat-square&label=sports)](https://pypi.org/project/harness-sports/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Lines of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/176db496aed8a6532131c9aa7447f59c/raw/loc.json)](https://github.com/msilverblatt/harness-ml)
 
