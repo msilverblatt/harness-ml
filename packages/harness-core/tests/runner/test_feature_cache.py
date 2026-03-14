@@ -25,7 +25,7 @@ class TestCacheEntry:
 
 class TestFeatureCache:
     def test_init_creates_dirs(self, tmp_path):
-        cache = FeatureCache(tmp_path / "cache")
+        FeatureCache(tmp_path / "cache")
         assert (tmp_path / "cache").exists()
         assert (tmp_path / "cache" / "entity").exists()
         assert (tmp_path / "cache" / "pairwise").exists()

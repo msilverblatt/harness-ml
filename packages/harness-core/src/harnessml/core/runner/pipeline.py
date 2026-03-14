@@ -390,10 +390,16 @@ class PipelineRunner:
         Also loads entity features if any model has
         ``provides_level="team"``.
         """
-        from harnessml.core.runner.data.utils import get_features_df
+        from harnessml.core.runner.data.utils import get_features_df, get_features_path
+        from harnessml.core.runner.training.fingerprint import compute_feature_schema
 
         self._df = get_features_df(self.project_dir, self.config.data)
         self._normalize_columns()
+
+        # Compute feature schema for fingerprinting — changes when
+        # features are added, removed, or modified, invalidating cache.
+        features_path = get_features_path(self.project_dir, self.config.data)
+        self._feature_schema = compute_feature_schema(features_path)
 
         # If declarative features are configured, compute them via FeatureStore
         if self.config.data.feature_defs:
@@ -543,6 +549,7 @@ class PipelineRunner:
 
         context = ProviderContext(fold_column=fold_col)
         trained_names: list[str] = []
+        fold_errors: dict[str, str] = {}
         # Track fingerprints so dependents can include upstream hashes
         model_fingerprints: dict[str, str] = {}
 
@@ -576,6 +583,7 @@ class PipelineRunner:
                     }
                     fp = compute_fingerprint(
                         model_config=model_def.model_dump(),
+                        feature_schema=self._feature_schema,
                         upstream_fingerprints=upstream_fps or None,
                     )
                     model_fingerprints[model_name] = fp
@@ -601,16 +609,21 @@ class PipelineRunner:
 
                     trained_names.append(model_name)
 
-                except Exception:
+                except Exception as exc:
                     logger.exception(
                         "failed to train model", model=model_name,
                     )
+                    fold_errors[model_name] = str(exc)
                     continue
 
-        return {
-            "status": "success",
+        status = "error" if fold_errors and not trained_names else "success"
+        result = {
+            "status": status,
             "models_trained": trained_names,
         }
+        if fold_errors:
+            result["models_failed"] = fold_errors
+        return result
 
     def predict(
         self, fold_value: int, run_id: str | None = None
@@ -668,8 +681,11 @@ class PipelineRunner:
         test_df = self._df[test_mask].copy()
 
         if len(test_df) == 0:
-            logger.warning("no data found for fold", fold=fold_value)
-            return pd.DataFrame()
+            raise ValueError(
+                f"No data for fold={fold_value} in column '{fold_col}'. "
+                f"Available values: {sorted(self._df[fold_col].unique())}. "
+                f"Check backtest.fold_values in pipeline.yaml."
+            )
 
         # Build predictions DataFrame
         target_col = self.config.data.target_column
@@ -1319,6 +1335,7 @@ class PipelineRunner:
                 }
                 fp = compute_fingerprint(
                     model_config=model_def.model_dump(),
+                    feature_schema=self._feature_schema,
                     upstream_fingerprints=upstream_fps or None,
                 )
                 model_fingerprints[model_name] = fp

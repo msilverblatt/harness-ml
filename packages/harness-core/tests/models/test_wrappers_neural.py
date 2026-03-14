@@ -3,14 +3,14 @@ import numpy as np
 import pytest
 
 try:
-    import torch
+    import torch  # noqa: F401
 
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
 
 try:
-    import pytorch_tabnet
+    import pytorch_tabnet  # noqa: F401
 
     HAS_TABNET = True
 except ImportError:

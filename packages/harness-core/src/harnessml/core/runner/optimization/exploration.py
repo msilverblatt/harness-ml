@@ -29,14 +29,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from harnessml.core.runner.config_writer._helpers import _LOWER_IS_BETTER
 from harnessml.core.runner.optimization.sweep import set_nested_key
 from pydantic import BaseModel, model_validator
 
 logger = logging.getLogger(__name__)
-
-# Metrics where lower is better — used for Optuna direction
-_LOWER_IS_BETTER = {"brier", "brier_score", "ece", "log_loss"}
-
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -71,14 +68,16 @@ class AxisDef(BaseModel):
     @classmethod
     def _resolve_aliases(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            # Accept 'param' or 'name' as alias for 'key'
+            for alias in ("param", "name"):
+                if alias in data and "key" not in data:
+                    data["key"] = data.pop(alias)
             # Resolve type aliases
             if "type" in data:
                 data["type"] = _AXIS_TYPE_ALIASES.get(data["type"], data["type"])
             # Accept 'choices' as alias for 'values'
             if "choices" in data and "values" not in data:
                 data["values"] = data.pop("choices")
-            # Accept 'step' for integer axes (Optuna uses it)
-            # step is silently ignored since Optuna handles it natively
         return data
 
     @model_validator(mode="after")
@@ -109,6 +108,16 @@ class ExplorationSpace(BaseModel):
     primary_metric: str = "brier"
     baseline: bool = True
     description: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_axes(cls, data: Any) -> Any:
+        """Accept axes as a dict keyed by param path, converting to list."""
+        if isinstance(data, dict) and "axes" in data:
+            axes = data["axes"]
+            if isinstance(axes, dict):
+                data["axes"] = [{"key": k, **v} for k, v in axes.items()]
+        return data
 
 
 # ---------------------------------------------------------------------------
@@ -294,11 +303,56 @@ def _make_objective(
 # Main entry point
 # ---------------------------------------------------------------------------
 
+def _load_previous_trials(study_json_path: Path) -> list[Any]:
+    """Load trials from a previous study.json and reconstruct FrozenTrial objects.
+
+    Skips trials that were not completed successfully.
+    """
+    import optuna
+
+    data = json.loads(study_json_path.read_text())
+    trials = []
+    for t in data.get("trials", []):
+        if t.get("state") != "COMPLETE" or t.get("value") is None:
+            continue
+
+        distributions: dict[str, Any] = {}
+        for param_name, param_value in t.get("params", {}).items():
+            if isinstance(param_value, bool):
+                distributions[param_name] = optuna.distributions.CategoricalDistribution(
+                    choices=[True, False]
+                )
+            elif isinstance(param_value, int):
+                distributions[param_name] = optuna.distributions.IntDistribution(
+                    low=param_value, high=param_value
+                )
+            elif isinstance(param_value, float):
+                distributions[param_name] = optuna.distributions.FloatDistribution(
+                    low=param_value, high=param_value
+                )
+            else:
+                distributions[param_name] = optuna.distributions.CategoricalDistribution(
+                    choices=[param_value]
+                )
+
+        frozen = optuna.trial.create_trial(
+            params=t["params"],
+            distributions=distributions,
+            values=[t["value"]],
+            user_attrs=t.get("user_attrs", {}),
+            state=optuna.trial.TrialState.COMPLETE,
+        )
+        trials.append(frozen)
+
+    return trials
+
+
 def run_exploration(
     project_dir: Path,
     search_space: dict | ExplorationSpace,
     config_dir: Path | None = None,
     on_progress=None,
+    warm_start_from: str | Path | None = None,
 ) -> dict:
     """Run a Bayesian exploration over the search space.
 
@@ -313,6 +367,11 @@ def run_exploration(
     on_progress : callable, optional
         Callback ``(current: int, total: int, message: str) -> None``
         invoked after each trial completes.
+    warm_start_from : str | Path | None
+        Path to a previous exploration directory or study.json file.
+        If an exploration directory (e.g. ``expl-001``), loads
+        ``study.json`` from it. Previous completed trials are seeded
+        into the new study so the sampler can learn from them.
 
     Returns
     -------
@@ -341,6 +400,17 @@ def run_exploration(
         space = ExplorationSpace(**search_space)
     else:
         space = search_space
+
+    # Warn if budget is likely insufficient for the search space dimensionality
+    n_axes = len(space.axes)
+    min_recommended = 5 * n_axes
+    if space.budget < min_recommended:
+        logger.warning(
+            "exploration_budget_low",
+            budget=space.budget,
+            n_axes=n_axes,
+            recommended=min_recommended,
+        )
 
     # Create exploration directory
     expl_dir = _next_exploration_dir(project_dir)
@@ -382,6 +452,28 @@ def run_exploration(
         direction=direction,
         sampler=optuna.samplers.TPESampler(seed=42),
     )
+
+    # Warm-start from previous exploration
+    if warm_start_from is not None:
+        warm_path = Path(warm_start_from)
+        # Accept either a directory or a direct study.json path
+        if warm_path.is_dir():
+            warm_path = warm_path / "study.json"
+        if not warm_path.is_absolute():
+            # Resolve relative to experiments dir
+            warm_path = project_dir / "experiments" / warm_start_from / "study.json"
+
+        if warm_path.exists():
+            previous_trials = _load_previous_trials(warm_path)
+            for trial in previous_trials:
+                study.add_trial(trial)
+            logger.info(
+                "Warm-started with %d trials from %s",
+                len(previous_trials),
+                warm_path,
+            )
+        else:
+            logger.warning("Warm-start path not found: %s", warm_path)
 
     # Run trials
     trials_dir = expl_dir / "trials"
@@ -590,7 +682,17 @@ def format_exploration_report(
         pct = total_hits / total_total * 100
         lines.append(f"**Cache reuse**: {pct:.0f}% of model-fold predictions were cache hits")
 
-    lines.append(f"**Budget used**: {len(completed)}/{space.budget} trials completed, {pruned} pruned\n")
+    lines.append(f"**Budget used**: {len(completed)}/{space.budget} trials completed, {pruned} pruned")
+
+    # Budget adequacy warning
+    n_axes = len(space.axes)
+    min_recommended = 5 * n_axes
+    if space.budget < min_recommended:
+        lines.append(
+            f"\n**Warning**: Budget ({space.budget}) may be insufficient for "
+            f"{n_axes} axes. Recommended: at least {min_recommended} trials."
+        )
+    lines.append("")
 
     # --- Best config table ---
     if study.best_trial:

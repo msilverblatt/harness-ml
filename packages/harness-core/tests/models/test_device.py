@@ -1,7 +1,5 @@
 """Tests for GPU/device detection."""
-import os
 
-import pytest
 from harnessml.core.models.device import detect_device
 
 
@@ -33,7 +31,6 @@ def test_detect_device_custom_env(monkeypatch):
 def test_detect_device_no_torch(monkeypatch):
     """If torch is not importable, should fall back to cpu."""
     monkeypatch.delenv("HARNESS_DEVICE", raising=False)
-    import importlib
     import sys
 
     # Temporarily hide torch

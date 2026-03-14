@@ -125,6 +125,17 @@ def _handle_auto_search(*, features, search_types, top_n, project_dir, **_kwargs
     )
 
 
+def _handle_prune(*, threshold=None, method=None, dry_run=None, project_dir, **_kwargs):
+    from harnessml.core.runner.config_writer.features import prune_features
+
+    return prune_features(
+        resolve_project_dir(project_dir),
+        threshold=float(threshold) if threshold is not None else 0.01,
+        method=method or "xgboost",
+        dry_run=dry_run if dry_run is not None else True,
+    )
+
+
 ACTIONS = {
     "add": _handle_add,
     "add_batch": _handle_add_batch,
@@ -132,6 +143,7 @@ ACTIONS = {
     "discover": _handle_discover,
     "diversity": _handle_diversity,
     "auto_search": _handle_auto_search,
+    "prune": _handle_prune,
 }
 
 

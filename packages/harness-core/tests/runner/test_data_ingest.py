@@ -628,7 +628,7 @@ class TestFillNulls:
         df = pd.DataFrame({"x": [1.0, np.nan, 3.0]})
         df.to_parquet(feat_dir / "features.parquet", index=False)
 
-        msg = fill_nulls(tmp_path, "x", strategy="value", value=999)
+        fill_nulls(tmp_path, "x", strategy="value", value=999)
         updated = pd.read_parquet(feat_dir / "features.parquet")
         assert updated["x"].iloc[1] == 999
 
@@ -727,7 +727,7 @@ class TestDeriveColumn:
         })
         self._setup_features(tmp_path, df)
 
-        msg = derive_column(tmp_path, "spread", "close - open")
+        derive_column(tmp_path, "spread", "close - open")
 
         updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
         assert "spread" in updated.columns
@@ -744,7 +744,7 @@ class TestDeriveColumn:
         })
         self._setup_features(tmp_path, df)
 
-        msg = derive_column(
+        derive_column(
             tmp_path, "fwd_return",
             "close.shift(-1) / close - 1",
             group_by="ticker",
@@ -768,7 +768,7 @@ class TestDeriveColumn:
         })
         self._setup_features(tmp_path, df)
 
-        msg = derive_column(tmp_path, "is_positive", "(value > 0).astype(int)")
+        derive_column(tmp_path, "is_positive", "(value > 0).astype(int)")
 
         updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
         assert "is_positive" in updated.columns
@@ -782,7 +782,7 @@ class TestDeriveColumn:
         })
         self._setup_features(tmp_path, df)
 
-        msg = derive_column(tmp_path, "year", "date.dt.year")
+        derive_column(tmp_path, "year", "date.dt.year")
 
         updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
         assert "year" in updated.columns
@@ -795,7 +795,7 @@ class TestDeriveColumn:
         })
         self._setup_features(tmp_path, df)
 
-        msg = derive_column(tmp_path, "rounded", "value", dtype="int")
+        derive_column(tmp_path, "rounded", "value", dtype="int")
 
         updated = pd.read_parquet(tmp_path / "data" / "features" / "features.parquet")
         assert updated["rounded"].dtype in [np.int64, np.int32, int]

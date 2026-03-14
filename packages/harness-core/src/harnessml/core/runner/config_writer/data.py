@@ -346,6 +346,51 @@ def drop_rows(
     )
 
 
+def detect_outliers(
+    project_dir: Path,
+    *,
+    column: str | None = None,
+    method: str = "iqr",
+    threshold: float | None = None,
+) -> str:
+    """Detect statistical outliers in the feature store.
+
+    Returns a markdown report of outlier counts per column.
+    """
+    from harnessml.core.runner.data.profiler import detect_outliers as _detect
+    from harnessml.core.runner.data.utils import get_features_df
+
+    project_dir = Path(project_dir)
+    df = get_features_df(project_dir)
+
+    columns = [column] if column else None
+    results = _detect(df, columns=columns, method=method, threshold=threshold)
+
+    if not results:
+        return "No outliers detected (or no numeric columns to check)."
+
+    lines = [f"## Outlier Detection ({method.upper()}, threshold={threshold or ('1.5' if method == 'iqr' else '3.0')})\n"]
+    lines.append(f"Total rows: {len(df)}\n")
+    lines.append("| Column | Outliers | % | Lower Bound | Upper Bound |")
+    lines.append("|--------|----------|---|-------------|-------------|")
+
+    total_outliers = 0
+    for r in sorted(results, key=lambda x: -x["n_outliers"]):
+        lines.append(
+            f"| {r['column']} | {r['n_outliers']} | {r['pct_outliers']}% "
+            f"| {r['lower_bound']} | {r['upper_bound']} |"
+        )
+        total_outliers += r["n_outliers"]
+
+    if total_outliers > 0:
+        lines.append(f"\n**{total_outliers}** outlier value(s) found across {len(results)} column(s).")
+        lines.append("Use `data(action='drop_rows', condition='column > upper_bound')` to remove.")
+    else:
+        lines.append("\nNo outliers found with the current threshold.")
+
+    return "\n".join(lines)
+
+
 def sample_data(project_dir: Path, *, fraction=0.1, stratify_column=None, seed=42) -> str:
     """Sample the feature store for fast iteration."""
     from harnessml.core.runner.data.ingest import sample_data as _sample

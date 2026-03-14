@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 from harnessml.core.config.merge import deep_merge, resolve_feature_mutations
+from harnessml.core.runner.config_writer._helpers import _LOWER_IS_BETTER as _LOWER_IS_BETTER_SET
 from harnessml.core.runner.experiments.journal import ExperimentJournal
 from harnessml.core.runner.experiments.schema import StructuredConclusion
 from harnessml.core.schemas.contracts import GuardrailViolation
@@ -495,8 +496,8 @@ class ExperimentManager:
     # Structured conclusion builder
     # ------------------------------------------------------------------
 
-    # Metrics where lower is better
-    _LOWER_IS_BETTER = {"brier", "brier_score", "log_loss", "ece", "mae", "mse", "rmse"}
+    # Metrics where lower is better — canonical set from helpers
+    _LOWER_IS_BETTER = _LOWER_IS_BETTER_SET
 
     def _build_conclusion(
         self,

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import harnessml.sports  # noqa: F401 — register sports hooks for TeamA/TeamAWon support
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,9 +20,9 @@ def sample_parquet(tmp_path) -> Path:
     rng = np.random.default_rng(42)
 
     df = pd.DataFrame({
-        "Season": np.repeat([2020, 2021, 2022, 2023], 50),
-        "TeamAWon": rng.integers(0, 2, size=n).astype(float),
-        "TeamAMargin": rng.normal(0, 10, size=n),
+        "season": np.repeat([2020, 2021, 2022, 2023], 50),
+        "result": rng.integers(0, 2, size=n).astype(float),
+        "margin": rng.normal(0, 10, size=n),
         "diff_prior": rng.normal(0, 3, size=n),
         "diff_sr_srs": rng.normal(0, 5, size=n),
         "diff_adj_net": rng.normal(0, 8, size=n),
@@ -66,7 +65,7 @@ class TestProfileBasics:
         assert sample_profile.period_counts[2023] == 50
 
     def test_label_detected(self, sample_profile):
-        assert sample_profile.label_column == "TeamAWon"
+        assert sample_profile.label_column == "result"
 
     def test_label_distribution(self, sample_profile):
         dist = sample_profile.label_distribution
@@ -74,7 +73,7 @@ class TestProfileBasics:
         assert 0.0 <= dist["mean"] <= 1.0
 
     def test_margin_detected(self, sample_profile):
-        assert sample_profile.margin_column == "TeamAMargin"
+        assert sample_profile.margin_column == "margin"
 
     def test_margin_stats(self, sample_profile):
         ms = sample_profile.margin_stats
@@ -106,9 +105,9 @@ class TestColumnClassification:
             [c.name for c in sample_profile.diff_columns]
             + [c.name for c in sample_profile.non_diff_columns]
         )
-        assert "Season" not in all_names
-        assert "TeamAWon" not in all_names
-        assert "TeamAMargin" not in all_names
+        assert "season" not in all_names
+        assert "result" not in all_names
+        assert "margin" not in all_names
 
 
 # -----------------------------------------------------------------------

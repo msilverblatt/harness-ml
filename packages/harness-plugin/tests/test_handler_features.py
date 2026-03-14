@@ -128,6 +128,6 @@ class TestFeaturesDispatch:
 
         expected = {
             "add", "add_batch", "test_transformations",
-            "discover", "diversity", "auto_search",
+            "discover", "diversity", "auto_search", "prune",
         }
         assert set(ACTIONS.keys()) == expected

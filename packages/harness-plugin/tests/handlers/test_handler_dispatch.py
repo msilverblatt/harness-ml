@@ -144,6 +144,7 @@ class TestDataDispatch:
         from harnessml.plugin.handlers.data import ACTIONS
         expected = {
             "add", "validate", "fill_nulls", "drop_duplicates", "drop_rows",
+            "detect_outliers",
             "rename", "derive_column", "inspect", "profile", "list_features",
             "status", "list_sources", "add_source", "add_view", "update_view",
             "remove_view", "list_views", "preview_view", "set_features_view",
@@ -337,6 +338,7 @@ class TestPipelineDispatch:
             action="list_runs", fold_value=None, run_id=None, run_ids=None,
             variant=None, experiment_id=None, detail=None, name=None,
             top_n=None, destination=None, output_path=None, mode=None,
+            feature=None, n_bins=None, fold_values=None,
             ctx=None, project_dir=None,
         )
         defaults.update(kwargs)
@@ -357,7 +359,8 @@ class TestPipelineDispatch:
         expected = {
             "progress", "run_backtest", "predict", "diagnostics", "list_runs",
             "show_run", "compare_runs", "compare_latest", "compare_targets",
-            "explain", "inspect_predictions", "export_notebook",
+            "explain", "inspect_predictions", "export_notebook", "clear_cache",
+            "model_correlation", "residual_analysis",
         }
         assert set(ACTIONS.keys()) == expected
 

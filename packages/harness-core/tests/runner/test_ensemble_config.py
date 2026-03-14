@@ -2,7 +2,6 @@
 from harnessml.core.runner.schema import (
     CalibrationConfig,
     EnsembleDef,
-    LogitAdjustment,
     PostProcessingConfig,
 )
 

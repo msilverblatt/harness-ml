@@ -67,6 +67,17 @@ def _handle_rename(*, mapping, project_dir, **_kwargs):
     return rename_columns(resolve_project_dir(project_dir), parsed)
 
 
+def _handle_detect_outliers(*, column=None, method=None, threshold=None, project_dir, **_kwargs):
+    from harnessml.core.runner import config_writer as cw
+
+    return cw.detect_outliers(
+        resolve_project_dir(project_dir),
+        column=column,
+        method=method or "iqr",
+        threshold=float(threshold) if threshold is not None else None,
+    )
+
+
 def _handle_drop_rows(*, column, condition, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
@@ -509,6 +520,7 @@ ACTIONS = {
     "validate": _handle_validate,
     "fill_nulls": _handle_fill_nulls,
     "drop_duplicates": _handle_drop_duplicates,
+    "detect_outliers": _handle_detect_outliers,
     "drop_rows": _handle_drop_rows,
     "rename": _handle_rename,
     "derive_column": _handle_derive_column,

@@ -1,6 +1,5 @@
 """Tests for feature existence validation when adding models."""
 
-from pathlib import Path
 
 import pytest
 from harnessml.core.runner.config_writer._helpers import _save_yaml

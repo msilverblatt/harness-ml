@@ -18,7 +18,7 @@ function getWsUrl(path: string): string {
     return `${protocol}//${window.location.host}${path}`;
 }
 
-export function useWebSocket(path: string = '/ws/events'): UseWebSocketResult {
+export function useWebSocket(path: string = '/ws/events', projectDir?: string): UseWebSocketResult {
     const [events, setEvents] = useState<Event[]>([]);
     const [connected, setConnected] = useState(false);
     const backoffRef = useRef(1000);
@@ -32,7 +32,12 @@ export function useWebSocket(path: string = '/ws/events'): UseWebSocketResult {
         function connect() {
             if (!mountedRef.current) return;
 
-            const url = getWsUrl(path);
+            let wsPath = path;
+            if (projectDir) {
+                const sep = path.includes('?') ? '&' : '?';
+                wsPath = `${path}${sep}project_dir=${encodeURIComponent(projectDir)}`;
+            }
+            const url = getWsUrl(wsPath);
             const ws = new WebSocket(url);
             wsRef.current = ws;
 
@@ -76,7 +81,7 @@ export function useWebSocket(path: string = '/ws/events'): UseWebSocketResult {
                 wsRef.current.close();
             }
         };
-    }, [path]);
+    }, [path, projectDir]);
 
     return { events, connected };
 }

@@ -326,7 +326,7 @@ def _safe_tool(fn):
                         duration_ms=elapsed, status="success",
                     )
                     return result
-                except Exception as retry_err:
+                except ModuleNotFoundError as retry_err:
                     error_result = f"**Error**: {retry_err} (after installing {package})"
                     elapsed = int((_time.monotonic() - start) * 1000)
                     emitter.emit(
@@ -359,7 +359,10 @@ def _safe_tool(fn):
             )
             return error_result
         except Exception as e:
-            error_result = f"**Error**: Unexpected error in `{fn.__name__}`: {e}"
+            import traceback as _tb
+            tb_lines = _tb.format_exception(e)
+            tb_str = "".join(tb_lines)[-2000:]
+            error_result = f"**Error**: Unexpected error in `{fn.__name__}`: {e}\n\n```\n{tb_str}\n```"
             elapsed = int((_time.monotonic() - start) * 1000)
             emitter.emit(
                 tool=tool_name, action=action, params=clean_params,
@@ -486,6 +489,9 @@ async def data(
     description: str = "",
     format: str = "auto",
     n_rows: int = 5,
+    # Outlier detection parameters:
+    method: str | None = None,
+    threshold: float | None = None,
     # Drop rows parameters:
     condition: str | None = None,
     # Derive column parameters:
@@ -522,6 +528,9 @@ async def data(
         Optional: strategy (median/mean/mode/zero/value), value.
       - "drop_duplicates": Drop duplicate rows.
         Optional: columns (subset to check).
+      - "detect_outliers": Detect outliers in numeric columns. Optional:
+        column (all numeric if omitted), method ("iqr" or "zscore",
+        default "iqr"), threshold (1.5 for IQR, 3.0 for Z-score).
       - "drop_rows": Drop rows from the feature store. Use column +
         condition="null" to drop rows with NaN in that column, or provide a
         pandas query expression as condition to drop matching rows. Examples:
@@ -622,6 +631,8 @@ async def data(
         value=value,
         columns=columns,
         mapping=mapping,
+        method=method,
+        threshold=threshold,
         expression=expression,
         group_by=group_by,
         dtype=dtype,
@@ -670,6 +681,8 @@ async def features(
     top_n: int = 20,
     method: str = "xgboost",
     search_types: str | list | None = None,
+    threshold: float | None = None,
+    dry_run: bool | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Create and analyze features.
@@ -699,6 +712,10 @@ async def features(
         Optional: features (JSON array of column names to search over;
         defaults to all feature columns), search_types (JSON array from
         ["interactions", "lags", "rolling"]; defaults to all), top_n.
+      - "prune": Remove low-importance features from model configs.
+        Optional: threshold (importance cutoff, default 0.01),
+        method (xgboost/mutual_info), dry_run (default true, set false
+        to apply changes).
     """
     return await _load_handler("features").dispatch(
         action,
@@ -717,6 +734,8 @@ async def features(
         top_n=top_n,
         method=method,
         search_types=search_types,
+        threshold=threshold,
+        dry_run=dry_run,
         project_dir=project_dir,
     )
 
@@ -745,6 +764,7 @@ async def experiments(
     detail: str | None = None,
     last_n: int | None = None,
     verdict: str | None = None,
+    warm_start_from: str | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Manage ML experiments.
@@ -768,7 +788,9 @@ async def experiments(
         Optuna-driven trials, returns full report with best config,
         all trials ranked, and parameter importance.
         Optional: detail ("summary" returns best trial only,
-        "full" (default) returns all trials + param importance).
+        "full" (default) returns all trials + param importance),
+        warm_start_from (exploration ID or path to seed new study
+        with trials from a previous run, e.g. "expl-001").
       - "promote_trial": Promote a trial from an exploration run as a new
         experiment. Requires experiment_id (exploration ID, e.g. 'expl-002').
         Optional: trial (int, defaults to best trial), primary_metric, hypothesis.
@@ -802,6 +824,7 @@ async def experiments(
         detail=detail,
         last_n=last_n,
         verdict=verdict,
+        warm_start_from=warm_start_from,
         project_dir=project_dir,
     )
 
@@ -1074,12 +1097,15 @@ async def pipeline(
     run_id: str | None = None,
     run_ids: list[str] | None = None,
     fold_value: int | None = None,
+    fold_values: list | None = None,
     detail: str | None = None,
     name: str | None = None,
     top_n: int | None = None,
     mode: str | None = None,
     destination: str | None = None,
     output_path: str | None = None,
+    feature: str | None = None,
+    n_bins: int | None = None,
     project_dir: str | None = None,
 ) -> str:
     """Run and inspect pipeline executions.
@@ -1087,7 +1113,8 @@ async def pipeline(
     Actions:
       - "run_backtest": Run a full backtest. Returns metrics, meta-learner
         weights, per-fold breakdown. Optional: experiment_id (applies
-        overlay), variant.
+        overlay), variant, fold_values (list of fold values to run on
+        a subset of folds for debugging).
       - "predict": Generate predictions for a target fold. Requires fold_value.
         Optional: run_id, variant.
       - "diagnostics": Show per-model diagnostics (brier, accuracy, ECE,
@@ -1116,9 +1143,16 @@ async def pipeline(
         closest to 0.5), top_n (default 10).
       - "export_notebook": Generate a Jupyter notebook from the project config.
         Requires destination ("colab", "kaggle", or "local"). Optional: output_path.
+      - "clear_cache": Clear the prediction cache. Use after data shape changes
+        (e.g. drop_rows) that invalidate cached predictions. No parameters required.
       - "progress": Show workflow phase completion status — which exploration
         phases are done (feature discovery, model diversity, tuning readiness).
         No parameters required.
+      - "model_correlation": Pairwise prediction correlation matrix across
+        models. Identifies redundant models in the ensemble. Optional: run_id.
+      - "residual_analysis": Analyze residuals binned by a feature to detect
+        systematic bias. Optional: feature (auto-selects if omitted), run_id,
+        n_bins (default 10).
     """
     import asyncio
     result = _load_handler("pipeline").dispatch(
@@ -1129,12 +1163,15 @@ async def pipeline(
         run_id=run_id,
         run_ids=run_ids,
         fold_value=fold_value,
+        fold_values=fold_values,
         detail=detail,
         name=name,
         top_n=top_n,
         mode=mode,
         destination=destination,
         output_path=output_path,
+        feature=feature,
+        n_bins=n_bins,
         project_dir=project_dir,
     )
     if asyncio.iscoroutine(result):

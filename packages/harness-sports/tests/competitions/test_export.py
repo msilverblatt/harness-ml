@@ -140,7 +140,7 @@ class TestExportBracketMarkdown:
         content = path.read_text()
         assert "[UPSET]" in content
         # Only the t3 over t4 matchup should be upset
-        lines_with_upset = [l for l in content.splitlines() if "[UPSET]" in l]
+        lines_with_upset = [ln for ln in content.splitlines() if "[UPSET]" in ln]
         assert len(lines_with_upset) == 1
         assert "Charlie" in lines_with_upset[0]
 
@@ -188,7 +188,7 @@ class TestExportStandingsMarkdown:
     def test_rank_ordering(self, tmp_path, standings, entity_names):
         path = export_standings_markdown(standings, entity_names, tmp_path)
         content = path.read_text()
-        lines = [l for l in content.splitlines() if l.startswith("| ") and "Rank" not in l and "---" not in l]
+        lines = [ln for ln in content.splitlines() if ln.startswith("| ") and "Rank" not in ln and "---" not in ln]
         assert "1" in lines[0] and "Alpha" in lines[0]
         assert "4" in lines[3] and "Delta" in lines[3]
 

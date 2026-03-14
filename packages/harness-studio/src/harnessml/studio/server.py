@@ -14,6 +14,7 @@ from harnessml.studio.routes import (
     ensemble,
     events,
     experiments,
+    export,
     features,
     models,
     notebook,
@@ -50,7 +51,7 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
         try:
             conn = store._get_conn()
             rows = conn.execute(
-                "SELECT id, timestamp, tool, action, params, result, duration_ms, status, project, caller "
+                "SELECT id, timestamp, tool, action, params, result, duration_ms, status, project, project_dir, caller "
                 "FROM events WHERE id > ? ORDER BY id ASC",
                 (last_id,),
             ).fetchall()
@@ -69,6 +70,7 @@ async def _poll_events(app: FastAPI, interval: float = 1.0):
                     "duration_ms": r["duration_ms"],
                     "status": r["status"],
                     "project": r["project"],
+                    "project_dir": r["project_dir"] if "project_dir" in r.keys() else "",
                     "caller": r["caller"] if "caller" in r.keys() else "",
                 }
                 broadcaster.notify(event)
@@ -96,6 +98,12 @@ async def lifespan(application: FastAPI):
     except Exception:
         application.state.event_store = None
     application.state.broadcaster = EventBroadcaster()
+
+    # Register --project-dir in event store so the path is always current
+    pd = getattr(application.state, "project_dir", None)
+    if pd and application.state.event_store is not None:
+        project_name = Path(pd).name
+        application.state.event_store.register_project(project_name, pd)
 
     # Start background poller for live event streaming
     poll_task = asyncio.create_task(_poll_events(application))
@@ -129,6 +137,7 @@ app.include_router(ensemble.router, prefix="/api")
 app.include_router(predictions.router, prefix="/api")
 app.include_router(notebook.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
+app.include_router(export.router, prefix="/api")
 app.include_router(ws.router)
 
 

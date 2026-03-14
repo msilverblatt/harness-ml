@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 from harnessml.core.runner.config_writer._helpers import (
+    _LOWER_IS_BETTER,
     _expand_dot_keys,
     _get_config_dir,
     _load_yaml,
@@ -396,8 +397,6 @@ def run_experiment(
         lines.append("| Metric | Baseline | Experiment | Delta |")
         lines.append("|--------|----------|------------|-------|")
 
-        _LOWER_IS_BETTER = {"brier", "brier_score", "ece", "log_loss"}
-
         overall_verdict = "neutral"
         primary_delta = 0.0
 
@@ -421,7 +420,7 @@ def run_experiment(
 
         lines.append(f"\n**Verdict**: {overall_verdict} (primary metric: {primary_metric}, delta: {primary_delta:+.4f})")
 
-        # Per-fold deltas
+        # Per-fold deltas — dynamically detect available metrics
         exp_per_fold = exp_result.get("per_fold", {})
         base_per_fold = baseline_result.get("per_fold", {})
         if exp_per_fold and base_per_fold:
@@ -429,23 +428,40 @@ def run_experiment(
                 set(exp_per_fold.keys()) & set(base_per_fold.keys())
             )
             if common_folds:
-                lines.append("\n### Per-Fold Deltas\n")
-                lines.append("| Fold | Brier (base) | Brier (exp) | Delta | Acc (base) | Acc (exp) | Delta |")
-                lines.append("|------|-------------|-------------|-------|------------|-----------|-------|")
+                # Discover which metrics are available across folds
+                all_fold_metrics: set[str] = set()
                 for s in common_folds:
-                    eb = exp_per_fold[s].get("brier", exp_per_fold[s].get("brier_score"))
-                    bb = base_per_fold[s].get("brier", base_per_fold[s].get("brier_score"))
-                    ea = exp_per_fold[s].get("accuracy")
-                    ba = base_per_fold[s].get("accuracy")
-                    bd = (eb - bb) if eb is not None and bb is not None else None
-                    ad = (ea - ba) if ea is not None and ba is not None else None
-                    bb_s = f"{bb:.4f}" if bb is not None else "-"
-                    eb_s = f"{eb:.4f}" if eb is not None else "-"
-                    bd_s = f"{bd:+.4f}" if bd is not None else "-"
-                    ba_s = f"{ba:.4f}" if ba is not None else "-"
-                    ea_s = f"{ea:.4f}" if ea is not None else "-"
-                    ad_s = f"{ad:+.4f}" if ad is not None else "-"
-                    lines.append(f"| {s} | {bb_s} | {eb_s} | {bd_s} | {ba_s} | {ea_s} | {ad_s} |")
+                    all_fold_metrics.update(exp_per_fold[s].keys())
+                    all_fold_metrics.update(base_per_fold[s].keys())
+                # Put primary metric first, then sort the rest
+                fold_metrics = sorted(all_fold_metrics)
+                if primary_metric in fold_metrics:
+                    fold_metrics.remove(primary_metric)
+                    fold_metrics.insert(0, primary_metric)
+                # Also check for brier_score alias
+                pm_alias = f"{primary_metric}_score"
+                if pm_alias in fold_metrics and primary_metric not in all_fold_metrics:
+                    fold_metrics.remove(pm_alias)
+                    fold_metrics.insert(0, pm_alias)
+
+                lines.append("\n### Per-Fold Deltas\n")
+                # Build dynamic header
+                header_parts = ["Fold"]
+                for m in fold_metrics:
+                    header_parts.extend([f"{m} (base)", f"{m} (exp)", "Delta"])
+                lines.append("| " + " | ".join(header_parts) + " |")
+                lines.append("|" + "|".join(["------"] * len(header_parts)) + "|")
+
+                for s in common_folds:
+                    row_parts = [str(s)]
+                    for m in fold_metrics:
+                        base_v = base_per_fold[s].get(m)
+                        exp_v = exp_per_fold[s].get(m)
+                        delta = (exp_v - base_v) if exp_v is not None and base_v is not None else None
+                        row_parts.append(f"{base_v:.4f}" if base_v is not None else "-")
+                        row_parts.append(f"{exp_v:.4f}" if exp_v is not None else "-")
+                        row_parts.append(f"{delta:+.4f}" if delta is not None else "-")
+                    lines.append("| " + " | ".join(row_parts) + " |")
 
         # Experiment backtest details
         lines.append("\n---\n")

@@ -191,6 +191,77 @@ class DataProfile:
         return "\n".join(lines)
 
 
+def detect_outliers(
+    df: pd.DataFrame,
+    columns: list[str] | None = None,
+    method: str = "iqr",
+    threshold: float | None = None,
+) -> list[dict]:
+    """Detect statistical outliers in numeric columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input data.
+    columns : list[str] | None
+        Columns to check. If None, checks all numeric columns.
+    method : str
+        Detection method: "iqr" (interquartile range) or "zscore".
+    threshold : float | None
+        Sensitivity threshold. Defaults to 1.5 for IQR, 3.0 for Z-score.
+
+    Returns
+    -------
+    list[dict]
+        Per-column results with keys: column, n_outliers, pct_outliers,
+        lower_bound, upper_bound, total_rows.
+    """
+
+    if threshold is None:
+        threshold = 1.5 if method == "iqr" else 3.0
+
+    if columns is None:
+        columns = df.select_dtypes(include="number").columns.tolist()
+
+    results = []
+    for col in columns:
+        if col not in df.columns:
+            continue
+        series = df[col].dropna()
+        if len(series) == 0:
+            continue
+
+        if method == "iqr":
+            q1 = series.quantile(0.25)
+            q3 = series.quantile(0.75)
+            iqr = q3 - q1
+            lower = q1 - threshold * iqr
+            upper = q3 + threshold * iqr
+        elif method == "zscore":
+            mean = series.mean()
+            std = series.std()
+            if std == 0:
+                continue
+            lower = mean - threshold * std
+            upper = mean + threshold * std
+        else:
+            raise ValueError(f"Unknown method {method!r}. Use 'iqr' or 'zscore'.")
+
+        outlier_mask = (series < lower) | (series > upper)
+        n_outliers = int(outlier_mask.sum())
+
+        results.append({
+            "column": col,
+            "n_outliers": n_outliers,
+            "pct_outliers": round(100 * n_outliers / len(df), 1),
+            "lower_bound": round(float(lower), 4),
+            "upper_bound": round(float(upper), 4),
+            "total_rows": len(df),
+        })
+
+    return results
+
+
 def profile_dataset(
     path: str | Path | None = None,
     high_null_threshold: float = 50.0,

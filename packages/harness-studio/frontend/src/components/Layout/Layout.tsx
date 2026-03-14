@@ -1,5 +1,5 @@
 import { NavLink, Link, Outlet, useOutletContext, useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useWebSocket, type Event } from '../../hooks/useWebSocket';
 import { useApi } from '../../hooks/useApi';
 import { ProjectContext } from '../../hooks/useProject';
@@ -220,9 +220,13 @@ export function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const currentPage = location.pathname.split('/').slice(2).join('/') || 'dashboard';
-    const { events, connected } = useWebSocket();
-    const { data: status } = useApi<ProjectStatus>('/api/project/status', undefined, projectName);
     const [projects, setProjects] = useState<ProjectInfo[]>([]);
+    const currentProjectDir = useMemo(() => {
+        const match = projects.find(p => p.name === projectName || p.project_dir.endsWith(`/${projectName}`));
+        return match?.project_dir ?? '';
+    }, [projects, projectName]);
+    const { events, connected } = useWebSocket('/ws/events', currentProjectDir || undefined);
+    const { data: status } = useApi<ProjectStatus>('/api/project/status', undefined, projectName);
 
     const robotStatus: RobotStatus = !connected
         ? 'offline'

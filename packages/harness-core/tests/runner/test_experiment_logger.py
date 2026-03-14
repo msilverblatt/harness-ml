@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from harnessml.core.runner.experiments.experiment import auto_log_result
 from harnessml.core.runner.experiments.logger import ExperimentManager
 
@@ -208,6 +207,6 @@ class TestAutoLogResult:
         )
         content = log_path.read_text()
         # The row should have dashes for missing metrics
-        row_lines = [l for l in content.splitlines() if "exp-050" in l]
+        row_lines = [line for line in content.splitlines() if "exp-050" in line]
         assert len(row_lines) == 1
         assert row_lines[0].count("-") >= 4  # at least 4 metric columns as dashes

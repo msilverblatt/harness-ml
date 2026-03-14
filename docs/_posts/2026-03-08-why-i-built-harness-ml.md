@@ -152,7 +152,7 @@ It started as a simple activity monitor. Then a DAG viewer. Then experiment hist
   </figure>
 </div>
 
-**If seeing a basic model from scratch in 60 seconds was the "wow" moment that convinced me I was doing something right, watching the full system grind through nearly 50 consecutive experiments to systematically improve a regression classifier all while learning from past projects is what made me feel like I was watching the next generation of software:**
+**If seeing a basic model from scratch in 60 seconds was the "wow" moment that convinced me I was doing something right, watching the full system grind through nearly 50 consecutive experiments to systematically improve a regression model all while learning from past projects is what made me feel like I was watching the next generation of software:**
 
 <video width="100%" controls>
   <source src="{{ site.baseurl }}/assets/demo.mp4" type="video/mp4">

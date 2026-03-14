@@ -1,11 +1,9 @@
 """Tests for the notebook MCP handler."""
 from __future__ import annotations
 
-import json
-
 import pytest
 import yaml
-from harnessml.plugin.handlers.notebook import ACTIONS, dispatch
+from harnessml.plugin.handlers.notebook import dispatch
 
 
 @pytest.fixture()

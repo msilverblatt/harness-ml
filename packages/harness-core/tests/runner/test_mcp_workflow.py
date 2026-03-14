@@ -757,16 +757,28 @@ class TestInitAction:
         assert pipeline["data"]["time_column"] == "season"
 
     def test_init_rejects_existing_project(self, tmp_path):
-        """init should error if directory already has content."""
+        """init should error if directory already has content and no project_name."""
         project_dir = tmp_path / "existing"
         project_dir.mkdir()
         (project_dir / "some_file.txt").write_text("content")
 
         result = config_writer.scaffold_init(
             project_dir=project_dir,
-            project_name="existing",
         )
         assert "Error" in result
+
+    def test_init_creates_subdirectory_when_project_name_given(self, tmp_path):
+        """init should create subdirectory when dir is non-empty but project_name is given."""
+        project_dir = tmp_path / "existing"
+        project_dir.mkdir()
+        (project_dir / "some_file.txt").write_text("content")
+
+        result = config_writer.scaffold_init(
+            project_dir=project_dir,
+            project_name="my_project",
+        )
+        assert "Error" not in result
+        assert (project_dir / "my_project" / "config").exists()
 
 
 class TestPredictAction:

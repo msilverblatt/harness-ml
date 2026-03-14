@@ -241,9 +241,12 @@ def scaffold_project(
     project_dir = Path(project_dir)
 
     if project_dir.exists() and any(project_dir.iterdir()):
-        raise FileExistsError(
-            f"Directory {project_dir} already exists and is not empty."
-        )
+        if project_name:
+            project_dir = project_dir / project_name
+        else:
+            raise FileExistsError(
+                f"Directory {project_dir} already exists and is not empty."
+            )
 
     if project_name is None:
         project_name = project_dir.name

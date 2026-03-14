@@ -1,6 +1,5 @@
 """Tests for HistGradientBoosting model wrapper: fit, predict, save/load, feature importances."""
 import numpy as np
-import pytest
 from harnessml.core.models.wrappers.hist_gbm import HistGradientBoostingModel
 
 

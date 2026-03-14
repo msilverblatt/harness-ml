@@ -1,6 +1,5 @@
 """Tests for Logistic Regression model wrapper: fit, predict, save/load, feature importances."""
 import numpy as np
-import pytest
 from harnessml.core.models.wrappers.logistic import LogisticRegressionModel
 
 

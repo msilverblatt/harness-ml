@@ -83,9 +83,9 @@ probabilistic forecasting.
 │       │                                                                     │
 │       ▼                                                                     │
 │   Model Training (per fold, parallel via ThreadPoolExecutor)                │
-│       │  12 model wrappers:                                                 │
+│       │  13 model wrappers:                                                 │
 │       │    XGBoost, LightGBM, CatBoost, RandomForest, Logistic, ElasticNet, │
-│       │    MLP, TabNet, SVM, HistGradientBoosting, GAM, NGBoost             │
+│       │    MLP, TabNet, TabPFN, SVM, HistGradientBoosting, GAM, NGBoost    │
 │       │  GPU routing: CUDA / MPS / CPU (detect_device)                      │
 │       │  Multi-seed averaging (seed_stride)                                 │
 │       │  Error recovery: partial results on model failure                    │
@@ -130,7 +130,7 @@ MCP server, making the entire pipeline agent-readable and agent-writable.
 | `core.schemas` | Pydantic v2 contracts + MetricRegistry (45 metrics across 6 task types) |
 | `core.config` | YAML loading + OmegaConf deep merge for experiment overlays |
 | `core.guardrails` | Safety guardrails: leakage detection, temporal validation, naming conventions |
-| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost) + ModelRegistry |
+| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, TabPFN, SVM, HistGBM, GAM, NGBoost) + ModelRegistry |
 | `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
 | `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
 | `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
@@ -159,7 +159,7 @@ The table below documents what was built custom versus adopted, and why.
 | View Engine | Custom 22-step declarative ETL | dbt, Pandas pipes, Hamilton | YAML-driven for agent consumption; domain-specific steps (symmetric unpivot, matchup joins); tightly integrated with feature store and source registry |
 | Feature Store | Custom parquet-based with registry | Feast, Tecton, Hopsworks, Featuretools | Zero infrastructure requirement; file-based portability; MCP-integrated add/remove/search; SHA256 fingerprint-based caching eliminates redundant recomputation |
 | Experiment Tracking | Custom JSONL journal + discipline enforcement | MLflow, W&B, Neptune, ClearML | Hypothesis-driven methodology is a core value proposition; YAML-native config diffs via OmegaConf; phased workflow enforcement (EDA through Ensemble) not available in any alternative |
-| Model Wrappers | Custom BaseModel + ModelRegistry | sklearn Pipeline, MLflow Models, ONNX Runtime | Unified interface across 12 model types with per-fold calibration; multi-seed averaging (seed_stride); inspect-based kwargs forwarding; normalize/batch_norm/early_stopping per wrapper |
+| Model Wrappers | Custom BaseModel + ModelRegistry | sklearn Pipeline, MLflow Models, ONNX Runtime | Unified interface across 13 model types with per-fold calibration; multi-seed averaging (seed_stride); inspect-based kwargs forwarding; normalize/batch_norm/early_stopping per wrapper |
 | Dashboard | Custom FastAPI + React 19 | Streamlit, Gradio, TensorBoard, Grafana | Real-time WebSocket streaming of MCP events; pipeline DAG visualization; experiment discipline integration (hypothesis/conclusion); 45-metric diagnostics panel |
 | Config Management | OmegaConf + YAML | Hydra, Pydantic Settings, dynaconf | Deep merge enables experiment overlays on immutable production config; YAML-native format is agent-readable and agent-writable; no decorator or annotation overhead |
 | MCP Server | FastMCP | Custom WebSocket, gRPC, REST API | Native Claude Code integration; hot-reload handlers in dev mode (HARNESS_DEV=1); tool signatures serve as self-documenting API |
@@ -271,9 +271,10 @@ ML pitfalls while keeping the system flexible.
 harness-core
   Dependencies: pydantic, numpy, pandas, pyarrow, scikit-learn, scipy,
                 omegaconf, pyyaml, click, structlog, polars
-  Optional: xgboost, catboost, lightgbm, torch, pytorch-tabnet, optuna,
-            shap, matplotlib, pandera, nbformat, google-api-python-client,
-            google-auth-oauthlib, kaggle, pygam, ngboost
+  Optional: xgboost, catboost, lightgbm, torch, pytorch-tabnet, tabpfn,
+            optuna, shap, matplotlib, pandera, nbformat,
+            google-api-python-client, google-auth-oauthlib, kaggle, pygam,
+            ngboost
 
 harness-plugin
   Dependencies: harness-core, mcp (FastMCP), click
@@ -288,7 +289,7 @@ harness-sports
 harness-core
 
 harness-studio
-  Dependencies: harness-core, fastapi, uvicorn, aiosqlite, websockets
+  Dependencies: harness-core, fastapi, uvicorn, aiosqlite, websockets, jinja2
       |
       v
 harness-core
@@ -407,10 +408,17 @@ harness-ml/
 ├── .claude-plugin/
 │   └── plugin.json                    # Claude Code Plugin manifest
 ├── .mcp.json                          # MCP server configuration
-├── skills/
-│   ├── harness-run-experiment/SKILL.md
-│   ├── harness-explore-space/SKILL.md
-│   └── harness-domain-research/SKILL.md
+├── skills/                               # 10 experiment discipline skills
+│   ├── diagnosis/SKILL.md
+│   ├── domain-research/SKILL.md
+│   ├── eda/SKILL.md
+│   ├── experiment-design/SKILL.md
+│   ├── feature-engineering/SKILL.md
+│   ├── mindset/SKILL.md
+│   ├── model-diversity/SKILL.md
+│   ├── project-setup/SKILL.md
+│   ├── run-experiment/SKILL.md
+│   └── synthesis/SKILL.md
 │
 ├── .github/workflows/
 │   ├── tests.yml                      # CI test suite
@@ -479,7 +487,8 @@ harness-ml/
 │   │   │   │       ├── svm.py             # SVM (SVC/SVR, probability=True)
 │   │   │   │       ├── hist_gbm.py        # HistGradientBoosting (native NaN)
 │   │   │   │       ├── gam.py             # GAM (PyGAM, optional dep)
-│   │   │   │       └── ngboost.py         # NGBoost (optional dep)
+│   │   │   │       ├── ngboost.py         # NGBoost (optional dep)
+│   │   │   │       └── tabpfn.py          # TabPFN (pre-trained transformer, optional dep)
 │   │   │   │
 │   │   │   ├── runner/
 │   │   │   │   ├── schema.py              # ProjectConfig, DataConfig, BacktestConfig, etc.
@@ -627,6 +636,9 @@ harness-ml/
 │   │   │   ├── event_store.py             # SQLite WAL-mode, parameterized queries
 │   │   │   ├── broadcaster.py             # asyncio.Queue fan-out, bounded queues
 │   │   │   ├── errors.py                  # ErrorCategory enum, classify_error
+│   │   │   ├── export.py                  # Static HTML report export
+│   │   │   ├── templates/
+│   │   │   │   └── report.html            # Jinja2 HTML report template
 │   │   │   └── routes/
 │   │   │       ├── events.py              # Event log REST + WebSocket
 │   │   │       ├── project.py             # Config + DAG endpoints
@@ -638,6 +650,8 @@ harness-ml/
 │   │   │       ├── features.py            # Feature viewer
 │   │   │       ├── models.py              # Model viewer
 │   │   │       ├── ensemble.py            # Ensemble viewer
+│   │   │       ├── export.py             # HTML report export endpoint
+│   │   │       ├── notebook.py           # Notebook viewer
 │   │   │       └── ws.py                  # WebSocket handler
 │   │   │
 │   │   ├── frontend/                      # React 19 + TypeScript + Vite + bun

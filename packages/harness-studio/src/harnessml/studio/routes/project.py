@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 from fastapi import APIRouter, HTTPException, Request
 from harnessml.core.logging import get_logger
+from pydantic import BaseModel
 
 logger = get_logger(__name__)
 
@@ -15,16 +16,20 @@ router = APIRouter(tags=["project"])
 def resolve_project_dir_from_request(request: Request, project: str | None) -> Path:
     """Resolve a project name to its on-disk directory.
 
+    In single-project mode, always use --project-dir if the name matches.
     Falls back to app.state.project_dir for standalone (single-project) mode.
     """
+    pd = getattr(request.app.state, "project_dir", None)
     if project:
+        # In single-project mode, prefer --project-dir when names match
+        if pd and Path(pd).name == project:
+            return Path(pd)
         store = request.app.state.event_store
         if store is not None:
             d = store.get_project_dir(project)
             if d:
                 return Path(d)
         raise HTTPException(404, f"project '{project}' not found in registry")
-    pd = getattr(request.app.state, "project_dir", None)
     if pd:
         return Path(pd)
     raise HTTPException(400, "project parameter required")
@@ -38,11 +43,32 @@ def _load_yaml(path: Path) -> dict:
 
 @router.get("/projects")
 async def list_projects(request: Request):
-    """List all registered projects."""
+    """List registered projects. In single-project mode, only return that project."""
     store = request.app.state.event_store
     if store is None:
         return []
-    return store.list_projects_with_dirs()
+    all_projects = store.list_projects_with_dirs()
+    # In single-project mode, filter to only the --project-dir project
+    if getattr(request.app.state, "single_project", False):
+        pd = getattr(request.app.state, "project_dir", None)
+        if pd:
+            return [p for p in all_projects if p["project_dir"] == pd]
+    return all_projects
+
+
+class RenameRequest(BaseModel):
+    project_dir: str
+    display_name: str
+
+
+@router.put("/projects/rename")
+async def rename_project(request: Request, body: RenameRequest):
+    """Set a custom display name for a project."""
+    store = request.app.state.event_store
+    if store is None:
+        raise HTTPException(500, "event store not available")
+    store.rename_project(body.project_dir, body.display_name)
+    return {"ok": True}
 
 
 @router.get("/project/config")
@@ -354,7 +380,7 @@ def build_dag(project_dir: Path) -> dict:
     if journal_path.exists():
         import json as _json
         # Find the most recent experiment (last line in journal)
-        lines = [l for l in journal_path.read_text().strip().split("\n") if l.strip()]
+        lines = [ln for ln in journal_path.read_text().strip().split("\n") if ln.strip()]
         for line in reversed(lines):
             try:
                 entry = _json.loads(line)

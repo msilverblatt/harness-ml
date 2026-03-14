@@ -1161,7 +1161,7 @@ class TestConfigWriterCacheWiring:
         """run_backtest creates .cache/predictions/ and uses it."""
         from harnessml.core.runner.config_writer.pipeline import run_backtest
 
-        config_dir = _setup_project(tmp_path, n_rows=300, n_seasons=4)
+        _setup_project(tmp_path, n_rows=300, n_seasons=4)
         result = run_backtest(tmp_path)
 
         assert "Backtest Results" in result
@@ -1200,7 +1200,6 @@ class TestConfigWriterCacheWiring:
         from harnessml.core.runner.config_writer.experiments import (
             experiment_create,
             run_experiment,
-            write_overlay,
         )
 
         _setup_project(tmp_path, n_rows=300, n_seasons=4)
@@ -1265,7 +1264,7 @@ class TestConfigWriterCacheWiring:
         # Overlay changes the C parameter — should cause cache misses for experiment
         write_overlay(tmp_path, exp_id, {"models": {"logreg": {"params": {"C": 0.1}}}})
 
-        result = run_experiment(tmp_path, exp_id)
+        run_experiment(tmp_path, exp_id)
 
         # Cache dir was created
         cache_dir = tmp_path / ".cache" / "predictions"

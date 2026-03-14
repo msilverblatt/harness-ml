@@ -39,7 +39,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 | `core.schemas` | Pydantic contracts (`contracts.py`) + MetricRegistry with 45 metrics across 6 task types (`metrics.py`) |
 | `core.config` | YAML loading + OmegaConf deep merge |
 | `core.guardrails` | Safety guardrails (leakage, temporal, naming) |
-| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost) + registry |
+| `core.models` | Model wrappers (XGBoost, LightGBM, CatBoost, RF, Logistic, ElasticNet, MLP, TabNet, TabPFN, SVM, HistGBM, GAM, NGBoost) + registry |
 | `core.runner` | Pipeline orchestration, project, hooks, CLI, DAG, matchups |
 | `core.runner.data` | Data ingestion, pipeline, profiling, utils, loaders |
 | `core.runner.features` | Feature store, engine, cache, discovery, diversity, selection, auto-search, utils |
@@ -139,7 +139,8 @@ changes to harness-core.
 
 - **Event layer**: MCP server emits events to SQLite via fail-safe emitter
 - **Backend**: FastAPI serves REST + WebSocket, reads project artifacts directly
-- **Frontend**: React/Vite with 4 tabs (Activity, DAG, Experiments, Diagnostics)
+- **Frontend**: React/Vite with tabs (Dashboard, Activity, DAG, Experiments, Diagnostics, Data, Features, Models, Ensemble, Config, Predictions, Notebook, Preferences)
+- **Export**: Static HTML report generation via Jinja2 templates (`export.py`, `routes/export.py`)
 - **Build**: `bash packages/harness-studio/scripts/build_frontend.sh` copies Vite output to Python package
 - **Run**: `uv run harness-studio --project-dir <path>` serves on port 8421
 - **Frontend dev**: `cd packages/harness-studio/frontend && bun run dev`
@@ -186,13 +187,22 @@ Additional conventions (not code-enforced):
 - On phase transitions, write both a finding summary and a new theory + plan
 - Check `notebook(action="summary")` at session start
 
-## Skills (docs/skills/)
+## Skills
+
+10 experiment discipline skills installed to `skills/` and `packages/harness-plugin/skills/`:
 
 | Skill | Purpose |
 |-------|---------|
-| `harness-run-experiment` | Disciplined experiment execution with required hypothesis/conclusion |
-| `harness-explore-space` | Phased workflow preventing premature tuning |
-| `harness-domain-research` | Hypothesis-driven domain research for feature engineering |
+| `run-experiment` | Disciplined experiment execution with required hypothesis/conclusion |
+| `experiment-design` | Phased workflow preventing premature tuning |
+| `domain-research` | Hypothesis-driven domain research for feature engineering |
+| `eda` | Exploratory data analysis workflow |
+| `feature-engineering` | Systematic feature engineering process |
+| `model-diversity` | Ensuring model diversity in ensembles |
+| `diagnosis` | Diagnosing model performance issues |
+| `synthesis` | Synthesizing experiment results into conclusions |
+| `mindset` | Data science mindset and best practices |
+| `project-setup` | Project initialization workflow |
 
 ## What NOT to Do
 

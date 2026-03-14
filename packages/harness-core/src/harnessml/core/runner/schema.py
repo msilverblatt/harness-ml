@@ -929,7 +929,7 @@ class EnsembleDef(BaseModel):
 # Backtest config
 # -----------------------------------------------------------------------
 
-_CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold", "stratified_kfold", "group_kfold", "bootstrap"}
+_CV_STRATEGIES = {"leave_one_out", "expanding_window", "sliding_window", "purged_kfold", "stratified_kfold", "group_kfold", "bootstrap", "kfold"}
 
 _CV_STRATEGY_ALIASES = {
     "loso": "leave_one_out",
@@ -939,6 +939,7 @@ _CV_STRATEGY_ALIASES = {
     "purged": "purged_kfold",
     "skf": "stratified_kfold",
     "gkf": "group_kfold",
+    "kf": "kfold",
 }
 
 
@@ -983,6 +984,8 @@ class BacktestConfig(BaseModel):
             raise ValueError("stratified_kfold strategy requires n_folds")
         if self.cv_strategy == "group_kfold" and self.group_column is None:
             raise ValueError("group_kfold strategy requires group_column")
+        if self.cv_strategy == "kfold" and self.n_folds is None:
+            raise ValueError("kfold strategy requires n_folds")
         return self
 
 

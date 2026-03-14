@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import polars as pl
 from harnessml.core.runner.views.polars_compat import to_lazy, to_pandas

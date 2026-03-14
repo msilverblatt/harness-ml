@@ -92,7 +92,6 @@ def _make_competition_result(sim: CompetitionSimulator) -> CompetitionResult:
 
 class TestComputeDifferentials:
     def test_sorted_by_magnitude(self):
-        entities = ["A", "B"]
         df = pd.DataFrame(
             [
                 {"entity": "A", "small": 1.0, "medium": 5.0, "large": 10.0},

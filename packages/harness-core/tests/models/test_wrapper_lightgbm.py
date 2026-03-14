@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 try:
-    import lightgbm
+    import lightgbm  # noqa: F401
     HAS_LIGHTGBM = True
 except ImportError:
     HAS_LIGHTGBM = False

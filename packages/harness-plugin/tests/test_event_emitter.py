@@ -20,7 +20,7 @@ class TestEventEmitter:
         mock_store = MagicMock()
         emitter = EventEmitter(store=mock_store)
         emitter.emit(tool="models", action="add", params={"name": "xgb"}, result="Added model xgb", duration_ms=42, status="success")
-        mock_store.record.assert_called_once_with(tool="models", action="add", params={"name": "xgb"}, result="Added model xgb", duration_ms=42, status="success", project="", caller=emitter._caller)
+        mock_store.record.assert_called_once_with(tool="models", action="add", params={"name": "xgb"}, result="Added model xgb", duration_ms=42, status="success", project="", project_dir="", caller=emitter._caller)
 
     def test_emit_noop_when_disabled(self):
         emitter = EventEmitter()

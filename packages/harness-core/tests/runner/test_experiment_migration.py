@@ -1,7 +1,5 @@
 """Tests for markdown-to-JSONL migration."""
-from pathlib import Path
 
-import pytest
 from harnessml.core.runner.experiments.journal import ExperimentJournal
 from harnessml.core.runner.experiments.manager import migrate_markdown_to_jsonl
 

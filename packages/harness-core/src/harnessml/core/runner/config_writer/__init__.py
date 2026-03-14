@@ -32,6 +32,7 @@ from harnessml.core.runner.config_writer.data import (  # noqa: F401
     configure_denylist,
     configure_exclude_columns,
     derive_column,
+    detect_outliers,
     drop_rows,
     feature_store_status,
     fetch_url,

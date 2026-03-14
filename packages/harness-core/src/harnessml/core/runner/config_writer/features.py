@@ -381,3 +381,102 @@ def auto_search_features(
         top_n=top_n,
     )
     return format_auto_search_report(results)
+
+
+def prune_features(
+    project_dir: Path,
+    *,
+    threshold: float = 0.01,
+    method: str = "xgboost",
+    dry_run: bool = True,
+) -> str:
+    """Remove low-importance features from all model configs.
+
+    Computes feature importance, identifies features below the threshold,
+    and removes them from the features list in each model's config.
+
+    Parameters
+    ----------
+    threshold : float
+        Importance threshold. Features below this are pruned.
+    method : str
+        Importance method: "xgboost", "mutual_info", or "random_forest".
+    dry_run : bool
+        If True, report what would be pruned without modifying files.
+    """
+    from harnessml.core.runner.config_writer._helpers import _save_yaml
+    from harnessml.core.runner.data.utils import get_feature_columns, get_features_df, load_data_config
+    from harnessml.core.runner.features.discovery import compute_feature_importance
+
+    project_dir = Path(project_dir)
+    config_dir = _get_config_dir(project_dir)
+
+    try:
+        config = load_data_config(project_dir)
+    except Exception:
+        return "**Error**: Could not load data config."
+
+    try:
+        df = get_features_df(project_dir, config)
+    except FileNotFoundError:
+        return "**Error**: No feature data found."
+
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    target_col = pipeline_data.get("data", {}).get("target_column", "result")
+    fold_col = pipeline_data.get("backtest", {}).get("fold_column")
+    feature_cols = get_feature_columns(df, config, fold_column=fold_col)
+
+    if target_col not in df.columns:
+        return f"**Error**: Target column `{target_col}` not found."
+
+    importance_df = compute_feature_importance(
+        df, target_col=target_col, method=method, feature_columns=feature_cols,
+    )
+
+    low_importance = set(
+        importance_df[importance_df["importance"] < threshold]["feature"].tolist()
+    )
+
+    if not low_importance:
+        return f"No features below threshold {threshold}. Nothing to prune."
+
+    # Load models config
+    models_path = config_dir / "models.yaml"
+    models_data = _load_yaml(models_path)
+    models = models_data.get("models", {})
+
+    lines = [f"## Feature Pruning ({'DRY RUN' if dry_run else 'APPLIED'})\n"]
+    lines.append(f"Method: {method}, threshold: {threshold}\n")
+    lines.append(f"Features below threshold: {len(low_importance)}\n")
+
+    changes = {}
+    for model_name, model_def in sorted(models.items()):
+        model_features = model_def.get("features", [])
+        if not model_features:
+            continue
+        to_remove = [f for f in model_features if f in low_importance]
+        if to_remove:
+            changes[model_name] = to_remove
+            remaining = len(model_features) - len(to_remove)
+            lines.append(f"**{model_name}**: remove {len(to_remove)} → {remaining} features remaining")
+            for f in to_remove:
+                imp = importance_df[importance_df["feature"] == f]["importance"].values
+                imp_val = f"{imp[0]:.4f}" if len(imp) > 0 else "?"
+                lines.append(f"  - `{f}` (importance: {imp_val})")
+
+    if not changes:
+        lines.append("No models have features that would be pruned.")
+        return "\n".join(lines)
+
+    if not dry_run:
+        for model_name, to_remove in changes.items():
+            remove_set = set(to_remove)
+            models[model_name]["features"] = [
+                f for f in models[model_name]["features"] if f not in remove_set
+            ]
+        _save_yaml(models_path, models_data)
+        lines.append(f"\nPruned features from {len(changes)} model(s).")
+    else:
+        lines.append("\nRun with `dry_run=false` to apply changes.")
+
+    return "\n".join(lines)

@@ -5,7 +5,6 @@ import json
 
 import numpy as np
 import pandas as pd
-import pytest
 from harnessml.core.runner.analysis.diagnostics import build_diagnostics_json
 
 
