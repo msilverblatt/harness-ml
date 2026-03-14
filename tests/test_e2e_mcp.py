@@ -131,7 +131,9 @@ def mcp(project_dir):
     server_py = os.path.join(
         EASYML_DIR, "packages/harness-plugin/src/harnessml/plugin/server.py",
     )
-    pmcp_bin = "/tmp/protomcp/bin/pmcp"
+    pmcp_bin = shutil.which("pmcp")
+    if pmcp_bin is None:
+        pytest.skip("pmcp binary not found on PATH")
     proc = subprocess.Popen(
         [pmcp_bin, "run", server_py],
         stdin=subprocess.PIPE,

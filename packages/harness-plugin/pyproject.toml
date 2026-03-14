@@ -17,7 +17,7 @@ classifiers = [
 dependencies = [
     "harness-core>=0.1.0,<1.0",
     "harness-studio>=0.1.0,<1.0",
-    "protomcp @ file:///tmp/protomcp/sdk/python",
+    "protomcp>=0.1.0",
     "click>=8.0",
 ]
 
@@ -35,9 +35,6 @@ Issues = "https://github.com/msilverblatt/harness-ml/issues"
 [tool.uv.sources]
 harness-core = { workspace = true }
 harness-studio = { workspace = true }
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [build-system]
 requires = ["hatchling"]
