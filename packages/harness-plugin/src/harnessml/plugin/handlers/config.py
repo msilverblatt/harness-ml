@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 
 def _handle_init(*, project_name, task, target_column, key_columns, time_column, project_dir, **_kwargs):
@@ -294,8 +292,8 @@ def _handle_set_target(*, name, project_dir, **_kwargs):
 
 def _handle_studio(*, project_dir, **_kwargs):
     """Return the Studio dashboard URL."""
-    import harnessml.plugin.mcp_server as _mcp
-    port = _mcp._STUDIO_PORT
+    import os
+    port = int(os.environ.get("HARNESS_STUDIO_PORT", "8421"))
     base_url = f"http://localhost:{port}"
     if project_dir:
         from pathlib import Path
@@ -310,28 +308,76 @@ def _handle_suggest_cv(*, project_dir, **_kwargs):
     return suggest_cv(resolve_project_dir(project_dir))
 
 
-ACTIONS = {
-    "init": _handle_init,
-    "update_data": _handle_update_data,
-    "ensemble": _handle_ensemble,
-    "backtest": _handle_backtest,
-    "show": _handle_show,
-    "check_guardrails": _handle_check_guardrails,
-    "exclude_columns": _handle_exclude_columns,
-    "set_denylist": _handle_set_denylist,
-    "add_target": _handle_add_target,
-    "list_targets": _handle_list_targets,
-    "set_target": _handle_set_target,
-    "studio": _handle_studio,
-    "suggest_cv": _handle_suggest_cv,
-}
+@tool_group("configure", description="Configure the ML pipeline.")
+class ConfigureGroup:
 
+    @action("init", description="Initialize a new project.")
+    def init(self, *, project_name=None, task=None, target_column=None,
+             key_columns=None, time_column=None, project_dir=None, **kw):
+        return _handle_init(project_name=project_name, task=task, target_column=target_column,
+                            key_columns=key_columns, time_column=time_column, project_dir=project_dir, **kw)
 
-def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a configure action."""
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    hints = collect_hints(action, tool="config", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("update_data", description="Update data configuration.")
+    def update_data(self, *, target_column=None, key_columns=None, time_column=None,
+                    project_dir=None, **kw):
+        return _handle_update_data(target_column=target_column, key_columns=key_columns,
+                                   time_column=time_column, project_dir=project_dir, **kw)
+
+    @action("ensemble", description="Configure ensemble settings.")
+    def ensemble(self, *, method=None, temperature=None, exclude_models=None,
+                 calibration=None, pre_calibration=None, prior_feature=None,
+                 spline_prob_max=None, spline_n_bins=None, project_dir=None, **kw):
+        return _handle_ensemble(method=method, temperature=temperature,
+                                exclude_models=exclude_models, calibration=calibration,
+                                pre_calibration=pre_calibration, prior_feature=prior_feature,
+                                spline_prob_max=spline_prob_max, spline_n_bins=spline_n_bins,
+                                project_dir=project_dir, **kw)
+
+    @action("backtest", description="Configure backtest settings.")
+    def backtest(self, *, cv_strategy=None, fold_values=None, metrics=None,
+                 min_train_folds=None, fold_column=None, n_folds=None,
+                 window_size=None, group_column=None, eval_filter=None,
+                 project_dir=None, **kw):
+        return _handle_backtest(cv_strategy=cv_strategy, fold_values=fold_values,
+                                metrics=metrics, min_train_folds=min_train_folds,
+                                fold_column=fold_column, n_folds=n_folds,
+                                window_size=window_size, group_column=group_column,
+                                eval_filter=eval_filter, project_dir=project_dir, **kw)
+
+    @action("show", description="Show pipeline configuration.")
+    def show(self, *, detail=None, section=None, project_dir=None, **kw):
+        return _handle_show(detail=detail, section=section, project_dir=project_dir, **kw)
+
+    @action("check_guardrails", description="Check configuration guardrails.")
+    def check_guardrails(self, *, project_dir=None, **kw):
+        return _handle_check_guardrails(project_dir=project_dir, **kw)
+
+    @action("exclude_columns", description="Configure excluded columns.")
+    def exclude_columns(self, *, add_columns=None, remove_columns=None, project_dir=None, **kw):
+        return _handle_exclude_columns(add_columns=add_columns, remove_columns=remove_columns, project_dir=project_dir, **kw)
+
+    @action("set_denylist", description="Configure denylist columns.")
+    def set_denylist(self, *, add_columns=None, remove_columns=None, project_dir=None, **kw):
+        return _handle_set_denylist(add_columns=add_columns, remove_columns=remove_columns, project_dir=project_dir, **kw)
+
+    @action("add_target", description="Add a target profile.", requires=["name", "target_column"])
+    def add_target(self, *, name=None, target_column=None, task=None, metrics=None,
+                   project_dir=None, **kw):
+        return _handle_add_target(name=name, target_column=target_column, task=task,
+                                  metrics=metrics, project_dir=project_dir, **kw)
+
+    @action("list_targets", description="List target profiles.")
+    def list_targets(self, *, project_dir=None, **kw):
+        return _handle_list_targets(project_dir=project_dir, **kw)
+
+    @action("set_target", description="Set active target.", requires=["name"])
+    def set_target(self, *, name=None, project_dir=None, **kw):
+        return _handle_set_target(name=name, project_dir=project_dir, **kw)
+
+    @action("studio", description="Get Studio dashboard URL.")
+    def studio(self, *, project_dir=None, **kw):
+        return _handle_studio(project_dir=project_dir, **kw)
+
+    @action("suggest_cv", description="Suggest CV strategy.")
+    def suggest_cv(self, *, project_dir=None, **kw):
+        return _handle_suggest_cv(project_dir=project_dir, **kw)

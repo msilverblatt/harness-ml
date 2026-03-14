@@ -5,8 +5,7 @@ import json
 import threading
 from pathlib import Path
 
-# Module-level emitter reference, set by _safe_tool before each tool call.
-# This avoids circular imports between handlers and mcp_server.
+# Module-level emitter reference, set by middleware before each tool call.
 _active_emitter = None
 _emitter_lock = threading.Lock()
 

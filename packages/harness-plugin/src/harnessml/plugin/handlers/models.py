@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 
 def _handle_add(*, name, model_type, preset, features, params, active, include_in_ensemble, mode, prediction_type, cdf_scale, zero_fill_features, class_weight=None, project_dir, **_kwargs):
@@ -255,25 +253,65 @@ def _handle_show(*, name, project_dir, **_kwargs):
     return cw.show_model(resolve_project_dir(project_dir), name)
 
 
-ACTIONS = {
-    "add": _handle_add,
-    "update": _handle_update,
-    "remove": _handle_remove,
-    "list": _handle_list,
-    "show": _handle_show,
-    "presets": _handle_presets,
-    "add_batch": _handle_add_batch,
-    "update_batch": _handle_update_batch,
-    "remove_batch": _handle_remove_batch,
-    "clone": _handle_clone,
-}
+@tool_group("models", description="Manage ML models in the pipeline.")
+class ModelsGroup:
 
+    @action("add", description="Add a new model.", requires=["name"])
+    def add(self, *, name=None, model_type=None, preset=None, features=None, params=None,
+            active=None, include_in_ensemble=None, mode=None, prediction_type=None,
+            cdf_scale=None, zero_fill_features=None, class_weight=None, project_dir=None, **kw):
+        return _handle_add(name=name, model_type=model_type, preset=preset, features=features,
+                           params=params, active=active, include_in_ensemble=include_in_ensemble,
+                           mode=mode, prediction_type=prediction_type, cdf_scale=cdf_scale,
+                           zero_fill_features=zero_fill_features, class_weight=class_weight,
+                           project_dir=project_dir, **kw)
 
-def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a manage_models action."""
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    hints = collect_hints(action, tool="models", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("update", description="Update an existing model.", requires=["name"])
+    def update(self, *, name=None, features=None, append_features=None, remove_features=None,
+               params=None, active=None, include_in_ensemble=None, mode=None,
+               prediction_type=None, cdf_scale=None, zero_fill_features=None,
+               class_weight=None, replace_params=False, project_dir=None, **kw):
+        return _handle_update(name=name, features=features, append_features=append_features,
+                              remove_features=remove_features, params=params, active=active,
+                              include_in_ensemble=include_in_ensemble, mode=mode,
+                              prediction_type=prediction_type, cdf_scale=cdf_scale,
+                              zero_fill_features=zero_fill_features, class_weight=class_weight,
+                              replace_params=replace_params, project_dir=project_dir, **kw)
+
+    @action("remove", description="Remove a model.", requires=["name"])
+    def remove(self, *, name=None, purge=None, project_dir=None, **kw):
+        return _handle_remove(name=name, purge=purge, project_dir=project_dir, **kw)
+
+    @action("list", description="List all models.")
+    def list_models(self, *, project_dir=None, **kw):
+        return _handle_list(project_dir=project_dir, **kw)
+
+    @action("show", description="Show details of a model.", requires=["name"])
+    def show(self, *, name=None, project_dir=None, **kw):
+        return _handle_show(name=name, project_dir=project_dir, **kw)
+
+    @action("presets", description="Show available model presets.")
+    def presets(self, **kw):
+        return _handle_presets(**kw)
+
+    @action("add_batch", description="Add multiple models in one call.")
+    def add_batch(self, *, items=None, project_dir=None, **kw):
+        return _handle_add_batch(items=items, project_dir=project_dir, **kw)
+
+    @action("update_batch", description="Update multiple models in one call.")
+    def update_batch(self, *, items=None, project_dir=None, **kw):
+        return _handle_update_batch(items=items, project_dir=project_dir, **kw)
+
+    @action("remove_batch", description="Remove multiple models in one call.")
+    def remove_batch(self, *, items=None, project_dir=None, **kw):
+        return _handle_remove_batch(items=items, project_dir=project_dir, **kw)
+
+    @action("clone", description="Clone an existing model.", requires=["name"])
+    def clone(self, *, name=None, new_name=None, features=None, params=None, active=None,
+              include_in_ensemble=None, mode=None, prediction_type=None, cdf_scale=None,
+              zero_fill_features=None, class_weight=None, project_dir=None, **kw):
+        return _handle_clone(name=name, new_name=new_name, features=features, params=params,
+                             active=active, include_in_ensemble=include_in_ensemble, mode=mode,
+                             prediction_type=prediction_type, cdf_scale=cdf_scale,
+                             zero_fill_features=zero_fill_features, class_weight=class_weight,
+                             project_dir=project_dir, **kw)

@@ -1,8 +1,6 @@
 """Tests for pipeline(action='clear_cache') handler."""
 from __future__ import annotations
 
-import asyncio
-
 import pandas as pd
 import pytest
 
@@ -29,30 +27,20 @@ def project_with_cache(tmp_path):
 # -----------------------------------------------------------------------
 
 class TestClearCacheAction:
-    def _dispatch(self, **kwargs):
-        from harnessml.plugin.handlers.pipeline import dispatch
-
-        defaults = dict(
-            action="clear_cache", fold_value=None, run_id=None, run_ids=None,
-            variant=None, experiment_id=None, detail=None, name=None,
-            top_n=None, destination=None, output_path=None, mode=None,
-            ctx=None, project_dir=None,
-        )
-        defaults.update(kwargs)
-        return asyncio.run(dispatch(**defaults))
 
     def test_clear_cache_registered_in_actions(self):
-        from harnessml.plugin.handlers.pipeline import ACTIONS
+        import harnessml.plugin.handlers.pipeline  # noqa: F401
+        from protomcp.group import get_registered_groups
 
-        assert "clear_cache" in ACTIONS
+        groups = [g for g in get_registered_groups() if g.name == "pipeline"]
+        action_names = {a.name for a in groups[0].actions}
+        assert "clear_cache" in action_names
 
     def test_clear_cache_removes_entries(self, project_with_cache):
         from harnessml.core.runner.training.prediction_cache import PredictionCache
+        from harnessml.plugin.handlers.pipeline import _handle_clear_cache
 
-        result = self._dispatch(
-            action="clear_cache",
-            project_dir=str(project_with_cache),
-        )
+        result = _handle_clear_cache(project_dir=str(project_with_cache))
 
         assert "2" in result  # 2 entries removed
         assert "cleared" in result.lower()
@@ -65,25 +53,27 @@ class TestClearCacheAction:
 
     def test_clear_cache_no_cache_dir(self, tmp_path):
         """No error when cache dir doesn't exist."""
+        from harnessml.plugin.handlers.pipeline import _handle_clear_cache
+
         project_dir = tmp_path / "empty_project"
         project_dir.mkdir()
         (project_dir / "config").mkdir()
 
-        result = self._dispatch(
-            action="clear_cache",
-            project_dir=str(project_dir),
-        )
+        result = _handle_clear_cache(project_dir=str(project_dir))
 
         assert "nothing to clear" in result.lower() or "no prediction cache" in result.lower()
 
     def test_all_pipeline_actions_registered(self):
         """Updated action registry includes clear_cache."""
-        from harnessml.plugin.handlers.pipeline import ACTIONS
+        import harnessml.plugin.handlers.pipeline  # noqa: F401
+        from protomcp.group import get_registered_groups
 
+        groups = [g for g in get_registered_groups() if g.name == "pipeline"]
+        action_names = {a.name for a in groups[0].actions}
         expected = {
             "progress", "run_backtest", "predict", "diagnostics", "list_runs",
             "show_run", "compare_runs", "compare_latest", "compare_targets",
             "explain", "inspect_predictions", "export_notebook", "clear_cache",
             "model_correlation", "residual_analysis",
         }
-        assert set(ACTIONS.keys()) == expected
+        assert action_names == expected

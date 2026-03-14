@@ -4,11 +4,9 @@ from __future__ import annotations
 from harnessml.core.logging import get_logger
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 logger = get_logger(__name__)
 
@@ -515,50 +513,145 @@ def _handle_upload_kaggle(*, files, dataset_slug, title, name, project_dir, **_k
     return f"Uploaded {result['files']} file(s) to Kaggle dataset `{result['slug']}`."
 
 
-ACTIONS = {
-    "add": _handle_add,
-    "validate": _handle_validate,
-    "fill_nulls": _handle_fill_nulls,
-    "drop_duplicates": _handle_drop_duplicates,
-    "detect_outliers": _handle_detect_outliers,
-    "drop_rows": _handle_drop_rows,
-    "rename": _handle_rename,
-    "derive_column": _handle_derive_column,
-    "inspect": _handle_inspect,
-    "profile": _handle_profile,
-    "list_features": _handle_list_features,
-    "status": _handle_status,
-    "list_sources": _handle_list_sources,
-    "add_source": _handle_add_source,
-    "add_view": _handle_add_view,
-    "update_view": _handle_update_view,
-    "remove_view": _handle_remove_view,
-    "list_views": _handle_list_views,
-    "preview_view": _handle_preview_view,
-    "set_features_view": _handle_set_features_view,
-    "view_dag": _handle_view_dag,
-    "add_sources_batch": _handle_add_sources_batch,
-    "fill_nulls_batch": _handle_fill_nulls_batch,
-    "add_views_batch": _handle_add_views_batch,
-    "sample": _handle_sample,
-    "restore": _handle_restore,
-    "check_freshness": _handle_check_freshness,
-    "refresh": _handle_refresh,
-    "refresh_all": _handle_refresh_all,
-    "validate_source": _handle_validate_source,
-    "fetch_url": _handle_fetch_url,
-    "upload_drive": _handle_upload_drive,
-    "upload_kaggle": _handle_upload_kaggle,
-    "snapshot": _handle_snapshot,
-    "restore_snapshot": _handle_restore_snapshot,
-}
+@tool_group("data", description="Manage data sources, views, and transformations.")
+class DataGroup:
 
+    @action("add", description="Add a dataset.", requires=["data_path"])
+    def add(self, *, data_path=None, join_on=None, prefix=None, auto_clean=None, project_dir=None, **kw):
+        return _handle_add(data_path=data_path, join_on=join_on, prefix=prefix, auto_clean=auto_clean, project_dir=project_dir, **kw)
 
-def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a manage_data action."""
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    hints = collect_hints(action, tool="data", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("validate", description="Validate a dataset.", requires=["data_path"])
+    def validate(self, *, data_path=None, project_dir=None, **kw):
+        return _handle_validate(data_path=data_path, project_dir=project_dir, **kw)
+
+    @action("fill_nulls", description="Fill null values in a column.", requires=["column"])
+    def fill_nulls(self, *, column=None, strategy=None, value=None, project_dir=None, **kw):
+        return _handle_fill_nulls(column=column, strategy=strategy, value=value, project_dir=project_dir, **kw)
+
+    @action("drop_duplicates", description="Drop duplicate rows.")
+    def drop_duplicates(self, *, columns=None, project_dir=None, **kw):
+        return _handle_drop_duplicates(columns=columns, project_dir=project_dir, **kw)
+
+    @action("detect_outliers", description="Detect outliers in data.")
+    def detect_outliers(self, *, column=None, method=None, threshold=None, project_dir=None, **kw):
+        return _handle_detect_outliers(column=column, method=method, threshold=threshold, project_dir=project_dir, **kw)
+
+    @action("drop_rows", description="Drop rows matching a condition.")
+    def drop_rows(self, *, column=None, condition=None, project_dir=None, **kw):
+        return _handle_drop_rows(column=column, condition=condition, project_dir=project_dir, **kw)
+
+    @action("rename", description="Rename columns.", requires=["mapping"])
+    def rename(self, *, mapping=None, project_dir=None, **kw):
+        return _handle_rename(mapping=mapping, project_dir=project_dir, **kw)
+
+    @action("derive_column", description="Create a derived column.", requires=["name", "expression"])
+    def derive_column(self, *, name=None, expression=None, group_by=None, dtype=None, project_dir=None, **kw):
+        return _handle_derive_column(name=name, expression=expression, group_by=group_by, dtype=dtype, project_dir=project_dir, **kw)
+
+    @action("inspect", description="Inspect data or a specific column.")
+    def inspect(self, *, column=None, project_dir=None, **kw):
+        return _handle_inspect(column=column, project_dir=project_dir, **kw)
+
+    @action("profile", description="Profile the dataset.")
+    def profile(self, *, category=None, project_dir=None, **kw):
+        return _handle_profile(category=category, project_dir=project_dir, **kw)
+
+    @action("list_features", description="List available features.")
+    def list_features(self, *, prefix=None, project_dir=None, **kw):
+        return _handle_list_features(prefix=prefix, project_dir=project_dir, **kw)
+
+    @action("status", description="Show feature store status.")
+    def status(self, *, project_dir=None, **kw):
+        return _handle_status(project_dir=project_dir, **kw)
+
+    @action("list_sources", description="List registered data sources.")
+    def list_sources(self, *, project_dir=None, **kw):
+        return _handle_list_sources(project_dir=project_dir, **kw)
+
+    @action("add_source", description="Register a data source.", requires=["name", "data_path"])
+    def add_source(self, *, name=None, data_path=None, format=None, project_dir=None, **kw):
+        return _handle_add_source(name=name, data_path=data_path, format=format, project_dir=project_dir, **kw)
+
+    @action("add_view", description="Declare a data view.", requires=["name", "source"])
+    def add_view(self, *, name=None, source=None, steps=None, description=None, project_dir=None, **kw):
+        return _handle_add_view(name=name, source=source, steps=steps, description=description, project_dir=project_dir, **kw)
+
+    @action("update_view", description="Update a data view.", requires=["name"])
+    def update_view(self, *, name=None, source=None, steps=None, description=None, project_dir=None, **kw):
+        return _handle_update_view(name=name, source=source, steps=steps, description=description, project_dir=project_dir, **kw)
+
+    @action("remove_view", description="Remove a data view.", requires=["name"])
+    def remove_view(self, *, name=None, project_dir=None, **kw):
+        return _handle_remove_view(name=name, project_dir=project_dir, **kw)
+
+    @action("list_views", description="List all data views.")
+    def list_views(self, *, project_dir=None, **kw):
+        return _handle_list_views(project_dir=project_dir, **kw)
+
+    @action("preview_view", description="Preview a data view.", requires=["name"])
+    def preview_view(self, *, name=None, n_rows=None, project_dir=None, **kw):
+        return _handle_preview_view(name=name, n_rows=n_rows, project_dir=project_dir, **kw)
+
+    @action("set_features_view", description="Set features view.", requires=["name"])
+    def set_features_view(self, *, name=None, project_dir=None, **kw):
+        return _handle_set_features_view(name=name, project_dir=project_dir, **kw)
+
+    @action("view_dag", description="Show view dependency DAG.")
+    def view_dag(self, *, project_dir=None, **kw):
+        return _handle_view_dag(project_dir=project_dir, **kw)
+
+    @action("add_sources_batch", description="Register multiple data sources.")
+    def add_sources_batch(self, *, sources=None, project_dir=None, **kw):
+        return _handle_add_sources_batch(sources=sources, project_dir=project_dir, **kw)
+
+    @action("fill_nulls_batch", description="Fill nulls in multiple columns.")
+    def fill_nulls_batch(self, *, columns=None, project_dir=None, **kw):
+        return _handle_fill_nulls_batch(columns=columns, project_dir=project_dir, **kw)
+
+    @action("add_views_batch", description="Declare multiple views.")
+    def add_views_batch(self, *, views=None, project_dir=None, **kw):
+        return _handle_add_views_batch(views=views, project_dir=project_dir, **kw)
+
+    @action("sample", description="Sample the dataset.")
+    def sample(self, *, fraction=None, stratify_column=None, seed=None, project_dir=None, **kw):
+        return _handle_sample(fraction=fraction, stratify_column=stratify_column, seed=seed, project_dir=project_dir, **kw)
+
+    @action("restore", description="Restore full dataset after sampling.")
+    def restore(self, *, project_dir=None, **kw):
+        return _handle_restore(project_dir=project_dir, **kw)
+
+    @action("check_freshness", description="Check data freshness.")
+    def check_freshness(self, *, project_dir=None, **kw):
+        return _handle_check_freshness(project_dir=project_dir, **kw)
+
+    @action("refresh", description="Refresh a data source.", requires=["name"])
+    def refresh(self, *, name=None, project_dir=None, **kw):
+        return _handle_refresh(name=name, project_dir=project_dir, **kw)
+
+    @action("refresh_all", description="Refresh all data sources.")
+    def refresh_all(self, *, project_dir=None, **kw):
+        return _handle_refresh_all(project_dir=project_dir, **kw)
+
+    @action("validate_source", description="Validate a data source.", requires=["name"])
+    def validate_source(self, *, name=None, project_dir=None, **kw):
+        return _handle_validate_source(name=name, project_dir=project_dir, **kw)
+
+    @action("fetch_url", description="Download a file from a URL.", requires=["data_path"])
+    def fetch_url(self, *, data_path=None, name=None, project_dir=None, **kw):
+        return _handle_fetch_url(data_path=data_path, name=name, project_dir=project_dir, **kw)
+
+    @action("upload_drive", description="Upload files to Google Drive.")
+    def upload_drive(self, *, files=None, folder_id=None, folder_name=None, name=None, project_dir=None, **kw):
+        return _handle_upload_drive(files=files, folder_id=folder_id, folder_name=folder_name, name=name, project_dir=project_dir, **kw)
+
+    @action("upload_kaggle", description="Upload files to Kaggle.")
+    def upload_kaggle(self, *, files=None, dataset_slug=None, title=None, name=None, project_dir=None, **kw):
+        return _handle_upload_kaggle(files=files, dataset_slug=dataset_slug, title=title, name=name, project_dir=project_dir, **kw)
+
+    @action("snapshot", description="Snapshot config and features.")
+    def snapshot(self, *, name=None, project_dir=None, **kw):
+        return _handle_snapshot(name=name, project_dir=project_dir, **kw)
+
+    @action("restore_snapshot", description="Restore from a snapshot.", requires=["name"])
+    def restore_snapshot(self, *, name=None, project_dir=None, **kw):
+        return _handle_restore_snapshot(name=name, project_dir=project_dir, **kw)
