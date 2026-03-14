@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 from harnessml.core.config.merge import resolve_feature_mutations
+from harnessml.core.runner.config_writer._helpers import _LOWER_IS_BETTER
 
 logger = logging.getLogger(__name__)
 
@@ -428,8 +429,6 @@ def save_frozen_config(
 # Promote with safety checks
 # -----------------------------------------------------------------------
 
-# Metrics where lower is better
-_LOWER_IS_BETTER = {"brier", "brier_score", "ece", "log_loss"}
 
 
 def promote_experiment(

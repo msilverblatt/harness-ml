@@ -1241,7 +1241,7 @@ class TestExperimentJournal:
 
         journal_path = tmp_path / "experiments" / "journal.jsonl"
         assert journal_path.exists()
-        lines = [l for l in journal_path.read_text().strip().split("\n") if l.strip()]
+        lines = [line for line in journal_path.read_text().strip().split("\n") if line.strip()]
         # The last line should be the latest snapshot
         entry = json.loads(lines[-1])
         assert entry["experiment_id"] == "exp-001"
@@ -1352,7 +1352,7 @@ class TestFetchUrl:
         import urllib.request
         monkeypatch.setattr(urllib.request, "urlretrieve", mock_urlretrieve)
 
-        result = fetch_url(tmp_path, "https://example.com/datasets/sp500_data.parquet")
+        fetch_url(tmp_path, "https://example.com/datasets/sp500_data.parquet")
         assert (tmp_path / "data" / "raw" / "sp500_data.parquet").exists()
 
 

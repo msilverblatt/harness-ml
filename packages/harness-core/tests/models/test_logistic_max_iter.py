@@ -1,6 +1,5 @@
 """Tests for LogisticRegression auto-scaling max_iter for large feature sets."""
 import numpy as np
-import pytest
 from harnessml.core.models.wrappers.logistic import LogisticRegressionModel
 
 

@@ -13,7 +13,7 @@ def test_create_experiment(tmp_path):
         experiments_dir=tmp_path,
         naming_pattern=r"exp-\d{3}-[a-z0-9-]+$",
     )
-    exp = mgr.create("exp-001-test")
+    mgr.create("exp-001-test")
     assert (tmp_path / "exp-001-test").exists()
     assert (tmp_path / "exp-001-test" / "overlay.yaml").exists()
 
@@ -40,7 +40,7 @@ def test_create_experiment_duplicate(tmp_path):
 def test_create_experiment_no_naming_pattern(tmp_path):
     """When no naming pattern is set, any ID is accepted."""
     mgr = ExperimentManager(experiments_dir=tmp_path)
-    exp = mgr.create("anything-goes")
+    mgr.create("anything-goes")
     assert (tmp_path / "anything-goes").exists()
 
 

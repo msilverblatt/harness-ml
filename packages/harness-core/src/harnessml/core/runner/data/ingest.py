@@ -30,7 +30,7 @@ def _read_file(path: Path) -> pd.DataFrame:
     elif suffix in (".xlsx", ".xls"):
         return pd.read_excel(path)
     else:
-        raise ValueError(f"Unsupported file format: {suffix}")
+        raise ValueError(f"Unsupported file format: '{suffix}'. Supported: .csv, .parquet, .xlsx, .xls")
 
 
 # -----------------------------------------------------------------------
@@ -163,6 +163,23 @@ def _compute_correlation_preview(
 
     correlations.sort(key=lambda x: abs(x[1]), reverse=True)
     return correlations[:top_n]
+
+
+def _lightweight_data_warnings(df: pd.DataFrame, columns: list[str]) -> list[str]:
+    """Run lightweight data quality checks on ingested columns."""
+    warnings: list[str] = []
+    for col in columns:
+        if col not in df.columns:
+            continue
+        null_rate = float(df[col].isna().mean())
+        if null_rate > 0.5:
+            warnings.append(f"High null rate in '{col}': {null_rate:.0%}")
+        if df[col].nunique(dropna=True) <= 1:
+            warnings.append(f"Constant column: '{col}'")
+    dup_cols = [c for c in columns if list(df.columns).count(c) > 1]
+    if dup_cols:
+        warnings.append(f"Duplicate column names: {sorted(set(dup_cols))}")
+    return warnings
 
 
 def _register_source(
@@ -399,6 +416,7 @@ def ingest_dataset(
             project_dir, name, data_path, columns_added, rows_total, is_bootstrap=True,
         )
 
+        data_warnings = _lightweight_data_warnings(new_df, columns_added)
         return IngestResult(
             name=name,
             columns_added=columns_added,
@@ -406,6 +424,7 @@ def ingest_dataset(
             rows_total=rows_total,
             null_rates=null_rates,
             correlation_preview=correlation_preview,
+            warnings=data_warnings,
             cleaning_actions=cleaning_actions,
             is_bootstrap=True,
             source_registered=source_registered,
@@ -433,10 +452,12 @@ def ingest_dataset(
             exclude_cols=exclude_cols,
         )
         if join_on is None:
+            common = sorted(set(new_df.columns) & set(existing_df.columns))
             raise ValueError(
-                "Could not auto-detect join keys. "
-                f"New columns: {list(new_df.columns)}. "
-                f"Existing columns: {list(existing_df.columns)[:20]}... "
+                "Could not auto-detect join keys.\n"
+                f"New columns: {list(new_df.columns)}\n"
+                f"Existing columns: {list(existing_df.columns)}\n"
+                f"Common columns: {common}\n"
                 "Specify join_on explicitly."
             )
         logger.info("auto-detected join keys", keys=join_on)
@@ -456,6 +477,25 @@ def ingest_dataset(
     ]
 
     if not new_columns:
+        # Check if this is a re-ingestion of the same source
+        source_registry_path = project_dir / "config" / "source_registry.json"
+        is_reingestion = False
+        if source_registry_path.exists():
+            try:
+                registry = json.loads(source_registry_path.read_text())
+                is_reingestion = name in registry
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        if is_reingestion:
+            warning_msg = (
+                f"Source `{name}` was previously ingested and all its columns already exist. "
+                "To refresh/replace the data from this source, drop the existing columns first "
+                "or re-bootstrap the feature store."
+            )
+        else:
+            warning_msg = "No new columns to add (all columns already exist in feature store)."
+
         return IngestResult(
             name=name,
             columns_added=[],
@@ -463,7 +503,7 @@ def ingest_dataset(
             rows_total=rows_total,
             null_rates={},
             correlation_preview=[],
-            warnings=["No new columns to add (all columns already exist)."],
+            warnings=[warning_msg],
             cleaning_actions=cleaning_actions,
             auto_clean=auto_clean,
         )
@@ -526,6 +566,7 @@ def ingest_dataset(
         project_dir, name, data_path, new_columns, rows_total, is_bootstrap=False,
     )
 
+    warnings.extend(_lightweight_data_warnings(merged, new_columns))
     return IngestResult(
         name=name,
         columns_added=new_columns,
@@ -934,9 +975,33 @@ def drop_rows(
     if n_dropped == 0:
         return f"No rows matched condition — nothing dropped. {len(df)} rows remain."
 
+    # Create backup before overwriting (like sample_data does)
+    import shutil
+
+    backup_path = parquet_path.with_name("features_pre_drop.parquet")
+    if not backup_path.exists():
+        shutil.copy2(parquet_path, backup_path)
+        logger.info("drop_rows_backup", backup=str(backup_path))
+
     logger.info("rows_filtered", before=n_before, after=len(df), reason=condition)
     df.to_parquet(parquet_path, index=False)
-    return f"Dropped {n_dropped} rows ({condition}). {len(df)} rows remaining."
+
+    # Invalidate prediction cache — row count changed so cached predictions
+    # are no longer aligned with the data.
+    cache_dir = project_dir / ".cache" / "predictions"
+    if cache_dir.exists():
+        try:
+            from harnessml.core.runner.training.prediction_cache import PredictionCache
+
+            removed = PredictionCache(cache_dir).clear()
+            logger.info("prediction_cache_cleared", removed=removed)
+        except Exception as exc:
+            logger.warning("prediction_cache_clear_failed", error=str(exc))
+
+    lines = [f"Dropped {n_dropped} rows ({condition}). {len(df)} rows remaining."]
+    if backup_path.exists():
+        lines.append(f"Backup saved to `{backup_path.name}`. Use `data(action=\"restore\")` to undo.")
+    return "\n".join(lines)
 
 
 def rename_columns(
@@ -1024,17 +1089,31 @@ def sample_data(project_dir, *, fraction=0.1, stratify_column=None, seed=42):
 
 
 def restore_full_data(project_dir):
-    """Restore the full feature store from backup."""
+    """Restore the full feature store from backup.
+
+    Checks for backups in order: features_full.parquet (from sample),
+    then features_pre_drop.parquet (from drop_rows).
+    """
     import shutil
 
     project_dir = Path(project_dir)
     features_dir = project_dir / "data" / "features"
     features_path = features_dir / "features.parquet"
-    backup_path = features_dir / "features_full.parquet"
 
-    if not backup_path.exists():
-        return "**Error**: No backup found (`features_full.parquet` does not exist)."
+    # Check for backups in priority order
+    backup_candidates = [
+        features_dir / "features_full.parquet",
+        features_dir / "features_pre_drop.parquet",
+    ]
+    backup_path = None
+    for candidate in backup_candidates:
+        if candidate.exists():
+            backup_path = candidate
+            break
+
+    if backup_path is None:
+        return "**Error**: No backup found (`features_full.parquet` or `features_pre_drop.parquet` does not exist)."
 
     shutil.move(str(backup_path), str(features_path))
     df = pd.read_parquet(features_path)
-    return f"Restored full dataset: {len(df):,} rows."
+    return f"Restored full dataset from `{backup_path.name}`: {len(df):,} rows."

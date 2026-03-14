@@ -17,6 +17,7 @@ export interface Event {
     duration_ms: number;
     status: 'running' | 'success' | 'error' | 'progress';
     project?: string;
+    project_dir?: string;
     caller?: string;
 }
 
@@ -43,6 +44,7 @@ export interface ProjectStatus {
 export interface ProjectInfo {
     name: string;
     project_dir: string;
+    display_name?: string;
     last_seen: number;
 }
 

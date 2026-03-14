@@ -54,6 +54,8 @@ def generate_cv_folds(
         return _sliding_window_folds(test_folds, bt_config.window_size, all_df_folds)
     elif strategy == "purged_kfold":
         return _purged_kfold_folds(test_folds, bt_config.n_folds, bt_config.purge_gap)
+    elif strategy == "kfold":
+        return _kfold_folds(df, bt_config)
     elif strategy == "stratified_kfold":
         return _stratified_kfold_folds(df, bt_config)
     elif strategy == "group_kfold":
@@ -172,6 +174,46 @@ def _purged_kfold_folds(
 
         for test_fold in sorted(test_set):
             result.append((train_folds, test_fold))
+
+    return result
+
+
+def _kfold_folds(
+    df: pd.DataFrame,
+    bt_config: BacktestConfig,
+) -> list[tuple[list[int], int]]:
+    """Non-stratified k-fold: assign fold numbers without class balancing.
+
+    Suitable for regression or when stratification is not needed.
+    Uses sklearn's KFold to assign each row a fold number
+    (0 to n_folds-1), then returns standard (train_folds, test_fold) tuples.
+    """
+    from sklearn.model_selection import KFold
+
+    if bt_config.n_folds is None:
+        raise ValueError(
+            "kfold strategy requires n_folds to be set in BacktestConfig"
+        )
+
+    fold_col = bt_config.fold_column
+
+    kf = KFold(
+        n_splits=bt_config.n_folds,
+        shuffle=True,
+        random_state=bt_config.seed,
+    )
+
+    fold_assignments = np.zeros(len(df), dtype=int)
+    for fold_idx, (_, test_idx) in enumerate(kf.split(df)):
+        fold_assignments[test_idx] = fold_idx
+
+    df[fold_col] = fold_assignments
+
+    all_folds = sorted(df[fold_col].unique().tolist())
+    result = []
+    for test_fold in all_folds:
+        train_folds = [f for f in all_folds if f != test_fold]
+        result.append((train_folds, test_fold))
 
     return result
 

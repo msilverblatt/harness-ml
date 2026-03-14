@@ -148,7 +148,8 @@ class TestJoin:
             {"team_id": [1, 2, 3], "name": ["A", "B", "C"], "conf": ["E", "W", "E"]}
         )
         step = JoinStep(other="teams", on=["team_id"])
-        resolver = lambda name: teams
+        def resolver(name):
+            return teams
         result = execute_step(games, step, resolver=resolver)
         assert "name" in result.columns
         assert list(result["name"]) == ["A", "B", "C"]
@@ -157,7 +158,8 @@ class TestJoin:
         games = pd.DataFrame({"home_id": [1, 2], "pts": [70, 65]})
         teams = pd.DataFrame({"id": [1, 2], "name": ["A", "B"]})
         step = JoinStep(other="teams", on={"home_id": "id"})
-        resolver = lambda name: teams
+        def resolver(name):
+            return teams
         result = execute_step(games, step, resolver=resolver)
         assert "name" in result.columns
         assert list(result["name"]) == ["A", "B"]
@@ -166,7 +168,8 @@ class TestJoin:
         games = pd.DataFrame({"team_id": [1, 2], "score": [70, 65]})
         ratings = pd.DataFrame({"team_id": [1, 2], "rating": [95.0, 88.0]})
         step = JoinStep(other="ratings", on=["team_id"], prefix="rtg_")
-        resolver = lambda name: ratings
+        def resolver(name):
+            return ratings
         result = execute_step(games, step, resolver=resolver)
         assert "rtg_rating" in result.columns
         assert "team_id" in result.columns  # join key not prefixed
@@ -183,7 +186,8 @@ class TestUnion:
         df1 = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
         df2 = pd.DataFrame({"a": [5, 6], "b": [7, 8]})
         step = UnionStep(other="extra")
-        resolver = lambda name: df2
+        def resolver(name):
+            return df2
         result = execute_step(df1, step, resolver=resolver)
         assert len(result) == 4
         assert list(result["a"]) == [1, 2, 5, 6]

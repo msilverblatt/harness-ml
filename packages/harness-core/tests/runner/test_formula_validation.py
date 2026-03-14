@@ -1,6 +1,5 @@
 """Tests for formula syntax validation at feature add time."""
 
-import pytest
 from harnessml.core.runner.config_writer.features import _validate_formula_syntax
 
 

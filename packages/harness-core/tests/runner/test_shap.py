@@ -7,7 +7,7 @@ import pytest
 
 shap = pytest.importorskip("shap")
 
-from harnessml.core.runner.analysis.diagnostics import compute_shap_values
+from harnessml.core.runner.analysis.diagnostics import compute_shap_values  # noqa: E402
 
 # -----------------------------------------------------------------------
 # Helpers

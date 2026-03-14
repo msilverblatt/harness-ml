@@ -233,16 +233,40 @@ def update_model(
     _save_yaml(models_path, data)
 
     status = "active" if model_def.get("active", True) else "inactive"
-    n_feat = len(model_def.get("features", []))
+    final_features = model_def.get("features", [])
+    n_feat = len(final_features)
     in_ens = "yes" if model_def.get("include_in_ensemble", True) else "no"
 
-    warning = ""
+    warnings: list[str] = []
     if append_features and had_no_features:
-        warning = (
-            "\n\n**Warning**: This model had no explicit `features` list (it used all columns). "
+        warnings.append(
+            "**Warning**: This model had no explicit `features` list (it used all columns). "
             "By using `append_features`, it is now restricted to ONLY the appended features. "
             "Consider using the `features` parameter instead to set the full feature list."
         )
+
+    # Check for view-derived features not in base feature store
+    if final_features:
+        try:
+            from harnessml.core.runner.data.utils import get_features_path, load_data_config
+            data_config = load_data_config(Path(project_dir))
+            features_path = get_features_path(Path(project_dir), data_config)
+            if features_path.exists():
+                import pyarrow.parquet as pq
+                base_cols = set(pq.read_schema(features_path).names)
+                view_only = [f for f in final_features if f not in base_cols]
+                if view_only:
+                    warnings.append(
+                        f"**Note**: {len(view_only)} feature(s) not in base feature store "
+                        f"(likely view-derived): {', '.join(view_only[:5])}"
+                        + (f" ... +{len(view_only)-5} more" if len(view_only) > 5 else "")
+                    )
+        except Exception:
+            pass  # Don't fail model update if feature check fails
+
+    warning_str = ""
+    if warnings:
+        warning_str = "\n\n" + "\n\n".join(warnings)
 
     return (
         f"**Updated model**: `{name}`\n"
@@ -251,7 +275,7 @@ def update_model(
         f"- Features: {n_feat}\n"
         f"- Ensemble: {in_ens}\n"
         f"- Params: {model_def.get('params', {})}"
-        f"{warning}"
+        f"{warning_str}"
     )
 
 

@@ -23,6 +23,7 @@ class EventEmitter:
         self._current_tool: str | None = None
         self._current_action: str | None = None
         self._current_project: str = ""
+        self._current_project_dir: str = ""
         self._caller: str = os.environ.get("HARNESS_CALLER", "Claude Opus 4.6")
 
     @property
@@ -30,9 +31,10 @@ class EventEmitter:
         return self._store is not None
 
     def set_project(self, project_dir: str) -> None:
-        """Set the project name for subsequent events (derived from project_dir)."""
+        """Set the project for subsequent events (derived from project_dir)."""
         resolved = Path(project_dir).resolve()
         self._current_project = resolved.name
+        self._current_project_dir = str(resolved)
         if self._store is not None:
             try:
                 self._store.register_project(resolved.name, str(resolved))
@@ -47,7 +49,9 @@ class EventEmitter:
             self._store.record(
                 tool=tool, action=action, params=params, result=result,
                 duration_ms=duration_ms, status=status,
-                project=self._current_project, caller=self._caller,
+                project=self._current_project,
+                project_dir=self._current_project_dir,
+                caller=self._caller,
             )
         except Exception:
             logger.debug("Event emission failed (non-fatal)", exc_info=True)
@@ -64,7 +68,9 @@ class EventEmitter:
                 tool=tool, action=action,
                 params={"current": current, "total": total},
                 result=message, duration_ms=0, status="progress",
-                project=self._current_project, caller=self._caller,
+                project=self._current_project,
+                project_dir=self._current_project_dir,
+                caller=self._caller,
             )
         except Exception:
             logger.debug("Progress emission failed (non-fatal)", exc_info=True)

@@ -126,7 +126,7 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
     return result
 
 
-async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
+async def _handle_explore(*, search_space, detail, warm_start_from=None, ctx, project_dir, **_kwargs):
     import asyncio
 
     from harnessml.core.runner import config_writer as cw
@@ -172,6 +172,7 @@ async def _handle_explore(*, search_space, detail, ctx, project_dir, **_kwargs):
             resolve_project_dir(project_dir),
             parsed,
             on_progress=_progress_callback,
+            warm_start_from=warm_start_from,
         ),
     )
 
@@ -219,7 +220,7 @@ def _summarize_exploration(full_output: str) -> str:
             if "all trials" not in stripped and "parameter importance" not in stripped:
                 summary_lines.append(line)
 
-    if not summary_lines or all(l.strip() == "" for l in summary_lines):
+    if not summary_lines or all(ln.strip() == "" for ln in summary_lines):
         return full_output
     return "\n".join(summary_lines)
 

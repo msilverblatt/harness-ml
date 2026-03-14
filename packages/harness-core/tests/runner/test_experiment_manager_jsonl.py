@@ -1,4 +1,3 @@
-from pathlib import Path
 
 import pytest
 from harnessml.core.runner.experiments.manager import ExperimentManager

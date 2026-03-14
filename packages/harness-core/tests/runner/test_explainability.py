@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 class TestComputeShapSummary:
     def test_compute_shap_summary(self):
-        shap = pytest.importorskip("shap")
+        pytest.importorskip("shap")
         from harnessml.core.runner.analysis.explainability import compute_shap_summary
         from sklearn.ensemble import GradientBoostingClassifier
 
@@ -26,7 +26,7 @@ class TestComputeShapSummary:
         assert "strong_signal" in top_names
 
     def test_compute_shap_top_n_limits(self):
-        shap = pytest.importorskip("shap")
+        pytest.importorskip("shap")
         from harnessml.core.runner.analysis.explainability import compute_shap_summary
         from sklearn.ensemble import GradientBoostingClassifier
 

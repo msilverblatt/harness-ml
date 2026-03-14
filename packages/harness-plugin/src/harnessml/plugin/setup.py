@@ -27,9 +27,17 @@ _DEMO_PROMPT = (
 )
 
 _SKILLS = [
-    "harness-run-experiment",
-    "harness-explore-space",
-    "harness-domain-research",
+    "diagnosis",
+    "domain-research",
+    "eda",
+    "experiment-design",
+    "feature-engineering",
+    "mindset",
+    "ml-workflow",
+    "model-diversity",
+    "project-setup",
+    "run-experiment",
+    "synthesis",
 ]
 
 
@@ -116,6 +124,9 @@ def _create_demo_project() -> Path:
     csv_target = data_dir / "housing.csv"
     if not csv_target.exists():
         csv_source = _find_package_root() / "demo_data" / "housing.csv"
+        if not csv_source.exists():
+            click.echo("Demo data not found — skipping demo project.", err=True)
+            return demo_dir
         shutil.copy2(csv_source, csv_target)
 
     return demo_dir

@@ -165,7 +165,7 @@ class TestFeatureStorePipelineWiring:
         n_rows = 80
 
         # Create matchup-level features.parquet with an extra column
-        rng = np.random.default_rng(7)
+        np.random.default_rng(7)
         features_path = tmp_path / "data" / "features" / "features.parquet"
         _make_matchup_features(
             features_path, n_rows, n_entities=5, n_seasons=2, season_start=2023,

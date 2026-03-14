@@ -14,6 +14,7 @@ def _handle_init(*, project_name, task, target_column, key_columns, time_column,
     from harnessml.core.runner import config_writer as cw
 
     resolved = resolve_project_dir(project_dir, allow_missing=True)
+    defaulted_task = task is None
     result = cw.scaffold_init(
         resolved,
         project_name,
@@ -27,6 +28,8 @@ def _handle_init(*, project_name, task, target_column, key_columns, time_column,
     emitter = get_active_emitter()
     if emitter is not None:
         emitter.set_project(str(resolved))
+    if defaulted_task and not result.startswith("**Error"):
+        result += "\n\n**Note**: No task specified — defaulted to 'classification' (binary). Options: regression, multiclass, ranking, survival, probabilistic."
     return result
 
 

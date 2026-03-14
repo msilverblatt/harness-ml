@@ -362,6 +362,70 @@ class TestBacktestWithCVStrategies:
 # Unit tests for new CV strategies: stratified_kfold, group_kfold, bootstrap
 # -----------------------------------------------------------------------
 
+class TestKFold:
+    """Tests for the non-stratified kfold strategy."""
+
+    def test_kfold_basic(self):
+        """KFold assigns n_folds splits without stratification."""
+        rng = np.random.default_rng(42)
+        n = 100
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "target": rng.standard_normal(n),
+            "x": rng.standard_normal(n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="kfold",
+            fold_column="fold",
+            n_folds=5,
+            seed=42,
+        )
+        folds = generate_cv_folds(df, bt)
+        assert len(folds) == 5
+
+        for train_folds, test_fold in folds:
+            assert test_fold not in train_folds
+            assert len(train_folds) == 4
+
+        test_vals = sorted([tf for _, tf in folds])
+        assert test_vals == [0, 1, 2, 3, 4]
+
+    def test_kfold_no_overlap(self):
+        """Train and test rows should never overlap."""
+        n = 80
+        df = pd.DataFrame({
+            "fold": np.zeros(n, dtype=int),
+            "x": np.arange(n),
+        })
+        bt = BacktestConfig(
+            cv_strategy="kfold",
+            fold_column="fold",
+            n_folds=4,
+            seed=0,
+        )
+        folds = generate_cv_folds(df, bt)
+        all_test_indices = []
+        for train_folds, test_fold in folds:
+            test_rows = df[df["fold"] == test_fold].index.tolist()
+            train_rows = df[df["fold"].isin(train_folds)].index.tolist()
+            assert not set(test_rows) & set(train_rows)
+            all_test_indices.extend(test_rows)
+        # Every row appears in exactly one test fold
+        assert sorted(all_test_indices) == list(range(n))
+
+    def test_kfold_alias(self):
+        """'kf' alias should resolve to kfold."""
+        df = pd.DataFrame({"fold": np.zeros(50, dtype=int), "x": np.arange(50)})
+        bt = BacktestConfig(cv_strategy="kf", fold_column="fold", n_folds=5, seed=0)
+        folds = generate_cv_folds(df, bt)
+        assert len(folds) == 5
+
+    def test_kfold_requires_n_folds(self):
+        """Should raise if n_folds is not set."""
+        with pytest.raises(ValueError, match="requires n_folds"):
+            BacktestConfig(cv_strategy="kfold", fold_column="fold")
+
+
 class TestStratifiedKFold:
     """Tests for the stratified_kfold strategy."""
 

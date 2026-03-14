@@ -1,7 +1,10 @@
 """Project initialization/scaffold operations."""
 from __future__ import annotations
 
+import difflib
 from pathlib import Path
+
+_VALID_TASKS = {"binary", "classification", "multiclass", "regression", "ranking", "survival", "probabilistic"}
 
 
 def scaffold_init(
@@ -18,6 +21,11 @@ def scaffold_init(
     Returns markdown confirmation or error.
     """
     project_dir = Path(project_dir)
+
+    if task and task.lower() not in _VALID_TASKS:
+        suggestion = difflib.get_close_matches(task.lower(), _VALID_TASKS, n=1, cutoff=0.4)
+        hint = f" Did you mean '{suggestion[0]}'?" if suggestion else ""
+        return f"**Error**: Unknown task type '{task}'.{hint} Valid: {', '.join(sorted(_VALID_TASKS))}"
 
     # Warn if config directory already exists with files
     config_dir = project_dir / "config"
@@ -42,14 +50,17 @@ def scaffold_init(
             time_column=time_column,
         )
     except FileExistsError:
-        return f"**Error**: Directory `{project_dir}` already exists and is not empty."
+        return f"**Error**: Directory `{project_dir}` already exists and is not empty. Provide a project_name to create a subdirectory, or point to an empty directory."
     except Exception as exc:
         return f"**Error**: Failed to initialize project: {exc}"
 
+    actual_dir = project_dir
+    if project_name and project_dir.exists() and (project_dir / project_name).exists():
+        actual_dir = project_dir / project_name
     name = project_name or project_dir.name
     lines = [
         f"**Initialized project**: `{name}`",
-        f"- Directory: `{project_dir}`",
+        f"- Directory: `{actual_dir}`",
         f"- Task: {task}",
         f"- Target column: {target_column}",
     ]
@@ -57,6 +68,6 @@ def scaffold_init(
         lines.append(f"- Key columns: {key_columns}")
     if time_column:
         lines.append(f"- Time column: {time_column}")
-    lines.append(f"\nConfig files created in `{project_dir}/config/`")
+    lines.append(f"\nConfig files created in `{actual_dir}/config/`")
 
     return "\n".join(lines)

@@ -125,6 +125,9 @@ def compute_feature_correlations(
     if top_n > 0:
         result = result.head(top_n)
 
+    # Tag the target column name so the report formatter can display it
+    result.attrs["target_column"] = target_col
+
     return result
 
 
@@ -493,8 +496,12 @@ def format_discovery_report(
 
     lines: list[str] = ["## Feature Discovery Report", ""]
 
-    # Top correlations
-    lines.append("### Target Correlations (top 15)")
+    # Top correlations — include target column name
+    target_name = correlations.attrs.get("target_column", "")
+    if target_name:
+        lines.append(f"### Target Correlations (top 15) — against `{target_name}`")
+    else:
+        lines.append("### Target Correlations (top 15)")
     lines.append("")
     if has_types:
         lines.append("| Feature | Type | Correlation |")

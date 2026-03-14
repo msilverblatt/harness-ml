@@ -314,7 +314,7 @@ def confusion_matrix_multi(
     labels = sorted(set(np.asarray(y_true).ravel()) | set(y_pred_arr.ravel()))
     return {
         "matrix": cm.tolist(),
-        "labels": [int(l) for l in labels],
+        "labels": [int(lbl) for lbl in labels],
     }
 
 

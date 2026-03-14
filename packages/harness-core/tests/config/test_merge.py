@@ -33,7 +33,7 @@ def test_deep_merge_new_key():
 def test_deep_merge_does_not_mutate():
     base = {"a": {"b": 1}}
     overlay = {"a": {"c": 2}}
-    result = deep_merge(base, overlay)
+    deep_merge(base, overlay)
     assert "c" not in base["a"]
 
 

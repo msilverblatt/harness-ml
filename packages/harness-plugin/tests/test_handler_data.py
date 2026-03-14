@@ -5,7 +5,7 @@ Uses mocking to avoid real project/config_writer calls.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestDataDispatch:

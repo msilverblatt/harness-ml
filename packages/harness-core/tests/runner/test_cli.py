@@ -316,7 +316,6 @@ class TestServeWithConfig:
         import unittest.mock as mock
         with mock.patch.dict("sys.modules", {"fastmcp": mock.MagicMock()}):
             # Need to mock at the import level inside to_fastmcp
-            original_to_fastmcp = sg.GeneratedServer.to_fastmcp
 
             def patched_to_fastmcp(self):
                 mcp = MockFastMCP(self.name)

@@ -27,7 +27,7 @@ def validate_enum(value: str, valid: set[str], param_name: str) -> str | None:
     """
     if value in valid:
         return None
-    closest = get_close_matches(value, sorted(valid), n=1, cutoff=0.6)
+    closest = get_close_matches(value, sorted(valid), n=1, cutoff=0.4)
     msg = f"**Error**: Invalid `{param_name}` '{value}'. Valid: {', '.join(sorted(valid))}"
     if closest:
         msg += f"\n\nDid you mean **{closest[0]}**?"

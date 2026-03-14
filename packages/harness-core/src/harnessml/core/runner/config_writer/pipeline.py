@@ -329,33 +329,39 @@ def _format_backtest_result(result: dict, run_id: str | None = None) -> str:
 
     models_failed = result.get("models_failed", [])
     if models_failed:
-        model_errors = result.get("model_errors", [])
-        lines.append(f"\n### Models Failed ({len(models_failed)})\n")
-        # Build a map of model name -> first error message
-        error_by_model = {}
-        for err_line in model_errors:
-            # Format: "  - model_name (fold N): error message"
-            stripped = err_line.strip().lstrip("- ")
-            for m in models_failed:
-                if stripped.startswith(m):
-                    if m not in error_by_model:
-                        # Extract just the error part after the colon
-                        colon_idx = stripped.find("): ")
-                        if colon_idx >= 0:
-                            error_by_model[m] = stripped[colon_idx + 3:]
-                        else:
-                            error_by_model[m] = stripped
-                    break
-        for m in models_failed:
-            if m in error_by_model:
-                err_text = error_by_model[m]
+        if isinstance(models_failed, dict):
+            lines.append(f"\n### Models Failed ({len(models_failed)})\n")
+            for m, err_text in models_failed.items():
                 err_lines = err_text.strip().split("\n")
                 truncated = "\n".join(err_lines[:5])
                 if len(err_lines) > 5:
                     truncated += "\n  ..."
                 lines.append(f"- `{m}`:\n  ```\n  {truncated}\n  ```")
-            else:
-                lines.append(f"- `{m}` (failed during backtest -- check logs)")
+        else:
+            model_errors = result.get("model_errors", [])
+            lines.append(f"\n### Models Failed ({len(models_failed)})\n")
+            error_by_model = {}
+            for err_line in model_errors:
+                stripped = err_line.strip().lstrip("- ")
+                for m in models_failed:
+                    if stripped.startswith(m):
+                        if m not in error_by_model:
+                            colon_idx = stripped.find("): ")
+                            if colon_idx >= 0:
+                                error_by_model[m] = stripped[colon_idx + 3:]
+                            else:
+                                error_by_model[m] = stripped
+                        break
+            for m in models_failed:
+                if m in error_by_model:
+                    err_text = error_by_model[m]
+                    err_lines = err_text.strip().split("\n")
+                    truncated = "\n".join(err_lines[:5])
+                    if len(err_lines) > 5:
+                        truncated += "\n  ..."
+                    lines.append(f"- `{m}`:\n  ```\n  {truncated}\n  ```")
+                else:
+                    lines.append(f"- `{m}` (failed during backtest -- check logs)")
 
     # Meta-learner coefficients
     meta_coeff = result.get("meta_coefficients")
@@ -426,6 +432,7 @@ def run_backtest(
     *,
     experiment_id: str | None = None,
     variant: str | None = None,
+    fold_values: list[int] | None = None,
     on_progress=None,
 ) -> str:
     """Run a full backtest and return formatted results.
@@ -438,6 +445,8 @@ def run_backtest(
         If provided, applies the experiment's overlay before running.
     variant : str | None
         Config variant (e.g., "w" for women's).
+    fold_values : list[int] | None
+        If provided, only run these specific test folds.
 
     Returns
     -------
@@ -454,6 +463,11 @@ def run_backtest(
         overlay_path = exp_dir / "overlay.yaml"
         if overlay_path.exists():
             overlay = _load_yaml(overlay_path)
+
+    # Inject fold filter into overlay
+    if fold_values:
+        overlay = overlay or {}
+        overlay.setdefault("backtest", {})["fold_values"] = fold_values
 
     # Create run directory
     run_dir = None
@@ -1168,10 +1182,15 @@ def explain_model(project_dir: Path, *, name: str | None = None, run_id: str | N
 def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: str = "worst", top_n: int = 10) -> str:
     """Inspect predictions from a backtest run.
 
-    Modes:
+    For classification:
     - "worst": most confident wrong predictions
     - "best": most confident correct predictions
     - "uncertain": predictions closest to 0.5
+
+    For regression:
+    - "worst": largest absolute residuals
+    - "best": smallest absolute residuals
+    - "uncertain": predictions closest to the median residual
     """
     import pandas as pd
 
@@ -1184,6 +1203,7 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
         return "**Error**: No outputs_dir configured."
 
     target_col = pipeline_data.get("data", {}).get("target_column", "target")
+    task = pipeline_data.get("data", {}).get("task", "binary")
 
     # Find run directory
     from harnessml.core.runner.workflow.run_manager import RunManager
@@ -1212,7 +1232,7 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
     dfs = [pd.read_parquet(f) for f in parquet_files]
     df = pd.concat(dfs, ignore_index=True)
 
-    # Find the probability column (ensemble_prob or similar)
+    # Find the probability/prediction column (ensemble_prob or similar)
     prob_col = None
     for candidate in ["ensemble_prob", "prob_ensemble", "probability", "prob", "pred_prob", "prediction"]:
         if candidate in df.columns:
@@ -1230,25 +1250,45 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
     if target_col not in df.columns:
         return f"**Error**: Target column `{target_col}` not found in predictions."
 
-    # Compute metrics for sorting
-    df["_confidence"] = (df[prob_col] - 0.5).abs() * 2
-    df["_predicted"] = (df[prob_col] > 0.5).astype(int)
-    df["_correct"] = (df["_predicted"] == df[target_col]).astype(int)
+    is_regression = task in ("regression", "survival")
 
-    if mode == "worst":
-        # Most confident AND wrong
-        wrong = df[df["_correct"] == 0].sort_values("_confidence", ascending=False)
-        subset = wrong.head(top_n)
-        title = "Most Confident Wrong Predictions"
-    elif mode == "best":
-        correct = df[df["_correct"] == 1].sort_values("_confidence", ascending=False)
-        subset = correct.head(top_n)
-        title = "Most Confident Correct Predictions"
-    elif mode == "uncertain":
-        subset = df.sort_values("_confidence", ascending=True).head(top_n)
-        title = "Most Uncertain Predictions"
+    # Compute sorting metric based on task type
+    if is_regression:
+        df["_residual"] = (df[target_col] - df[prob_col]).abs()
+        sort_col = "_residual"
+
+        if mode == "worst":
+            subset = df.sort_values(sort_col, ascending=False).head(top_n)
+            title = "Largest Prediction Errors"
+        elif mode == "best":
+            subset = df.sort_values(sort_col, ascending=True).head(top_n)
+            title = "Most Accurate Predictions"
+        elif mode == "uncertain":
+            median_residual = df[sort_col].median()
+            df["_dist_from_median"] = (df[sort_col] - median_residual).abs()
+            subset = df.sort_values("_dist_from_median", ascending=True).head(top_n)
+            title = "Predictions Near Median Error"
+        else:
+            return f"**Error**: Unknown mode `{mode}`. Use 'worst', 'best', or 'uncertain'."
     else:
-        return f"**Error**: Unknown mode `{mode}`. Use 'worst', 'best', or 'uncertain'."
+        df["_confidence"] = (df[prob_col] - 0.5).abs() * 2
+        df["_predicted"] = (df[prob_col] > 0.5).astype(int)
+        df["_correct"] = (df["_predicted"] == df[target_col]).astype(int)
+        sort_col = "_confidence"
+
+        if mode == "worst":
+            wrong = df[df["_correct"] == 0].sort_values(sort_col, ascending=False)
+            subset = wrong.head(top_n)
+            title = "Most Confident Wrong Predictions"
+        elif mode == "best":
+            correct = df[df["_correct"] == 1].sort_values(sort_col, ascending=False)
+            subset = correct.head(top_n)
+            title = "Most Confident Correct Predictions"
+        elif mode == "uncertain":
+            subset = df.sort_values(sort_col, ascending=True).head(top_n)
+            title = "Most Uncertain Predictions"
+        else:
+            return f"**Error**: Unknown mode `{mode}`. Use 'worst', 'best', or 'uncertain'."
 
     if subset.empty:
         return f"No predictions match mode '{mode}'."
@@ -1256,13 +1296,12 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
     # Format output
     lines = [f"## {title}\n"]
 
-    # Pick display columns: key columns + target + prob + confidence
     display_cols = []
     key_cols = pipeline_data.get("data", {}).get("key_columns", [])
     for kc in key_cols:
         if kc in df.columns:
             display_cols.append(kc)
-    display_cols.extend([target_col, prob_col, "_confidence"])
+    display_cols.extend([target_col, prob_col, sort_col])
 
     header = "| " + " | ".join(display_cols) + " |"
     sep = "|" + "|".join("------" for _ in display_cols) + "|"
@@ -1279,7 +1318,6 @@ def inspect_predictions(project_dir: Path, *, run_id: str | None = None, mode: s
         lines.append("| " + " | ".join(vals) + " |")
 
     lines.append(f"\n*Showing {len(subset)} of {len(df)} total predictions.*")
-
     return "\n".join(lines)
 
 
@@ -1287,6 +1325,7 @@ def run_exploration(
     project_dir: Path,
     search_space: dict,
     on_progress=None,
+    warm_start_from: str | None = None,
 ) -> str:
     """Run a Bayesian exploration over a search space.
 
@@ -1304,6 +1343,7 @@ def run_exploration(
             search_space=search_space,
             config_dir=config_dir,
             on_progress=on_progress,
+            warm_start_from=warm_start_from,
         )
         return result["report"]
     except ImportError as exc:
@@ -1618,8 +1658,192 @@ def suggest_cv(project_dir: Path) -> str:
     lines.append("| `expanding_window` | Time series with continuous timestamps |")
     lines.append("| `sliding_window` | Time series where old data becomes irrelevant |")
     lines.append("| `stratified_kfold` | Classification with class imbalance |")
+    lines.append("| `kfold` | Regression or when stratification is not needed |")
     lines.append("| `group_kfold` | Data with group structure (repeated subjects) |")
     lines.append("| `purged_kfold` | General purpose with leakage protection |")
     lines.append("| `bootstrap` | Small datasets, uncertainty estimation |")
 
+    return "\n".join(lines)
+
+
+def _resolve_run_dir(project_dir: Path, run_id: str | None = None) -> Path | str:
+    """Resolve a run directory. Returns Path on success or error string."""
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    outputs_dir = pipeline_data.get("data", {}).get("outputs_dir")
+    if not outputs_dir:
+        return "**Error**: No outputs_dir configured in pipeline.yaml."
+
+    outputs_path = project_dir / outputs_dir
+    if run_id:
+        run_dir = outputs_path / run_id
+    else:
+        if not outputs_path.exists():
+            return "**Error**: No runs found."
+        runs = sorted(
+            [d for d in outputs_path.iterdir() if d.is_dir() and d.name != "current"],
+            key=lambda d: d.name, reverse=True,
+        )
+        if not runs:
+            return "**Error**: No runs found."
+        run_dir = runs[0]
+
+    if not run_dir.exists():
+        return f"**Error**: Run '{run_id}' not found."
+    return run_dir
+
+
+def _load_predictions(run_dir: Path):
+    """Load predictions DataFrame from a run directory. Returns DataFrame or error string."""
+    import pandas as pd
+
+    preds_dir = run_dir / "predictions"
+    preds_path = preds_dir / "predictions.parquet"
+    if preds_path.exists():
+        return pd.read_parquet(preds_path)
+
+    if preds_dir.exists():
+        parquets = list(preds_dir.glob("*.parquet"))
+        if parquets:
+            return pd.concat([pd.read_parquet(p) for p in parquets], ignore_index=True)
+
+    diag_path = run_dir / "diagnostics" / "predictions.parquet"
+    if diag_path.exists():
+        return pd.read_parquet(diag_path)
+
+    return f"**Error**: No predictions found in run `{run_dir.name}`."
+
+
+def model_correlation(project_dir: Path, *, run_id: str | None = None) -> str:
+    """Compute pairwise prediction correlation between models.
+
+    Shows which models make similar predictions, indicating redundancy.
+    """
+    project_dir = Path(project_dir)
+    run_dir = _resolve_run_dir(project_dir, run_id)
+    if isinstance(run_dir, str):
+        return run_dir
+
+    preds = _load_predictions(run_dir)
+    if isinstance(preds, str):
+        return preds
+
+    prob_cols = [c for c in preds.columns if c.startswith("prob_") and c != "prob_ensemble"]
+    if len(prob_cols) < 2:
+        return "**Error**: Need at least 2 models with predictions to compute correlation."
+
+    corr = preds[prob_cols].corr()
+
+    lines = ["## Model Prediction Correlation\n"]
+    model_names = [c.replace("prob_", "", 1) for c in prob_cols]
+
+    # Header
+    lines.append("| | " + " | ".join(model_names) + " |")
+    lines.append("|---" + "|---" * len(model_names) + "|")
+
+    for i, name in enumerate(model_names):
+        row_vals = []
+        for j in range(len(model_names)):
+            val = corr.iloc[i, j]
+            row_vals.append(f"{val:.3f}")
+        lines.append(f"| **{name}** | " + " | ".join(row_vals) + " |")
+
+    # Flag highly correlated pairs
+    high_corr = []
+    for i in range(len(prob_cols)):
+        for j in range(i + 1, len(prob_cols)):
+            c = corr.iloc[i, j]
+            if abs(c) > 0.95:
+                high_corr.append((model_names[i], model_names[j], c))
+
+    if high_corr:
+        lines.append("\n**Highly correlated pairs** (>0.95, consider removing one):\n")
+        for a, b, c in sorted(high_corr, key=lambda x: -abs(x[2])):
+            lines.append(f"- `{a}` & `{b}`: {c:.4f}")
+
+    return "\n".join(lines)
+
+
+def residual_analysis(
+    project_dir: Path,
+    *,
+    feature: str | None = None,
+    run_id: str | None = None,
+    n_bins: int = 10,
+) -> str:
+    """Analyze prediction residuals binned by a feature.
+
+    Shows where the model systematically over- or under-predicts.
+    """
+    import pandas as pd
+
+    project_dir = Path(project_dir)
+    run_dir = _resolve_run_dir(project_dir, run_id)
+    if isinstance(run_dir, str):
+        return run_dir
+
+    preds = _load_predictions(run_dir)
+    if isinstance(preds, str):
+        return preds
+
+    # Find prediction and target columns
+    config_dir = _get_config_dir(project_dir)
+    pipeline_data = _load_yaml(config_dir / "pipeline.yaml")
+    target_col = pipeline_data.get("data", {}).get("target_column", "result")
+
+    pred_col = "prob_ensemble" if "prob_ensemble" in preds.columns else None
+    if pred_col is None:
+        prob_cols = [c for c in preds.columns if c.startswith("prob_")]
+        if prob_cols:
+            pred_col = prob_cols[0]
+        else:
+            return "**Error**: No prediction columns found."
+
+    if target_col not in preds.columns:
+        return f"**Error**: Target column `{target_col}` not in predictions."
+
+    preds["_residual"] = preds[pred_col] - preds[target_col]
+
+    # Determine which features to analyze
+    if feature:
+        features_to_analyze = [feature]
+    else:
+        # Auto-select numeric columns (excluding prob_ and target)
+        skip = {target_col, "_residual"} | {c for c in preds.columns if c.startswith("prob_")}
+        numeric_cols = preds.select_dtypes(include="number").columns.tolist()
+        features_to_analyze = [c for c in numeric_cols if c not in skip][:3]
+
+    if not features_to_analyze:
+        return "**Error**: No feature columns found in predictions to analyze."
+
+    lines = ["## Residual Analysis\n"]
+
+    for feat in features_to_analyze:
+        if feat not in preds.columns:
+            lines.append(f"\n`{feat}` not found in predictions.\n")
+            continue
+
+        try:
+            preds["_bin"] = pd.qcut(preds[feat], q=n_bins, duplicates="drop")
+        except ValueError:
+            preds["_bin"] = pd.cut(preds[feat], bins=n_bins)
+
+        grouped = preds.groupby("_bin", observed=True)["_residual"].agg(
+            ["mean", "std", "count"]
+        ).reset_index()
+
+        overall_std = preds["_residual"].std()
+
+        lines.append(f"\n### Residuals by `{feat}`\n")
+        lines.append("| Bin | Mean Residual | Std | Count | Bias? |")
+        lines.append("|-----|---------------|-----|-------|-------|")
+
+        for _, row in grouped.iterrows():
+            bias_flag = "**YES**" if abs(row["mean"]) > 2 * overall_std else ""
+            lines.append(
+                f"| {row['_bin']} | {row['mean']:+.4f} | {row['std']:.4f} "
+                f"| {int(row['count'])} | {bias_flag} |"
+            )
+
+    preds.drop(columns=["_residual", "_bin"], errors="ignore", inplace=True)
     return "\n".join(lines)

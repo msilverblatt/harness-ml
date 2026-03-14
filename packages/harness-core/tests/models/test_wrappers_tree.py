@@ -3,14 +3,14 @@ import numpy as np
 import pytest
 
 try:
-    import catboost
+    import catboost  # noqa: F401
 
     HAS_CATBOOST = True
 except ImportError:
     HAS_CATBOOST = False
 
 try:
-    import lightgbm
+    import lightgbm  # noqa: F401
 
     HAS_LIGHTGBM = True
 except ImportError:

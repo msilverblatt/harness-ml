@@ -17,6 +17,7 @@ _INSTALLABLE_MODELS = {
     "tabnet": ("pytorch-tabnet", "tabnet", "TabNetModel"),
     "gam": ("pygam", "gam", "GAMModel"),
     "ngboost": ("ngboost", "ngboost", "NGBoostModel"),
+    "tabpfn": ("tabpfn", "tabpfn", "TabPFNModel"),
 }
 
 
@@ -202,5 +203,13 @@ class ModelRegistry:
             registry.register("ngboost", NGBoostModel)
         except ImportError:
             logger.debug("Optional dependency not available: %s", "ngboost")
+
+        # TabPFN (optional — requires tabpfn)
+        try:
+            from harnessml.core.models.wrappers.tabpfn import TabPFNModel
+
+            registry.register("tabpfn", TabPFNModel)
+        except ImportError:
+            logger.debug("Optional dependency not available: %s", "tabpfn")
 
         return registry

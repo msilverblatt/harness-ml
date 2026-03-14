@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 try:
-    import catboost
+    import catboost  # noqa: F401
 
     HAS_CATBOOST = True
 except ImportError:

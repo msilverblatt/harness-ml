@@ -58,6 +58,14 @@ class TestAxisDef:
         axis = AxisDef(key="x", type="categorical", choices=["a", "b", "c"])
         assert axis.values == ["a", "b", "c"]
 
+    def test_param_alias_for_key(self):
+        axis = AxisDef(param="models.xgb.params.lr", type="continuous", low=0.01, high=0.3)
+        assert axis.key == "models.xgb.params.lr"
+
+    def test_name_alias_for_key(self):
+        axis = AxisDef(name="models.xgb.params.depth", type="integer", low=3, high=10)
+        assert axis.key == "models.xgb.params.depth"
+
 
 class TestExplorationSpace:
     def test_from_dict(self):
@@ -79,6 +87,33 @@ class TestExplorationSpace:
         assert space.budget == 20
         assert space.primary_metric == "brier"
         assert space.baseline is True
+
+    def test_axes_as_dict(self):
+        """Accept axes as {param_path: {low, high, type}} dict."""
+        space = ExplorationSpace(**{
+            "axes": {
+                "models.xgb.params.lr": {"low": 0.01, "high": 0.3, "type": "float"},
+                "models.xgb.params.depth": {"low": 3, "high": 10, "type": "int"},
+            },
+            "budget": 15,
+            "primary_metric": "rmse",
+        })
+        assert len(space.axes) == 2
+        keys = {a.key for a in space.axes}
+        assert keys == {"models.xgb.params.lr", "models.xgb.params.depth"}
+        assert space.budget == 15
+
+    def test_axes_as_list_with_param_alias(self):
+        """Accept 'param' instead of 'key' in list-style axes."""
+        space = ExplorationSpace(**{
+            "axes": [
+                {"param": "models.xgb.params.lr", "low": 0.01, "high": 0.3, "type": "float"},
+            ],
+            "budget": 10,
+            "primary_metric": "rmse",
+        })
+        assert space.axes[0].key == "models.xgb.params.lr"
+        assert space.axes[0].type == "continuous"
 
 
 # -----------------------------------------------------------------------

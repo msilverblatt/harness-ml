@@ -13,7 +13,7 @@ from harnessml.plugin.handlers._validation import (
 logger = get_logger(__name__)
 
 
-async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_kwargs):
+async def _handle_run_backtest(*, experiment_id, variant, fold_values=None, ctx, project_dir, **_kwargs):
     import asyncio
 
     from harnessml.core.runner import config_writer as cw
@@ -24,6 +24,15 @@ async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_k
     if ctx is not None:
         await ctx.report_progress(progress=0, total=1, message="Starting backtest...")
 
+    # Parse fold_values from JSON string if needed
+    parsed_fold_values = None
+    if fold_values is not None:
+        if isinstance(fold_values, str):
+            import json
+            parsed_fold_values = json.loads(fold_values)
+        else:
+            parsed_fold_values = fold_values
+
     # Run the sync backtest in a thread so the event loop stays free
     # for sending progress updates
     result = await loop.run_in_executor(
@@ -32,6 +41,7 @@ async def _handle_run_backtest(*, experiment_id, variant, ctx, project_dir, **_k
             resolve_project_dir(project_dir),
             experiment_id=experiment_id,
             variant=variant,
+            fold_values=parsed_fold_values,
             on_progress=_progress_callback,
         ),
     )
@@ -80,7 +90,7 @@ def _summarize_diagnostics(full_output: str) -> str:
         # Keep the first few table rows (header + separator + data rows)
         # but skip detailed breakdowns
     # If there's a table, keep it but truncate to key columns
-    if not summary_lines or all(l.strip() == "" for l in summary_lines):
+    if not summary_lines or all(ln.strip() == "" for ln in summary_lines):
         return full_output
     return "\n".join(summary_lines)
 
@@ -121,7 +131,7 @@ def _summarize_show_run(full_output: str) -> str:
             else:
                 continue
         summary_lines.append(line)
-    if not summary_lines or all(l.strip() == "" for l in summary_lines):
+    if not summary_lines or all(ln.strip() == "" for ln in summary_lines):
         return full_output
     return "\n".join(summary_lines)
 
@@ -339,6 +349,37 @@ def _handle_progress(*, project_dir, **_kwargs):
     return status.format_markdown()
 
 
+def _handle_clear_cache(*, project_dir, **_kwargs):
+    """Clear the prediction cache.  Useful after data shape changes (e.g. drop_rows)."""
+
+    from harnessml.core.runner.training.prediction_cache import PredictionCache
+
+    pdir = resolve_project_dir(project_dir)
+    cache_dir = pdir / ".cache" / "predictions"
+    if not cache_dir.exists():
+        return "No prediction cache found — nothing to clear."
+    cache = PredictionCache(cache_dir)
+    removed = cache.clear()
+    return f"Prediction cache cleared — {removed} cached entry/entries removed."
+
+
+def _handle_model_correlation(*, run_id=None, project_dir, **_kwargs):
+    from harnessml.core.runner.config_writer.pipeline import model_correlation
+
+    return model_correlation(resolve_project_dir(project_dir), run_id=run_id)
+
+
+def _handle_residual_analysis(*, feature=None, run_id=None, n_bins=None, project_dir, **_kwargs):
+    from harnessml.core.runner.config_writer.pipeline import residual_analysis
+
+    return residual_analysis(
+        resolve_project_dir(project_dir),
+        feature=feature,
+        run_id=run_id,
+        n_bins=int(n_bins) if n_bins is not None else 10,
+    )
+
+
 ACTIONS = {
     "progress": _handle_progress,
     "run_backtest": _handle_run_backtest,
@@ -352,6 +393,9 @@ ACTIONS = {
     "explain": _handle_explain,
     "inspect_predictions": _handle_inspect_predictions,
     "export_notebook": _handle_export_notebook,
+    "clear_cache": _handle_clear_cache,
+    "model_correlation": _handle_model_correlation,
+    "residual_analysis": _handle_residual_analysis,
 }
 
 

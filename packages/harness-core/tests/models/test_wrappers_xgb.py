@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 try:
-    import xgboost
+    import xgboost  # noqa: F401
 
     HAS_XGBOOST = True
 except ImportError:

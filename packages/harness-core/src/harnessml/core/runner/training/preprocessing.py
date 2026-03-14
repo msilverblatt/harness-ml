@@ -14,23 +14,27 @@ class Preprocessor:
     def __init__(
         self,
         numeric_strategy: str = "none",  # "none", "zscore", "robust", "quantile"
-        categorical_strategy: str = "none",  # "none", "frequency", "ordinal"
+        categorical_strategy: str = "none",  # "none", "frequency", "ordinal", "target"
         missing_strategy: str = "median",
         knn_neighbors: int = 5,
+        smoothing: float = 10.0,
     ):
         self.numeric_strategy = numeric_strategy
         self.categorical_strategy = categorical_strategy
         self.missing_strategy = missing_strategy
         self.knn_neighbors = knn_neighbors
+        self.smoothing = smoothing
         self._fitted = False
         self._numeric_cols: list[str] = []
         self._categorical_cols: list[str] = []
         self._scaler = None
         self._fill_values: dict[str, float] = {}
         self._frequency_maps: dict[str, dict] = {}
+        self._target_encode_maps: dict[str, dict] = {}
+        self._global_mean: float = 0.0
         self._imputer = None
 
-    def fit_transform(self, df: pd.DataFrame) -> pd.DataFrame:
+    def fit_transform(self, df: pd.DataFrame, y: pd.Series | None = None) -> pd.DataFrame:
         self._numeric_cols = list(df.select_dtypes(include=[np.number]).columns)
         self._categorical_cols = list(df.select_dtypes(exclude=[np.number]).columns)
 
@@ -81,6 +85,20 @@ class Preprocessor:
             for col in self._categorical_cols:
                 counts = df[col].value_counts(normalize=True)
                 self._frequency_maps[col] = counts.to_dict()
+        elif self.categorical_strategy == "target":
+            if y is None:
+                raise ValueError(
+                    "Target encoding requires y (target series) to be passed "
+                    "to fit_transform()."
+                )
+            self._global_mean = float(y.mean())
+            for col in self._categorical_cols:
+                group = pd.DataFrame({"cat": df[col], "target": y}).groupby("cat")["target"]
+                cat_sum = group.sum()
+                cat_count = group.count()
+                # Bayesian smoothing: (sum + global_mean * smoothing) / (count + smoothing)
+                smoothed = (cat_sum + self._global_mean * self.smoothing) / (cat_count + self.smoothing)
+                self._target_encode_maps[col] = smoothed.to_dict()
 
         self._fitted = True
         return self.transform(df)
@@ -113,5 +131,10 @@ class Preprocessor:
                 if col in result.columns:
                     freq_map = self._frequency_maps.get(col, {})
                     result[col] = result[col].map(freq_map).fillna(0)
+        elif self.categorical_strategy == "target":
+            for col in self._categorical_cols:
+                if col in result.columns:
+                    encode_map = self._target_encode_maps.get(col, {})
+                    result[col] = result[col].map(encode_map).fillna(self._global_mean)
 
         return result

@@ -1,6 +1,5 @@
 """Tests for SVM model wrapper: fit, predict, save/load."""
 import numpy as np
-import pytest
 from harnessml.core.models.wrappers.svm import SVMModel
 
 

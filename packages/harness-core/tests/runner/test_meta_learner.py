@@ -413,7 +413,7 @@ class TestMetaLearnerTypes:
         meta = StackedEnsemble(data["model_names"], meta_learner_type="gbm")
         meta.fit(data["model_preds"], data["prior_diffs"], data["y_true"])
 
-        probs_before = meta.predict(data["model_preds"], data["prior_diffs"])
+        meta.predict(data["model_preds"], data["prior_diffs"])
 
         path = tmp_path / "meta_gbm.json"
         meta.save(path)
