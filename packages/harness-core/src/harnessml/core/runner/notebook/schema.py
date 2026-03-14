@@ -20,6 +20,7 @@ class EntryType(str, Enum):
     DECISION = "decision"
     PLAN = "plan"
     NOTE = "note"
+    PHASE_TRANSITION = "phase_transition"
 
 
 class NotebookEntry(BaseModel):

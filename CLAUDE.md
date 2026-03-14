@@ -111,14 +111,31 @@ Built on [protomcp](https://github.com/msilverblatt/protomcp) — a language-agn
 - Server runs via `pmcp run server.py` — pmcp handles MCP protocol, transport, and session management
 - Hot-reload: `pmcp dev server.py` watches for file changes and reloads automatically
 
+### Experiment Workflow (Dynamic Tool Visibility)
+
+The experiment lifecycle is a protomcp `@workflow` that controls which tools the agent can see at each step:
+
+```
+experiment.create → [experiment.write_overlay] → experiment.run → experiment.log_result → [experiment.promote | experiment.done]
+```
+
+- **Structural discipline enforcement**: The agent cannot start a new experiment without completing `log_result` — the `experiment.create` tool is literally not visible while a workflow is active
+- **Dynamic tool lists**: At each step, only the valid next steps are visible. After `experiment.run`, the agent sees only `experiment.log_result` (plus all non-experiment tools via `allow_during`)
+- **`allow_during` globs**: During an active experiment workflow, all non-experiment tools remain visible (`notebook.*`, `configure.*`, `data.*`, `features.*`, `models.*`, `pipeline.*`). The agent can still explore data, check features, and write notebook entries
+- **`no_cancel` on run**: Once a backtest is running, the agent cannot cancel (avoids wasted compute)
+- **Discipline gates in `create`**: Plan-exists check, previous-experiment-logged check, and plan-freshness check run inside the `create` step handler
+
+Standalone experiment actions (not part of the workflow): `experiments(action="quick_run")`, `experiments(action="explore")`, `experiments(action="compare")`, `experiments(action="journal")`
+
 ### Notable MCP Actions
 
 - `data(action="snapshot", name="...")` / `data(action="restore_snapshot", name="...")` — save and restore config YAMLs + features.parquet for rollback
 - `data(action="derive_column", name="...", expression="...")` — derive a new column from a pandas expression
 - `configure(action="suggest_cv")` — analyze features data and recommend a CV strategy
-- `experiments(action="run", baseline_run_id="...")` — compare experiment results against a specific historical run
+- `experiments(action="quick_run", description="...", overlay={...})` — create+configure+run experiment in one call
 - `models(action="clone", name="source", new_name="target")` — clone a model config with optional overrides (features, params, active)
-- `pipeline(action="explain_model", method="builtin")` — use tree `feature_importances_` instead of SHAP (faster, no extra dependency)
+- `pipeline(action="explain", method="builtin")` — use tree `feature_importances_` instead of SHAP (faster, no extra dependency)
+- `notebook(action="write", type="phase_transition", content="...")` — record explicit workflow phase transitions for the phase tracker
 
 ## Plugin Auto-Discovery
 

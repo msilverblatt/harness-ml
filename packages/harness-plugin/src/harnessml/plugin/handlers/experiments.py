@@ -263,30 +263,9 @@ def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, ve
     )
 
 
-@tool_group("experiments", description="Manage ML experiments.")
+@tool_group("experiments", description="Experiment utilities: quick_run, explore, compare, journal.")
 class ExperimentsGroup:
-
-    @action("create", description="Create an experiment.", requires=["description"])
-    def create(self, *, description=None, hypothesis=None, parent_id=None,
-               branching_reason="", phase="", project_dir=None, **kw):
-        return _handle_create(description=description, hypothesis=hypothesis,
-                              parent_id=parent_id, branching_reason=branching_reason,
-                              phase=phase, project_dir=project_dir, **kw)
-
-    @action("write_overlay", description="Write an experiment overlay.", requires=["experiment_id", "overlay"])
-    def write_overlay(self, *, experiment_id=None, overlay=None, project_dir=None, **kw):
-        return _handle_write_overlay(experiment_id=experiment_id, overlay=overlay, project_dir=project_dir, **kw)
-
-    @action("run", description="Run an experiment.", requires=["experiment_id"])
-    def run(self, *, experiment_id=None, primary_metric="brier", variant=None,
-            baseline_run_id=None, ctx=None, project_dir=None, **kw):
-        return _handle_run(experiment_id=experiment_id, primary_metric=primary_metric,
-                           variant=variant, baseline_run_id=baseline_run_id, ctx=ctx,
-                           project_dir=project_dir, **kw)
-
-    @action("promote", description="Promote an experiment.", requires=["experiment_id"])
-    def promote(self, *, experiment_id=None, primary_metric=None, project_dir=None, **kw):
-        return _handle_promote(experiment_id=experiment_id, primary_metric=primary_metric, project_dir=project_dir, **kw)
+    """Actions not covered by the experiment workflow (create/run/log/promote)."""
 
     @action("quick_run", description="Create and run an experiment in one step.", requires=["description", "overlay"])
     def quick_run(self, *, description=None, overlay=None, hypothesis=None,
@@ -317,12 +296,3 @@ class ExperimentsGroup:
     @action("journal", description="Show experiment journal.")
     def journal(self, *, last_n=None, project_dir=None, **kw):
         return _handle_journal(last_n=last_n, project_dir=project_dir, **kw)
-
-    @action("log_result", description="Log an experiment result.", requires=["experiment_id"])
-    def log_result(self, *, experiment_id=None, description=None, hypothesis=None,
-                   conclusion=None, verdict=None, metrics=None, baseline_metrics=None,
-                   project_dir=None, **kw):
-        return _handle_log_result(experiment_id=experiment_id, description=description,
-                                  hypothesis=hypothesis, conclusion=conclusion, verdict=verdict,
-                                  metrics=metrics, baseline_metrics=baseline_metrics,
-                                  project_dir=project_dir, **kw)

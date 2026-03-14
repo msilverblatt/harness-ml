@@ -10,7 +10,7 @@ permalink: /for-agents
 
 Harness ML is an MCP server that gives you structured access to a full ML pipeline — data ingestion, feature engineering, model training, backtesting, calibration, ensembling, and experiment tracking. You never write training loops or ML code. You declare intent through tool calls, and Harness handles execution, validation, and logging.
 
-7 tools. 80+ actions. 17 guardrails. 45 metrics across 6 task types. 13 model wrappers. 22 view transform steps. 4 calibration methods. 8 CV strategies.
+8 tool groups + 1 experiment workflow. 107 actions. 17 guardrails. 45 metrics across 6 task types. 13 model wrappers. 22 view transform steps. 4 calibration methods. 8 CV strategies. Dynamic tool visibility enforces experiment discipline.
 
 Everything below is your complete protocol reference.
 
