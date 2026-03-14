@@ -73,15 +73,18 @@ def _write_mcp_config(repo_root: Path | None) -> Path:
 
     servers = existing.get("mcpServers", {})
 
+    server_py = "packages/harness-plugin/src/harnessml/plugin/server.py"
     if repo_root:
         servers["harness-ml"] = {
-            "command": "uv",
-            "args": ["run", "--directory", str(repo_root), "harness-ml"],
+            "command": "pmcp",
+            "args": ["run", str(repo_root / server_py)],
         }
     else:
+        # Installed via pip — find server.py in the package
+        pkg_root = _find_package_root()
         servers["harness-ml"] = {
-            "command": "harness-ml",
-            "args": [],
+            "command": "pmcp",
+            "args": ["run", str(pkg_root / "server.py")],
         }
 
     existing["mcpServers"] = servers

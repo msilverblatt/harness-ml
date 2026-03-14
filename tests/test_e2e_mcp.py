@@ -128,8 +128,14 @@ def project_dir(tmp_path_factory):
 @pytest.fixture(scope="module")
 def mcp(project_dir):
     """Start MCP server and yield a client. Torn down after all tests."""
+    server_py = os.path.join(
+        EASYML_DIR, "packages/harness-plugin/src/harnessml/plugin/server.py",
+    )
+    pmcp_bin = shutil.which("pmcp")
+    if pmcp_bin is None:
+        pytest.skip("pmcp binary not found on PATH")
     proc = subprocess.Popen(
-        ["uv", "run", "--directory", EASYML_DIR, "harness-ml"],
+        [pmcp_bin, "run", server_py],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

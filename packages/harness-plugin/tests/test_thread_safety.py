@@ -4,11 +4,11 @@ from unittest.mock import MagicMock, patch
 
 
 def test_get_emitter_thread_safe():
-    """Verify _get_emitter doesn't initialize twice under concurrent calls."""
-    import harnessml.plugin.mcp_server as srv
+    """Verify telemetry emitter doesn't initialize twice under concurrent calls."""
+    import harnessml.plugin.pmcp_telemetry as tel
 
-    original_emitter = srv._emitter
-    srv._emitter = None  # Reset
+    original_emitter = tel._emitter
+    tel._emitter = None  # Reset
     call_count = 0
 
     def counting_create(*a, **kw):
@@ -25,14 +25,14 @@ def test_get_emitter_thread_safe():
             "harnessml.plugin.event_emitter.create_emitter",
             side_effect=counting_create,
         ):
-            threads = [threading.Thread(target=srv._get_emitter) for _ in range(10)]
+            threads = [threading.Thread(target=tel._get_emitter) for _ in range(10)]
             for t in threads:
                 t.start()
             for t in threads:
                 t.join()
         assert call_count == 1
     finally:
-        srv._emitter = original_emitter
+        tel._emitter = original_emitter
 
 
 def test_set_active_emitter_thread_safe():
@@ -64,30 +64,27 @@ def test_set_active_emitter_thread_safe():
         assert r in sentinels
 
 
-def test_studio_url_logged_thread_safe():
-    """Verify _studio_url_logged flag is only set once under concurrency."""
-    import harnessml.plugin.mcp_server as srv
+def test_telemetry_sink_thread_safe():
+    """Verify telemetry sink handles concurrent events without crashing."""
+    from protomcp import ToolCallEvent, emit_telemetry
 
-    original_flag = srv._studio_url_logged
-    srv._studio_url_logged = False
-    log_count = 0
-    lock = threading.Lock()
+    errors = []
 
-    original_fn = srv._check_studio_url_once
+    def _emit_event(i):
+        try:
+            emit_telemetry(ToolCallEvent(
+                tool_name="test",
+                phase="start",
+                action=f"action_{i}",
+                args={"i": i},
+            ))
+        except Exception as e:
+            errors.append(e)
 
-    def counting_check():
-        nonlocal log_count
-        logged = original_fn()
-        if logged:
-            with lock:
-                log_count += 1
+    threads = [threading.Thread(target=_emit_event, args=(i,)) for i in range(20)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
-    try:
-        threads = [threading.Thread(target=counting_check) for _ in range(10)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        assert log_count == 1
-    finally:
-        srv._studio_url_logged = original_flag
+    assert len(errors) == 0

@@ -215,7 +215,7 @@ Harness ML is a uv workspace monorepo with four packages:
 
 **harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 8 model wrappers (XGBoost, LightGBM, CatBoost, Random Forest, Logistic Regression, ElasticNet, MLP, TabNet), a declarative view engine with 22 transform steps, 4 calibration methods, 45 metrics across 6 task types, and 12 guardrails (3 non-overridable).
 
-**harness-plugin** is a thin async MCP dispatcher. The tool signatures live in `mcp_server.py`, but all business logic lives in hot-reloadable handler modules — change a handler, and it takes effect on the next call without restarting the server.
+**harness-plugin** is the MCP server, built on [protomcp](https://github.com/msilverblatt/protomcp). Each handler is a `@tool_group` class with `@action` methods, giving the LLM clean per-action schemas. Cross-cutting concerns (error formatting, event emission, Studio lifecycle) are handled by middleware and telemetry sinks.
 
 **harness-studio** is the companion dashboard. It reads existing project artifacts (config YAMLs, experiment journals, run outputs) and a SQLite event log. The MCP server emits events via a fail-safe hook — if Studio is down, nothing breaks.
 

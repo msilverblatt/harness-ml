@@ -100,17 +100,16 @@ uv sync
 
 **Symptom:** Changes to MCP handler code require a server restart to take effect.
 
-**Likely cause:** The `HARNESS_DEV` environment variable is not set.
+**Likely cause:** The server was started with `pmcp run` instead of `pmcp dev`.
 
 **Fix:**
 
-Set the environment variable before starting the MCP server:
+Use `pmcp dev` instead of `pmcp run` to enable hot-reload:
 ```bash
-export HARNESS_DEV=1
-uv run harness-plugin
+pmcp dev packages/harness-plugin/src/harnessml/plugin/server.py
 ```
 
-Note: hot reload applies to handler business logic only. Changes to tool signatures or docstrings in `mcp_server.py` always require a server restart.
+All handler changes take effect automatically — no restart required.
 
 ---
 

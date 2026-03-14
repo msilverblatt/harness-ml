@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 
 def _handle_add(*, name, formula, type, source, column, condition, pairwise_mode, category, description, project_dir, **_kwargs):
@@ -58,37 +56,25 @@ def _handle_test_transformations(*, features, test_interactions, project_dir, **
     )
 
 
-async def _handle_discover(*, top_n, method, ctx, project_dir, **_kwargs):
-    import asyncio
-
+def _handle_discover(*, top_n, method, ctx=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
-    loop = asyncio.get_running_loop()
-
     def _progress_callback(current, total, message):
-        import logging
-        logging.getLogger(__name__).info("Feature discovery progress: %s", message)
         if ctx is not None:
-            asyncio.run_coroutine_threadsafe(
-                ctx.report_progress(progress=current, total=total, message=message),
-                loop,
-            )
+            ctx.report_progress(current, total, message)
 
     if ctx is not None:
-        await ctx.report_progress(progress=0, total=1, message="Starting feature discovery...")
+        ctx.report_progress(0, 1, "Starting feature discovery...")
 
-    result = await loop.run_in_executor(
-        None,
-        lambda: cw.discover_features(
-            resolve_project_dir(project_dir),
-            top_n=top_n,
-            method=method,
-            on_progress=_progress_callback,
-        ),
+    result = cw.discover_features(
+        resolve_project_dir(project_dir),
+        top_n=top_n,
+        method=method,
+        on_progress=_progress_callback,
     )
 
     if ctx is not None:
-        await ctx.report_progress(progress=1, total=1, message="Feature discovery complete.")
+        ctx.report_progress(1, 1, "Feature discovery complete.")
 
     return result
 
@@ -136,26 +122,37 @@ def _handle_prune(*, threshold=None, method=None, dry_run=None, project_dir, **_
     )
 
 
-ACTIONS = {
-    "add": _handle_add,
-    "add_batch": _handle_add_batch,
-    "test_transformations": _handle_test_transformations,
-    "discover": _handle_discover,
-    "diversity": _handle_diversity,
-    "auto_search": _handle_auto_search,
-    "prune": _handle_prune,
-}
+@tool_group("features", description="Manage ML features.")
+class FeaturesGroup:
 
+    @action("add", description="Add a feature.", requires=["name"])
+    def add(self, *, name=None, formula=None, type=None, source=None, column=None,
+            condition=None, pairwise_mode=None, category=None, description=None,
+            project_dir=None, **kw):
+        return _handle_add(name=name, formula=formula, type=type, source=source,
+                           column=column, condition=condition, pairwise_mode=pairwise_mode,
+                           category=category, description=description, project_dir=project_dir, **kw)
 
-async def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a manage_features action."""
-    import asyncio
+    @action("add_batch", description="Add multiple features.", requires=["features"])
+    def add_batch(self, *, features=None, project_dir=None, **kw):
+        return _handle_add_batch(features=features, project_dir=project_dir, **kw)
 
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    if asyncio.iscoroutine(result):
-        result = await result
-    hints = collect_hints(action, tool="features", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("test_transformations", description="Test feature transformations.", requires=["features"])
+    def test_transformations(self, *, features=None, test_interactions=None, project_dir=None, **kw):
+        return _handle_test_transformations(features=features, test_interactions=test_interactions, project_dir=project_dir, **kw)
+
+    @action("discover", description="Discover new features.")
+    def discover(self, *, top_n=20, method="xgboost", ctx=None, project_dir=None, **kw):
+        return _handle_discover(top_n=top_n, method=method, ctx=ctx, project_dir=project_dir, **kw)
+
+    @action("diversity", description="Show feature diversity report.")
+    def diversity(self, *, project_dir=None, **kw):
+        return _handle_diversity(project_dir=project_dir, **kw)
+
+    @action("auto_search", description="Auto-search for features.")
+    def auto_search(self, *, features=None, search_types=None, top_n=None, project_dir=None, **kw):
+        return _handle_auto_search(features=features, search_types=search_types, top_n=top_n, project_dir=project_dir, **kw)
+
+    @action("prune", description="Prune low-importance features.")
+    def prune(self, *, threshold=None, method=None, dry_run=None, project_dir=None, **kw):
+        return _handle_prune(threshold=threshold, method=method, dry_run=dry_run, project_dir=project_dir, **kw)

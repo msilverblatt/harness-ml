@@ -1,13 +1,11 @@
 """Handler for manage_experiments tool."""
 from __future__ import annotations
 
-from harnessml.plugin.handlers._common import make_progress_callback, parse_json_param, resolve_project_dir
+from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 
 def _handle_create(*, description, hypothesis, parent_id=None, branching_reason="", phase="", project_dir, **_kwargs):
@@ -43,35 +41,31 @@ def _handle_write_overlay(*, experiment_id, overlay, project_dir, **_kwargs):
     )
 
 
-async def _handle_run(*, experiment_id, primary_metric, variant, baseline_run_id=None, ctx, project_dir, **_kwargs):
-    import asyncio
-
+def _handle_run(*, experiment_id, primary_metric="brier", variant=None, baseline_run_id=None, ctx=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(experiment_id, "experiment_id")
     if err:
         return err
 
-    loop = asyncio.get_running_loop()
-    _progress_callback = make_progress_callback(ctx, loop)
+    def _progress_callback(current, total, message):
+        if ctx is not None:
+            ctx.report_progress(current, total, message)
 
     if ctx is not None:
-        await ctx.report_progress(progress=0, total=1, message=f"Running experiment {experiment_id}...")
+        ctx.report_progress(0, 1, f"Running experiment {experiment_id}...")
 
-    result = await loop.run_in_executor(
-        None,
-        lambda: cw.run_experiment(
-            resolve_project_dir(project_dir),
-            experiment_id,
-            primary_metric=primary_metric,
-            variant=variant,
-            baseline_run_id=baseline_run_id,
-            on_progress=_progress_callback,
-        ),
+    result = cw.run_experiment(
+        resolve_project_dir(project_dir),
+        experiment_id,
+        primary_metric=primary_metric,
+        variant=variant,
+        baseline_run_id=baseline_run_id,
+        on_progress=_progress_callback,
     )
 
     if ctx is not None:
-        await ctx.report_progress(progress=1, total=1, message="Experiment complete.")
+        ctx.report_progress(1, 1, "Experiment complete.")
 
     return result
 
@@ -89,9 +83,7 @@ def _handle_promote(*, experiment_id, primary_metric, project_dir, **_kwargs):
     )
 
 
-async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric, baseline_run_id=None, ctx, project_dir, **_kwargs):
-    import asyncio
-
+def _handle_quick_run(*, description, overlay, hypothesis, primary_metric="brier", baseline_run_id=None, ctx=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(description, "description")
@@ -101,34 +93,30 @@ async def _handle_quick_run(*, description, overlay, hypothesis, primary_metric,
     if err:
         return err
 
-    loop = asyncio.get_running_loop()
-    _progress_callback = make_progress_callback(ctx, loop)
+    def _progress_callback(current, total, message):
+        if ctx is not None:
+            ctx.report_progress(current, total, message)
 
     if ctx is not None:
-        await ctx.report_progress(progress=0, total=1, message="Starting experiment...")
+        ctx.report_progress(0, 1, "Starting experiment...")
 
-    result = await loop.run_in_executor(
-        None,
-        lambda: cw.quick_run_experiment(
-            resolve_project_dir(project_dir),
-            description,
-            overlay,
-            hypothesis=hypothesis,
-            primary_metric=primary_metric,
-            baseline_run_id=baseline_run_id,
-            on_progress=_progress_callback,
-        ),
+    result = cw.quick_run_experiment(
+        resolve_project_dir(project_dir),
+        description,
+        overlay,
+        hypothesis=hypothesis,
+        primary_metric=primary_metric,
+        baseline_run_id=baseline_run_id,
+        on_progress=_progress_callback,
     )
 
     if ctx is not None:
-        await ctx.report_progress(progress=1, total=1, message="Experiment complete.")
+        ctx.report_progress(1, 1, "Experiment complete.")
 
     return result
 
 
-async def _handle_explore(*, search_space, detail, warm_start_from=None, ctx, project_dir, **_kwargs):
-    import asyncio
-
+def _handle_explore(*, search_space, detail, warm_start_from=None, ctx=None, project_dir, **_kwargs):
     from harnessml.core.runner import config_writer as cw
 
     err = validate_required(search_space, "search_space")
@@ -160,24 +148,22 @@ async def _handle_explore(*, search_space, detail, warm_start_from=None, ctx, pr
             return f"**Blocked**: {exc}"
         warning = None
 
-    loop = asyncio.get_running_loop()
-    _progress_callback = make_progress_callback(ctx, loop)
+    def _progress_callback(current, total, message):
+        if ctx is not None:
+            ctx.report_progress(current, total, message)
 
     if ctx is not None:
-        await ctx.report_progress(progress=0, total=1, message="Starting exploration...")
+        ctx.report_progress(0, 1, "Starting exploration...")
 
-    result = await loop.run_in_executor(
-        None,
-        lambda: cw.run_exploration(
-            resolve_project_dir(project_dir),
-            parsed,
-            on_progress=_progress_callback,
-            warm_start_from=warm_start_from,
-        ),
+    result = cw.run_exploration(
+        resolve_project_dir(project_dir),
+        parsed,
+        on_progress=_progress_callback,
+        warm_start_from=warm_start_from,
     )
 
     if ctx is not None:
-        await ctx.report_progress(progress=1, total=1, message="Exploration complete.")
+        ctx.report_progress(1, 1, "Exploration complete.")
 
     if detail == "summary":
         result = _summarize_exploration(result)
@@ -277,29 +263,66 @@ def _handle_log_result(*, experiment_id, description, hypothesis, conclusion, ve
     )
 
 
-ACTIONS = {
-    "create": _handle_create,
-    "write_overlay": _handle_write_overlay,
-    "run": _handle_run,
-    "promote": _handle_promote,
-    "quick_run": _handle_quick_run,
-    "explore": _handle_explore,
-    "promote_trial": _handle_promote_trial,
-    "compare": _handle_compare,
-    "journal": _handle_journal,
-    "log_result": _handle_log_result,
-}
+@tool_group("experiments", description="Manage ML experiments.")
+class ExperimentsGroup:
 
+    @action("create", description="Create an experiment.", requires=["description"])
+    def create(self, *, description=None, hypothesis=None, parent_id=None,
+               branching_reason="", phase="", project_dir=None, **kw):
+        return _handle_create(description=description, hypothesis=hypothesis,
+                              parent_id=parent_id, branching_reason=branching_reason,
+                              phase=phase, project_dir=project_dir, **kw)
 
-async def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a manage_experiments action."""
-    import asyncio
+    @action("write_overlay", description="Write an experiment overlay.", requires=["experiment_id", "overlay"])
+    def write_overlay(self, *, experiment_id=None, overlay=None, project_dir=None, **kw):
+        return _handle_write_overlay(experiment_id=experiment_id, overlay=overlay, project_dir=project_dir, **kw)
 
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    if asyncio.iscoroutine(result):
-        result = await result
-    hints = collect_hints(action, tool="experiments", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("run", description="Run an experiment.", requires=["experiment_id"])
+    def run(self, *, experiment_id=None, primary_metric="brier", variant=None,
+            baseline_run_id=None, ctx=None, project_dir=None, **kw):
+        return _handle_run(experiment_id=experiment_id, primary_metric=primary_metric,
+                           variant=variant, baseline_run_id=baseline_run_id, ctx=ctx,
+                           project_dir=project_dir, **kw)
+
+    @action("promote", description="Promote an experiment.", requires=["experiment_id"])
+    def promote(self, *, experiment_id=None, primary_metric=None, project_dir=None, **kw):
+        return _handle_promote(experiment_id=experiment_id, primary_metric=primary_metric, project_dir=project_dir, **kw)
+
+    @action("quick_run", description="Create and run an experiment in one step.", requires=["description", "overlay"])
+    def quick_run(self, *, description=None, overlay=None, hypothesis=None,
+                  primary_metric="brier", baseline_run_id=None, ctx=None,
+                  project_dir=None, **kw):
+        return _handle_quick_run(description=description, overlay=overlay, hypothesis=hypothesis,
+                                 primary_metric=primary_metric, baseline_run_id=baseline_run_id,
+                                 ctx=ctx, project_dir=project_dir, **kw)
+
+    @action("explore", description="Run hyperparameter exploration.", requires=["search_space"])
+    def explore(self, *, search_space=None, detail=None, warm_start_from=None,
+                ctx=None, project_dir=None, **kw):
+        return _handle_explore(search_space=search_space, detail=detail,
+                               warm_start_from=warm_start_from, ctx=ctx,
+                               project_dir=project_dir, **kw)
+
+    @action("promote_trial", description="Promote an exploration trial.", requires=["experiment_id"])
+    def promote_trial(self, *, experiment_id=None, trial=None, primary_metric=None,
+                      hypothesis=None, project_dir=None, **kw):
+        return _handle_promote_trial(experiment_id=experiment_id, trial=trial,
+                                     primary_metric=primary_metric, hypothesis=hypothesis,
+                                     project_dir=project_dir, **kw)
+
+    @action("compare", description="Compare experiments.")
+    def compare(self, *, experiment_ids=None, project_dir=None, **kw):
+        return _handle_compare(experiment_ids=experiment_ids, project_dir=project_dir, **kw)
+
+    @action("journal", description="Show experiment journal.")
+    def journal(self, *, last_n=None, project_dir=None, **kw):
+        return _handle_journal(last_n=last_n, project_dir=project_dir, **kw)
+
+    @action("log_result", description="Log an experiment result.", requires=["experiment_id"])
+    def log_result(self, *, experiment_id=None, description=None, hypothesis=None,
+                   conclusion=None, verdict=None, metrics=None, baseline_metrics=None,
+                   project_dir=None, **kw):
+        return _handle_log_result(experiment_id=experiment_id, description=description,
+                                  hypothesis=hypothesis, conclusion=conclusion, verdict=verdict,
+                                  metrics=metrics, baseline_metrics=baseline_metrics,
+                                  project_dir=project_dir, **kw)

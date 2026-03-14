@@ -1,81 +1,81 @@
 # Harness Plugin
 
-MCP (Model Context Protocol) server for [HarnessML](https://github.com/msilverblatt/harness-ml). Provides AI-driven ML experimentation through a thin async dispatcher with hot-reloadable handlers.
+MCP server for [HarnessML](https://github.com/msilverblatt/harness-ml), built on [protomcp](https://github.com/msilverblatt/protomcp). Provides AI-driven ML experimentation through `@tool_group` classes with per-action schemas.
 
 ## Architecture
 
 ```
-mcp_server.py          # Tool signatures + docstrings (thin dispatcher)
+server.py              # protomcp entry point (25 lines)
+pmcp_middleware.py     # Error formatting + auto-install middleware
+pmcp_telemetry.py     # Studio event emission telemetry sink
+pmcp_sidecar.py       # Studio auto-start sidecar
 handlers/
-├── data.py            # 19 actions: add, validate, fill_nulls, inspect, profile, views...
-├── features.py        #  6 actions: add, add_batch, test, discover, diversity, auto_search
+├── data.py            # 34 actions: add, validate, fill_nulls, inspect, profile, views...
+├── features.py        #  7 actions: add, add_batch, test, discover, diversity, auto_search, prune
 ├── models.py          # 10 actions: add, update, remove, list, show, presets, batch ops, clone
-├── config.py          # 12 actions: init, update_data, ensemble, backtest, show, targets...
-├── pipeline.py        # 13 actions: run_backtest, predict, diagnostics, compare, explain...
+├── config.py          # 13 actions: init, update_data, ensemble, backtest, show, targets...
+├── pipeline.py        # 15 actions: run_backtest, predict, diagnostics, compare, explain...
 ├── experiments.py     # 10 actions: create, write_overlay, run, promote, quick_run, explore...
+├── notebook.py        #  5 actions: write, read, search, strike, summary
 ├── competitions.py    # 13 actions: create, simulate, standings, brackets, score, adjust...
-├── _validation.py     # Fuzzy enum matching with "Did you mean?" hints
+├── _validation.py     # Runtime validation helpers (fuzzy enum matching, required params)
 └── _common.py         # Shared helpers (resolve_project_dir, parse_json_param)
 ```
 
-## Key Design Principles
+## Key Design
 
-**Thin dispatcher**: `mcp_server.py` contains only tool signatures and docstrings. All business logic lives in `handlers/*.py`.
+**Tool groups with per-action schemas**: Each handler is a `@tool_group` class. Each `@action` method has its own typed signature, so the LLM sees clean per-action schemas instead of a monolithic parameter blob.
 
-**Hot-reload in dev mode**: Set `HARNESS_DEV=1` to enable hot-reloading of handler code. Changes to handler files take effect immediately without restarting the server. Changes to tool signatures or docstrings in `mcp_server.py` still require a restart.
+**Middleware**: Cross-cutting concerns (error formatting, auto-install of missing packages) are handled by protomcp local middleware — no manual wrappers.
 
-**Fuzzy enum matching**: Invalid action names get helpful "Did you mean?" suggestions using edit distance matching. Cross-parameter hints guide users toward correct tool usage.
+**Telemetry**: Tool call events (start, success, error, progress) flow to Studio's SQLite event store via a protomcp telemetry sink.
 
-**Event emission**: Every tool call emits a structured event to SQLite for Studio observability. Emission is fail-safe -- it never blocks or breaks tool execution.
+**Sidecar**: Studio auto-starts as a companion process on first tool call via protomcp's sidecar system.
+
+**Hot-reload**: `pmcp dev server.py` watches for file changes and reloads all handler modules automatically.
 
 ## Tools
 
-7 MCP tools exposing ~83 actions:
+8 MCP tools exposing 107 actions:
 
 | Tool | Actions | Purpose |
 |------|---------|---------|
-| `data` | 19 | Data ingestion, validation, profiling, views, sources |
-| `features` | 6 | Feature engineering: add, batch, discover, auto-search |
+| `data` | 34 | Data ingestion, validation, profiling, views, sources |
+| `features` | 7 | Feature engineering: add, batch, discover, auto-search, prune |
 | `models` | 10 | Model configuration: add, update, remove, presets, clone |
-| `configure` | 12 | Project setup: init, ensemble, backtest, targets, guardrails |
-| `pipeline` | 13 | Execution: backtest, predict, diagnostics, compare, explain |
+| `configure` | 13 | Project setup: init, ensemble, backtest, targets, guardrails |
+| `pipeline` | 15 | Execution: backtest, predict, diagnostics, compare, explain |
 | `experiments` | 10 | Experiment management: create, run, promote, compare, journal |
+| `notebook` | 5 | Project notebook: theory, plan, finding, search, summary |
 | `competitions` | 13 | Tournament simulation: brackets, scoring, strategies |
 
-## Handler Dispatch Pattern
+## Handler Pattern
 
 Each handler module follows the same pattern:
 
 ```python
-ACTIONS = {
-    "add": _handle_add,
-    "remove": _handle_remove,
-    ...
-}
+from protomcp import tool_group, action
 
-async def dispatch(action: str, **kwargs) -> str:
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err  # "Did you mean 'add'?"
-    result = ACTIONS[action](**kwargs)
-    if asyncio.iscoroutine(result):
-        result = await result
-    return result
+@tool_group("models", description="Manage models in the project.")
+class ModelsTools:
+
+    @action("add", description="Add a model.", requires=["name"])
+    def add(self, name, model_type=None, preset=None, features=None, ...):
+        return _handle_add(name=name, model_type=model_type, ...)
+
+    @action("list", description="List all models.")
+    def list(self, project_dir=None):
+        return _handle_list(project_dir=project_dir)
 ```
 
 ## Setup
-
-Add to your `.mcp.json` (Claude Desktop, Claude Code, or any MCP host):
 
 ```json
 {
   "mcpServers": {
     "harness-ml": {
-      "command": "uv",
-      "args": [
-        "--directory", "/path/to/harness-ml",
-        "run", "harness-ml"
-      ]
+      "command": "pmcp",
+      "args": ["run", "/path/to/harness-ml/packages/harness-plugin/src/harnessml/plugin/server.py"]
     }
   }
 }
@@ -87,45 +87,30 @@ For dev mode with hot-reload:
 {
   "mcpServers": {
     "harness-ml": {
-      "command": "uv",
-      "args": [
-        "--directory", "/path/to/harness-ml",
-        "run", "harness-ml"
-      ],
-      "env": {
-        "HARNESS_DEV": "1"
-      }
+      "command": "pmcp",
+      "args": ["dev", "/path/to/harness-ml/packages/harness-plugin/src/harnessml/plugin/server.py"]
     }
   }
 }
 ```
-
-## Event Emission
-
-Tool calls emit events to SQLite for Harness Studio observability:
-
-- Event type, tool name, action, parameters, result summary
-- Timestamps and session tracking
-- Fail-safe: exceptions in emission are swallowed, never breaking tool execution
 
 ## Extending
 
 **Adding a new action** to an existing handler:
 
 1. Add handler function `_handle_my_action(**kwargs) -> str` in the handler module
-2. Add entry to the `ACTIONS` dict
-3. No server restart needed in dev mode
+2. Add `@action("my_action")` method to the `@tool_group` class
+3. Hot-reload picks it up automatically in dev mode
 
-**Adding a new tool**:
+**Adding a new tool group**:
 
-1. Add tool function with signature and docstring in `mcp_server.py`
-2. Create handler module in `handlers/`
-3. Server restart required (tool signatures changed)
+1. Create handler module in `handlers/` with `@tool_group` class
+2. Import the module in `server.py`
+3. Hot-reload picks it up in dev mode; `pmcp run` needs restart
 
-When adding new model config fields, update in 3 places:
+When adding new model config fields, update in 2 places:
 1. `harness-core` config_writer (`add_model`, `update_model`)
-2. `harness-plugin` handler (`handlers/models.py`)
-3. `harness-plugin` tool signature (`mcp_server.py`, restart required)
+2. `harness-plugin` handler (`handlers/models.py` — both `_handle_*` and `@action` method)
 
 ## Testing
 

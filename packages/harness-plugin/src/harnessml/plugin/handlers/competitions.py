@@ -3,11 +3,9 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import parse_json_param
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
-    validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 # ---------------------------------------------------------------------------
 # In-memory registry of created competitions
@@ -560,31 +558,62 @@ def _handle_list_strategies(**_kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Action dispatch
+# Tool group registration
 # ---------------------------------------------------------------------------
 
-ACTIONS = {
-    "create": _handle_create,
-    "list_formats": _handle_list_formats,
-    "simulate": _handle_simulate,
-    "standings": _handle_standings,
-    "round_probs": _handle_round_probs,
-    "generate_brackets": _handle_generate_brackets,
-    "score_bracket": _handle_score_bracket,
-    "adjust": _handle_adjust,
-    "explain": _handle_explain,
-    "profiles": _handle_profiles,
-    "confidence": _handle_confidence,
-    "export": _handle_export,
-    "list_strategies": _handle_list_strategies,
-}
+@tool_group("competitions", description="Manage competition simulations and brackets.")
+class CompetitionsGroup:
 
+    @action("create", description="Create a competition.", requires=["config"])
+    def create(self, *, config=None, name=None, **kw):
+        return _handle_create(config=config, name=name, **kw)
 
-def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a manage_competitions action."""
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    hints = collect_hints(action, tool="competitions", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("list_formats", description="List available competition formats.")
+    def list_formats(self, **kw):
+        return _handle_list_formats(**kw)
+
+    @action("simulate", description="Run Monte Carlo simulations.")
+    def simulate(self, *, name=None, n_sims=None, seed=None, **kw):
+        return _handle_simulate(name=name, n_sims=n_sims, seed=seed, **kw)
+
+    @action("standings", description="Get standings from simulation.")
+    def standings(self, *, name=None, top_n=None, **kw):
+        return _handle_standings(name=name, top_n=top_n, **kw)
+
+    @action("round_probs", description="Entity progression probabilities.")
+    def round_probs(self, *, name=None, top_n=None, **kw):
+        return _handle_round_probs(name=name, top_n=top_n, **kw)
+
+    @action("generate_brackets", description="Generate pool-aware brackets.", requires=["pool_size"])
+    def generate_brackets(self, *, name=None, pool_size=None, n_brackets=None,
+                          n_sims=None, seed=None, **kw):
+        return _handle_generate_brackets(name=name, pool_size=pool_size,
+                                         n_brackets=n_brackets, n_sims=n_sims, seed=seed, **kw)
+
+    @action("score_bracket", description="Score bracket picks.", requires=["picks", "actuals"])
+    def score_bracket(self, *, name=None, picks=None, actuals=None, **kw):
+        return _handle_score_bracket(name=name, picks=picks, actuals=actuals, **kw)
+
+    @action("adjust", description="Apply probability adjustments.", requires=["adjustments"])
+    def adjust(self, *, name=None, adjustments=None, **kw):
+        return _handle_adjust(name=name, adjustments=adjustments, **kw)
+
+    @action("explain", description="Generate pick explanations.")
+    def explain(self, *, name=None, **kw):
+        return _handle_explain(name=name, **kw)
+
+    @action("profiles", description="Entity profiles from simulation.")
+    def profiles(self, *, name=None, top_n=None, **kw):
+        return _handle_profiles(name=name, top_n=top_n, **kw)
+
+    @action("confidence", description="Pre-competition diagnostics.")
+    def confidence(self, *, name=None, **kw):
+        return _handle_confidence(name=name, **kw)
+
+    @action("export", description="Export competition results.", requires=["output_dir"])
+    def export(self, *, name=None, output_dir=None, format_type=None, **kw):
+        return _handle_export(name=name, output_dir=output_dir, format_type=format_type, **kw)
+
+    @action("list_strategies", description="Show available strategies.")
+    def list_strategies(self, **kw):
+        return _handle_list_strategies(**kw)

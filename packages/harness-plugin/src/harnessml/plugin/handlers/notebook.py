@@ -3,11 +3,10 @@ from __future__ import annotations
 
 from harnessml.plugin.handlers._common import parse_json_param, resolve_project_dir
 from harnessml.plugin.handlers._validation import (
-    collect_hints,
-    format_response_with_hints,
     validate_enum,
     validate_required,
 )
+from protomcp import action, tool_group
 
 _VALID_TYPES = {"theory", "finding", "research", "decision", "plan", "note"}
 
@@ -169,20 +168,29 @@ def _handle_summary(*, project_dir, **_kw):
     return "\n".join(lines)
 
 
-ACTIONS = {
-    "write": _handle_write,
-    "read": _handle_read,
-    "search": _handle_search,
-    "strike": _handle_strike,
-    "summary": _handle_summary,
-}
+@tool_group("notebook", description="Manage research notebook entries.")
+class NotebookGroup:
 
+    @action("write", description="Write a notebook entry.", requires=["content"])
+    def write(self, *, type=None, content=None, tags=None, experiment_id=None,
+              project_dir=None, **kw):
+        return _handle_write(type=type, content=content, tags=tags,
+                             experiment_id=experiment_id, project_dir=project_dir, **kw)
 
-def dispatch(action: str, **kwargs) -> str:
-    """Dispatch a notebook action."""
-    err = validate_enum(action, set(ACTIONS), "action")
-    if err:
-        return err
-    result = ACTIONS[action](**kwargs)
-    hints = collect_hints(action, tool="notebook", **kwargs)
-    return format_response_with_hints(result, hints)
+    @action("read", description="Read notebook entries.")
+    def read(self, *, type=None, tags=None, page=None, per_page=None,
+             project_dir=None, **kw):
+        return _handle_read(type=type, tags=tags, page=page, per_page=per_page,
+                            project_dir=project_dir, **kw)
+
+    @action("search", description="Search notebook entries.", requires=["query"])
+    def search(self, *, query=None, project_dir=None, **kw):
+        return _handle_search(query=query, project_dir=project_dir, **kw)
+
+    @action("strike", description="Strike a notebook entry.", requires=["entry_id", "reason"])
+    def strike(self, *, entry_id=None, reason=None, project_dir=None, **kw):
+        return _handle_strike(entry_id=entry_id, reason=reason, project_dir=project_dir, **kw)
+
+    @action("summary", description="Show notebook summary.")
+    def summary(self, *, project_dir=None, **kw):
+        return _handle_summary(project_dir=project_dir, **kw)

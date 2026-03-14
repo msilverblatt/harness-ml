@@ -24,7 +24,7 @@ probabilistic forecasting.
 │                                                                             │
 │   Claude Code ──► MCP Server (harness-plugin)                               │
 │                     │  7 tools, ~80 actions                                 │
-│                     │  hot-reload handlers (HARNESS_DEV=1)                  │
+│                     │  hot-reload via pmcp dev                              │
 │                     │                                                       │
 │                     ├──► Event Emitter ──► SQLite ──► Studio (harness-studio)│
 │                     │                                  WebSocket live stream │
@@ -162,7 +162,7 @@ The table below documents what was built custom versus adopted, and why.
 | Model Wrappers | Custom BaseModel + ModelRegistry | sklearn Pipeline, MLflow Models, ONNX Runtime | Unified interface across 13 model types with per-fold calibration; multi-seed averaging (seed_stride); inspect-based kwargs forwarding; normalize/batch_norm/early_stopping per wrapper |
 | Dashboard | Custom FastAPI + React 19 | Streamlit, Gradio, TensorBoard, Grafana | Real-time WebSocket streaming of MCP events; pipeline DAG visualization; experiment discipline integration (hypothesis/conclusion); 45-metric diagnostics panel |
 | Config Management | OmegaConf + YAML | Hydra, Pydantic Settings, dynaconf | Deep merge enables experiment overlays on immutable production config; YAML-native format is agent-readable and agent-writable; no decorator or annotation overhead |
-| MCP Server | FastMCP | Custom WebSocket, gRPC, REST API | Native Claude Code integration; hot-reload handlers in dev mode (HARNESS_DEV=1); tool signatures serve as self-documenting API |
+| MCP Server | protomcp | FastMCP, Custom WebSocket, gRPC, REST API | Language-agnostic MCP runtime with `@tool_group`/`@action` pattern; per-action JSON schemas instead of god-function signatures; built-in middleware, telemetry sinks, and sidecar management; hot-reload via `pmcp dev`; full MCP spec compliance via official Go SDK |
 | Guardrails | Custom overridable / non-overridable system | Great Expectations, Pandera, whylogs | ML-specific checks (leakage detection, temporal validation, critical path protection); agent-facing override hints with explanations; two-tier severity model |
 | Calibration | Custom Spline/Isotonic/Platt/Beta | sklearn CalibratedClassifierCV, netcal | PCHIP spline interpolation; per-fold calibration within cross-validation; integrated into ensemble meta-learner; sigmoid CDF conversion for probability output |
 | HPO | Optuna wrapper | Hyperopt, Ray Tune, sklearn GridSearchCV | Pruning support for early termination; multi-objective optimization; lightweight single-process execution; integrates with experiment journal |
@@ -176,7 +176,7 @@ The table below documents what was built custom versus adopted, and why.
 |---------|------|-------------|
 | Pydantic v2 | Schema validation, contracts | Industry standard for Python data validation; native JSON Schema generation |
 | OmegaConf | Config deep merge | Purpose-built for hierarchical YAML config with merge semantics |
-| FastMCP | MCP protocol implementation | Official MCP SDK; handles protocol negotiation and transport |
+| protomcp | MCP server runtime | Language-agnostic MCP runtime; `@tool_group`/`@action` pattern with per-action schemas; built-in middleware, telemetry, sidecar management; official Go SDK for spec compliance |
 | scikit-learn | Base ML algorithms, preprocessing | De facto standard; RandomForest, LogisticRegression, ElasticNet, StandardScaler |
 | XGBoost / LightGBM / CatBoost | Gradient boosting | Best-in-class gradient boosting implementations; each has unique strengths |
 | PyTorch | Neural network backend | MLP and TabNet implementations; GPU support when available |
@@ -224,11 +224,10 @@ themselves when available.
 
 ### Hot-Reload Handlers
 
-When `HARNESS_DEV=1` is set, the MCP server calls `importlib.reload()` on
-handler modules before each dispatch. This means handler business logic
-can be edited without restarting the server, which tightens the
-development loop. Changes to tool signatures or docstrings still require
-a restart since those are registered at server startup.
+Running via `pmcp dev server.py` enables automatic hot-reload. When any
+handler file changes, pmcp detects the change and reloads all handler
+modules automatically. No manual restart required for any change —
+business logic, tool signatures, or action definitions.
 
 ### Namespace Packages
 
@@ -277,7 +276,7 @@ harness-core
             ngboost
 
 harness-plugin
-  Dependencies: harness-core, mcp (FastMCP), click
+  Dependencies: harness-core, protomcp, click
       |
       v
 harness-core
@@ -611,18 +610,23 @@ harness-ml/
 │   │   ├── pyproject.toml
 │   │   ├── README.md
 │   │   ├── src/harnessml/plugin/
-│   │   │   ├── mcp_server.py              # Tool signatures, async dispatcher, threading locks
+│   │   │   ├── server.py                  # protomcp entry point (25 lines)
+│   │   │   ├── pmcp_middleware.py         # Error formatting + auto-install middleware
+│   │   │   ├── pmcp_telemetry.py         # Studio event emission telemetry sink
+│   │   │   ├── pmcp_sidecar.py           # Studio auto-start sidecar
+│   │   │   ├── pmcp_context.py           # Server context (placeholder)
 │   │   │   ├── event_emitter.py           # Fail-safe SQLite event emission
 │   │   │   ├── setup.py                   # harness-setup CLI, skill installation
-│   │   │   └── handlers/
-│   │   │       ├── data.py                # Data source management actions
-│   │   │       ├── features.py            # Feature add/remove/search/auto_search
-│   │   │       ├── models.py              # Model add/update/remove/list
-│   │   │       ├── config.py              # Config read/write/validate
-│   │   │       ├── pipeline.py            # Backtest, predict, train, progress
-│   │   │       ├── experiments.py         # Create/log/compare/rollback experiments
-│   │   │       ├── competitions.py        # Kaggle/competition integrations
-│   │   │       ├── _validation.py         # Enum fuzzy match, required params, cross-param
+│   │   │   └── handlers/                  # @tool_group classes with @action methods
+│   │   │       ├── data.py                # Data source management (34 actions)
+│   │   │       ├── features.py            # Feature add/discover/prune (7 actions)
+│   │   │       ├── models.py              # Model add/update/clone (10 actions)
+│   │   │       ├── config.py              # Config init/backtest/ensemble (13 actions)
+│   │   │       ├── pipeline.py            # Backtest/diagnostics/explain (15 actions)
+│   │   │       ├── experiments.py         # Create/run/explore/promote (10 actions)
+│   │   │       ├── notebook.py            # Theory/plan/finding/search (5 actions)
+│   │   │       ├── competitions.py        # Simulate/bracket/score (13 actions)
+│   │   │       ├── _validation.py         # Runtime validation helpers
 │   │   │       └── _common.py             # Shared helpers (resolve_project_dir, etc.)
 │   │   └── tests/                         # ~152 tests
 │   │
