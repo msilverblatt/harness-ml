@@ -991,5 +991,5 @@ experiment_manager.add_do_not_retry(
 
 - [README.md](README.md) — High-level overview
 - [CLAUDE.md](CLAUDE.md) — Developer conventions for HarnessML
-- [packages/harness-runner/README.md](packages/harness-runner/README.md) — Runner API
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture and design decisions
 - [packages/harness-plugin/skills/ml-workflow/SKILL.md](packages/harness-plugin/skills/ml-workflow/SKILL.md) — MCP tool guide

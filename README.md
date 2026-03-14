@@ -40,6 +40,8 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ## Claude Code for Machine Learning
 
+> **Note:** HarnessML is an active research project exploring what agent-driven ML workflows can look like. It is functional and demonstrates the core ideas, but it has not been stress-tested for production use. Expect rough edges, missing error messages, and workflows that assume a cooperative agent. Feedback and contributions welcome.
+
 Training machine learning models with coding agents is a frustrating experience. They generate endless boilerplate, waste tokens debugging it, and forget why they were running an experiment in the first place. Coding agents want to write code, so every experiment becomes an engineering project instead of a scientific one.
 
 HarnessML fixes this. Claude calls structured MCP tools instead of writing training loops. Data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through deterministic tool calls. Every experiment requires a hypothesis. Every run is fingerprinted and logged. Experiments survive session boundaries.
@@ -165,9 +167,9 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 
 | Package | What it does |
 |---------|-------------|
-| **harness-core** | Engine: schemas, config, guardrails, 12 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources, preprocessing, feature selection, drift detection, conformal prediction, explainability |
-| **harness-plugin** | MCP server with hot-reloadable handlers -- change handler code, no restart needed |
-| **harness-studio** | Companion dashboard -- live activity, pipeline DAG, experiments, diagnostics. FastAPI + React + SQLite |
+| **harness-core** | Engine: schemas, config, guardrails, 13 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources, preprocessing, feature selection, drift detection, conformal prediction, explainability |
+| **harness-plugin** | MCP server with hot-reloadable handlers, 10 experiment discipline skills |
+| **harness-studio** | Companion dashboard -- live activity, pipeline DAG, experiments, diagnostics, HTML report export. FastAPI + React + SQLite |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
 
 ## MCP Tools
@@ -185,10 +187,10 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 ## What's Inside
 
 <details>
-<summary><b>Models</b> -- 12 wrappers</summary>
+<summary><b>Models</b> -- 13 wrappers</summary>
 <br>
 
-XGBoost · LightGBM · CatBoost · Random Forest · Logistic Regression · ElasticNet · MLP (PyTorch) · TabNet · SVM · HistGradientBoosting · GAM (PyGAM) · NGBoost
+XGBoost · LightGBM · CatBoost · Random Forest · Logistic Regression · ElasticNet · MLP (PyTorch) · TabNet · TabPFN · SVM · HistGradientBoosting · GAM (PyGAM) · NGBoost
 
 All configurable via YAML with eval_set/early stopping, normalization, class weighting, and inspect-based kwargs forwarding.
 </details>
@@ -277,17 +279,6 @@ Spline (PCHIP) · Isotonic · Platt · Beta -- all with save/load and fitted sta
 - **Phased workflow** -- EDA → model diversity → feature engineering → tuning → ensemble
 - **Workflow gates** -- soft warnings by default, hard blocks with `workflow.enforce_phases: true`
 </details>
-
-## Packages
-
-The monorepo has been split into standalone repositories:
-
-| Package | Description |
-|---------|-------------|
-| [harness-core](https://github.com/msilverblatt/harness-core) | ML engine: models, metrics, pipeline, features, calibration, views |
-| [harness-plugin](https://github.com/msilverblatt/harness-plugin) | MCP server: 7 tools, hot-reloadable handlers, experiment discipline |
-| [harness-studio](https://github.com/msilverblatt/harness-studio) | Observability dashboard: React, WebSocket, SQLite event store |
-| [harness-sports](https://github.com/msilverblatt/harness-sports) | Sports domain plugin: matchup prediction, tournaments |
 
 ## Development
 

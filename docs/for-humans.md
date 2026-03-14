@@ -19,7 +19,7 @@ In Claude Code:
 /plugin install harnessml@msilverblatt-harness-ml
 ```
 
-This installs the MCP server and 3 experiment discipline skills (`harness-run-experiment`, `harness-explore-space`, `harness-domain-research`). Then just tell Claude what you want to predict.
+This installs the MCP server and 10 experiment discipline skills. Then just tell Claude what you want to predict.
 
 ### Full Setup (with Studio + Demo)
 
@@ -133,7 +133,7 @@ Harness ML is a uv workspace monorepo with four packages:
 └─────────────────────────────────────────────────────────┘
 ```
 
-**harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 12 model wrappers (XGBoost, LightGBM, CatBoost, Random Forest, Logistic, ElasticNet, MLP, TabNet, SVM, HistGBM, GAM, NGBoost), a declarative view engine with 22 transform steps, 4 calibration methods, 8 CV strategies, 45 metrics across 6 task types, and 17 guardrails (4 non-overridable). Includes leakage-safe preprocessing, feature selection, drift detection, conformal prediction, and SHAP explainability.
+**harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 13 model wrappers (XGBoost, LightGBM, CatBoost, Random Forest, Logistic, ElasticNet, MLP, TabNet, TabPFN, SVM, HistGBM, GAM, NGBoost), a declarative view engine with 22 transform steps, 4 calibration methods, 8 CV strategies, 45 metrics across 6 task types, and 17 guardrails (4 non-overridable). Includes leakage-safe preprocessing, feature selection, drift detection, conformal prediction, and SHAP explainability.
 
 **harness-plugin** is a thin async MCP dispatcher. All business logic lives in hot-reloadable handler modules — change a handler, and it takes effect on the next call without restarting the server.
 
