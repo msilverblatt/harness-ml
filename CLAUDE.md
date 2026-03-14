@@ -17,7 +17,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 - Python 3.11+, managed by **uv** (always use `uv run`, never bare `python`)
 - Pydantic v2 for all schemas and contracts
 - OmegaConf for config deep merge
-- FastMCP for async MCP server with hot-reload
+- protomcp for MCP server (`@tool_group`/`@action` pattern, `pmcp run server.py`)
 - scikit-learn, XGBoost, CatBoost, LightGBM, PyTorch (MLP, TabNet)
 - Optional: shap, matplotlib, pandera, optuna, nbformat, google-api-python-client, kaggle, pygam, ngboost
 - Studio: FastAPI, uvicorn, sqlite3 (stdlib), React 19, Vite, bun
@@ -28,7 +28,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 | Package | Purpose | Key Modules |
 |---------|---------|-------------|
 | `harness-core` | All core engine code | `schemas/`, `config/`, `guardrails/`, `models/`, `runner/`, `feature_eng/` |
-| `harness-plugin` | MCP server (thin dispatcher) | `mcp_server.py`, `handlers/` (models, data, features, experiments, config, pipeline) |
+| `harness-plugin` | MCP server (protomcp) | `server.py`, `handlers/` (8 tool_group classes: models, data, features, experiments, config, pipeline, notebook, competitions) |
 | `harness-studio` | Companion web dashboard | `server.py`, `event_store.py`, `routes/`, `frontend/` (React/Vite) |
 | `harness-sports` | Optional sports domain plugin | `matchups.py`, `hooks.py` (registers into core extension points) |
 
@@ -64,7 +64,7 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 - Registry pattern used in features, models, sources, metrics, and guardrails
 - Hook system for domain plugins (`core.runner.hooks.HookRegistry`)
 - TDD: write tests alongside implementation, run with `uv run pytest`
-- MCP handlers are hot-reloadable in dev mode (`HARNESS_DEV=1`) — no server restart needed for handler changes
+- MCP handlers are hot-reloadable via `pmcp dev server.py` — all changes take effect automatically
 
 ## How to Add a New Model
 
@@ -99,13 +99,17 @@ thin async dispatcher with hot-reloadable handlers) + **harness-studio**
 
 ## MCP Server Architecture
 
-- `mcp_server.py` — thin async dispatcher, tool signatures + docstrings only
-- `handlers/*.py` — all business logic, hot-reloadable in dev mode
-- `handlers/_validation.py` — enum validation with fuzzy match, cross-parameter hints
+Built on [protomcp](https://github.com/msilverblatt/protomcp) — a language-agnostic MCP runtime.
+
+- `server.py` — 25-line entry point, imports infrastructure + handler modules, calls `protomcp.run()`
+- `handlers/*.py` — each file is a `@tool_group` class with `@action` methods delegating to `_handle_*` business logic
+- `pmcp_middleware.py` — local middleware for error formatting and auto-install of missing packages
+- `pmcp_telemetry.py` — telemetry sink forwarding tool call events to Studio's SQLite event store
+- `pmcp_sidecar.py` — auto-starts Studio as a companion process on first tool call
+- `handlers/_validation.py` — runtime validation helpers (validate_required, validate_enum with fuzzy match)
 - `handlers/_common.py` — shared helpers (resolve_project_dir, parse_json_param)
-- Handler dispatch pattern: each handler file defines an `ACTIONS` dict mapping action names to functions; the MCP server dispatches via `action` parameter
-- Changes to handler code: no restart needed (hot-reload)
-- Changes to tool signatures/docstrings: restart required
+- Server runs via `pmcp run server.py` — pmcp handles MCP protocol, transport, and session management
+- Hot-reload: `pmcp dev server.py` watches for file changes and reloads automatically
 
 ### Notable MCP Actions
 
@@ -151,7 +155,7 @@ changes to harness-core.
 - `broadcaster.py` — asyncio.Queue fan-out for WebSocket live streaming
 - `routes/` — events, project (config + DAG), experiments (journal), runs (metrics, calibration, correlations)
 - `frontend/` — React 19 + TypeScript + CSS Modules + design tokens
-- Event emission in `harness-plugin/mcp_server.py` — fail-safe, swallows exceptions
+- Event emission in `harness-plugin/pmcp_telemetry.py` — telemetry sink, fail-safe, swallows exceptions
 
 ## Testing
 

@@ -111,7 +111,7 @@ from harnessml.core.runner.features.store import FeatureStore
 from harnessml.core.runner.views.executor import ViewExecutor
 from harnessml.core.runner.analysis.reporting import build_pick_log
 from harnessml.core.runner.experiments.manager import ExperimentManager
-from harnessml.plugin.mcp_server import mcp
+from harnessml.plugin.handlers.models import ModelsTools  # @tool_group class
 
 # Wrong -- old flat runner paths, do not use
 from harnessml.core.runner.training import Trainer
@@ -159,30 +159,28 @@ Use the feature engineering registry:
 
 ## MCP Handler Development
 
-The MCP server (`harness-plugin`) uses a thin dispatcher pattern:
+The MCP server (`harness-plugin`) is built on [protomcp](https://github.com/msilverblatt/protomcp).
+Each handler file is a `@tool_group` class with `@action` methods:
 
-- `mcp_server.py` -- tool signatures and docstrings only
-- `handlers/*.py` -- all business logic
+- `server.py` -- 25-line entry point, imports handlers and calls `protomcp.run()`
+- `handlers/*.py` -- `@tool_group` classes with `@action` methods delegating to `_handle_*` business logic
 
 ### Hot-Reload (Dev Mode)
 
-Set `HARNESS_DEV=1` to enable hot-reload. Handler code changes take effect
+Use `pmcp dev` for automatic hot-reload. All handler changes take effect
 immediately without restarting the server.
 
 ```bash
-HARNESS_DEV=1 uv run harness-plugin
+pmcp dev packages/harness-plugin/src/harnessml/plugin/server.py
 ```
-
-**What requires a restart:**
-- Changes to tool signatures or docstrings in `mcp_server.py`
-
-**What does NOT require a restart:**
-- Changes to any file in `handlers/`
 
 ### Handler Structure
 
-Each handler module exports an `ACTIONS` dict and a `dispatch(action, **kwargs)`
-function. Shared helpers live in `handlers/_common.py` and `handlers/_validation.py`.
+Each handler module defines a `@tool_group` class. Each method decorated
+with `@action` becomes an MCP tool action with its own typed schema.
+Business logic lives in `_handle_*` functions; the `@action` methods
+are thin wrappers. Shared helpers live in `handlers/_common.py` and
+`handlers/_validation.py`.
 
 ---
 

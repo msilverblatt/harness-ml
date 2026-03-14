@@ -41,22 +41,21 @@ If you prefer to configure the MCP server directly without the plugin, add to yo
 {
   "mcpServers": {
     "harness-ml": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"]
+      "command": "pmcp",
+      "args": ["run", "/path/to/harness-ml/packages/harness-plugin/src/harnessml/plugin/server.py"]
     }
   }
 }
 ```
 
-For dev mode with hot-reload (handler changes take effect without restart):
+For dev mode with hot-reload (all handler changes take effect automatically):
 
 ```json
 {
   "mcpServers": {
     "harness-ml": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/harness-ml", "harness-ml"],
-      "env": { "HARNESS_DEV": "1" }
+      "command": "pmcp",
+      "args": ["dev", "/path/to/harness-ml/packages/harness-plugin/src/harnessml/plugin/server.py"]
     }
   }
 }
@@ -135,7 +134,7 @@ Harness ML is a uv workspace monorepo with four packages:
 
 **harness-core** is the engine — Pydantic v2 schemas, OmegaConf config, 13 model wrappers (XGBoost, LightGBM, CatBoost, Random Forest, Logistic, ElasticNet, MLP, TabNet, TabPFN, SVM, HistGBM, GAM, NGBoost), a declarative view engine with 22 transform steps, 4 calibration methods, 8 CV strategies, 45 metrics across 6 task types, and 17 guardrails (4 non-overridable). Includes leakage-safe preprocessing, feature selection, drift detection, conformal prediction, and SHAP explainability.
 
-**harness-plugin** is a thin async MCP dispatcher. All business logic lives in hot-reloadable handler modules — change a handler, and it takes effect on the next call without restarting the server.
+**harness-plugin** is built on [protomcp](https://github.com/msilverblatt/protomcp). Each handler is a `@tool_group` class with `@action` methods, giving the LLM clean per-action schemas instead of a monolithic parameter blob. Cross-cutting concerns (error formatting, event emission, Studio lifecycle) are handled by protomcp middleware and telemetry sinks.
 
 **harness-studio** is the companion dashboard. It reads existing project artifacts (config YAMLs, experiment journals, run outputs) and a SQLite event log. If Studio is down, nothing breaks.
 
