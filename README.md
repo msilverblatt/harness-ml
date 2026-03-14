@@ -5,7 +5,7 @@
 <div align="center">
 
 **An Agent-Computer Interface (ACI) for machine learning.**<br>
-Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/).
+Built on [protomcp](https://github.com/msilverblatt/protomcp) and the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 [![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
 [![Tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/msilverblatt/2f3d3f20d7fedaca8332a75394eb7864/raw/tests.json)](https://github.com/msilverblatt/harness-ml/actions)
@@ -27,6 +27,7 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 [![SHAP](https://img.shields.io/badge/SHAP-7c3aed.svg?style=flat-square)](https://shap.readthedocs.io/)
 
 [![harness-plugin](https://img.shields.io/pypi/v/harness-plugin?style=flat-square&label=plugin)](https://pypi.org/project/harness-plugin/)
+[![protomcp](https://img.shields.io/pypi/v/protomcp?style=flat-square&label=protomcp)](https://github.com/msilverblatt/protomcp)
 [![MCP](https://img.shields.io/badge/MCP-native-6366f1.svg?style=flat-square)](https://modelcontextprotocol.io/)
 
 [![harness-studio](https://img.shields.io/pypi/v/harness-studio?style=flat-square&label=studio)](https://pypi.org/project/harness-studio/)
@@ -44,7 +45,9 @@ Built natively on the [Model Context Protocol](https://modelcontextprotocol.io/)
 
 Training machine learning models with coding agents is a frustrating experience. They generate endless boilerplate, waste tokens debugging it, and forget why they were running an experiment in the first place. Coding agents want to write code, so every experiment becomes an engineering project instead of a scientific one.
 
-HarnessML fixes this. Claude calls structured MCP tools instead of writing training loops. Data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through deterministic tool calls. Every experiment requires a hypothesis. Every run is fingerprinted and logged. Experiments survive session boundaries.
+HarnessML fixes this. Built on [protomcp](https://github.com/msilverblatt/protomcp), the agent calls structured MCP tools instead of writing training loops. Data ingestion, feature engineering, cross-validation, calibration, ensembling, and diagnostics all run through deterministic tool calls. The experiment lifecycle is a server-defined workflow with dynamic tool visibility — the agent literally cannot skip logging results or start a new experiment without completing the current one, because the tools for those steps aren't visible until the right moment.
+
+Every experiment requires a hypothesis. Every run is fingerprinted and logged. Experiments survive session boundaries.
 
 _No code. Just data science._
 
@@ -156,8 +159,8 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 │  feature_eng · calibration · views · sources            │
 ├────────────────────────┬────────────────────────────────┤
 │    harness-plugin      │       harness-sports           │
-│    MCP server          │       domain plugin            │
-│    hot-reload handlers │       matchup prediction       │
+│    MCP server (pmcp)   │       domain plugin            │
+│    workflows + groups  │       matchup prediction       │
 ├────────────────────────┴────────────────────────────────┤
 │                    harness-studio                       │
 │    companion dashboard · real-time observability        │
@@ -168,7 +171,7 @@ Per-run deep dive: headline metrics, meta-learner coefficients, model correlatio
 | Package | What it does |
 |---------|-------------|
 | **harness-core** | Engine: schemas, config, guardrails, 13 model wrappers, runner, feature store, views, calibration, 45 metrics across 6 task types, data sources, preprocessing, feature selection, drift detection, conformal prediction, explainability |
-| **harness-plugin** | MCP server with hot-reloadable handlers, 10 experiment discipline skills |
+| **harness-plugin** | MCP server built on [protomcp](https://github.com/msilverblatt/protomcp) -- `@tool_group` actions + `@workflow` for experiment discipline via dynamic tool visibility. 10 skills |
 | **harness-studio** | Companion dashboard -- live activity, pipeline DAG, experiments, diagnostics, HTML report export. FastAPI + React + SQLite |
 | **harness-sports** | Optional domain plugin for matchup prediction (hooks into core via registry) |
 

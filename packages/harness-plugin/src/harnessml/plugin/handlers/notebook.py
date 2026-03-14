@@ -8,7 +8,7 @@ from harnessml.plugin.handlers._validation import (
 )
 from protomcp import action, tool_group
 
-_VALID_TYPES = {"theory", "finding", "research", "decision", "plan", "note"}
+_VALID_TYPES = {"theory", "finding", "research", "decision", "plan", "note", "phase_transition"}
 
 
 def _handle_write(*, type, content, tags=None, experiment_id=None, project_dir, **_kw):

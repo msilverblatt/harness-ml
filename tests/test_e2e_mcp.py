@@ -167,7 +167,8 @@ class TestE2EWorkflow:
         assert "configure" in tools
         assert "pipeline" in tools
         assert "notebook" in tools
-        assert len(tools) == 8
+        assert "experiment.create" in tools
+        assert len(tools) >= 8  # 8 tool groups + workflow tools
 
     def test_01_init_project(self, mcp, project_dir):
         TestE2EWorkflow._project_dir = project_dir
@@ -380,8 +381,7 @@ class TestE2EWorkflow:
         assert "finding" in text.lower() or "written" in text.lower() or "saved" in text.lower()
 
     def test_21_experiment_create(self, mcp, project_dir):
-        text = mcp.call_ok("experiments",
-            action="create",
+        text = mcp.call_ok("experiment.create",
             description="Remove ElasticNet and add more XGB trees",
             hypothesis="Removing the weak ElasticNet model and increasing "
                        "XGB n_estimators should improve ensemble RMSE",
@@ -399,9 +399,7 @@ class TestE2EWorkflow:
         assert TestE2EWorkflow._experiment_id, f"Could not extract experiment_id from: {text[:300]}"
 
     def test_22_experiment_write_overlay(self, mcp, project_dir):
-        text = mcp.call_ok("experiments",
-            action="write_overlay",
-            experiment_id=TestE2EWorkflow._experiment_id,
+        text = mcp.call_ok("experiment.write_overlay",
             overlay={
                 "models": {
                     "ridge_v1": {"active": False},
@@ -413,24 +411,24 @@ class TestE2EWorkflow:
         assert "overlay" in text.lower() or "written" in text.lower()
 
     def test_23_experiment_run(self, mcp, project_dir):
-        text = mcp.call_ok("experiments",
-            action="run",
-            experiment_id=TestE2EWorkflow._experiment_id,
+        text = mcp.call_ok("experiment.run",
             primary_metric="rmse",
             project_dir=project_dir,
         )
         assert "rmse" in text.lower() or "backtest" in text.lower() or "result" in text.lower()
 
     def test_24_experiment_log_result(self, mcp, project_dir):
-        text = mcp.call_ok("experiments",
-            action="log_result",
-            experiment_id=TestE2EWorkflow._experiment_id,
+        text = mcp.call_ok("experiment.log_result",
             conclusion="Removing ElasticNet slightly improved ensemble. "
                        "More XGB trees had minimal impact.",
             verdict="marginal",
             project_dir=project_dir,
         )
-        assert "logged" in text.lower() or "result" in text.lower() or "updated" in text.lower()
+        assert "logged" in text.lower() or "result" in text.lower() or "updated" in text.lower() or "complete" in text.lower()
+
+    def test_24b_experiment_done(self, mcp, project_dir):
+        text = mcp.call_ok("experiment.done")
+        assert "complete" in text.lower() or "ready" in text.lower()
 
     def test_25_experiment_journal(self, mcp, project_dir):
         text = mcp.call_ok("experiments",
