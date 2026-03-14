@@ -229,6 +229,45 @@ handler file changes, pmcp detects the change and reloads all handler
 modules automatically. No manual restart required for any change —
 business logic, tool signatures, or action definitions.
 
+### Experiment Workflow (Structural Discipline)
+
+The experiment lifecycle uses protomcp's `@workflow` feature to enforce
+discipline structurally rather than imperatively. The agent's visible
+tool list changes at each step — it literally cannot skip steps because
+the tools for skipped steps are not visible.
+
+```
+experiment.create → [experiment.write_overlay] → experiment.run
+    → experiment.log_result → [experiment.promote | experiment.done]
+```
+
+Key properties:
+- `allow_during=["notebook.*", "configure.*", "data.*", ...]` keeps all
+  non-experiment tools visible during the workflow
+- `no_cancel=True` on the `run` step prevents aborting mid-backtest
+- Discipline gates (plan-exists, previous-logged, plan-freshness) run
+  inside the `create` step handler and raise ValueError on failure
+- The workflow class instance persists across steps, carrying
+  `experiment_id` and `project_dir` between create → run → log_result
+
+This replaces the imperative `_check_discipline()` gates that previously
+scanned JSONL files to enforce sequencing.
+
+### Phase Tracking via Notebook Entries
+
+The 4-phase workflow tracker (EDA → Model Diversity → Feature Engineering
+→ Tuning) uses explicit `phase_transition` notebook entries instead of
+keyword-scanning experiment descriptions. The agent writes:
+
+```
+notebook(action="write", type="phase_transition",
+         content="Completed feature discovery phase")
+```
+
+The `WorkflowTracker` reads these entries to determine phase completion.
+Structural checks (model category count, baseline existence) remain as
+additional signals.
+
 ### Namespace Packages
 
 There is no `__init__.py` at the `src/harnessml/` level in any package.

@@ -7,6 +7,7 @@ from __future__ import annotations
 import harnessml.plugin.handlers.competitions  # noqa: F401
 import harnessml.plugin.handlers.config  # noqa: F401
 import harnessml.plugin.handlers.data  # noqa: F401
+import harnessml.plugin.handlers.experiment_workflow  # noqa: F401
 import harnessml.plugin.handlers.experiments  # noqa: F401
 import harnessml.plugin.handlers.features  # noqa: F401
 

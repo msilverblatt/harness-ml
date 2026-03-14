@@ -16,7 +16,8 @@ class TestEntryTypeEnum:
         assert EntryType.DECISION == "decision"
         assert EntryType.PLAN == "plan"
         assert EntryType.NOTE == "note"
-        assert len(EntryType) == 6
+        assert EntryType.PHASE_TRANSITION == "phase_transition"
+        assert len(EntryType) == 7
 
 
 class TestNotebookEntry:

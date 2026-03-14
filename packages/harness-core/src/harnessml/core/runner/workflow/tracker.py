@@ -265,32 +265,46 @@ class WorkflowTracker:
     # Internal analysis methods
     # ------------------------------------------------------------------
 
-    def _check_feature_discovery(self, status: WorkflowStatus) -> None:
-        """Check if feature discovery and auto-search have been run."""
-        journal_path = self.project_dir / "experiments" / "journal.jsonl"
-        if not journal_path.exists():
-            return
-
-        for line in journal_path.read_text().splitlines():
+    def _load_notebook_entries(self) -> list[dict]:
+        """Load notebook entries from JSONL, returning latest snapshot per ID."""
+        notebook_path = self.project_dir / "notebook" / "entries.jsonl"
+        if not notebook_path.exists():
+            return []
+        snapshots: dict[str, dict] = {}
+        for line in notebook_path.read_text().splitlines():
             if not line.strip():
                 continue
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            desc = (entry.get("description", "") + " " + entry.get("hypothesis", "")).lower()
-            if any(kw in desc for kw in ["feature discover", "correlation", "feature importance"]):
-                status.feature_discovery_run = True
-            if any(kw in desc for kw in ["auto_search", "auto search", "interaction search", "auto-search"]):
-                status.auto_search_run = True
+            entry_id = entry.get("id")
+            if entry_id and not entry.get("struck"):
+                snapshots[entry_id] = entry
+        return sorted(snapshots.values(), key=lambda e: e.get("timestamp", ""))
 
-        # Also check by looking for discovery output files
+    def _check_feature_discovery(self, status: WorkflowStatus) -> None:
+        """Check if feature discovery and auto-search have been run.
+
+        Checks notebook phase_transition entries first, then falls back to
+        structural checks (feature cache existence).
+        """
+        # Check notebook for explicit phase transitions
+        for entry in self._load_notebook_entries():
+            content = entry.get("content", "").lower()
+            entry_type = entry.get("type", "")
+            if entry_type == "phase_transition":
+                if any(kw in content for kw in ["feature discovery", "eda", "exploration"]):
+                    status.feature_discovery_run = True
+                if any(kw in content for kw in ["auto search", "auto_search", "interaction search"]):
+                    status.auto_search_run = True
+
+        # Structural fallback: feature cache existence
         features_dir = self.project_dir / "data" / "features"
         if features_dir.exists():
             cache_dir = features_dir / "cache"
             if cache_dir.exists() and any(cache_dir.iterdir()):
-                # Features have been computed — discovery likely happened
-                pass
+                status.feature_discovery_run = True
 
     def _check_models(self, status: WorkflowStatus) -> None:
         """Analyze which model types are configured."""
@@ -328,35 +342,63 @@ class WorkflowTracker:
         status.active_model_count = active_count
 
     def _check_experiments(self, status: WorkflowStatus) -> None:
-        """Analyze experiment history from journal."""
+        """Analyze experiment history from journal.
+
+        Uses notebook phase_transition entries to categorize experiments
+        instead of keyword-scanning descriptions.
+        """
         journal_path = self.project_dir / "experiments" / "journal.jsonl"
         if not journal_path.exists():
             return
 
         total = 0
-        feature_exps = 0
-        tuning_exps = 0
-
         for line in journal_path.read_text().splitlines():
             if not line.strip():
                 continue
             try:
-                entry = json.loads(line)
+                json.loads(line)
             except json.JSONDecodeError:
                 continue
             total += 1
-            desc = (entry.get("description", "") + " " + entry.get("hypothesis", "")).lower()
-
-            if any(kw in desc for kw in ["feature", "add feature", "interaction", "signal"]):
-                feature_exps += 1
-            if any(kw in desc for kw in ["tune", "tuning", "hyperparameter", "optuna", "exploration", "sweep"]):
-                tuning_exps += 1
 
         status.total_experiments_run = total
+
+        # Categorize experiments using notebook phase transitions
+        current_phase = ""
+        feature_exps = 0
+        tuning_exps = 0
+        for entry in self._load_notebook_entries():
+            if entry.get("type") == "phase_transition":
+                content = entry.get("content", "").lower()
+                if "feature" in content or "engineering" in content:
+                    current_phase = "feature"
+                elif "tuning" in content or "hyperparameter" in content:
+                    current_phase = "tuning"
+                elif "model" in content or "diversity" in content:
+                    current_phase = "model"
+                elif "eda" in content or "exploration" in content or "discovery" in content:
+                    current_phase = "eda"
+
+        # Count experiments per phase from journal descriptions as fallback
+        # (for projects that haven't adopted phase transitions yet)
+        if total > 0 and current_phase == "":
+            for line in journal_path.read_text().splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                desc = (entry.get("description", "") + " " + entry.get("hypothesis", "")).lower()
+                if any(kw in desc for kw in ["feature", "add feature", "interaction", "signal"]):
+                    feature_exps += 1
+                if any(kw in desc for kw in ["tune", "tuning", "hyperparameter", "optuna", "exploration", "sweep"]):
+                    tuning_exps += 1
+
         status.feature_experiments_run = feature_exps
         status.tuning_experiments_run = tuning_exps
 
-        # Also check diversity analysis
+        # Check diversity analysis
         log_path = self.project_dir / "EXPERIMENT_LOG.md"
         if log_path.exists():
             content = log_path.read_text().lower()

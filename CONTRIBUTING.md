@@ -182,6 +182,21 @@ Business logic lives in `_handle_*` functions; the `@action` methods
 are thin wrappers. Shared helpers live in `handlers/_common.py` and
 `handlers/_validation.py`.
 
+### Experiment Workflow
+
+The experiment lifecycle (`experiment_workflow.py`) uses protomcp's
+`@workflow`/`@step` feature with dynamic tool visibility. The agent can
+only see valid next steps at each point in the sequence:
+
+```
+experiment.create → [experiment.write_overlay] → experiment.run
+    → experiment.log_result → [experiment.promote | experiment.done]
+```
+
+During an active workflow, all non-experiment tools remain visible via
+`allow_during` globs. The experiment discipline gates (plan-exists,
+previous-logged, plan-freshness) run inside the `create` step handler.
+
 ---
 
 ## PR Workflow

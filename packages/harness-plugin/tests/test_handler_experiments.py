@@ -28,31 +28,11 @@ class TestExperimentsDispatch:
         assert "nonexistent" in result.result
 
     def test_dispatch_unknown_action_suggests_close_match(self):
-        result = _call("creat")
+        result = _call("compre")
         assert result.is_error
-        assert "create" in result.result
+        assert "compare" in result.result
 
     # ---- required params validated ----
-
-    def test_create_missing_description(self):
-        result = _call("create", description=None)
-        assert result.is_error
-
-    def test_write_overlay_missing_experiment_id(self):
-        result = _call("write_overlay", experiment_id=None, overlay='{"models": {}}')
-        assert result.is_error
-
-    def test_write_overlay_missing_overlay(self):
-        result = _call("write_overlay", experiment_id="exp_001", overlay=None)
-        assert result.is_error
-
-    def test_run_missing_experiment_id(self):
-        result = _call("run", experiment_id=None)
-        assert result.is_error
-
-    def test_promote_missing_experiment_id(self):
-        result = _call("promote", experiment_id=None)
-        assert result.is_error
 
     def test_quick_run_missing_description(self):
         result = _call("quick_run", description=None, overlay='{"models": {}}')
@@ -82,17 +62,12 @@ class TestExperimentsDispatch:
         assert "**Error**" in result
         assert "experiment_ids" in result.lower()
 
-    def test_log_result_missing_experiment_id(self):
-        result = _call("log_result", experiment_id=None)
-        assert result.is_error
-
     # ---- all actions registered ----
 
     def test_all_actions_registered(self):
         groups = [g for g in get_registered_groups() if g.name == "experiments"]
         action_names = {a.name for a in groups[0].actions}
         expected = {
-            "create", "write_overlay", "run", "promote", "quick_run",
-            "explore", "promote_trial", "compare", "journal", "log_result",
+            "quick_run", "explore", "promote_trial", "compare", "journal",
         }
         assert action_names == expected

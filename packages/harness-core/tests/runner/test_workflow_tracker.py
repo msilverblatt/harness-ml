@@ -1,6 +1,7 @@
 """Tests for WorkflowTracker and WorkflowStatus."""
 from __future__ import annotations
 
+import datetime
 import json
 
 import pytest
@@ -105,7 +106,8 @@ class TestWorkflowStatus:
 class TestWorkflowTracker:
     """Tests for WorkflowTracker analysis."""
 
-    def _setup_project(self, tmp_path, models=None, journal_entries=None, has_outputs=False):
+    def _setup_project(self, tmp_path, models=None, journal_entries=None,
+                        notebook_entries=None, has_outputs=False):
         """Create a minimal project structure."""
         config_dir = tmp_path / "config"
         config_dir.mkdir(parents=True)
@@ -126,6 +128,13 @@ class TestWorkflowTracker:
             journal_path = experiments_dir / "journal.jsonl"
             with open(journal_path, "w") as f:
                 for entry in journal_entries:
+                    f.write(json.dumps(entry) + "\n")
+
+        if notebook_entries:
+            nb_dir = tmp_path / "notebook"
+            nb_dir.mkdir(parents=True, exist_ok=True)
+            with open(nb_dir / "entries.jsonl", "w") as f:
+                for entry in notebook_entries:
                     f.write(json.dumps(entry) + "\n")
 
         if has_outputs:
@@ -168,19 +177,19 @@ class TestWorkflowTracker:
         assert status.baseline_established
 
     def test_detects_feature_discovery_from_journal(self, tmp_path):
-        journal = [
-            {"description": "Run feature discovery", "hypothesis": "correlation analysis"},
+        notebook = [
+            {"id": "nb-001", "type": "phase_transition", "content": "Completed feature discovery phase", "timestamp": datetime.datetime.now().isoformat(), "struck": False},
         ]
-        proj = self._setup_project(tmp_path, journal_entries=journal)
+        proj = self._setup_project(tmp_path, notebook_entries=notebook)
         tracker = WorkflowTracker(proj)
         status = tracker.get_status()
         assert status.feature_discovery_run
 
     def test_detects_auto_search_from_journal(self, tmp_path):
-        journal = [
-            {"description": "auto_search for interactions", "hypothesis": ""},
+        notebook = [
+            {"id": "nb-002", "type": "phase_transition", "content": "Completed auto search for interactions", "timestamp": datetime.datetime.now().isoformat(), "struck": False},
         ]
-        proj = self._setup_project(tmp_path, journal_entries=journal)
+        proj = self._setup_project(tmp_path, notebook_entries=notebook)
         tracker = WorkflowTracker(proj)
         status = tracker.get_status()
         assert status.auto_search_run
@@ -219,10 +228,10 @@ class TestWorkflowTracker:
             "rf": {"type": "random_forest", "features": ["x1"]},
             "mlp": {"type": "mlp", "features": ["x1"]},
         }
-        journal = [
-            {"description": "feature discovery correlations", "hypothesis": ""},
+        notebook = [
+            {"id": "nb-003", "type": "phase_transition", "content": "Completed feature discovery correlations", "timestamp": datetime.datetime.now().isoformat(), "struck": False},
         ]
-        proj = self._setup_project(tmp_path, models=models, journal_entries=journal, has_outputs=True)
+        proj = self._setup_project(tmp_path, models=models, notebook_entries=notebook, has_outputs=True)
         tracker = WorkflowTracker(proj)
         result = tracker.check_ready_for_tuning(enforce=True)
         assert result is None
@@ -232,16 +241,10 @@ class TestWorkflowTracker:
             "xgb": {"type": "xgboost", "features": ["x1"]},
             "lr": {"type": "logistic_regression", "features": ["x1"]},
         }
-        proj = self._setup_project(tmp_path, models=models, has_outputs=True)
-        journal = [
-            {"description": "feature discovery", "hypothesis": "correlation check"},
+        notebook = [
+            {"id": "nb-004", "type": "phase_transition", "content": "Completed feature discovery", "timestamp": datetime.datetime.now().isoformat(), "struck": False},
         ]
-        # Add journal
-        experiments_dir = proj / "experiments"
-        experiments_dir.mkdir(parents=True, exist_ok=True)
-        with open(experiments_dir / "journal.jsonl", "w") as f:
-            for entry in journal:
-                f.write(json.dumps(entry) + "\n")
+        proj = self._setup_project(tmp_path, models=models, notebook_entries=notebook, has_outputs=True)
 
         tracker = WorkflowTracker(
             proj,
