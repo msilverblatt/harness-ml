@@ -9,8 +9,6 @@ Built on [protomcp](https://github.com/msilverblatt/protomcp) and the [Model Con
 
 [![CI](https://github.com/msilverblatt/harness-ml/actions/workflows/tests.yml/badge.svg)](https://github.com/msilverblatt/harness-ml/actions)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]
-</div>
 
 ## Claude Code for Machine Learning
 
