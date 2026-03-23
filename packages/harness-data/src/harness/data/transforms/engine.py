@@ -53,6 +53,10 @@ class TransformEngine:
         if op not in self._steps:
             raise ValueError(f"Unknown step: '{op}'. Available: {self.available_steps()}")
 
+        step_params = dict(step_params)  # Copy to avoid mutating config
+        if resolver is not None:
+            step_params["_resolver"] = resolver
+
         return self._steps[op](df, step_params)
 
     def run_pipeline(
