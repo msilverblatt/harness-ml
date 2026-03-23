@@ -101,7 +101,8 @@ def test_binary_numeric(profiler):
 
 
 def test_numeric_categorical(profiler):
-    df = pd.DataFrame({"cat": [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]})
+    # Integer column with few unique values relative to row count (<50% unique ratio)
+    df = pd.DataFrame({"cat": [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]})  # 3 unique / 12 rows = 25%
     result = profiler.profile(df)
     cp = result.columns[0]
     assert cp.inferred_type == "categorical"

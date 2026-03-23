@@ -100,7 +100,13 @@ class DataProfiler:
         if pd.api.types.is_numeric_dtype(series):
             if n_unique == 2:
                 return "binary"
-            if n_unique <= 20:
+            # Only classify as categorical if it looks like an enum, not just a small dataset.
+            # Use ratio: if >50% of values are unique, it's numeric, not categorical.
+            # Also check if it's a float — floats are almost never categorical.
+            row_count = len(series.dropna())
+            is_float = pd.api.types.is_float_dtype(series)
+            unique_ratio = n_unique / row_count if row_count > 0 else 0
+            if not is_float and n_unique <= 20 and unique_ratio < 0.5:
                 return "categorical"
             return "numeric"
         # object / string columns
