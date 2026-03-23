@@ -298,11 +298,127 @@ class TestE2EExpressionValidation:
 
 
 # ---------------------------------------------------------------------------
-# E2E: Transform engine on real data
+# E2E: All transform steps on real data
 # ---------------------------------------------------------------------------
 
+@pytest.fixture
+def team_history():
+    """Multi-season team data for windowed operation testing."""
+    return pd.DataFrame({
+        "team_id": [1, 1, 1, 2, 2, 2, 3, 3, 3],
+        "season": [2022, 2023, 2024, 2022, 2023, 2024, 2022, 2023, 2024],
+        "wins": [18, 20, 22, 12, 15, 18, 25, 23, 21],
+        "rating": [78.0, 82.0, 85.5, 65.0, 70.0, 75.0, 90.0, 88.0, 86.0],
+    })
+
+
+class TestE2ETransformSteps:
+    """Verify every transform step produces correct values on real data."""
+
+    def test_derive_with_expression_engine(self, team_history):
+        """Derive uses the expression engine — not just string eval."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="derive", params={
+            "columns": {"win_over_15": "wins - 15", "rating_z": "zscore(rating)"}
+        }))
+        assert result["win_over_15"].iloc[0] == 3  # 18 - 15
+        assert abs(result["rating_z"].mean()) < 1e-10
+
+    def test_rolling_mean_correct_values(self, team_history):
+        """Rolling mean partitioned by team produces correct numbers."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="rolling", params={
+            "keys": ["team_id"], "order_by": "season", "window": 2,
+            "aggs": {"rating_ma2": "rating:mean"},
+        }))
+        t1 = list(result[result["team_id"] == 1]["rating_ma2"])
+        assert abs(t1[1] - 80.0) < 0.01, f"(78+82)/2 = 80, got {t1[1]}"
+        assert abs(t1[2] - 83.75) < 0.01, f"(82+85.5)/2 = 83.75, got {t1[2]}"
+
+    def test_lag_correct_values(self, team_history):
+        """Lag produces previous season's value per team."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="lag", params={
+            "keys": ["team_id"], "order_by": "season",
+            "columns": {"prev_wins": "wins:1"},
+        }))
+        t1 = list(result[result["team_id"] == 1]["prev_wins"])
+        assert pd.isna(t1[0]), "First season has no previous"
+        assert t1[1] == 18, f"2023 prev should be 18, got {t1[1]}"
+        assert t1[2] == 20, f"2024 prev should be 20, got {t1[2]}"
+
+    def test_diff_correct_values(self, team_history):
+        """Diff computes year-over-year change."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="diff", params={
+            "keys": ["team_id"], "order_by": "season",
+            "columns": {"win_change": "wins:1"},
+        }))
+        t1 = list(result[result["team_id"] == 1]["win_change"])
+        assert pd.isna(t1[0])
+        assert t1[1] == 2, f"20-18=2, got {t1[1]}"
+        assert t1[2] == 2, f"22-20=2, got {t1[2]}"
+
+    def test_trend_direction_correct(self, team_history):
+        """Trend detects increasing vs decreasing ratings."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="trend", params={
+            "keys": ["team_id"], "order_by": "season", "window": 3,
+            "columns": {"rating_trend": "rating"},
+        }))
+        # Team 1: 78→82→85.5 (increasing)
+        t1_trend = result[result["team_id"] == 1]["rating_trend"].iloc[2]
+        assert t1_trend > 0, f"Team 1 trend should be positive, got {t1_trend}"
+        # Team 3: 90→88→86 (decreasing)
+        t3_trend = result[result["team_id"] == 3]["rating_trend"].iloc[2]
+        assert t3_trend < 0, f"Team 3 trend should be negative, got {t3_trend}"
+
+    def test_fill_median_correct(self):
+        """Fill with median produces the actual median value."""
+        engine = TransformEngine()
+        df = pd.DataFrame({"a": [1.0, None, 3.0, None, 5.0]})
+        result = engine.apply_step(df, StepConfig(op="fill", params={"strategy": "median"}))
+        assert result["a"].iloc[1] == 3.0, "Median of [1,3,5] is 3"
+        assert result["a"].isna().sum() == 0
+
+    def test_rank_ordering_correct(self, team_history):
+        """Best rated team gets rank 1 (descending)."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="rank", params={
+            "columns": {"r": "rating"}, "ascending": False,
+        }))
+        best_idx = team_history["rating"].idxmax()
+        assert result.loc[best_idx, "r"] == 1.0
+
+    def test_ewm_produces_smooth_values(self, team_history):
+        """EWM mean should be between min and max of the series."""
+        engine = TransformEngine()
+        result = engine.apply_step(team_history, StepConfig(op="ewm", params={
+            "keys": ["team_id"], "order_by": "season", "span": 2,
+            "aggs": {"ewm_rating": "rating:mean"},
+        }))
+        for tid in [1, 2, 3]:
+            vals = result[result["team_id"] == tid]["ewm_rating"]
+            orig = team_history[team_history["team_id"] == tid]["rating"]
+            assert vals.min() >= orig.min() - 1, "EWM should be within range"
+            assert vals.max() <= orig.max() + 1, "EWM should be within range"
+
+    def test_complex_pipeline_realistic_workflow(self, team_history):
+        """Realistic multi-step pipeline: sort → filter → derive → head."""
+        engine = TransformEngine()
+        result = engine.run_pipeline(team_history, [
+            StepConfig(op="filter", params={"expr": "season == 2024"}),
+            StepConfig(op="derive", params={"columns": {"win_pct": "safe_div(wins, 30)"}}),
+            StepConfig(op="sort", params={"by": "rating", "ascending": False}),
+            StepConfig(op="head", params={"n": 2}),
+        ])
+        assert len(result) == 2
+        assert result["rating"].iloc[0] > result["rating"].iloc[1]
+        assert all(0 <= wp <= 1 for wp in result["win_pct"])
+
+
 class TestE2ETransformEngine:
-    """Test transform operations on realistic DataFrames."""
+    """Test transform engine behavior on realistic DataFrames."""
 
     def test_filter_then_select_real_data(self, sports_data):
         """Filter to one season, select specific columns."""
