@@ -6,8 +6,10 @@
 
 | # | Package | Status | Plan | Dependencies |
 |---|---------|--------|------|-------------|
-| 1 | harness-data | **In Progress** | [Plan](./2026-03-23-harness-data.md) | None |
-| 2 | harness-ml | Pending | — | harness-data |
+| 1 | harness-data | **Complete** (253 tests, 24 steps, expression engine) | [Plan](./2026-03-23-harness-data.md) | None |
+| 2a | harness-ml: Task Types + Models | **In Progress** | [Plan](./2026-03-23-harness-ml-2a-types-models.md) | harness-data |
+| 2b | harness-ml: Features + Evals | Pending | — | harness-data |
+| 2c | harness-ml: Training Pipeline | Pending | — | 2a + 2b |
 | 3 | research-loop extensions | Pending | — | None (TypeScript) |
 | 4 | Harness app (MCP server, CLI, workspace) | Pending | — | 1 + 2 + 3 |
 | 5 | harness-studio (dashboard) | Pending | — | 4 |
