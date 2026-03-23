@@ -1,0 +1,31 @@
+# Harness 2 — Implementation Master Progress
+
+**Spec:** [2026-03-23-harness2-design.md](../specs/2026-03-23-harness2-design.md)
+
+## Build Order
+
+| # | Package | Status | Plan | Dependencies |
+|---|---------|--------|------|-------------|
+| 1 | harness-data | **In Progress** | [Plan](./2026-03-23-harness-data.md) | None |
+| 2 | harness-ml | Pending | — | harness-data |
+| 3 | research-loop extensions | Pending | — | None (TypeScript) |
+| 4 | Harness app (MCP server, CLI, workspace) | Pending | — | 1 + 2 + 3 |
+| 5 | harness-studio (dashboard) | Pending | — | 4 |
+
+## Key Decisions Log
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-03-23 | Version tree instead of linear promote/discard | Avoid local maxima traps, enable branching exploration |
+| 2026-03-23 | Typed experiments as primary tool | Collapse 80 tools to 17, agent thinks in hypotheses |
+| 2026-03-23 | harness-data / harness-ml split | Separate data eng lifecycle from ML, harness-data also serves as feature computation engine |
+| 2026-03-23 | TS/Python bridge via JSON-RPC | Use research-loop as-is (TypeScript), Python port is fallback if bridge is painful |
+| 2026-03-23 | No "production" model concept | Version tree with current pointer; `harness export` deferred |
+| 2026-03-23 | First-class expression engine | Formula eval is the agent's language, not a utility — needs registry, validation, discoverability |
+| 2026-03-23 | Three-layer eval system | Generic framework: threshold checks + comparative evals + LLM judgments. User-defined dimensions in evals.yaml, not hardcoded |
+
+## Notes
+
+- Each plan is self-contained — produces working, testable software independently
+- Plans are written one at a time and reviewed before moving to the next
+- All plans follow TDD: write test → verify fail → implement → verify pass → commit
