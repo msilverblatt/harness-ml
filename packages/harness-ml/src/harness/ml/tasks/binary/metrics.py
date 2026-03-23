@@ -22,14 +22,14 @@ def compute_brier(y_true: pd.Series, y_pred: pd.Series) -> float:
 
 def compute_log_loss(y_true: pd.Series, y_pred: pd.Series) -> float:
     """Logarithmic loss. Returns nan if only one class present."""
-    if len(y_true.unique()) < 2:
+    if len(np.unique(np.asarray(y_true))) < 2:
         return float("nan")
     return float(log_loss(y_true, y_pred))
 
 
 def compute_auroc(y_true: pd.Series, y_pred: pd.Series) -> float:
     """Area under the ROC curve. Returns nan if only one class present."""
-    if len(y_true.unique()) < 2:
+    if len(np.unique(np.asarray(y_true))) < 2:
         return float("nan")
     return float(roc_auc_score(y_true, y_pred))
 
