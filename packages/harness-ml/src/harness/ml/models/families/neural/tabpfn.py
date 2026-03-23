@@ -78,8 +78,7 @@ class TabPFNModel:
     def default_params(self, task_type: str) -> dict:
         return {
             "_task_type": task_type,
-            "ignore_pretraining_limits": True,
-            "inference_precision": "autocast",
+            "device": "cpu",
         }
 
     def param_schema(self) -> dict:
