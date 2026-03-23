@@ -21,12 +21,10 @@ class TestTaskRegistry:
         with pytest.raises(KeyError):
             TaskRegistry.get("unknown_task_type")
 
-    @pytest.mark.xfail(reason="Regression task not yet implemented")
     def test_get_regression(self):
         task = TaskRegistry.get("regression")
         assert task.name == "regression"
 
-    @pytest.mark.xfail(reason="Multiclass task not yet implemented")
     def test_get_multiclass(self):
         task = TaskRegistry.get("multiclass")
         assert task.name == "multiclass"
