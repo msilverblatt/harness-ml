@@ -12,7 +12,7 @@
 | 2c | harness-ml: Training Pipeline | **Complete** (4-phase backtest, 8 CV strategies, DAG, cache, meta-learner, post-processing) | [Plan](./2026-03-23-harness-ml-2c-training-pipeline.md) | 2a + 2b |
 | 3 | research-loop extensions | Pending | — | None (TypeScript) |
 | 3 | research-loop extensions | **Complete** (new verdicts, parent selection, conclude-as-terminal, 79 tests) | [Plan](./2026-03-23-research-loop-extensions.md) | None (TypeScript) |
-| 4 | Harness app (workspace, CLI, experiments) | **In Progress** | [Plan](./2026-03-23-harness-app.md) | 1 + 2a + 2b + 2c |
+| 4 | Harness app (workspace, CLI, experiments) | **Complete** (version tree, workspace manager, 8 experiment types, CLI) | [Plan](./2026-03-23-harness-app.md) | 1 + 2a + 2b + 2c |
 | 5 | harness-studio (dashboard) | Pending | — | 4 |
 
 ## Key Decisions Log
