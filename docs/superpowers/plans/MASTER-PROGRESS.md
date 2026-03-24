@@ -9,7 +9,7 @@
 | 1 | harness-data | **Complete** (253 tests, 24 steps, expression engine) | [Plan](./2026-03-23-harness-data.md) | None |
 | 2a | harness-ml: Task Types + Models | **Complete** (3 task types, 14 models, 5 families) | [Plan](./2026-03-23-harness-ml-2a-types-models.md) | harness-data |
 | 2b | harness-ml: Features + Evals | **Complete** (4 feature types, pairwise derivatives, eval framework with presets) | [Plan](./2026-03-23-harness-ml-2b-features-evals.md) | harness-data |
-| 2c | harness-ml: Training Pipeline | **In Progress** | [Plan](./2026-03-23-harness-ml-2c-training-pipeline.md) | 2a + 2b |
+| 2c | harness-ml: Training Pipeline | **Complete** (4-phase backtest, 8 CV strategies, DAG, cache, meta-learner, post-processing) | [Plan](./2026-03-23-harness-ml-2c-training-pipeline.md) | 2a + 2b |
 | 3 | research-loop extensions | Pending | — | None (TypeScript) |
 | 4 | Harness app (MCP server, CLI, workspace) | Pending | — | 1 + 2 + 3 |
 | 5 | harness-studio (dashboard) | Pending | — | 4 |
