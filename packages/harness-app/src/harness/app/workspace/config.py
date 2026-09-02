@@ -12,6 +12,10 @@ class ConfigManager:
         self._root = Path(workspace_dir)
         self._config_dir = self._root / "config"
 
+    @property
+    def config_dir(self) -> Path:
+        return self._config_dir
+
     def ensure_dir(self):
         self._config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -76,6 +80,19 @@ class ConfigManager:
             features_dict[name] = d
         (self._config_dir / "features.yaml").write_text(
             yaml.dump({"features": features_dict}, default_flow_style=False, sort_keys=False)
+        )
+
+    def read_evals(self) -> dict:
+        path = self._config_dir / "evals.yaml"
+        if not path.exists():
+            return {"evals": {}}
+        return yaml.safe_load(path.read_text()) or {"evals": {}}
+
+    def write_evals(self, config: dict):
+        self.ensure_dir()
+        payload = config if "evals" in config else {"evals": config}
+        (self._config_dir / "evals.yaml").write_text(
+            yaml.dump(payload, default_flow_style=False, sort_keys=False)
         )
 
     def snapshot_config(self, dest_dir: Path):

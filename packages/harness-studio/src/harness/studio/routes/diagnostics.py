@@ -22,6 +22,7 @@ def version_diagnostics(version_id: str, request: Request):
 
     metrics_path = run_dir / "metrics.json"
     diag_path = run_dir / "diagnostics.json"
+    eval_path = run_dir / "eval_report.json"
 
     metrics = {}
     if metrics_path.exists():
@@ -31,8 +32,13 @@ def version_diagnostics(version_id: str, request: Request):
     if diag_path.exists():
         diagnostics = json.loads(diag_path.read_text())
 
+    eval_report = {}
+    if eval_path.exists():
+        eval_report = json.loads(eval_path.read_text())
+
     return {
         "version_id": version_id,
         "metrics": metrics,
         "diagnostics": diagnostics,
+        "eval_report": eval_report,
     }

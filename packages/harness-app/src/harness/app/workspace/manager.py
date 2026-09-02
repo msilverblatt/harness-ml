@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 from datetime import UTC, datetime
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from harness.data.workspace import DataWorkspace
 from harness.ml.config.ensemble import EnsembleConfig
 from harness.ml.config.models import ModelsConfig, SingleModelConfig
 from harness.ml.config.project import CVConfig, ProjectConfig
+from harness.ml.evals.runner import EvalRunner
 from harness.ml.features.schema import FeatureDefinition, FeatureSet
 from harness.ml.runners.backtest import BacktestResult, run_backtest
 
@@ -49,6 +51,8 @@ class WorkspaceManager:
         ws.config.write_models(ModelsConfig())
         ws.config.write_ensemble(EnsembleConfig())
         ws.config.write_features(FeatureSet())
+        preset = files("harness.ml.evals").joinpath("presets", f"{task_type}.yaml")
+        ws.config.write_evals(yaml.safe_load(preset.read_text()) or {"evals": {}})
         (root / "versions").mkdir(exist_ok=True)
         (root / "artifacts").mkdir(exist_ok=True)
         (root / ".harness").mkdir(exist_ok=True)
@@ -112,6 +116,13 @@ class WorkspaceManager:
                 feature_set=features if features.features else None,
                 cache_dir=self._root / "artifacts" / "predictions",
             )
+            parent_meta = self.versions.get_version(parent_id) if parent_id else None
+            eval_report = EvalRunner.from_yaml(
+                staging_config.config_dir / "evals.yaml"
+            ).run(
+                result.metrics,
+                parent_metrics=parent_meta.metrics if parent_meta else None,
+            )
 
             version_id = self.versions.next_version_id()
             meta = VersionMeta(
@@ -129,7 +140,7 @@ class WorkspaceManager:
                 diff=_config_diff(before, after),
             )
             try:
-                self._write_run_results(version_id, result)
+                self._write_run_results(version_id, result, eval_report.model_dump(mode="json"))
                 self.config.restore_config(
                     self._root / "versions" / version_id / "config"
                 )
@@ -275,7 +286,9 @@ class WorkspaceManager:
 
         raise AssertionError(f"Unhandled experiment type: {experiment_type}")
 
-    def _write_run_results(self, version_id: str, result: BacktestResult) -> None:
+    def _write_run_results(
+        self, version_id: str, result: BacktestResult, eval_report: dict | None = None
+    ) -> None:
         run_dir = self._root / "versions" / version_id / "run"
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "metrics.json").write_text(json.dumps(result.metrics, indent=2))
@@ -296,6 +309,10 @@ class WorkspaceManager:
                 indent=2,
             )
         )
+        if eval_report is not None:
+            (run_dir / "eval_report.json").write_text(
+                json.dumps(eval_report, indent=2)
+            )
 
 
 def _feature_set_from_params(definitions: dict[str, dict]) -> FeatureSet:
@@ -315,6 +332,7 @@ def _config_state(config: ConfigManager) -> dict:
         "models": config.read_models().model_dump(mode="json"),
         "ensemble": config.read_ensemble().model_dump(mode="json"),
         "features": config.read_features().model_dump(mode="json"),
+        "evals": config.read_evals(),
     }
 
 

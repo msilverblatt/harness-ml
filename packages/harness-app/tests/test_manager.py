@@ -18,6 +18,7 @@ class TestInit:
         assert (tmp_workspace / "config" / "models.yaml").exists()
         assert (tmp_workspace / "config" / "ensemble.yaml").exists()
         assert (tmp_workspace / "config" / "features.yaml").exists()
+        assert (tmp_workspace / "config" / "evals.yaml").exists()
         assert (tmp_workspace / "data" / "raw").is_dir()
         assert (tmp_workspace / "data" / "clean").is_dir()
         assert (tmp_workspace / "versions").is_dir()
@@ -80,6 +81,7 @@ class TestRunExperiment:
         assert (run_dir / "metrics.json").exists()
         assert (run_dir / "predictions.parquet").exists()
         assert (run_dir / "diagnostics.json").exists()
+        assert (run_dir / "eval_report.json").exists()
 
 
 class TestConclude:
@@ -132,6 +134,10 @@ class TestRealExperimentWorkflow:
         assert meta.parent == "v001"
         assert meta.data_hash.startswith("sha256:")
         assert (root / "versions" / "v002" / "diff.yaml").exists()
+        eval_report = json.loads(
+            (root / "versions" / "v002" / "run" / "eval_report.json").read_text()
+        )
+        assert "probability_accuracy" in eval_report["dimensions"]
         assert ws.config.read_models().models["lr"].params["C"] == 0.5
 
     def test_all_advertised_experiment_types_change_config(self, initialized_workspace):
