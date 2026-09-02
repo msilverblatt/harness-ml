@@ -6,6 +6,7 @@ from harness.ml.config.ensemble import EnsembleConfig
 def apply_postprocessing(
     predictions: np.ndarray,
     ensemble_config: EnsembleConfig,
+    task_type: str = "binary",
 ) -> np.ndarray:
     """Apply post-processing steps in order:
     1. Temperature scaling
@@ -14,6 +15,8 @@ def apply_postprocessing(
     4. Prior-proximity compression (future)
     """
     result = predictions.copy()
+    if task_type == "regression":
+        return result
 
     # Temperature scaling
     if ensemble_config.temperature != 1.0:

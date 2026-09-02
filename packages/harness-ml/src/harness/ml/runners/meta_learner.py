@@ -24,6 +24,7 @@ class MetaLearner:
         fold_predictions: dict[str, pd.DataFrame],
         ensemble_config: EnsembleConfig,
         target_col: str = "target",
+        task_type: str = "binary",
     ) -> MetaLearnerResult:
         """Phase 2: For each holdout fold, train meta on others, predict holdout.
 
@@ -40,7 +41,10 @@ class MetaLearner:
         active_cols = [
             c
             for c in model_columns
-            if c not in [f"prob_{m}" for m in ensemble_config.exclude_models]
+            if not any(
+                c == f"prob_{model}" or c.startswith(f"prob_{model}__class_")
+                for model in ensemble_config.exclude_models
+            )
         ]
 
         if not active_cols:
@@ -64,7 +68,7 @@ class MetaLearner:
             X_holdout = holdout_df[active_cols].values
 
             # Train meta-learner
-            meta = self._create_meta_learner(ensemble_config)
+            meta = self._create_meta_learner(ensemble_config, task_type)
             try:
                 meta.fit(X_train, y_train)
                 if hasattr(meta, "predict_proba"):
@@ -85,7 +89,7 @@ class MetaLearner:
         X_all = all_data[active_cols].values
         y_all = all_data[target_col].values
 
-        production_meta = self._create_meta_learner(ensemble_config)
+        production_meta = self._create_meta_learner(ensemble_config, task_type)
         try:
             production_meta.fit(X_all, y_all)
             coeffs = {}
@@ -110,19 +114,33 @@ class MetaLearner:
 
     def _simple_average(self, fold_predictions, target_col):
         result_preds = {}
+        model_cols = self._get_model_columns(fold_predictions, target_col)
+        class_suffixes = sorted(
+            {column.split("__class_", 1)[1] for column in model_cols if "__class_" in column},
+            key=int,
+        )
         for fold_id, df in fold_predictions.items():
-            model_cols = self._get_model_columns(fold_predictions, target_col)
-            if model_cols:
+            if class_suffixes:
+                class_predictions = []
+                for suffix in class_suffixes:
+                    columns = [
+                        column for column in model_cols if column.endswith(f"__class_{suffix}")
+                    ]
+                    class_predictions.append(df[columns].mean(axis=1).values)
+                result_preds[fold_id] = np.column_stack(class_predictions)
+            elif model_cols:
                 result_preds[fold_id] = df[model_cols].mean(axis=1).values
             else:
-                result_preds[fold_id] = np.zeros(len(df))
+                raise ValueError("No successful model predictions available for ensemble")
         return MetaLearnerResult(fold_predictions=result_preds, method="average")
 
     def _get_model_columns(self, fold_predictions, target_col):
         sample = next(iter(fold_predictions.values()))
         return [c for c in sample.columns if c.startswith("prob_") and c != target_col]
 
-    def _create_meta_learner(self, config: EnsembleConfig):
+    def _create_meta_learner(self, config: EnsembleConfig, task_type: str = "binary"):
+        if task_type == "regression":
+            return RidgeCV()
         if config.meta_learner_type == "logistic":
             params = {"C": 1.0, "max_iter": 1000, **config.meta_learner_params}
             return LogisticRegression(**params)

@@ -211,17 +211,43 @@ def run_backtest(
                         models_failed.append({"name": model_name, "error": str(e)})
                         continue
 
-                # Add predictions to fold DataFrame
+                # Add predictions to fold DataFrame. Multiclass models expose
+                # one probability column per class so stacking remains tabular.
                 if model_config.include_in_ensemble:
-                    fold_preds_df[f"prob_{model_name}"] = test_preds
+                    if np.asarray(test_preds).ndim == 2:
+                        for class_index in range(test_preds.shape[1]):
+                            fold_preds_df[
+                                f"prob_{model_name}__class_{class_index}"
+                            ] = test_preds[:, class_index]
+                    else:
+                        fold_preds_df[f"prob_{model_name}"] = test_preds
 
             progress.on_wave_complete(wave_num, len(waves))
 
         fold_predictions[fold_id] = fold_preds_df
 
+    # A model that fails in any fold cannot participate in a coherent OOF
+    # ensemble. Keep only prediction columns present in every fold.
+    common_prediction_columns = set.intersection(
+        *[
+            {column for column in frame.columns if column.startswith("prob_")}
+            for frame in fold_predictions.values()
+        ]
+    )
+    if not common_prediction_columns:
+        raise RuntimeError(
+            "No model produced predictions for every fold; cannot build ensemble"
+        )
+    for fold_id, frame in fold_predictions.items():
+        fold_predictions[fold_id] = frame[
+            [target_col, *sorted(common_prediction_columns)]
+        ]
+
     # --- Phase 2: Meta-learner ---
     meta_learner = MetaLearner()
-    meta_result = meta_learner.train(fold_predictions, ensemble_config, target_col)
+    meta_result = meta_learner.train(
+        fold_predictions, ensemble_config, target_col, project_config.task_type
+    )
 
     # Calibrate each holdout using only out-of-fold predictions from the other
     # folds. Fitting a calibrator on its own holdout would leak outcomes.
@@ -251,21 +277,36 @@ def run_backtest(
 
     # Apply post-processing to each fold's ensemble predictions
     for fold_id, preds in meta_result.fold_predictions.items():
-        meta_result.fold_predictions[fold_id] = apply_postprocessing(preds, ensemble_config)
+        meta_result.fold_predictions[fold_id] = apply_postprocessing(
+            preds, ensemble_config, project_config.task_type
+        )
 
     # --- Phase 3: Metrics ---
     all_y_true = []
     all_y_pred = []
+    all_row_positions = []
+    all_row_indices = []
+    all_fold_ids = []
     per_fold_metrics = []
 
-    for fold_id in sorted(fold_predictions.keys()):
+    for fold_id in sorted(fold_predictions.keys(), key=int):
         fold_df = fold_predictions[fold_id]
         y_true = fold_df[target_col].values
         y_pred = meta_result.fold_predictions[fold_id]
 
         all_y_true.append(y_true)
         all_y_pred.append(y_pred)
+        test_idx = folds[int(fold_id)][1]
+        all_row_positions.extend(test_idx.tolist())
+        all_row_indices.extend(data.index[test_idx].tolist())
+        all_fold_ids.extend([fold_id] * len(test_idx))
 
+        prediction_validation = task.validate_predictions(y_pred)
+        if not prediction_validation.is_valid:
+            raise ValueError(
+                f"Invalid predictions in fold {fold_id}: "
+                f"{prediction_validation.messages}"
+            )
         fold_m = task.compute_metrics(y_true, y_pred, project_config.metrics)
         per_fold_metrics.append(fold_m)
 
@@ -274,11 +315,19 @@ def run_backtest(
     pooled_y_pred = np.concatenate(all_y_pred)
     pooled_metrics = task.compute_metrics(pooled_y_true, pooled_y_pred, project_config.metrics)
 
-    # Build predictions DataFrame
-    all_predictions = pd.DataFrame({
+    # Build predictions with stable source-row and fold identity.
+    prediction_data: dict[str, Any] = {
+        "row_position": all_row_positions,
+        "row_index": all_row_indices,
+        "fold_id": all_fold_ids,
         "y_true": pooled_y_true,
-        "y_pred": pooled_y_pred,
-    })
+    }
+    if pooled_y_pred.ndim == 2:
+        for class_index in range(pooled_y_pred.shape[1]):
+            prediction_data[f"y_pred_class_{class_index}"] = pooled_y_pred[:, class_index]
+    else:
+        prediction_data["y_pred"] = pooled_y_pred
+    all_predictions = pd.DataFrame(prediction_data)
 
     duration = time.time() - start_time
     progress.on_backtest_complete(pooled_metrics)
