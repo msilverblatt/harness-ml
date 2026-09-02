@@ -43,6 +43,13 @@ class TestProjectConfig:
         assert cfg.metrics == ["brier", "accuracy"]
         assert cfg.eval_filter is None
 
+    def test_task_specific_metric_defaults(self):
+        assert ProjectConfig(task_type="regression").metrics == ["rmse", "mae", "r2"]
+        assert ProjectConfig(task_type="multiclass").metrics == [
+            "log_loss",
+            "accuracy",
+        ]
+
     def test_custom_values(self):
         cfg = ProjectConfig(
             task_type="multiclass",

@@ -32,6 +32,7 @@ class TestInit:
         project = ws.config.read_project()
         assert project.task_type == "regression"
         assert project.target_column == "score"
+        assert project.metrics == ["rmse", "mae", "r2"]
 
 
 class TestRunExperiment:

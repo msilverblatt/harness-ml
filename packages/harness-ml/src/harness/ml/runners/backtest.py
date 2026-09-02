@@ -63,6 +63,13 @@ def run_backtest(
         progress = NoOpProgress()
 
     task = TaskRegistry.get(project_config.task_type)
+    supported_metrics = {metric.name for metric in task.metrics()}
+    unknown_metrics = sorted(set(project_config.metrics) - supported_metrics)
+    if unknown_metrics:
+        raise ValueError(
+            f"Metrics {unknown_metrics} are not supported for task "
+            f"'{project_config.task_type}'. Supported: {sorted(supported_metrics)}"
+        )
 
     target_col = project_config.target_column
     if target_col not in data.columns:
