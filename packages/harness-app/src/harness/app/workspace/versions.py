@@ -110,6 +110,11 @@ class VersionTree:
         m2 = self.get_version(v2)
         if m1 is None or m2 is None:
             raise ValueError("Version not found")
+        if m1.data_hash != m2.data_hash:
+            raise ValueError(
+                f"Cannot compare {v1} and {v2}: versions were evaluated on "
+                "different datasets"
+            )
         deltas = {}
         for key in set(list(m1.metrics.keys()) + list(m2.metrics.keys())):
             val1 = m1.metrics.get(key, float("nan"))

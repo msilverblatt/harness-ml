@@ -1,9 +1,9 @@
 import json
 
+import harness.server.main  # noqa: F401
 import numpy as np
 import pandas as pd
-
-import harness.server.main  # noqa: F401
+import pytest
 from protomcp import get_registered_tools
 from protomcp.resource import get_registered_resources
 
@@ -82,6 +82,21 @@ def test_full_registered_agent_workflow(tmp_path):
     assert resources["harness://versions/tree"]()["current"] == "v001"
     assert "binary" in resources["harness://tasks/supported"]()["tasks"]
     assert resources["harness://data/schema"]()["row_count"] == n
+
+    # A source refresh must not compare new metrics to a stale parent baseline.
+    refreshed = pd.read_csv(source)
+    refreshed.loc[len(refreshed)] = [0.25, -0.5, 1]
+    refreshed.to_csv(source, index=False)
+    tools["data.run"]()
+    post_refresh = tools["experiment.propose"](
+        experiment_type="hyperparameter",
+        hypothesis="Evaluate after a source refresh",
+        params={"model_name": "lr", "params": {"C": 0.25}},
+    )
+    assert post_refresh["parent_metrics"] == {}
+    assert post_refresh["deltas"] == {}
+    with pytest.raises(ValueError, match="different datasets"):
+        tools["analyze.compare"](versions=["v001", "v003"])
 
     # Stored outputs must remain ordinary JSON-compatible protocol payloads.
     json.dumps(diagnostics)

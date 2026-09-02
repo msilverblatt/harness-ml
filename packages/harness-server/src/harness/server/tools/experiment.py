@@ -23,7 +23,11 @@ class ExperimentTools:
             if meta and meta.parent
             else None
         )
-        parent_metrics = parent_meta.metrics if parent_meta else {}
+        parent_metrics = (
+            parent_meta.metrics
+            if parent_meta and parent_meta.data_hash == meta.data_hash
+            else {}
+        )
         return {
             "version": version,
             "parent": meta.parent if meta else None,
