@@ -61,7 +61,43 @@
 - OpenML dataset name and version, label mapping, model parameters, metrics, and
   data fingerprint are recorded.
 - The MCP workflow was repeatable after deterministic target conversion.
-- A later source refresh was not performed.
+
+### Follow-up source-refresh replay
+
+A follow-up session exercised actual MCP stdio transport through `pmcp`, using the
+standard Python MCP client rather than calling registered handlers directly. It
+replayed a realistic append refresh: the source initially exposed 2,000 rows of the
+pinned OpenML dataset and was then replaced by its complete 2,310-row snapshot.
+This was a controlled replay performed in one session, not evidence of an
+unattended deployment surviving the passage of time.
+
+| Snapshot/action | Version | Log loss | Accuracy | Cache result |
+|---|---|---:|---:|---|
+| Initial 2,000-row random forest | v001 | 0.10253 | 0.9705 | 5 trained |
+| `data_refresh` on 2,310 rows | v002 | 0.09305 | 0.9701 | 5 trained |
+| Add histogram boosting on refreshed data | v003 | 0.06357 | 0.9835 | 5 cached, 5 trained |
+
+The initial and refreshed fingerprints were respectively
+`0a6b1fc83dc2cb6b1b7bb0419cd0c440c0f7687d2123e10d36ce601fb97445a1`
+and `d74f23d61724839bed7b34c7c4ea340c651ba7174afea3d5ce0730ca1e85f7ce`.
+The refresh baseline correctly returned no deltas against stale v001 metrics.
+The v003 candidate then compared normally against v002 because both used the same
+refreshed snapshot.
+
+This walkthrough exposed and drove three focused repairs:
+
+- PR #59 prevents explicit or implicit comparisons across dataset fingerprints;
+- PR #60 adds a no-config-change `data_refresh` experiment so the accepted config
+  can be re-established on new data before testing mutations;
+- PR #62 includes underlying model errors when every model fails. This came from a
+  failed transport setup whose Python environment had incompatible NumPy binaries;
+  the improved message immediately identified the environment problem.
+
+The standalone `pmcp test` command returned exit status zero even when an MCP tool
+result had `isError: true`. That belongs to the ProtoMCP test runner rather than
+Harness and was avoided by checking `CallToolResult.is_error` in the persistent
+MCP client. It should be investigated in the user-owned ProtoMCP repository before
+relying on the command in shell automation.
 
 ## Proposed changes
 
@@ -69,7 +105,9 @@
 |---|---|---|---|---|
 | Support string multiclass labels | One common real dataset failed | First evaluate one more string-label dataset and define production output-label semantics | No external encoding while preserving class mapping in artifacts | Experiment |
 | Document compare/conclude/switch as the acceptance workflow | It solved the repeated degraded-current concern without code | Add a short workflow example rather than new state | Users retain the intended version without inventing promotion infrastructure | Build documentation only |
-| Test through a real MCP client | Handler workflow worked | Repeat one project over `pmcp`, without adding tools | Same result and JSON artifacts over transport | Next dogfood session |
+| Test through a real MCP client | Handler workflow worked | Repeat one project over `pmcp`, without adding tools | Same result and JSON artifacts over transport | Completed in refresh replay |
+| Make refreshed evaluations comparable without stale deltas | Replay required an honest baseline on the new fingerprint | Add a no-mutation refresh experiment | Candidate compares only with a same-snapshot parent | Built: PRs #59–#60 |
+| Preserve all-model failure causes | Broken transport environment initially emitted only an aggregate error | Include deduplicated underlying failures | Binary incompatibility is visible in the MCP error | Built: PR #62 |
 
 ## Overall assessment
 
