@@ -413,6 +413,25 @@ class TestRunBacktest:
         assert (intervals["lower"] <= intervals["prediction"]).all()
         assert (intervals["prediction"] <= intervals["upper"]).all()
 
+    def test_rejects_metrics_from_a_different_task(self, simple_binary_data):
+        with pytest.raises(ValueError, match="not supported for task 'regression'"):
+            run_backtest(
+                data=simple_binary_data.rename(columns={"target": "value"}),
+                project_config=ProjectConfig(
+                    task_type="regression",
+                    target_column="value",
+                    metrics=["brier"],
+                ),
+                models_config=ModelsConfig(
+                    models={
+                        "rf": SingleModelConfig(
+                            name="rf", model_type="random_forest"
+                        )
+                    }
+                ),
+                ensemble_config=EnsembleConfig(method="average"),
+            )
+
     def test_no_active_models_raises(self, simple_binary_data):
         with pytest.raises(ValueError, match="No active models"):
             run_backtest(
