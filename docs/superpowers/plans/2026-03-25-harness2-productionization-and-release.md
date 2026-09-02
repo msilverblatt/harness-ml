@@ -490,13 +490,13 @@ This approach preserves normal repository ancestry and makes the replacement dif
 - [x] Failed experiments are transactional
 - [x] Parent branching is immutable and correct
 - [x] Eval reports and diagnostics are persisted
-- [ ] v1 parity matrix is approved
+- [x] v1 parity matrix is approved with explicit v2.0 deferrals
 - [x] 17 MCP tools and 5 resources pass protocol E2E
 - [x] research-loop extension is published/pinned and clean
 - [x] Studio renders primary artifacts without raw-placeholder UX
 - [x] Wheels/sdists install in clean environments
 - [x] README quickstart passes verbatim
-- [ ] CI is green
+- [x] CI is green
 - [x] v1-final tag and v1-maintenance branch exist remotely
 - [x] Harness 2 full history is preserved remotely
 - [ ] Replacement PR is reviewed and release candidate validated
