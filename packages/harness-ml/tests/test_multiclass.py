@@ -53,8 +53,18 @@ class TestValidateTarget:
         result = task.validate_target(y)
         assert not result.is_valid
 
-    def test_non_integer_rejected(self, task):
+    def test_string_labels_accepted(self, task):
         y = pd.Series(["cat", "dog", "bird"])
+        result = task.validate_target(y)
+        assert result.is_valid
+
+    def test_non_integer_numeric_labels_rejected(self, task):
+        y = pd.Series([0.5, 1.5, 2.5])
+        result = task.validate_target(y)
+        assert not result.is_valid
+
+    def test_missing_labels_rejected(self, task):
+        y = pd.Series(["cat", "dog", None])
         result = task.validate_target(y)
         assert not result.is_valid
 

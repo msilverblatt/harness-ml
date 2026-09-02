@@ -81,11 +81,12 @@ def predict(input_path, output_path, version):
     if predictions.ndim == 1:
         output = pd.DataFrame({"prediction": predictions}, index=frame.index)
     else:
+        labels = getattr(bundle, "class_labels", []) or list(
+            range(predictions.shape[1])
+        )
         output = pd.DataFrame(
             predictions,
-            columns=[
-                f"prediction_class_{index}" for index in range(predictions.shape[1])
-            ],
+            columns=[f"prediction_class_{label}" for label in labels],
             index=frame.index,
         )
     if bundle.conformal_radius is not None:
