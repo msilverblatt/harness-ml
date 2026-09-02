@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Tabular ML engine for the Harness platform"
 requires-python = ">=3.11"
 dependencies = [
+    "harness-data>=0.1.0",
     "pandas>=2.0",
     "numpy>=1.24",
     "scikit-learn>=1.3",

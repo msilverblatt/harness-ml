@@ -758,6 +758,7 @@ name = "harness-ml"
 version = "0.1.0"
 source = { editable = "packages/harness-ml" }
 dependencies = [
+    { name = "harness-data" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
@@ -792,6 +793,7 @@ neural = [
 requires-dist = [
     { name = "catboost", marker = "extra == 'all'", specifier = ">=1.2" },
     { name = "catboost", marker = "extra == 'boosting'", specifier = ">=1.2" },
+    { name = "harness-data", editable = "packages/harness-data" },
     { name = "lightgbm", marker = "extra == 'all'", specifier = ">=4.0" },
     { name = "lightgbm", marker = "extra == 'boosting'", specifier = ">=4.0" },
     { name = "numpy", specifier = ">=1.24" },

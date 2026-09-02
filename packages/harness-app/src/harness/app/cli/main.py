@@ -106,7 +106,7 @@ def doctor():
         click.echo(f"  [{symbol}] {name}: {status}")
         if not ok and name in (
             "Python 3.11+", "pandas", "numpy", "scikit-learn",
-            "harness-data", "harness-ml", "harness-server", "protomcp",
+            "harness-data", "harness-ml",
         ):
             all_ok = False
 
