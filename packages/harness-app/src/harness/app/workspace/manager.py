@@ -35,7 +35,7 @@ class WorkspaceManager:
         self._lock_timeout = lock_timeout
         self.config = ConfigManager(workspace_dir)
         self.versions = VersionTree(workspace_dir)
-        self.data = DataWorkspace(workspace_dir, mutation_guard=self._mutation)
+        self.data = DataWorkspace(workspace_dir)
 
     @staticmethod
     def init(

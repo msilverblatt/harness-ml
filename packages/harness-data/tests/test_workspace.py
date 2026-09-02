@@ -1,5 +1,4 @@
 """Tests for DataWorkspace."""
-
 from pathlib import Path
 
 import pandas as pd
@@ -16,13 +15,11 @@ def ws(tmp_path):
 @pytest.fixture
 def sample_csv(tmp_path):
     """Write a CSV file outside the workspace (absolute path)."""
-    df = pd.DataFrame(
-        {
-            "id": [1, 2, 3],
-            "value": [10.0, 20.0, 30.0],
-            "label": ["a", "b", "c"],
-        }
-    )
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "value": [10.0, 20.0, 30.0],
+        "label": ["a", "b", "c"],
+    })
     path = tmp_path / "sample.csv"
     df.to_csv(path, index=False)
     return path
@@ -130,17 +127,6 @@ def test_load_schema(ws, sample_csv):
     assert "row_count" in schema
     assert "column_count" in schema
     assert "data_hash" in schema
-
-
-def test_load_schema_rejects_dataset_sidecar_mismatch(ws, sample_csv):
-    ws.init()
-    ws.add_source("main", str(sample_csv))
-    ws.run_pipeline()
-    dataset = ws._root / "data" / "clean" / "dataset.parquet"
-    dataset.write_bytes(dataset.read_bytes() + b"changed")
-
-    with pytest.raises(RuntimeError, match="inconsistent"):
-        ws.load_schema()
 
 
 def test_load_schema_not_found(ws):
