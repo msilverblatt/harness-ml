@@ -18,6 +18,7 @@ from harness.ml.runners.provider_context import ProviderContext
 from harness.ml.runners.prediction_cache import PredictionCache
 from harness.ml.runners.training import train_single_model
 from harness.ml.runners.meta_learner import MetaLearner
+from harness.ml.runners.calibration import Calibrator
 from harness.ml.runners.postprocessing import apply_postprocessing
 from harness.ml.runners.progress import NoOpProgress
 
@@ -221,6 +222,32 @@ def run_backtest(
     # --- Phase 2: Meta-learner ---
     meta_learner = MetaLearner()
     meta_result = meta_learner.train(fold_predictions, ensemble_config, target_col)
+
+    # Calibrate each holdout using only out-of-fold predictions from the other
+    # folds. Fitting a calibrator on its own holdout would leak outcomes.
+    if ensemble_config.calibration != "none":
+        if project_config.task_type != "binary":
+            raise ValueError("Calibration is currently supported only for binary tasks")
+        for holdout_id in sorted(meta_result.fold_predictions):
+            calibration_ids = [
+                fold_id
+                for fold_id in sorted(meta_result.fold_predictions)
+                if fold_id != holdout_id
+            ]
+            if not calibration_ids:
+                continue
+            calibration_y = np.concatenate(
+                [fold_predictions[fold_id][target_col].values for fold_id in calibration_ids]
+            )
+            calibration_pred = np.concatenate(
+                [meta_result.fold_predictions[fold_id] for fold_id in calibration_ids]
+            )
+            calibrator = Calibrator.fit(
+                calibration_y, calibration_pred, ensemble_config.calibration
+            )
+            meta_result.fold_predictions[holdout_id] = Calibrator.transform(
+                meta_result.fold_predictions[holdout_id], calibrator
+            )
 
     # Apply post-processing to each fold's ensemble predictions
     for fold_id, preds in meta_result.fold_predictions.items():

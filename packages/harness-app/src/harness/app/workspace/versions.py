@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
+import shutil
+import uuid
 import yaml
 
 
@@ -22,18 +23,34 @@ class VersionTree:
         self._root = Path(workspace_dir)
         self._versions_dir = self._root / "versions"
 
-    def create_version(self, meta: VersionMeta, config_manager) -> str:
-        """Create version dir with meta.yaml + config snapshot."""
+    def create_version(self, meta: VersionMeta, config_manager, diff: dict | None = None) -> str:
+        """Atomically create a version directory with metadata and config snapshot."""
+        self._versions_dir.mkdir(parents=True, exist_ok=True)
         version_dir = self._versions_dir / meta.id
-        version_dir.mkdir(parents=True, exist_ok=True)
-        # Write meta
-        meta_dict = {k: v for k, v in vars(meta).items() if v}
-        (version_dir / "meta.yaml").write_text(yaml.dump(meta_dict, default_flow_style=False, sort_keys=False))
-        # Snapshot config
-        config_manager.snapshot_config(version_dir / "config")
-        # Create run directory
-        (version_dir / "run").mkdir(exist_ok=True)
+        if version_dir.exists():
+            raise ValueError(f"Version already exists: {meta.id}")
+        staging = self._versions_dir / f".{meta.id}.{uuid.uuid4().hex}.tmp"
+        try:
+            staging.mkdir(parents=True)
+            meta_dict = {k: v for k, v in vars(meta).items() if v}
+            (staging / "meta.yaml").write_text(
+                yaml.dump(meta_dict, default_flow_style=False, sort_keys=False)
+            )
+            (staging / "diff.yaml").write_text(
+                yaml.dump(diff or {}, default_flow_style=False, sort_keys=False)
+            )
+            config_manager.snapshot_config(staging / "config")
+            (staging / "run").mkdir()
+            staging.replace(version_dir)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
         return meta.id
+
+    def delete_version(self, version_id: str) -> None:
+        version_dir = self._versions_dir / version_id
+        if version_dir.exists():
+            shutil.rmtree(version_dir)
 
     def get_version(self, version_id: str) -> VersionMeta | None:
         meta_path = self._versions_dir / version_id / "meta.yaml"

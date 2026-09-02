@@ -89,10 +89,102 @@ class TestConclude:
         meta = VersionMeta(id="v001", hypothesis="test")
         ws.versions.create_version(meta, ws.config)
 
-        ws.conclude_experiment("v001", conclusion="Worked well", verdict="keep")
+        ws.conclude_experiment("v001", conclusion="Worked well", verdict="improved")
         updated = ws.versions.get_version("v001")
         assert updated.conclusion == "Worked well"
-        assert updated.verdict == "keep"
+        assert updated.verdict == "improved"
+
+    def test_rejects_invalid_verdict(self, initialized_workspace):
+        ws = initialized_workspace
+        ws.versions.create_version(VersionMeta(id="v001"), ws.config)
+        with pytest.raises(ValueError, match="Invalid verdict"):
+            ws.conclude_experiment("v001", conclusion="Nope", verdict="keep")
+
+
+class TestRealExperimentWorkflow:
+    def test_unmocked_baseline_and_child_experiment(self, initialized_workspace):
+        ws = initialized_workspace
+        root = ws._root
+        rng = np.random.RandomState(123)
+        n = 180
+        feature = rng.randn(n)
+        pd.DataFrame({
+            "feature": feature,
+            "noise": rng.randn(n),
+            "target": (feature + rng.randn(n) * 0.5 > 0).astype(int),
+        }).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
+
+        baseline = ws.run_experiment(
+            "baseline",
+            "Establish a leakage-free logistic baseline",
+            {"models": {"lr": {"model_type": "logistic"}}},
+        )
+        assert baseline.metrics["accuracy"] > 0.6
+        assert ws.versions.get_current() == "v001"
+
+        child = ws.run_experiment(
+            "hyperparameter",
+            "Test stronger regularization",
+            {"model_name": "lr", "params": {"C": 0.5}},
+        )
+        assert "accuracy" in child.metrics
+        meta = ws.versions.get_version("v002")
+        assert meta.parent == "v001"
+        assert meta.data_hash.startswith("sha256:")
+        assert (root / "versions" / "v002" / "diff.yaml").exists()
+        assert ws.config.read_models().models["lr"].params["C"] == 0.5
+
+    def test_all_advertised_experiment_types_change_config(self, initialized_workspace):
+        ws = initialized_workspace
+        root = ws._root
+        pd.DataFrame({
+            "feature": np.arange(30, dtype=float),
+            "other": np.arange(30, dtype=float) * 2,
+            "target": np.tile([0, 1], 15),
+        }).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
+        result = BacktestResult(metrics={"accuracy": 0.5})
+
+        experiments = [
+            ("baseline", {"models": {"lr": {"model_type": "logistic"}}}),
+            ("feature", {"name": "sum_feature", "type": "pairwise", "formula": "feature + other"}),
+            ("model", {"name": "rf", "model_type": "random_forest"}),
+            ("hyperparameter", {"model_name": "lr", "params": {"C": 0.5}}),
+            ("ensemble", {"temperature": 1.2}),
+            ("calibration", {"method": "platt"}),
+            ("cv_strategy", {"n_folds": 3}),
+            ("feature_selection", {"model_name": "lr", "features": ["feature"]}),
+        ]
+        with patch("harness.app.workspace.manager.run_backtest", return_value=result):
+            for index, (kind, params) in enumerate(experiments, start=1):
+                ws.run_experiment(kind, f"Test {kind}", params)
+                assert ws.versions.get_current() == f"v{index:03d}"
+
+        assert len(ws.versions.list_versions()) == 8
+
+    def test_failed_experiment_preserves_current_and_config(self, initialized_workspace):
+        ws = initialized_workspace
+        root = ws._root
+        pd.DataFrame({"feature": [0, 1], "target": [0, 1]}).to_parquet(
+            root / "data" / "clean" / "dataset.parquet", index=False
+        )
+        result = BacktestResult(metrics={"accuracy": 0.5})
+        with patch("harness.app.workspace.manager.run_backtest", return_value=result):
+            ws.run_experiment(
+                "baseline", "baseline", {"models": {"lr": {"model_type": "logistic"}}}
+            )
+        before = ws.config.read_models().model_dump()
+
+        with patch("harness.app.workspace.manager.run_backtest", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError, match="boom"):
+                ws.run_experiment(
+                    "hyperparameter",
+                    "failing child",
+                    {"model_name": "lr", "params": {"C": 99}},
+                )
+
+        assert ws.versions.get_current() == "v001"
+        assert ws.config.read_models().model_dump() == before
+        assert len(ws.versions.list_versions()) == 1
 
 
 class TestSwitchVersion:
