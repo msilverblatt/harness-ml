@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harness-data"
+version = "0.1.0"
+description = "Declarative data engineering library for the Harness ML platform"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+polars = ["polars>=1.0.0"]
+all = ["polars>=1.0.0", "openpyxl>=3.1", "requests>=2.31"]
+dev = ["pytest>=8.0", "pytest-cov>=4.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harness"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

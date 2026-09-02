@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, harness-v2, harness2-development-history]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [harness-data, harness-ml, harness-app, harness-server, harness-studio]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Test ${{ matrix.package }}
+        run: uv run --package ${{ matrix.package }} --with pytest --with httpx pytest packages/${{ matrix.package }}/tests -q
+      - name: Build ${{ matrix.package }}
+        run: uv build --package ${{ matrix.package }}
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/harness-studio/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: packages/harness-studio/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build

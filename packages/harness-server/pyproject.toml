@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harness-server"
+version = "0.1.0"
+description = "MCP server for the Harness agent-first ML platform"
+requires-python = ">=3.11"
+dependencies = [
+    "harness-app>=0.1.0",
+    "harness-data>=0.1.0",
+    "harness-ml>=0.1.0",
+    "protomcp>=0.3,<0.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+harness-server = "harness.server.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harness"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

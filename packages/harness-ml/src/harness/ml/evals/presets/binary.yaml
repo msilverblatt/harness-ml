@@ -1,0 +1,49 @@
+evals:
+  probability_accuracy:
+    description: "Are predicted probabilities trustworthy?"
+    checks:
+      - metric: ece
+        op: "<"
+        value: 0.05
+        severity: error
+      - metric: brier
+        op: "<"
+        value: 0.25
+        severity: warning
+    comparisons:
+      - vs: parent
+        metric: brier
+        expect: lower
+      - vs: parent
+        metric: ece
+        expect: lower
+    judgment: |
+      Review the calibration curve for systematic biases.
+  discrimination:
+    description: "Can the model distinguish between outcomes?"
+    checks:
+      - metric: auroc
+        op: ">"
+        value: 0.55
+        severity: error
+      - metric: accuracy
+        op: ">"
+        value: 0.52
+        severity: warning
+    comparisons:
+      - vs: parent
+        metric: auroc
+        expect: higher
+    judgment: |
+      Is the model separating positive and negative cases?
+  stability:
+    description: "Consistent across evaluation folds?"
+    checks:
+      - metric: fold_std_brier
+        op: "<"
+        value: 0.05
+        severity: warning
+    comparisons:
+      - vs: parent
+        metric: fold_std_brier
+        expect: lower
