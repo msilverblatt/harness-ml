@@ -269,7 +269,9 @@ class TestRunBacktest:
         assert "brier" in result.metrics  # still got metrics from lr
 
     def test_all_models_failing_raises(self, simple_binary_data):
-        with pytest.raises(RuntimeError, match="No model produced predictions"):
+        with pytest.raises(
+            RuntimeError, match="No model produced predictions.*Failures: bad:"
+        ):
             run_backtest(
                 data=simple_binary_data,
                 project_config=ProjectConfig(target_column="target"),

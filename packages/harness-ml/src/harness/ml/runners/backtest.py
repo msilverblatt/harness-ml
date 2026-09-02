@@ -257,8 +257,16 @@ def run_backtest(
         ]
     )
     if not common_prediction_columns:
+        unique_failures = list(
+            dict.fromkeys(
+                f"{failure['name']}: {failure['error']}"
+                for failure in models_failed
+            )
+        )
+        detail = f" Failures: {'; '.join(unique_failures)}" if unique_failures else ""
         raise RuntimeError(
-            "No model produced predictions for every fold; cannot build ensemble"
+            "No model produced predictions for every fold; cannot build ensemble."
+            + detail
         )
     for fold_id, frame in fold_predictions.items():
         fold_predictions[fold_id] = frame[
