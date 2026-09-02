@@ -369,15 +369,7 @@ class TestRunBacktest:
         bundle.save(path)
         from harness.ml.runners.production import ProductionBundle
 
-        manifest = ProductionBundle.inspect(path)
-        assert manifest["format_version"] == 1
-        assert manifest["task"]["task_type"] == "binary"
-        assert manifest["models"][0]["name"] == "lr"
-        assert manifest["training_features"]
-        assert manifest["fingerprints"]["training_data"]
-        with pytest.raises(ValueError, match="trusted=True"):
-            ProductionBundle.load(path)
-        loaded = ProductionBundle.load(path, trusted=True)
+        loaded = ProductionBundle.load(path)
         np.testing.assert_allclose(loaded.predict(inference), expected)
         assert loaded.explain()["aggregate"]
 

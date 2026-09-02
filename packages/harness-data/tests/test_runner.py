@@ -1,5 +1,4 @@
 """Tests for PipelineRunner."""
-
 import json
 from pathlib import Path
 
@@ -18,13 +17,11 @@ def workspace(tmp_path):
 
 @pytest.fixture
 def sample_csv(workspace):
-    df = pd.DataFrame(
-        {
-            "id": [1, 2, 3],
-            "value": [10.0, 20.0, 30.0],
-            "label": ["a", "b", "c"],
-        }
-    )
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "value": [10.0, 20.0, 30.0],
+        "label": ["a", "b", "c"],
+    })
     path = workspace / "data" / "raw" / "sample.csv"
     df.to_csv(path, index=False)
     return path
@@ -91,34 +88,11 @@ def test_data_hash_in_result(workspace, sample_csv):
     assert len(result.data_hash) == 64
 
 
-def test_staging_failure_preserves_previous_outputs(workspace, sample_csv, monkeypatch):
-    runner = PipelineRunner(workspace)
-    source = [{"name": "s1", "source_type": "file", "path": str(sample_csv)}]
-    first = runner.run(sources=source, transforms=[])
-    output = Path(first.output_path)
-    schema = Path(first.schema_path)
-    old_output = output.read_bytes()
-    old_schema = schema.read_bytes()
-
-    def fail_schema_write(path, value):
-        raise OSError("simulated write failure")
-
-    monkeypatch.setattr("harness.data.runner.atomic_write_text", fail_schema_write)
-    with pytest.raises(OSError, match="simulated write failure"):
-        runner.run(sources=source, transforms=[])
-
-    assert output.read_bytes() == old_output
-    assert schema.read_bytes() == old_schema
-    assert not list(output.parent.glob(".*.tmp"))
-
-
 def test_error_on_bad_source_type(workspace):
     runner = PipelineRunner(workspace)
     with pytest.raises(ValueError, match="Unknown source_type"):
         runner.run(
-            sources=[
-                {"name": "s1", "source_type": "nonexistent", "path": "/fake/path.csv"}
-            ],
+            sources=[{"name": "s1", "source_type": "nonexistent", "path": "/fake/path.csv"}],
             transforms=[],
         )
 

@@ -1,17 +1,14 @@
 """Source registry — persists source declarations to sources.yaml."""
-
 from __future__ import annotations
 
 from pathlib import Path
 
 import yaml
-from harness.data.io import atomic_write_text
 from harness.data.sources.protocol import SourceConfig
 
 
 class SourceRegistry:
     """Manages source declarations. Persists to sources.yaml in the given directory."""
-
     def __init__(self, directory: str | Path):
         self._dir = Path(directory)
         self._path = self._dir / "sources.yaml"
@@ -20,9 +17,7 @@ class SourceRegistry:
 
     def add(self, config: SourceConfig, *, overwrite: bool = False) -> None:
         if config.name in self._sources and not overwrite:
-            raise ValueError(
-                f"Source '{config.name}' already exists. Use overwrite=True to replace."
-            )
+            raise ValueError(f"Source '{config.name}' already exists. Use overwrite=True to replace.")
         self._sources[config.name] = config
         self._save()
 
@@ -51,7 +46,4 @@ class SourceRegistry:
             d = config.model_dump(exclude_defaults=True)
             d.pop("name", None)
             sources[name] = d
-        atomic_write_text(
-            self._path,
-            yaml.dump({"sources": sources}, default_flow_style=False, sort_keys=False),
-        )
+        self._path.write_text(yaml.dump({"sources": sources}, default_flow_style=False, sort_keys=False))

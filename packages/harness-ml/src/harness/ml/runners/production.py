@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import cloudpickle
 import numpy as np
 import pandas as pd
 from harness.ml.config.ensemble import EnsembleConfig
@@ -14,7 +13,6 @@ from harness.ml.config.project import ProjectConfig
 from harness.ml.features.resolver import FeatureResolver
 from harness.ml.features.schema import FeatureSet
 from harness.ml.models.registry import ModelRegistry
-from harness.ml.runners.artifacts import inspect_artifact, load_artifact, save_artifact
 from harness.ml.runners.dag import ModelDAG
 from harness.ml.runners.postprocessing import apply_postprocessing
 from harness.ml.runners.provider_context import ProviderContext
@@ -41,8 +39,6 @@ class ProductionBundle:
     ensemble_method: str = "average"
     calibrator: Any = None
     conformal_radius: float | None = None
-    training_feature_schema: list[dict[str, str]] = field(default_factory=list)
-    training_data_fingerprint: str = ""
 
     def predict(self, data: pd.DataFrame) -> np.ndarray:
         """Generate predictions from raw, target-optional tabular input."""
@@ -203,66 +199,20 @@ class ProductionBundle:
         return results
 
     def save(self, path: str | Path) -> None:
-        save_artifact(path, self, self._artifact_metadata())
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        with temporary.open("wb") as handle:
+            cloudpickle.dump(self, handle)
+        temporary.replace(destination)
 
     @classmethod
-    def inspect(cls, path: str | Path) -> dict[str, Any]:
-        """Inspect and integrity-check metadata without deserializing models."""
-        return inspect_artifact(path)
-
-    @classmethod
-    def load(cls, path: str | Path, *, trusted: bool = False) -> ProductionBundle:
-        bundle = load_artifact(path, trusted=trusted)
+    def load(cls, path: str | Path) -> ProductionBundle:
+        with Path(path).open("rb") as handle:
+            bundle = cloudpickle.load(handle)
         if not isinstance(bundle, cls):
             raise TypeError("Artifact is not a Harness ProductionBundle")
-        # Dataclass defaults are not applied when an older pickle is restored.
-        # Populate fields introduced by the versioned artifact format so a
-        # trusted legacy bundle can be immediately re-saved to migrate it.
-        if not hasattr(bundle, "training_feature_schema"):
-            bundle.training_feature_schema = []
-        if not hasattr(bundle, "training_data_fingerprint"):
-            bundle.training_data_fingerprint = ""
         return bundle
-
-    def _artifact_metadata(self) -> dict[str, Any]:
-        models = [
-            {
-                "name": name,
-                "model_type": entry.config.model_type,
-                "seed_count": len(entry.models),
-                "depends_on": list(entry.config.depends_on),
-                "provides": entry.config.provides,
-                "include_in_ensemble": entry.config.include_in_ensemble,
-            }
-            for name, entry in sorted(self.models.items())
-        ]
-        output = {
-            "kind": "per_class_probabilities"
-            if self.project_config.task_type == "multiclass"
-            else "scalar",
-            "task_type": self.project_config.task_type,
-            "conformal_intervals": self.conformal_radius is not None,
-        }
-        return {
-            "task": {
-                "task_type": self.project_config.task_type,
-                "target_column": self.project_config.target_column,
-                "ensemble_method": self.ensemble_method,
-                "calibration": self.ensemble_config.calibration,
-                "conformal_intervals": self.conformal_radius is not None,
-            },
-            "models": models,
-            "training_features": self.training_feature_schema,
-            "ensemble_columns": list(self.ensemble_columns),
-            "fingerprints": {
-                "project_config": _canonical_hash(self.project_config),
-                "models_config": _canonical_hash(self.models_config),
-                "ensemble_config": _canonical_hash(self.ensemble_config),
-                "feature_set": _canonical_hash(self.feature_set),
-                "training_data": self.training_data_fingerprint,
-            },
-            "output": output,
-        }
 
     def _prepare_predictors(self, data: pd.DataFrame) -> pd.DataFrame:
         forbidden = {
@@ -351,32 +301,7 @@ def train_production_bundle(
         ensemble_method=ensemble_method,
         calibrator=calibrator,
         conformal_radius=conformal_radius,
-        training_feature_schema=[
-            {"name": str(column), "dtype": str(predictors[column].dtype)}
-            for column in predictors.columns
-        ],
-        training_data_fingerprint=_training_data_fingerprint(predictors, target),
     )
-
-
-def _canonical_hash(value: Any) -> str:
-    if value is None:
-        payload = None
-    elif hasattr(value, "model_dump"):
-        payload = value.model_dump(mode="json")
-    else:
-        payload = value
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _training_data_fingerprint(predictors: pd.DataFrame, target: pd.Series) -> str:
-    digest = hashlib.sha256()
-    schema = [(str(column), str(predictors[column].dtype)) for column in predictors]
-    digest.update(json.dumps(schema, separators=(",", ":")).encode())
-    digest.update(pd.util.hash_pandas_object(predictors, index=True).values.tobytes())
-    digest.update(pd.util.hash_pandas_object(target, index=True).values.tobytes())
-    return digest.hexdigest()
 
 
 def _average_predictions(frame: pd.DataFrame) -> np.ndarray:
