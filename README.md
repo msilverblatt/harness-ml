@@ -10,7 +10,7 @@ Harness 2 replaces the monolithic v1 runner with five focused Python packages:
 - **harness-server** — MCP interface with 17 tools and 5 resources
 - **harness-studio** — FastAPI and React experiment dashboard
 
-> Harness 2 is currently being productionized on the `harness2-development-history` branch. The stable v1 code remains available on `v1-maintenance` and at the `v1-final` tag until the v2 release gates pass.
+> Harness 2 is the current release. The stable v1 code remains permanently available on `v1-maintenance` and at the `v1-final` tag; full incremental v2 development history is preserved on `harness2-development-history`.
 
 ## Development quickstart
 
