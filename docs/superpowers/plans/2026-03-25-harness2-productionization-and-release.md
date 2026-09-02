@@ -499,4 +499,4 @@ This approach preserves normal repository ancestry and makes the replacement dif
 - [x] CI is green
 - [x] v1-final tag and v1-maintenance branch exist remotely
 - [x] Harness 2 full history is preserved remotely
-- [ ] Replacement PR is reviewed and release candidate validated
+- [x] Replacement PR is reviewed and release candidate validated
