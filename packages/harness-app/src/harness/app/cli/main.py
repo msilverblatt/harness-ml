@@ -76,7 +76,7 @@ def predict(input_path, output_path, version):
         if input_path.suffix.lower() in {".parquet", ".pq"}
         else pd.read_csv(input_path)
     )
-    bundle = ProductionBundle.load(bundle_path, trusted=True)
+    bundle = ProductionBundle.load(bundle_path)
     predictions = bundle.predict(frame)
     if predictions.ndim == 1:
         output = pd.DataFrame({"prediction": predictions}, index=frame.index)
@@ -96,21 +96,6 @@ def predict(input_path, output_path, version):
     else:
         output.to_csv(output_path, index=False)
     click.echo(f"Wrote {len(output)} predictions to {output_path}")
-
-
-@cli.command("inspect-bundle")
-@click.argument("bundle_path", type=click.Path(exists=True, path_type=Path))
-def inspect_bundle(bundle_path):
-    """Inspect and verify a production bundle without loading model code."""
-    import json
-
-    from harness.ml.runners.production import ProductionBundle
-
-    try:
-        manifest = ProductionBundle.inspect(bundle_path)
-    except ValueError as error:
-        raise click.ClickException(str(error)) from error
-    click.echo(json.dumps(manifest, indent=2, sort_keys=True))
 
 
 @cli.command("export")
