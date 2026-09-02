@@ -89,14 +89,23 @@ def test_full_registered_agent_workflow(tmp_path):
     refreshed.to_csv(source, index=False)
     tools["data.run"]()
     post_refresh = tools["experiment.propose"](
-        experiment_type="hyperparameter",
-        hypothesis="Evaluate after a source refresh",
-        params={"model_name": "lr", "params": {"C": 0.25}},
+        experiment_type="data_refresh",
+        hypothesis="Re-establish the selected configuration after source refresh",
+        params={},
     )
     assert post_refresh["parent_metrics"] == {}
     assert post_refresh["deltas"] == {}
     with pytest.raises(ValueError, match="different datasets"):
         tools["analyze.compare"](versions=["v001", "v003"])
+
+    refreshed_child = tools["experiment.propose"](
+        experiment_type="hyperparameter",
+        hypothesis="Tune against the refreshed baseline",
+        params={"model_name": "lr", "params": {"C": 0.25}},
+    )
+    assert refreshed_child["parent"] == "v003"
+    assert refreshed_child["parent_metrics"]
+    assert refreshed_child["deltas"]
 
     # Stored outputs must remain ordinary JSON-compatible protocol payloads.
     json.dumps(diagnostics)

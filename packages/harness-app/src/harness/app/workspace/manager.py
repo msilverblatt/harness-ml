@@ -98,7 +98,7 @@ class WorkspaceManager:
             before = _config_state(staging_config)
             self._apply_experiment_params(exp_type, params, staging_config)
             after = _config_state(staging_config)
-            if before == after:
+            if before == after and exp_type is not ExperimentType.DATA_REFRESH:
                 raise ValueError(
                     f"Experiment '{exp_type.value}' produced no config change"
                 )
@@ -108,6 +108,16 @@ class WorkspaceManager:
             ensemble = staging_config.read_ensemble()
             features = staging_config.read_features()
             data = self.data.load_clean_data()
+            current_data_hash = _data_hash(
+                self._root / "data" / "clean" / "dataset.parquet"
+            )
+            parent_meta = self.versions.get_version(parent_id) if parent_id else None
+            if (
+                exp_type is ExperimentType.DATA_REFRESH
+                and parent_meta
+                and parent_meta.data_hash == current_data_hash
+            ):
+                raise ValueError("Data refresh experiment requires changed clean data")
 
             result = run_backtest(
                 data=data,
@@ -117,10 +127,6 @@ class WorkspaceManager:
                 feature_set=features if features.features else None,
                 cache_dir=self._root / "artifacts" / "predictions",
             )
-            current_data_hash = _data_hash(
-                self._root / "data" / "clean" / "dataset.parquet"
-            )
-            parent_meta = self.versions.get_version(parent_id) if parent_id else None
             parent_metrics = (
                 parent_meta.metrics
                 if parent_meta and parent_meta.data_hash == current_data_hash
@@ -200,6 +206,11 @@ class WorkspaceManager:
     ) -> None:
         # Copy through JSON so caller-owned nested dictionaries cannot be mutated.
         params = json.loads(json.dumps(params))
+
+        if experiment_type is ExperimentType.DATA_REFRESH:
+            if params:
+                raise ValueError("Data refresh experiment does not accept parameters")
+            return
 
         if experiment_type is ExperimentType.BASELINE:
             if not params.get("models"):

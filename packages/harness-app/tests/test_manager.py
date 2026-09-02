@@ -151,26 +151,37 @@ class TestRealExperimentWorkflow:
         assert "probability_accuracy" in eval_report["dimensions"]
         assert ws.config.read_models().models["lr"].params["C"] == 0.5
 
+        with pytest.raises(ValueError, match="requires changed clean data"):
+            ws.run_experiment("data_refresh", "No new data yet", {})
+
         # Metrics from a parent evaluated on old data are not a valid baseline.
         refreshed = pd.read_parquet(root / "data" / "clean" / "dataset.parquet")
         refreshed.loc[len(refreshed)] = [0.25, -0.5, 1]
         refreshed.to_parquet(
             root / "data" / "clean" / "dataset.parquet", index=False
         )
-        ws.run_experiment(
-            "hyperparameter",
-            "Evaluate after a data refresh",
-            {"model_name": "lr", "params": {"C": 0.25}},
+        refresh = ws.run_experiment(
+            "data_refresh",
+            "Re-establish the parent configuration on refreshed data",
+            {},
         )
         refreshed_report = json.loads(
             (root / "versions" / "v003" / "run" / "eval_report.json").read_text()
         )
+        assert refresh.metrics
         assert all(
             not dimension["comparisons"]
             for dimension in refreshed_report["dimensions"].values()
         )
         with pytest.raises(ValueError, match="different datasets"):
             ws.versions.compare("v002", "v003")
+
+        ws.run_experiment(
+            "hyperparameter",
+            "Tune against the refreshed baseline",
+            {"model_name": "lr", "params": {"C": 0.25}},
+        )
+        assert ws.versions.compare("v003", "v004")
 
     def test_all_advertised_experiment_types_change_config(self, initialized_workspace):
         ws = initialized_workspace
@@ -200,13 +211,22 @@ class TestRealExperimentWorkflow:
             ("calibration", {"method": "platt"}),
             ("cv_strategy", {"n_folds": 3}),
             ("feature_selection", {"model_name": "lr", "features": ["feature"]}),
+            ("data_refresh", {}),
         ]
         with patch("harness.app.workspace.manager.run_backtest", return_value=result):
             for index, (kind, params) in enumerate(experiments, start=1):
+                if kind == "data_refresh":
+                    refreshed = pd.read_parquet(
+                        root / "data" / "clean" / "dataset.parquet"
+                    )
+                    refreshed.loc[len(refreshed)] = [100.0, 200.0, 1]
+                    refreshed.to_parquet(
+                        root / "data" / "clean" / "dataset.parquet", index=False
+                    )
                 ws.run_experiment(kind, f"Test {kind}", params)
                 assert ws.versions.get_current() == f"v{index:03d}"
 
-        assert len(ws.versions.list_versions()) == 8
+        assert len(ws.versions.list_versions()) == len(experiments)
 
     def test_failed_experiment_preserves_current_and_config(
         self, initialized_workspace

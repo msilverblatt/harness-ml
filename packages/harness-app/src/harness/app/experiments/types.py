@@ -10,6 +10,7 @@ class ExperimentType(StrEnum):
     CALIBRATION = "calibration"
     CV_STRATEGY = "cv_strategy"
     FEATURE_SELECTION = "feature_selection"
+    DATA_REFRESH = "data_refresh"
 
 
 # Maps experiment type → which config files it can modify
@@ -22,4 +23,5 @@ EXPERIMENT_CONFIG_MAP = {
     ExperimentType.CALIBRATION: ["ensemble"],
     ExperimentType.CV_STRATEGY: ["project"],
     ExperimentType.FEATURE_SELECTION: ["models"],
+    ExperimentType.DATA_REFRESH: [],
 }
