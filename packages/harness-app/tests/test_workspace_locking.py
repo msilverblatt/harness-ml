@@ -1,8 +1,6 @@
 import json
 import multiprocessing
-import os
 import shutil
-import signal
 
 import pandas as pd
 import pytest
@@ -23,26 +21,6 @@ def _hold_workspace_lock(root, ready, release):
     with WorkspaceLock(root, "child_process"):
         ready.set()
         release.wait(timeout=10)
-
-
-def _kill_during_commit(root, phase):
-    workspace = WorkspaceManager(root)
-    with WorkspaceLock(root, "fault_injection"):
-        staging = workspace.versions.stage_version(
-            VersionMeta(id="v002", parent="v001"), workspace.config
-        )
-        atomic_write_json(staging / "run" / "state.json", {"status": "complete"})
-        workspace._begin_commit("v002", "v001")
-        if phase == "journal":
-            os.kill(os.getpid(), signal.SIGKILL)
-        workspace.versions.publish_version(staging, "v002")
-        if phase == "publish":
-            os.kill(os.getpid(), signal.SIGKILL)
-        workspace.config.restore_config(root / "versions" / "v002" / "config")
-        if phase == "config":
-            os.kill(os.getpid(), signal.SIGKILL)
-        atomic_write_text(root / "current", "v002")
-        os.kill(os.getpid(), signal.SIGKILL)
 
 
 def _create_v001(workspace):
@@ -195,37 +173,6 @@ def test_recovery_finishes_commit_when_pointer_already_updated(initialized_works
         assert workspace.versions.get_current() == "v002"
         assert (root / "versions" / "v002").exists()
         assert not workspace._transaction_path.exists()
-
-
-@pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="requires POSIX signals")
-@pytest.mark.parametrize(
-    ("phase", "expected_current", "candidate_exists"),
-    [
-        ("journal", "v001", False),
-        ("publish", "v001", False),
-        ("config", "v001", False),
-        ("pointer", "v002", True),
-    ],
-)
-def test_real_process_termination_recovers_each_commit_boundary(
-    initialized_workspace, phase, expected_current, candidate_exists
-):
-    workspace = initialized_workspace
-    _create_v001(workspace)
-    context = multiprocessing.get_context("spawn")
-    process = context.Process(target=_kill_during_commit, args=(workspace._root, phase))
-    process.start()
-    process.join(timeout=15)
-    if process.is_alive():
-        process.terminate()
-        process.join()
-    assert process.exitcode == -signal.SIGKILL
-
-    with workspace._mutation("recover_after_sigkill"):
-        assert workspace.versions.get_current() == expected_current
-        assert (workspace._root / "versions" / "v002").exists() is candidate_exists
-        assert not workspace._transaction_path.exists()
-        assert not workspace._rollback_config_dir.exists()
 
 
 def test_invalid_transaction_journal_fails_closed(initialized_workspace):

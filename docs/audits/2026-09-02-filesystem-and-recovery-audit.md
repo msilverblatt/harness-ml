@@ -61,13 +61,12 @@ additional layout complexity.
 ### M1 — Crash recovery tests model states rather than killing every boundary
 
 **Severity:** Medium  
-**Status:** Partially fixed; broader stress evidence remains required
+**Status:** Open; required before Step 1 exit
 
-A real subprocess `SIGKILL` matrix now terminates a lock-owning process after
-journal creation, version publication, live-config restoration, and current-pointer
-replacement, then verifies deterministic rollback or commit completion. Pipeline
-publication and lower-level filesystem-operation injection still require broader
-stress coverage before the roadmap's operational-proof exit gate can pass.
+Tests cover lock exclusion and each journal interpretation, but do not yet inject
+`SIGKILL` after every filesystem operation. A subprocess fault-injection matrix
+must validate actual termination behavior before the roadmap's operational-proof
+exit gate can pass.
 
 ### M2 — Filesystem support boundary is local filesystems
 
@@ -125,7 +124,7 @@ them.
 
 Before Step 1 is considered complete:
 
-- extend the real subprocess `SIGKILL` matrix from commit boundaries to pipeline stages;
+- run real subprocess `SIGKILL` fault injection across commit and pipeline stages;
 - add sustained concurrent read/mutate stress tests;
 - establish and test the supported filesystem matrix;
 - test bundle fixtures across at least two released Harness versions;
