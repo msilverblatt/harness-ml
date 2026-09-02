@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+import hashlib
 import time
 import numpy as np
 import pandas as pd
@@ -33,6 +34,11 @@ class BacktestResult:
     meta_coefficients: dict[str, float] = field(default_factory=dict)
 
 
+def _hash_pandas(value: pd.DataFrame | pd.Series) -> str:
+    hashed = pd.util.hash_pandas_object(value, index=True).values
+    return hashlib.sha256(hashed.tobytes()).hexdigest()
+
+
 def run_backtest(
     data: pd.DataFrame,
     project_config: ProjectConfig,
@@ -56,12 +62,35 @@ def run_backtest(
     task = TaskRegistry.get(project_config.task_type)
 
     target_col = project_config.target_column
-    y_full = data[target_col]
+    if target_col not in data.columns:
+        raise ValueError(f"Target column '{target_col}' not found")
+    y_full = data[target_col].copy()
+    target_validation = task.validate_target(y_full)
+    if not target_validation.is_valid:
+        raise ValueError(f"Invalid target: {target_validation.messages}")
 
-    # --- Step 1: Resolve features ---
+    # Generate folds from the complete frame because grouped/temporal strategies
+    # need metadata columns that must never be passed to a model.
+    folds = generate_folds(data, project_config.cv, y_full)
+    if not folds:
+        raise ValueError("No folds generated -- check CV configuration")
+
+    # --- Step 1: Build a predictor-only frame and resolve features ---
+    forbidden_columns = {target_col, *project_config.exclude_columns}
+    if project_config.cv.fold_column:
+        forbidden_columns.add(project_config.cv.fold_column)
+    predictor_data = data.drop(
+        columns=[column for column in forbidden_columns if column in data.columns]
+    ).copy()
+
     if feature_set is not None:
         resolver = FeatureResolver()
-        data = resolver.resolve(data, feature_set)
+        # Resolving against predictor_data also prevents formulas and aliases from
+        # reading the target or CV metadata.
+        predictor_data = resolver.resolve(predictor_data, feature_set)
+
+    if predictor_data.empty or not len(predictor_data.columns):
+        raise ValueError("No eligible feature columns remain after exclusions")
 
     # --- Step 2: Filter to active models ---
     active_models = {
@@ -77,10 +106,23 @@ def run_backtest(
         raise ValueError(f"DAG validation failed: {errors}")
     waves = dag.topological_waves()
 
-    # --- Step 4: Generate CV folds ---
-    folds = generate_folds(data, project_config.cv, y_full)
-    if not folds:
-        raise ValueError("No folds generated -- check CV configuration")
+    for model_name, model_config in active_models.items():
+        forbidden_requested = sorted(set(model_config.features) & forbidden_columns)
+        if forbidden_requested:
+            raise ValueError(
+                f"Model '{model_name}' requests forbidden feature columns: "
+                f"{forbidden_requested}"
+            )
+        missing = sorted(set(model_config.features) - set(predictor_data.columns))
+        if missing:
+            raise ValueError(f"Model '{model_name}' requests missing features: {missing}")
+
+    # Dataset and target hashes deliberately include values, ordering, and index.
+    data_fingerprint = _hash_pandas(predictor_data)
+    target_fingerprint = _hash_pandas(y_full)
+    feature_schema = str(
+        [(column, str(dtype)) for column, dtype in predictor_data.dtypes.items()]
+    )
 
     # --- Phase 1: Base model training ---
     cache = PredictionCache(cache_dir)
@@ -95,8 +137,8 @@ def run_backtest(
         fold_id = str(fold_num)
         progress.on_fold_start(fold_id, fold_num, len(folds))
 
-        X_train = data.iloc[train_idx].copy()
-        X_test = data.iloc[test_idx].copy()
+        X_train = predictor_data.iloc[train_idx].copy()
+        X_test = predictor_data.iloc[test_idx].copy()
         y_train = y_full.iloc[train_idx]
         y_test = y_full.iloc[test_idx]
 
@@ -116,11 +158,24 @@ def run_backtest(
                     X_te = provider_ctx.inject_features(X_te, "test", model_config.depends_on)
 
                 # Check fingerprint cache
+                fold_fingerprint = hashlib.sha256(
+                    train_idx.tobytes() + b":" + test_idx.tobytes()
+                ).hexdigest()
+                selected_features = model_config.features or list(X_tr.columns)
+                selected_schema = str(
+                    [(column, str(X_tr[column].dtype)) for column in selected_features]
+                )
                 fp = cache.compute_fingerprint(
                     model_config.model_dump(),
-                    str(sorted(model_config.features or list(X_tr.columns))),
+                    selected_schema or feature_schema,
+                    data_fingerprint=data_fingerprint,
+                    target_fingerprint=target_fingerprint,
+                    fold_fingerprint=fold_fingerprint,
+                    task_type=project_config.task_type,
                 )
-                cached_preds = cache.get(model_name, fold_id, fp)
+                cached_preds = cache.get(
+                    model_name, fold_id, fp, expected_length=len(test_idx)
+                )
 
                 if cached_preds is not None:
                     test_preds = cached_preds

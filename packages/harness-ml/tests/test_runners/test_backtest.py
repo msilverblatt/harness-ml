@@ -89,6 +89,85 @@ class TestRunBacktest:
         assert r2.models_cached == 3
         assert r2.models_trained == 0
 
+    def test_default_features_exclude_target(self):
+        """The implicit feature path must not train on the answer column."""
+        rng = np.random.RandomState(7)
+        n = 400
+        data = pd.DataFrame({
+            "noise_a": rng.randn(n),
+            "noise_b": rng.randn(n),
+            "target": rng.randint(0, 2, n),
+        })
+        result = run_backtest(
+            data=data,
+            project_config=ProjectConfig(
+                task_type="binary", target_column="target",
+                cv=CVConfig(strategy="kfold", n_folds=5),
+                metrics=["accuracy"],
+            ),
+            models_config=ModelsConfig(models={
+                "lr": SingleModelConfig(name="lr", model_type="logistic"),
+            }),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        assert result.metrics["accuracy"] < 0.7
+
+    def test_explicit_target_feature_is_rejected(self, simple_binary_data):
+        with pytest.raises(ValueError, match="forbidden feature"):
+            run_backtest(
+                data=simple_binary_data,
+                project_config=ProjectConfig(target_column="target"),
+                models_config=ModelsConfig(models={
+                    "lr": SingleModelConfig(
+                        name="lr", model_type="logistic", features=["target"]
+                    ),
+                }),
+                ensemble_config=EnsembleConfig(method="average"),
+            )
+
+    def test_fold_and_excluded_columns_are_not_default_features(self):
+        rng = np.random.RandomState(11)
+        n = 200
+        data = pd.DataFrame({
+            "signal": rng.randn(n),
+            "season": np.repeat(np.arange(5), 40),
+            "row_id": np.arange(n),
+        })
+        data["target"] = (data["signal"] > 0).astype(int)
+        result = run_backtest(
+            data=data,
+            project_config=ProjectConfig(
+                target_column="target",
+                cv=CVConfig(
+                    strategy="expanding_window", fold_column="season", min_train_folds=2
+                ),
+                exclude_columns=["row_id"],
+                metrics=["accuracy"],
+            ),
+            models_config=ModelsConfig(models={
+                "lr": SingleModelConfig(name="lr", model_type="logistic"),
+            }),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        assert result.models_trained == 3
+
+    def test_changed_data_invalidates_cache(self, simple_binary_data, tmp_path):
+        config = ProjectConfig(
+            target_column="target", cv=CVConfig(strategy="kfold", n_folds=3)
+        )
+        models = ModelsConfig(models={
+            "lr": SingleModelConfig(name="lr", model_type="logistic")
+        })
+        ensemble = EnsembleConfig(method="average")
+        first = run_backtest(simple_binary_data, config, models, ensemble, cache_dir=tmp_path)
+        assert first.models_trained == 3
+
+        changed = simple_binary_data.copy()
+        changed.loc[0, "feature_a"] += 1
+        second = run_backtest(changed, config, models, ensemble, cache_dir=tmp_path)
+        assert second.models_trained == 3
+        assert second.models_cached == 0
+
     def test_backtest_inactive_model_skipped(self, simple_binary_data):
         result = run_backtest(
             data=simple_binary_data,

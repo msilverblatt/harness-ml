@@ -32,6 +32,23 @@ class TestFingerprint:
         fp2 = cache.compute_fingerprint(config, "schema_v1", upstream_fingerprints={})
         assert fp1 == fp2
 
+    @pytest.mark.parametrize(
+        ("field", "first", "second"),
+        [
+            ("data_fingerprint", "data-a", "data-b"),
+            ("target_fingerprint", "target-a", "target-b"),
+            ("fold_fingerprint", "fold-a", "fold-b"),
+            ("task_type", "binary", "regression"),
+        ],
+    )
+    def test_runtime_input_change_invalidates_fingerprint(self, field, first, second):
+        cache = PredictionCache()
+        kwargs = {field: first}
+        fp1 = cache.compute_fingerprint({"model_type": "lr"}, "schema", **kwargs)
+        kwargs[field] = second
+        fp2 = cache.compute_fingerprint({"model_type": "lr"}, "schema", **kwargs)
+        assert fp1 != fp2
+
 
 class TestGetPut:
     def test_get_put_roundtrip(self, tmp_path):
@@ -56,6 +73,18 @@ class TestGetPut:
     def test_has_false_before_put(self, tmp_path):
         cache = PredictionCache(cache_dir=tmp_path)
         assert not cache.has("model_x", "fold_1", "fp_xyz")
+
+    def test_wrong_prediction_length_is_cache_miss(self, tmp_path):
+        cache = PredictionCache(cache_dir=tmp_path)
+        cache.put("model", "fold", "fp", np.array([0.1, 0.2]))
+        assert cache.get("model", "fold", "fp", expected_length=3) is None
+
+    def test_corrupt_cache_is_cache_miss(self, tmp_path):
+        cache = PredictionCache(cache_dir=tmp_path)
+        path = tmp_path / "model" / "fold_fp.npy"
+        path.parent.mkdir(parents=True)
+        path.write_text("not a numpy file")
+        assert cache.get("model", "fold", "fp") is None
 
 
 class TestNoCacheDir:

@@ -15,3 +15,4 @@ class ProjectConfig(BaseModel):
     cv: CVConfig = Field(default_factory=CVConfig)
     metrics: list[str] = Field(default_factory=lambda: ["brier", "accuracy"])
     eval_filter: str | None = None
+    exclude_columns: list[str] = Field(default_factory=list)
