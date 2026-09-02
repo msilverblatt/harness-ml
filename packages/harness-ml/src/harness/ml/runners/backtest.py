@@ -78,6 +78,11 @@ def run_backtest(
     target_validation = task.validate_target(y_full)
     if not target_validation.is_valid:
         raise ValueError(f"Invalid target: {target_validation.messages}")
+    class_labels: list[Any] = []
+    if project_config.task_type == "multiclass":
+        class_labels = sorted(y_full.unique().tolist())
+        label_to_index = {label: index for index, label in enumerate(class_labels)}
+        y_full = y_full.map(label_to_index).astype(int)
 
     # Generate folds from the complete frame because grouped/temporal strategies
     # need metadata columns that must never be passed to a model.
@@ -376,7 +381,11 @@ def run_backtest(
         "row_position": all_row_positions,
         "row_index": all_row_indices,
         "fold_id": all_fold_ids,
-        "y_true": pooled_y_true,
+        "y_true": (
+            [class_labels[int(value)] for value in pooled_y_true]
+            if class_labels
+            else pooled_y_true
+        ),
     }
     conformal_radius = None
     if pooled_y_pred.ndim == 2:
@@ -414,6 +423,7 @@ def run_backtest(
         meta_result.method,
         calibrator=production_calibrator,
         conformal_radius=conformal_radius,
+        class_labels=class_labels,
     )
 
     duration = time.time() - start_time

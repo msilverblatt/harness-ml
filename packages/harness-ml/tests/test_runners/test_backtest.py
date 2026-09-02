@@ -310,7 +310,9 @@ class TestRunBacktest:
         n = 180
         data = pd.DataFrame({"x": rng.randn(n), "z": rng.randn(n)})
         data["target"] = np.select(
-            [data["x"] < -0.4, data["x"] > 0.4], [0, 2], default=1
+            [data["x"] < -0.4, data["x"] > 0.4],
+            ["brick", "sky"],
+            default="foliage",
         )
         result = run_backtest(
             data=data,
@@ -329,6 +331,12 @@ class TestRunBacktest:
         assert {"y_pred_class_0", "y_pred_class_1", "y_pred_class_2"}.issubset(
             result.predictions.columns
         )
+        assert set(result.predictions["y_true"]) == {"brick", "foliage", "sky"}
+        assert result.production_bundle.class_labels == ["brick", "foliage", "sky"]
+        production_predictions = result.production_bundle.predict(
+            data.drop(columns="target").iloc[:4]
+        )
+        assert production_predictions.shape == (4, 3)
 
     def test_regression_predictions_are_not_probability_clipped(self):
         rng = np.random.RandomState(23)

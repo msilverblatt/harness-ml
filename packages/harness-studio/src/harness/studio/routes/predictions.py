@@ -36,10 +36,13 @@ def infer(version_id: str, rows: list[dict], request: Request):
     if predictions.ndim == 1:
         result = [{"prediction": float(value)} for value in predictions]
     else:
+        labels = getattr(bundle, "class_labels", []) or list(
+            range(predictions.shape[1])
+        )
         result = [
             {
-                f"prediction_class_{index}": float(value)
-                for index, value in enumerate(row)
+                f"prediction_class_{label}": float(value)
+                for label, value in zip(labels, row, strict=True)
             }
             for row in predictions
         ]

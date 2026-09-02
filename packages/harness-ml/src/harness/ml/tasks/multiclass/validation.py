@@ -8,35 +8,45 @@ from harness.ml.tasks.protocol import ValidationResult
 
 
 def validate_target(y: pd.Series) -> ValidationResult:
-    """Validate that a target series contains integer class labels with at least 3 classes.
+    """Validate integer or string class labels with at least three classes."""
+    if y.isna().any():
+        return ValidationResult(
+            is_valid=False,
+            messages=["Target contains missing values"],
+        )
 
-    Parameters
-    ----------
-    y : pd.Series
-        Target series to validate.
-
-    Returns
-    -------
-    ValidationResult
-        Validation result with messages for any issues found.
-    """
-    try:
-        arr = np.asarray(y)
-        # Check that values are integer-like
-        arr_float = arr.astype(float)
+    arr = np.asarray(y)
+    if np.issubdtype(arr.dtype, np.number):
+        try:
+            arr_float = arr.astype(float)
+        except (ValueError, TypeError):
+            return ValidationResult(
+                is_valid=False,
+                messages=["Target contains invalid numeric values"],
+            )
+        if not np.isfinite(arr_float).all():
+            return ValidationResult(
+                is_valid=False,
+                messages=["Target contains non-finite values"],
+            )
         if not np.all(arr_float == arr_float.astype(int)):
             return ValidationResult(
                 is_valid=False,
-                messages=["Target must contain integer class labels"],
+                messages=["Numeric targets must contain integer class labels"],
             )
-        arr_int = arr_float.astype(int)
-    except (ValueError, TypeError):
+    elif not all(isinstance(value, str) for value in arr):
         return ValidationResult(
             is_valid=False,
-            messages=["Target contains non-numeric values"],
+            messages=["Target labels must be consistently strings or integers"],
         )
 
-    n_classes = len(np.unique(arr_int))
+    try:
+        n_classes = len(np.unique(arr))
+    except TypeError:
+        return ValidationResult(
+            is_valid=False,
+            messages=["Target labels must be mutually comparable"],
+        )
     if n_classes < 3:
         return ValidationResult(
             is_valid=False,
@@ -77,8 +87,7 @@ def validate_predictions(predictions: np.ndarray) -> ValidationResult:
         return ValidationResult(
             is_valid=False,
             messages=[
-                f"Prediction rows must sum to 1.0; {len(bad)} row(s) do not "
-                f"(e.g. row {bad[0]} sums to {row_sums[bad[0]]:.4f})"
+                f"Prediction rows must sum to 1.0; {len(bad)} row(s) do not"
             ],
         )
 

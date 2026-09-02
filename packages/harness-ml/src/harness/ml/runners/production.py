@@ -39,6 +39,7 @@ class ProductionBundle:
     ensemble_method: str = "average"
     calibrator: Any = None
     conformal_radius: float | None = None
+    class_labels: list[Any] = field(default_factory=list)
 
     def predict(self, data: pd.DataFrame) -> np.ndarray:
         """Generate predictions from raw, target-optional tabular input."""
@@ -242,6 +243,7 @@ def train_production_bundle(
     ensemble_method: str,
     calibrator: Any = None,
     conformal_radius: float | None = None,
+    class_labels: list[Any] | None = None,
 ) -> ProductionBundle:
     """Fit serializable base models on all available rows after OOF evaluation."""
     entries: dict[str, ProductionModel] = {}
@@ -301,7 +303,12 @@ def train_production_bundle(
         ensemble_method=ensemble_method,
         calibrator=calibrator,
         conformal_radius=conformal_radius,
+        class_labels=[_python_scalar(value) for value in (class_labels or [])],
     )
+
+
+def _python_scalar(value: Any) -> Any:
+    return value.item() if isinstance(value, np.generic) else value
 
 
 def _average_predictions(frame: pd.DataFrame) -> np.ndarray:
