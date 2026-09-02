@@ -7,7 +7,6 @@
 - Dataset: OpenML `segment`, version 1; 2,310 rows and 19 numeric predictors
 - Clean data fingerprint: `d74f23d61724839bed7b34c7c4ea340c651ba7174afea3d5ce0730ca1e85f7ce`
 - Interface: registered MCP tool handlers, matching the agent-facing contract
-- Workspace (not committed): `/Users/msilverblatt/Projects/harness-dogfood/segment-multiclass`
 
 ## Session record
 
