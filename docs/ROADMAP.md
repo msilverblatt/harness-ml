@@ -71,6 +71,9 @@ Planned capabilities:
 publishes versions only after their run artifacts are complete, and uses a commit
 journal for deterministic crash recovery as described in the
 [workspace locking and recovery design](superpowers/specs/2026-09-02-workspace-locking-and-recovery.md).
+A subsequent [filesystem and recovery audit](audits/2026-09-02-filesystem-and-recovery-audit.md)
+closed direct data-mutation and non-atomic pipeline/configuration gaps while
+recording the remaining fault-injection and filesystem evidence requirements.
 Cancellation, deadlines, retry policy, and resource budgets remain follow-up
 milestones.
 
