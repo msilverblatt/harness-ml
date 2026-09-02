@@ -25,7 +25,7 @@ This matrix prevents capabilities from disappearing accidentally during the repl
 | Notebook/journal | Version metadata replaces journal; notebook UI not ported | Intentional replacement/deferred UI |
 | Reporting/visualization export | Not yet ported | Deferred unless required by release candidate |
 | Sports competition package | Remains in v1/private standalone repository | Separate follow-up migration |
-| Production model export | Full-data seed models, provider DAG, ensemble, calibration, feature resolution, explanations, and conformal metadata are serialized atomically; CLI export/predict and Studio inference are implemented | Ported |
+| Production model export | Full-data seed models, provider DAG, ensemble, calibration, feature resolution, explanations, and conformal metadata use an atomic, versioned, checksummed bundle with inspectable provenance; CLI export/inspect/predict and Studio inference are implemented | Ported |
 | Guardrail inventory/audit suite | Typed config validation, target/exclusion enforcement, data-safe cache fingerprints, transactional rollback, eval reports, and strict MCP validation implemented | Replaced/improved |
 
 ## Explicit v2 deferrals

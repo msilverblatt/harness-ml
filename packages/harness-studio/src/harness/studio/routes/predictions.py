@@ -29,7 +29,7 @@ def infer(version_id: str, rows: list[dict], request: Request):
         )
     frame = pd.DataFrame(rows)
     try:
-        bundle = ProductionBundle.load(path)
+        bundle = ProductionBundle.load(path, trusted=True)
         predictions = bundle.predict(frame)
     except (TypeError, ValueError, KeyError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

@@ -42,6 +42,13 @@ for traditional ML. This work should precede autonomous LLM training.
 
 ## 1. Versioned production artifacts
 
+**Status:** In progress. The first milestone introduces the versioned, checksummed
+single-file container, inspectable manifest, explicit trusted-loading boundary,
+and legacy migration path described in the
+[production bundle design](superpowers/specs/2026-09-02-versioned-production-bundles.md).
+Portable model representations, signing, and evidence-driven cross-version
+compatibility policy remain future milestones.
+
 Evolve `model.bundle` from an implicit serialization contract into a documented,
 versioned artifact format.
 
