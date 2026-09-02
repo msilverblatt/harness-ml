@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main, harness-v2, harness2-development-history]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [harness-data, harness-ml, harness-app, harness-server, harness-studio]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Test ${{ matrix.package }}
+        run: uv run --package ${{ matrix.package }} --with pytest --with httpx pytest packages/${{ matrix.package }}/tests -q
+      - name: Build ${{ matrix.package }}
+        run: uv build --package ${{ matrix.package }}
+
+  mcp-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install Harness server environment
+        run: uv sync --package harness-server
+      - name: Install pmcp runtime
+        run: |
+          curl -fsSL https://github.com/msilverblatt/protomcp/releases/download/v0.3.0/pmcp_linux_amd64.tar.gz | tar -xz
+          sudo install pmcp /usr/local/bin/pmcp
+      - name: Strictly validate MCP contract over the pmcp transport
+        run: pmcp validate packages/harness-server/src/harness/server/main.py --runtime .venv/bin/python --strict
+      - name: Enumerate tools and resources over the pmcp transport
+        run: |
+          pmcp test packages/harness-server/src/harness/server/main.py list --runtime .venv/bin/python --format json > /tmp/harness-mcp.json
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/harness-mcp.json'))
+          assert len(payload['tools']) == 17, payload
+          assert len(payload['resources']) == 5, payload
+          PY
+
+  release-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build all distributions
+        run: |
+          for package in harness-data harness-ml harness-app harness-server harness-studio; do
+            uv build --package "$package" --out-dir dist
+          done
+      - name: Test a clean wheel-only installation
+        run: |
+          python -m venv /tmp/harness-release
+          /tmp/harness-release/bin/pip install dist/*.whl
+          /tmp/harness-release/bin/harness --help
+          /tmp/harness-release/bin/harness doctor
+          /tmp/harness-release/bin/python - <<'PY'
+          import numpy as np
+          import pandas as pd
+          from harness.ml.config.ensemble import EnsembleConfig
+          from harness.ml.config.models import ModelsConfig, SingleModelConfig
+          from harness.ml.config.project import CVConfig, ProjectConfig
+          from harness.ml.runners.backtest import run_backtest
+          from harness.ml.runners.production import ProductionBundle
+          from harness.studio.server import create_app
+
+          rng = np.random.RandomState(4)
+          frame = pd.DataFrame({"x": rng.randn(40)})
+          frame["target"] = (frame.x > 0).astype(int)
+          result = run_backtest(
+              frame,
+              ProjectConfig(target_column="target", cv=CVConfig(n_folds=2)),
+              ModelsConfig(models={"lr": SingleModelConfig(name="lr", model_type="logistic")}),
+              EnsembleConfig(method="average"),
+          )
+          result.production_bundle.save("/tmp/model.bundle")
+          loaded = ProductionBundle.load("/tmp/model.bundle")
+          assert len(loaded.predict(frame[["x"]])) == len(frame)
+          assert create_app
+          PY
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/harness-studio/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: packages/harness-studio/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build

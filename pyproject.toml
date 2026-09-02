@@ -1,62 +1,15 @@
-[project]
-name = "harnessml"
-version = "0.1.0"
-description = "AI-driven ML framework with guardrails"
-requires-python = ">=3.11"
-dependencies = [
-    "tabulate>=0.10.0",
-]
-
 [tool.uv.workspace]
 members = [
-    "packages/harness-core",
-    "packages/harness-plugin",
-    "packages/harness-sports",
+    "packages/harness-data",
+    "packages/harness-ml",
+    "packages/harness-app",
+    "packages/harness-server",
     "packages/harness-studio",
 ]
 
-[tool.pytest.ini_options]
-testpaths = ["packages/harness-core/tests", "tests"]
-addopts = "--import-mode=importlib"
-
-[project.optional-dependencies]
-all = [
-    "harness-core[all]",
-    "harness-plugin",
-    "harness-sports",
-]
-
 [tool.uv.sources]
-harness-core = { workspace = true }
-harness-plugin = { workspace = true }
-harness-sports = { workspace = true }
+harness-data = { workspace = true }
+harness-ml = { workspace = true }
+harness-app = { workspace = true }
+harness-server = { workspace = true }
 harness-studio = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "harness-core[all]",
-    "harness-plugin",
-    "harness-sports",
-    "harness-studio",
-    "catboost>=1.2.10",
-    "click>=8.0",
-    "lightgbm>=4.6.0",
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "pytorch-tabnet>=4.1.0",
-    "torch>=2.10.0",
-    "xgboost>=3.2.0",
-    "ruff>=0.15.5",
-]
-
-[tool.ruff]
-target-version = "py311"
-line-length = 120
-
-[tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = ["E501", "E741", "E731"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["F841", "E402"]
-"**/tests/**" = ["F841", "E402", "F401"]

@@ -1,68 +1,46 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import './styles/tokens.css';
-import './styles/themes/neon-light.css';
-import './styles/themes/brutalist-dark.css';
-import './styles/themes/brutalist-light.css';
-import './styles/themes/matrix.css';
-import './styles/themes/claude.css';
-import './styles/themes/openai.css';
-import './styles/themes/solarized-dark.css';
-import './styles/themes/catppuccin.css';
-import './styles/themes/nord.css';
-import './styles/themes/rosepine.css';
-import './styles/themes/github-light.css';
-import './styles/reset.css';
-import { ThemeContext, useThemeProvider } from './hooks/useTheme';
-import { Layout } from './components/Layout/Layout';
-import { Dashboard } from './views/Dashboard/Dashboard';
-import { Activity } from './views/Activity/Activity';
-import { DAG } from './views/DAG/DAG';
-import { Experiments } from './views/Experiments/Experiments';
-import { Diagnostics } from './views/Diagnostics/Diagnostics';
-import { DataView } from './views/Data/Data';
-import { FeaturesView } from './views/Features/Features';
-import { ModelsView } from './views/Models/Models';
-import { EnsembleView } from './views/Ensemble/Ensemble';
-import { PredictionsView } from './views/Predictions/Predictions';
-import { Notebook } from './views/Notebook/Notebook';
-import { ConfigView } from './views/Config/Config';
-import { PreferencesView } from './views/Preferences/Preferences';
-import { ProjectRedirect } from './components/ProjectRedirect';
-import { ToastProvider } from './components/Toast/Toast';
-import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
+import { useState } from 'react';
+import VersionTree from './views/VersionTree';
+import VersionDetail from './views/VersionDetail';
+import PipelineExplorer from './views/PipelineExplorer';
+import Diagnostics from './views/Diagnostics';
+import Predictions from './views/Predictions';
+import DataProfile from './views/DataProfile';
+import MCPMonitor from './views/MCPMonitor';
+import Preferences from './views/Preferences';
 
-function App() {
-    const themeCtx = useThemeProvider();
+const VIEWS = [
+  { name: 'Version Tree', Component: VersionTree },
+  { name: 'Version Detail', Component: VersionDetail },
+  { name: 'Pipeline', Component: PipelineExplorer },
+  { name: 'Diagnostics', Component: Diagnostics },
+  { name: 'Predictions', Component: Predictions },
+  { name: 'Data', Component: DataProfile },
+  { name: 'MCP Monitor', Component: MCPMonitor },
+  { name: 'Preferences', Component: Preferences },
+];
 
-    return (
-        <ThemeContext.Provider value={themeCtx}>
-            <ToastProvider>
-            <BrowserRouter>
-                <Routes>
-                    {/* Redirect root to most recent project */}
-                    <Route index element={<ProjectRedirect />} />
-                    {/* Project-scoped routes */}
-                    <Route path=":project" element={<Layout />}>
-                        <Route index element={<Navigate to="dashboard" replace />} />
-                        <Route path="dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-                        <Route path="activity" element={<ErrorBoundary><Activity /></ErrorBoundary>} />
-                        <Route path="dag" element={<ErrorBoundary><DAG /></ErrorBoundary>} />
-                        <Route path="experiments" element={<ErrorBoundary><Experiments /></ErrorBoundary>} />
-                        <Route path="notebook" element={<ErrorBoundary><Notebook /></ErrorBoundary>} />
-                        <Route path="data" element={<ErrorBoundary><DataView /></ErrorBoundary>} />
-                        <Route path="features" element={<ErrorBoundary><FeaturesView /></ErrorBoundary>} />
-                        <Route path="models" element={<ErrorBoundary><ModelsView /></ErrorBoundary>} />
-                        <Route path="ensemble" element={<ErrorBoundary><EnsembleView /></ErrorBoundary>} />
-                        <Route path="predictions" element={<ErrorBoundary><PredictionsView /></ErrorBoundary>} />
-                        <Route path="diagnostics" element={<ErrorBoundary><Diagnostics /></ErrorBoundary>} />
-                        <Route path="config" element={<ErrorBoundary><ConfigView /></ErrorBoundary>} />
-                        <Route path="preferences" element={<ErrorBoundary><PreferencesView /></ErrorBoundary>} />
-                    </Route>
-                </Routes>
-            </BrowserRouter>
-            </ToastProvider>
-        </ThemeContext.Provider>
-    );
+export default function App() {
+  const [active, setActive] = useState(0);
+  const [selectedVersion, setSelectedVersion] = useState<string | undefined>(undefined);
+  const View = VIEWS[active].Component;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <header style={{ display: 'flex', gap: 2, padding: '8px 16px', background: '#1a1a1a', borderBottom: '1px solid #333' }}>
+        <span style={{ fontWeight: 'bold', marginRight: 24, color: '#fff' }}>Harness Studio</span>
+        {VIEWS.map((v, i) => (
+          <button key={i} onClick={() => setActive(i)}
+            style={{
+              padding: '6px 12px', border: 'none', borderRadius: 4, cursor: 'pointer',
+              background: active === i ? '#333' : 'transparent', color: active === i ? '#fff' : '#888',
+            }}>
+            {v.name}
+          </button>
+        ))}
+      </header>
+      <main style={{ flex: 1, padding: 16, overflow: 'auto' }}>
+        <View selectedVersion={selectedVersion} onSelectVersion={setSelectedVersion} />
+      </main>
+    </div>
+  );
 }
-
-export default App;

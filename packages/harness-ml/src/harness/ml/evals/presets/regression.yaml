@@ -1,0 +1,19 @@
+evals:
+  accuracy:
+    description: "How close are predictions to actual values?"
+    checks:
+      - metric: r2
+        op: ">"
+        value: 0.3
+        severity: error
+      - metric: rmse
+        op: "<"
+        value: 10.0
+        severity: warning
+    comparisons:
+      - vs: parent
+        metric: rmse
+        expect: lower
+      - vs: parent
+        metric: r2
+        expect: higher

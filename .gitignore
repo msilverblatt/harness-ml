@@ -1,53 +1,15 @@
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
 .venv/
-venv/
-env/
+*.egg-info/
 dist/
 build/
-*.egg-info/
-*.egg
-.eggs/
-*.whl
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
 .coverage
-.coverage.*
-coverage.xml
-*.cover
-.tox/
-.nox/
-.hypothesis/
-*.log
-.DS_Store
-Thumbs.db
-.env
-.env.*
-!.env.example
+node_modules/
 catboost_info/
-docs/plans/
-.claude/
-.worktrees/
-.mcp.json
-harness-demo/
-projects/
 
-# HarnessML generated artifacts
-**/data/features/cache/
-**/outputs/
-**/experiments/
-!**/src/harnessml/**/experiments/
-!**/src/views/Experiments/
-
-# Jekyll
-docs/_site/
-
-# Harness Studio
-packages/harness-studio/frontend/node_modules/
-packages/harness-studio/frontend/dist/
-packages/harness-studio/frontend/.vite/
-.studio/
+# Separate repositories kept beside the Harness 2 worktree
+/harness-ml/
+/packages/research-loop/
