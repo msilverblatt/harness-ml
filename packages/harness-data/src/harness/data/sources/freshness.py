@@ -1,6 +1,7 @@
 """Freshness tracking — detect when sources are stale."""
 
 from __future__ import annotations
+
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path

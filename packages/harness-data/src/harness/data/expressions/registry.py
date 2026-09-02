@@ -1,8 +1,8 @@
 """Function registry for the expression engine."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass
@@ -25,7 +25,7 @@ class FunctionRegistry:
 
     def load_defaults(self) -> None:
         """Load all built-in function modules."""
-        from harness.data.expressions.functions import math, stats, comparison, null
+        from harness.data.expressions.functions import comparison, math, null, stats
 
         for module in (math, stats, comparison, null):
             for name, info in module.FUNCTIONS.items():

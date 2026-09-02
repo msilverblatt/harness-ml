@@ -1,5 +1,6 @@
 """Sort step — sort rows by columns."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "sort"

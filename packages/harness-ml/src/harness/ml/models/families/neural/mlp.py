@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from harness.ml.models.families.neural.base import NeuralBase
-from harness.ml.models.protocol import FitResult
 
 NAME = "mlp"
 
 
 def _build_mlp_net(input_dim: int, hidden_dims: list[int], output_dim: int) -> Any:
     """Build a simple feedforward network using torch.nn."""
-    import torch.nn as nn
+    from torch import nn
 
     layers: list[nn.Module] = []
     prev_dim = input_dim
@@ -47,7 +44,7 @@ class MLPModel(NeuralBase):
         self, y: pd.Series, task_type: str, device: str
     ) -> tuple[Any, Any]:
         import torch
-        import torch.nn as nn
+        from torch import nn
 
         if task_type == "binary":
             y_tensor = torch.tensor(y.values.astype(np.float32), device=device).unsqueeze(1)

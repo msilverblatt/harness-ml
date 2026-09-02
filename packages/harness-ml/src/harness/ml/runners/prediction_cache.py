@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 CACHE_SCHEMA_VERSION = 2
 
 

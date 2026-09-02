@@ -1,5 +1,6 @@
 """Diff step — compute differences or percent changes between rows."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "diff"

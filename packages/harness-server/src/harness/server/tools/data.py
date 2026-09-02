@@ -1,9 +1,8 @@
 from dataclasses import asdict
 
-from protomcp import action, tool_group
-
 from harness.data.profiling.profiler import DataProfiler
 from harness.server.context import require_workspace
+from protomcp import action, tool_group
 
 
 @tool_group("data", description="Manage sources and the declarative data pipeline.")

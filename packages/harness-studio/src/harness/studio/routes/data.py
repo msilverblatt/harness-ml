@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Request
-
 from harness.data.profiling.profiler import DataProfiler
 
 router = APIRouter()

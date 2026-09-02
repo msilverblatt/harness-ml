@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import re
+
 import pandas as pd
 from harness.data.expressions.registry import FunctionRegistry
-
 
 # Patterns that indicate unsafe operations
 _DANGEROUS_PATTERNS = [

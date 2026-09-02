@@ -1,3 +1,4 @@
+from harness.ml.evals.runner import EvalRunner
 from harness.ml.evals.schema import (
     CheckResult,
     ComparisonResult,
@@ -6,7 +7,6 @@ from harness.ml.evals.schema import (
     EvalDimension,
     EvalReport,
 )
-from harness.ml.evals.runner import EvalRunner
 
 __all__ = [
     "CheckResult",

@@ -1,3 +1,3 @@
-from harness.app.experiments.types import ExperimentType, EXPERIMENT_CONFIG_MAP
+from harness.app.experiments.types import EXPERIMENT_CONFIG_MAP, ExperimentType
 
-__all__ = ["ExperimentType", "EXPERIMENT_CONFIG_MAP"]
+__all__ = ["EXPERIMENT_CONFIG_MAP", "ExperimentType"]

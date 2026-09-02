@@ -1,5 +1,6 @@
 """Lag step — shift column values by N periods."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "lag"

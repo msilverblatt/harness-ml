@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import platform
-import sys
 import warnings
 import zipfile
 from datetime import UTC, datetime

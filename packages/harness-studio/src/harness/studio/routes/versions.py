@@ -5,7 +5,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-
 from harness.app.workspace.versions import VersionTree
 
 router = APIRouter()

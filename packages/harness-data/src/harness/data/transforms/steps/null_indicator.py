@@ -1,5 +1,6 @@
 """Null indicator step — create binary columns indicating missing values."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "null_indicator"

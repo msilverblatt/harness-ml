@@ -1,10 +1,10 @@
-import yaml
 from pathlib import Path
+
+import yaml
 from harness.ml.evals.schema import (
+    CheckResult,
     EvalDimension,
     EvalReport,
-    CheckResult,
-    ComparisonResult,
 )
 
 

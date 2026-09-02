@@ -1,5 +1,6 @@
 """Isin step — filter rows where column value is in a set."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "isin"

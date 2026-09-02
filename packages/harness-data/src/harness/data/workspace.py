@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from contextlib import nullcontext
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
-from typing import Any, Callable, ContextManager
+from typing import Any
 
 import pandas as pd
 import yaml
-
-from harness.data.sources.protocol import SourceConfig
-from harness.data.sources.registry import SourceRegistry
 from harness.data.io import atomic_write_text
 from harness.data.runner import PipelineResult, PipelineRunner
+from harness.data.sources.protocol import SourceConfig
+from harness.data.sources.registry import SourceRegistry
 
 
 class DataWorkspace:
@@ -23,7 +23,7 @@ class DataWorkspace:
     def __init__(
         self,
         workspace_dir: str | Path,
-        mutation_guard: Callable[[str], ContextManager] | None = None,
+        mutation_guard: Callable[[str], AbstractContextManager] | None = None,
     ) -> None:
         self._root = Path(workspace_dir)
         self._mutation_guard = mutation_guard
@@ -112,7 +112,7 @@ class DataWorkspace:
             )
         return schema
 
-    def _guard(self, operation: str) -> ContextManager:
+    def _guard(self, operation: str) -> AbstractContextManager:
         if self._mutation_guard is None:
             return nullcontext()
         return self._mutation_guard(operation)

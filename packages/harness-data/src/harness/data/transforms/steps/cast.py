@@ -1,5 +1,6 @@
 """Cast step — change column data types."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "cast"

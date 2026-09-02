@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from harness.ml.models.protocol import FitResult
 
 NAME = "tabpfn"

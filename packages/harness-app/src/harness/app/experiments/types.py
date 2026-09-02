@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class ExperimentType(str, Enum):
+class ExperimentType(StrEnum):
     BASELINE = "baseline"
     FEATURE = "feature"
     MODEL = "model"
