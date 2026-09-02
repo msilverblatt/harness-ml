@@ -483,20 +483,20 @@ This approach preserves normal repository ancestry and makes the replacement dif
 
 ## Final go/no-go checklist
 
-- [ ] No target leakage under implicit or explicit feature selection
-- [ ] Cache invalidates on all data/config/fold changes
-- [ ] Binary, multiclass, and regression real E2E pass
-- [ ] All advertised experiment types work or are removed
-- [ ] Failed experiments are transactional
-- [ ] Parent branching is immutable and correct
-- [ ] Eval reports and diagnostics are persisted
+- [x] No target leakage under implicit or explicit feature selection
+- [x] Cache invalidates on all data/config/fold changes
+- [x] Binary, multiclass, and regression real E2E pass
+- [x] All advertised experiment types work or are removed
+- [x] Failed experiments are transactional
+- [x] Parent branching is immutable and correct
+- [x] Eval reports and diagnostics are persisted
 - [ ] v1 parity matrix is approved
-- [ ] 17 MCP tools and 5 resources pass protocol E2E
-- [ ] research-loop extension is published/pinned and clean
-- [ ] Studio renders primary artifacts without raw-placeholder UX
-- [ ] Wheels/sdists install in clean environments
-- [ ] README quickstart passes verbatim
+- [x] 17 MCP tools and 5 resources pass protocol E2E
+- [x] research-loop extension is published/pinned and clean
+- [x] Studio renders primary artifacts without raw-placeholder UX
+- [x] Wheels/sdists install in clean environments
+- [x] README quickstart passes verbatim
 - [ ] CI is green
-- [ ] v1-final tag and v1-maintenance branch exist remotely
-- [ ] Harness 2 full history is preserved remotely
+- [x] v1-final tag and v1-maintenance branch exist remotely
+- [x] Harness 2 full history is preserved remotely
 - [ ] Replacement PR is reviewed and release candidate validated

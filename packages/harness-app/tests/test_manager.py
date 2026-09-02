@@ -26,7 +26,9 @@ class TestInit:
         assert (tmp_workspace / ".harness").is_dir()
 
     def test_custom_task_type(self, tmp_workspace):
-        ws = WorkspaceManager.init(tmp_workspace, task_type="regression", target_column="score")
+        ws = WorkspaceManager.init(
+            tmp_workspace, task_type="regression", target_column="score"
+        )
         project = ws.config.read_project()
         assert project.task_type == "regression"
         assert project.target_column == "score"
@@ -40,11 +42,13 @@ class TestRunExperiment:
         # Create sample clean data
         rng = np.random.RandomState(42)
         n = 100
-        df = pd.DataFrame({
-            "feature_a": rng.randn(n),
-            "feature_b": rng.randn(n),
-            "target": rng.randint(0, 2, n),
-        })
+        df = pd.DataFrame(
+            {
+                "feature_a": rng.randn(n),
+                "feature_b": rng.randn(n),
+                "target": rng.randint(0, 2, n),
+            }
+        )
         (root / "data" / "clean").mkdir(parents=True, exist_ok=True)
         df.to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
 
@@ -60,7 +64,9 @@ class TestRunExperiment:
             meta_coefficients={"lr": 0.5, "xgb": 0.5},
         )
 
-        with patch("harness.app.workspace.manager.run_backtest", return_value=mock_result):
+        with patch(
+            "harness.app.workspace.manager.run_backtest", return_value=mock_result
+        ):
             result = ws.run_experiment(
                 experiment_type="baseline",
                 hypothesis="Initial baseline",
@@ -110,11 +116,13 @@ class TestRealExperimentWorkflow:
         rng = np.random.RandomState(123)
         n = 180
         feature = rng.randn(n)
-        pd.DataFrame({
-            "feature": feature,
-            "noise": rng.randn(n),
-            "target": (feature + rng.randn(n) * 0.5 > 0).astype(int),
-        }).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
+        pd.DataFrame(
+            {
+                "feature": feature,
+                "noise": rng.randn(n),
+                "target": (feature + rng.randn(n) * 0.5 > 0).astype(int),
+            }
+        ).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
 
         baseline = ws.run_experiment(
             "baseline",
@@ -134,6 +142,8 @@ class TestRealExperimentWorkflow:
         assert meta.parent == "v001"
         assert meta.data_hash.startswith("sha256:")
         assert (root / "versions" / "v002" / "diff.yaml").exists()
+        assert (root / "versions" / "v002" / "run" / "model.bundle").exists()
+        assert (root / "versions" / "v002" / "run" / "explainability.json").exists()
         eval_report = json.loads(
             (root / "versions" / "v002" / "run" / "eval_report.json").read_text()
         )
@@ -143,16 +153,25 @@ class TestRealExperimentWorkflow:
     def test_all_advertised_experiment_types_change_config(self, initialized_workspace):
         ws = initialized_workspace
         root = ws._root
-        pd.DataFrame({
-            "feature": np.arange(30, dtype=float),
-            "other": np.arange(30, dtype=float) * 2,
-            "target": np.tile([0, 1], 15),
-        }).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
+        pd.DataFrame(
+            {
+                "feature": np.arange(30, dtype=float),
+                "other": np.arange(30, dtype=float) * 2,
+                "target": np.tile([0, 1], 15),
+            }
+        ).to_parquet(root / "data" / "clean" / "dataset.parquet", index=False)
         result = BacktestResult(metrics={"accuracy": 0.5})
 
         experiments = [
             ("baseline", {"models": {"lr": {"model_type": "logistic"}}}),
-            ("feature", {"name": "sum_feature", "type": "pairwise", "formula": "feature + other"}),
+            (
+                "feature",
+                {
+                    "name": "sum_feature",
+                    "type": "pairwise",
+                    "formula": "feature + other",
+                },
+            ),
             ("model", {"name": "rf", "model_type": "random_forest"}),
             ("hyperparameter", {"model_name": "lr", "params": {"C": 0.5}}),
             ("ensemble", {"temperature": 1.2}),
@@ -167,7 +186,9 @@ class TestRealExperimentWorkflow:
 
         assert len(ws.versions.list_versions()) == 8
 
-    def test_failed_experiment_preserves_current_and_config(self, initialized_workspace):
+    def test_failed_experiment_preserves_current_and_config(
+        self, initialized_workspace
+    ):
         ws = initialized_workspace
         root = ws._root
         pd.DataFrame({"feature": [0, 1], "target": [0, 1]}).to_parquet(
@@ -180,7 +201,10 @@ class TestRealExperimentWorkflow:
             )
         before = ws.config.read_models().model_dump()
 
-        with patch("harness.app.workspace.manager.run_backtest", side_effect=RuntimeError("boom")):
+        with patch(
+            "harness.app.workspace.manager.run_backtest",
+            side_effect=RuntimeError("boom"),
+        ):
             with pytest.raises(RuntimeError, match="boom"):
                 ws.run_experiment(
                     "hyperparameter",
@@ -199,11 +223,15 @@ class TestSwitchVersion:
         from harness.ml.config.project import ProjectConfig
 
         # Create v001 with regression config
-        ws.config.write_project(ProjectConfig(task_type="regression", target_column="score"))
+        ws.config.write_project(
+            ProjectConfig(task_type="regression", target_column="score")
+        )
         ws.versions.create_version(VersionMeta(id="v001"), ws.config)
 
         # Change config to binary
-        ws.config.write_project(ProjectConfig(task_type="binary", target_column="label"))
+        ws.config.write_project(
+            ProjectConfig(task_type="binary", target_column="label")
+        )
         ws.versions.create_version(VersionMeta(id="v002", parent="v001"), ws.config)
 
         # Switch back to v001

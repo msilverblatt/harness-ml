@@ -13,6 +13,7 @@ class MetaLearnerResult:
     fold_predictions: dict[str, np.ndarray]  # {fold_id: ensemble predictions}
     meta_model: Any = None  # Production meta-learner (fit on all data)
     meta_coefficients: dict[str, float] = field(default_factory=dict)
+    model_columns: list[str] = field(default_factory=list)
     method: str = "stacked"
 
 
@@ -109,6 +110,7 @@ class MetaLearner:
             fold_predictions=result_preds,
             meta_model=production_meta,
             meta_coefficients=coeffs,
+            model_columns=active_cols,
             method="stacked",
         )
 
@@ -132,7 +134,11 @@ class MetaLearner:
                 result_preds[fold_id] = df[model_cols].mean(axis=1).values
             else:
                 raise ValueError("No successful model predictions available for ensemble")
-        return MetaLearnerResult(fold_predictions=result_preds, method="average")
+        return MetaLearnerResult(
+            fold_predictions=result_preds,
+            model_columns=model_cols,
+            method="average",
+        )
 
     def _get_model_columns(self, fold_predictions, target_col):
         sample = next(iter(fold_predictions.values()))

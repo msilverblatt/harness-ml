@@ -24,6 +24,18 @@ def test_predictions_pagination(client):
     assert data["page_size"] == 5
 
 
+def test_production_inference(client):
+    version_id = client.get("/api/versions/tree").json()["current"]
+    response = client.post(
+        f"/api/predictions/{version_id}/infer",
+        json=[{"a": 0.2, "b": -0.1}, {"a": 1.0, "b": 0.5}],
+    )
+    assert response.status_code == 200
+    predictions = response.json()["predictions"]
+    assert len(predictions) == 2
+    assert all(0 <= row["prediction"] <= 1 for row in predictions)
+
+
 def test_predictions_404(client):
     resp = client.get("/api/predictions/v999")
     assert resp.status_code == 404

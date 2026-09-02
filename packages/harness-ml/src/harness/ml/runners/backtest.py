@@ -1,26 +1,27 @@
+import hashlib
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-import hashlib
-import time
+
 import numpy as np
 import pandas as pd
-
-from harness.ml.config.project import ProjectConfig
-from harness.ml.config.models import ModelsConfig, SingleModelConfig
 from harness.ml.config.ensemble import EnsembleConfig
-from harness.ml.features.schema import FeatureSet
+from harness.ml.config.models import ModelsConfig
+from harness.ml.config.project import ProjectConfig
 from harness.ml.features.resolver import FeatureResolver
-from harness.ml.tasks.registry import TaskRegistry
+from harness.ml.features.schema import FeatureSet
+from harness.ml.runners.calibration import Calibrator
 from harness.ml.runners.cross_validation import generate_folds
 from harness.ml.runners.dag import ModelDAG
-from harness.ml.runners.provider_context import ProviderContext
-from harness.ml.runners.prediction_cache import PredictionCache
-from harness.ml.runners.training import train_single_model
 from harness.ml.runners.meta_learner import MetaLearner
-from harness.ml.runners.calibration import Calibrator
 from harness.ml.runners.postprocessing import apply_postprocessing
+from harness.ml.runners.prediction_cache import PredictionCache
+from harness.ml.runners.production import ProductionBundle, train_production_bundle
 from harness.ml.runners.progress import NoOpProgress
+from harness.ml.runners.provider_context import ProviderContext
+from harness.ml.runners.training import train_single_model
+from harness.ml.tasks.registry import TaskRegistry
 
 
 @dataclass
@@ -33,6 +34,7 @@ class BacktestResult:
     models_failed: list[dict] = field(default_factory=list)
     duration_s: float = 0.0
     meta_coefficients: dict[str, float] = field(default_factory=dict)
+    production_bundle: ProductionBundle | None = None
 
 
 def _hash_pandas(value: pd.DataFrame | pd.Series) -> str:
@@ -116,7 +118,9 @@ def run_backtest(
             )
         missing = sorted(set(model_config.features) - set(predictor_data.columns))
         if missing:
-            raise ValueError(f"Model '{model_name}' requests missing features: {missing}")
+            raise ValueError(
+                f"Model '{model_name}' requests missing features: {missing}"
+            )
 
     # Dataset and target hashes deliberately include values, ordering, and index.
     data_fingerprint = _hash_pandas(predictor_data)
@@ -155,8 +159,12 @@ def run_backtest(
                 X_tr = X_train.copy()
                 X_te = X_test.copy()
                 if model_config.depends_on:
-                    X_tr = provider_ctx.inject_features(X_tr, "train", model_config.depends_on)
-                    X_te = provider_ctx.inject_features(X_te, "test", model_config.depends_on)
+                    X_tr = provider_ctx.inject_features(
+                        X_tr, "train", model_config.depends_on
+                    )
+                    X_te = provider_ctx.inject_features(
+                        X_te, "test", model_config.depends_on
+                    )
 
                 # Check fingerprint cache
                 fold_fingerprint = hashlib.sha256(
@@ -185,11 +193,16 @@ def run_backtest(
                     # Train the model
                     try:
                         result = train_single_model(
-                            model_config, X_tr, y_train, X_te,
+                            model_config,
+                            X_tr,
+                            y_train,
+                            X_te,
                             task_type=project_config.task_type,
                         )
                         if result.error:
-                            models_failed.append({"name": model_name, "error": result.error})
+                            models_failed.append(
+                                {"name": model_name, "error": result.error}
+                            )
                             continue
 
                         test_preds = result.test_predictions
@@ -205,7 +218,9 @@ def run_backtest(
                             cache.put(model_name, fold_id, fp, test_preds)
 
                         models_trained += 1
-                        progress.on_model_trained(model_name, fold_id, result.duration_s)
+                        progress.on_model_trained(
+                            model_name, fold_id, result.duration_s
+                        )
 
                     except Exception as e:
                         models_failed.append({"name": model_name, "error": str(e)})
@@ -216,9 +231,9 @@ def run_backtest(
                 if model_config.include_in_ensemble:
                     if np.asarray(test_preds).ndim == 2:
                         for class_index in range(test_preds.shape[1]):
-                            fold_preds_df[
-                                f"prob_{model_name}__class_{class_index}"
-                            ] = test_preds[:, class_index]
+                            fold_preds_df[f"prob_{model_name}__class_{class_index}"] = (
+                                test_preds[:, class_index]
+                            )
                     else:
                         fold_preds_df[f"prob_{model_name}"] = test_preds
 
@@ -249,6 +264,12 @@ def run_backtest(
         fold_predictions, ensemble_config, target_col, project_config.task_type
     )
 
+    uncalibrated_fold_predictions = {
+        fold_id: predictions.copy()
+        for fold_id, predictions in meta_result.fold_predictions.items()
+    }
+    production_calibrator = None
+
     # Calibrate each holdout using only out-of-fold predictions from the other
     # folds. Fitting a calibrator on its own holdout would leak outcomes.
     if ensemble_config.calibration != "none":
@@ -263,17 +284,35 @@ def run_backtest(
             if not calibration_ids:
                 continue
             calibration_y = np.concatenate(
-                [fold_predictions[fold_id][target_col].values for fold_id in calibration_ids]
+                [
+                    fold_predictions[fold_id][target_col].values
+                    for fold_id in calibration_ids
+                ]
             )
             calibration_pred = np.concatenate(
-                [meta_result.fold_predictions[fold_id] for fold_id in calibration_ids]
+                [uncalibrated_fold_predictions[fold_id] for fold_id in calibration_ids]
             )
             calibrator = Calibrator.fit(
                 calibration_y, calibration_pred, ensemble_config.calibration
             )
             meta_result.fold_predictions[holdout_id] = Calibrator.transform(
-                meta_result.fold_predictions[holdout_id], calibrator
+                uncalibrated_fold_predictions[holdout_id], calibrator
             )
+        production_calibrator = Calibrator.fit(
+            np.concatenate(
+                [
+                    fold_predictions[fold_id][target_col].values
+                    for fold_id in sorted(fold_predictions, key=int)
+                ]
+            ),
+            np.concatenate(
+                [
+                    uncalibrated_fold_predictions[fold_id]
+                    for fold_id in sorted(fold_predictions, key=int)
+                ]
+            ),
+            ensemble_config.calibration,
+        )
 
     # Apply post-processing to each fold's ensemble predictions
     for fold_id, preds in meta_result.fold_predictions.items():
@@ -313,7 +352,9 @@ def run_backtest(
     # Pooled metrics
     pooled_y_true = np.concatenate(all_y_true)
     pooled_y_pred = np.concatenate(all_y_pred)
-    pooled_metrics = task.compute_metrics(pooled_y_true, pooled_y_pred, project_config.metrics)
+    pooled_metrics = task.compute_metrics(
+        pooled_y_true, pooled_y_pred, project_config.metrics
+    )
 
     # Build predictions with stable source-row and fold identity.
     prediction_data: dict[str, Any] = {
@@ -322,12 +363,43 @@ def run_backtest(
         "fold_id": all_fold_ids,
         "y_true": pooled_y_true,
     }
+    conformal_radius = None
     if pooled_y_pred.ndim == 2:
         for class_index in range(pooled_y_pred.shape[1]):
-            prediction_data[f"y_pred_class_{class_index}"] = pooled_y_pred[:, class_index]
+            prediction_data[f"y_pred_class_{class_index}"] = pooled_y_pred[
+                :, class_index
+            ]
     else:
         prediction_data["y_pred"] = pooled_y_pred
+        if (
+            project_config.task_type == "regression"
+            and ensemble_config.conformal_alpha is not None
+        ):
+            alpha = ensemble_config.conformal_alpha
+            if not 0 < alpha < 1:
+                raise ValueError("conformal_alpha must be between 0 and 1")
+            residuals = np.abs(pooled_y_true - pooled_y_pred)
+            quantile = min(
+                1.0, np.ceil((len(residuals) + 1) * (1 - alpha)) / len(residuals)
+            )
+            conformal_radius = float(np.quantile(residuals, quantile, method="higher"))
+            prediction_data["y_pred_lower"] = pooled_y_pred - conformal_radius
+            prediction_data["y_pred_upper"] = pooled_y_pred + conformal_radius
     all_predictions = pd.DataFrame(prediction_data)
+
+    production_bundle = train_production_bundle(
+        predictor_data,
+        y_full,
+        project_config,
+        models_config,
+        ensemble_config,
+        feature_set,
+        meta_result.meta_model,
+        meta_result.model_columns,
+        meta_result.method,
+        calibrator=production_calibrator,
+        conformal_radius=conformal_radius,
+    )
 
     duration = time.time() - start_time
     progress.on_backtest_complete(pooled_metrics)
@@ -341,4 +413,5 @@ def run_backtest(
         models_failed=models_failed,
         duration_s=duration,
         meta_coefficients=meta_result.meta_coefficients,
+        production_bundle=production_bundle,
     )

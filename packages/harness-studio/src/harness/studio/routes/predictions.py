@@ -1,4 +1,5 @@
 """Predictions routes — read predictions.parquet from version run dirs."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,8 +10,53 @@ from fastapi import APIRouter, HTTPException, Query, Request
 router = APIRouter()
 
 
+@router.post("/{version_id}/infer")
+def infer(version_id: str, rows: list[dict], request: Request):
+    """Run a fitted production bundle against raw JSON records."""
+    from harness.ml.runners.production import ProductionBundle
+
+    path = (
+        request.app.state.workspace_dir
+        / "versions"
+        / version_id
+        / "run"
+        / "model.bundle"
+    )
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Production bundle not found for version: {version_id}",
+        )
+    frame = pd.DataFrame(rows)
+    try:
+        bundle = ProductionBundle.load(path)
+        predictions = bundle.predict(frame)
+    except (TypeError, ValueError, KeyError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if predictions.ndim == 1:
+        result = [{"prediction": float(value)} for value in predictions]
+    else:
+        result = [
+            {
+                f"prediction_class_{index}": float(value)
+                for index, value in enumerate(row)
+            }
+            for row in predictions
+        ]
+    if bundle.conformal_radius is not None:
+        intervals = bundle.predict_interval(frame)
+        result = intervals.to_dict(orient="records")
+    return {"version_id": version_id, "predictions": result}
+
+
 def _predictions_path(request: Request, version_id: str) -> Path:
-    return request.app.state.workspace_dir / "versions" / version_id / "run" / "predictions.parquet"
+    return (
+        request.app.state.workspace_dir
+        / "versions"
+        / version_id
+        / "run"
+        / "predictions.parquet"
+    )
 
 
 @router.get("/{version_id}")
@@ -23,7 +69,9 @@ def version_predictions(
     """Read predictions.parquet and return as JSON with pagination."""
     path = _predictions_path(request, version_id)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Predictions not found for version: {version_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Predictions not found for version: {version_id}"
+        )
 
     df = pd.read_parquet(str(path))
     total = len(df)
@@ -50,7 +98,9 @@ def prediction_distribution(
     """Histogram of prediction values."""
     path = _predictions_path(request, version_id)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Predictions not found for version: {version_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Predictions not found for version: {version_id}"
+        )
 
     df = pd.read_parquet(str(path))
 
