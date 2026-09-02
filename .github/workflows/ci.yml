@@ -23,6 +23,32 @@ jobs:
       - name: Build ${{ matrix.package }}
         run: uv build --package ${{ matrix.package }}
 
+  mcp-protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install Harness server environment
+        run: uv sync --package harness-server
+      - name: Install pmcp runtime
+        run: |
+          curl -fsSL https://github.com/msilverblatt/protomcp/releases/download/v0.3.0/pmcp_linux_amd64.tar.gz | tar -xz
+          sudo install pmcp /usr/local/bin/pmcp
+      - name: Strictly validate MCP contract over the pmcp transport
+        run: pmcp validate packages/harness-server/src/harness/server/main.py --runtime .venv/bin/python --strict
+      - name: Enumerate tools and resources over the pmcp transport
+        run: |
+          pmcp test packages/harness-server/src/harness/server/main.py list --runtime .venv/bin/python --format json > /tmp/harness-mcp.json
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/harness-mcp.json'))
+          assert len(payload['tools']) == 17, payload
+          assert len(payload['resources']) == 5, payload
+          PY
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
