@@ -49,6 +49,37 @@ def status():
 
 
 @cli.command()
+@click.option("--studio", is_flag=True, help="Serve the Studio web application instead of MCP")
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option("--port", default=8000, type=int, show_default=True)
+def serve(studio, host, port):
+    """Start the MCP server or Studio for the current workspace."""
+    if studio:
+        from harness.app.workspace.discovery import find_workspace
+
+        workspace = find_workspace()
+        if workspace is None:
+            raise click.ClickException("No Harness workspace found")
+        try:
+            import uvicorn
+            from harness.studio.server import create_app
+        except ImportError as exc:
+            raise click.ClickException(
+                "Studio is not installed. Install harness-studio."
+            ) from exc
+        uvicorn.run(create_app(workspace), host=host, port=port)
+        return
+
+    try:
+        from harness.server.main import main as run_server
+    except ImportError as exc:
+        raise click.ClickException(
+            "MCP server is not installed. Install harness-server."
+        ) from exc
+    run_server()
+
+
+@cli.command()
 def doctor():
     """Check system dependencies and configuration."""
     checks = [
@@ -59,6 +90,9 @@ def doctor():
         ("pydantic", _check_import("pydantic")),
         ("harness-data", _check_import("harness.data")),
         ("harness-ml", _check_import("harness.ml")),
+        ("harness-server", _check_import("harness.server")),
+        ("protomcp", _check_import("protomcp")),
+        ("harness-studio", _check_import("harness.studio")),
         ("xgboost", _check_import("xgboost")),
         ("lightgbm", _check_import("lightgbm")),
         ("catboost", _check_import("catboost")),
@@ -70,7 +104,10 @@ def doctor():
         status = "OK" if ok else "MISSING"
         symbol = "+" if ok else "-"
         click.echo(f"  [{symbol}] {name}: {status}")
-        if not ok and name in ("Python 3.11+", "pandas", "numpy", "scikit-learn"):
+        if not ok and name in (
+            "Python 3.11+", "pandas", "numpy", "scikit-learn",
+            "harness-data", "harness-ml", "harness-server", "protomcp",
+        ):
             all_ok = False
 
     if all_ok:

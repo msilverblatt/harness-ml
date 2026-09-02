@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from harness.studio.event_log import EventLog
 from harness.studio.routes.versions import router as versions_router
@@ -44,5 +45,11 @@ def create_app(workspace_dir: str | Path) -> FastAPI:
     @app.get("/api/health")
     def health():
         return {"status": "ok", "workspace": str(workspace_dir)}
+
+    static_dir = Path(__file__).parent / "static"
+    if (static_dir / "index.html").exists():
+        # Mount last so /api routes retain precedence. html=True provides the
+        # single-page application's index fallback for directory routes.
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="studio")
 
     return app

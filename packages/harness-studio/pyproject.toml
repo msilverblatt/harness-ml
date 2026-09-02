@@ -21,5 +21,8 @@ dev = ["pytest>=8.0", "httpx>=0.24"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/harness"]
 
+[tool.hatch.build.targets.sdist.force-include]
+"src/harness/studio/static" = "src/harness/studio/static"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
