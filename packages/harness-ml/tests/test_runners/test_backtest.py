@@ -207,6 +207,78 @@ class TestRunBacktest:
         assert len(result.models_failed) > 0  # bad failed
         assert "brier" in result.metrics  # still got metrics from lr
 
+    def test_all_models_failing_raises(self, simple_binary_data):
+        with pytest.raises(RuntimeError, match="No model produced predictions"):
+            run_backtest(
+                data=simple_binary_data,
+                project_config=ProjectConfig(target_column="target"),
+                models_config=ModelsConfig(models={
+                    "bad": SingleModelConfig(
+                        name="bad", model_type="does_not_exist", features=["feature_a"]
+                    )
+                }),
+                ensemble_config=EnsembleConfig(method="average"),
+            )
+
+    def test_prediction_artifact_preserves_row_and_fold_identity(self, simple_binary_data):
+        result = run_backtest(
+            data=simple_binary_data,
+            project_config=ProjectConfig(
+                target_column="target", cv=CVConfig(n_folds=3)
+            ),
+            models_config=ModelsConfig(models={
+                "lr": SingleModelConfig(name="lr", model_type="logistic")
+            }),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        assert {"row_position", "row_index", "fold_id", "y_true", "y_pred"}.issubset(
+            result.predictions.columns
+        )
+        assert sorted(result.predictions["row_position"].tolist()) == list(range(100))
+
+    def test_multiclass_backtest_outputs_per_class_probabilities(self):
+        rng = np.random.RandomState(19)
+        n = 180
+        data = pd.DataFrame({"x": rng.randn(n), "z": rng.randn(n)})
+        data["target"] = np.select(
+            [data["x"] < -0.4, data["x"] > 0.4], [0, 2], default=1
+        )
+        result = run_backtest(
+            data=data,
+            project_config=ProjectConfig(
+                task_type="multiclass", target_column="target",
+                cv=CVConfig(strategy="stratified_kfold", n_folds=3),
+                metrics=["accuracy"],
+            ),
+            models_config=ModelsConfig(models={
+                "rf": SingleModelConfig(name="rf", model_type="random_forest")
+            }),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        assert result.metrics["accuracy"] > 0.7
+        assert {"y_pred_class_0", "y_pred_class_1", "y_pred_class_2"}.issubset(
+            result.predictions.columns
+        )
+
+    def test_regression_predictions_are_not_probability_clipped(self):
+        rng = np.random.RandomState(23)
+        n = 150
+        x = rng.randn(n)
+        data = pd.DataFrame({"x": x, "target": 10 + 4 * x + rng.randn(n) * 0.1})
+        result = run_backtest(
+            data=data,
+            project_config=ProjectConfig(
+                task_type="regression", target_column="target",
+                cv=CVConfig(n_folds=3), metrics=["r2", "rmse"],
+            ),
+            models_config=ModelsConfig(models={
+                "rf": SingleModelConfig(name="rf", model_type="random_forest")
+            }),
+            ensemble_config=EnsembleConfig(method="stacked"),
+        )
+        assert result.metrics["r2"] > 0.8
+        assert result.predictions["y_pred"].max() > 1.0
+
     def test_no_active_models_raises(self, simple_binary_data):
         with pytest.raises(ValueError, match="No active models"):
             run_backtest(
