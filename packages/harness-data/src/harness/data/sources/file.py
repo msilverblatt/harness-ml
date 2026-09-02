@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
 from harness.data.sources.protocol import SourceConfig
 
 

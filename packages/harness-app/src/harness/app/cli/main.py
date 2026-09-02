@@ -23,7 +23,7 @@ def init(project_name, task_type, target):
     from harness.app.workspace.manager import WorkspaceManager
 
     workspace_dir = Path.cwd() / project_name if project_name else Path.cwd()
-    ws = WorkspaceManager.init(workspace_dir, task_type=task_type, target_column=target)
+    WorkspaceManager.init(workspace_dir, task_type=task_type, target_column=target)
     click.echo(f"Initialized workspace at {workspace_dir}")
     click.echo(f"  Task type: {task_type}")
     click.echo(f"  Target: {target}")

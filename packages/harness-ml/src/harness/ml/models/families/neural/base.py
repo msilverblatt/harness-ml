@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from harness.ml.models.protocol import FitResult
 
 
@@ -116,9 +115,7 @@ class NeuralBase(ABC):
             out = model(X_tensor)
 
         task_type = getattr(model, "_task_type", "binary")
-        if task_type == "binary":
-            return out.cpu().numpy().squeeze()
-        elif task_type == "regression":
+        if task_type == "binary" or task_type == "regression":
             return out.cpu().numpy().squeeze()
         else:
             # multiclass — return probability matrix

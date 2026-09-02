@@ -1,6 +1,5 @@
-from protomcp import action, tool_group
-
 from harness.server.context import set_workspace
+from protomcp import action, tool_group
 
 
 @tool_group("workspace", description="Open and inspect Harness workspaces.")

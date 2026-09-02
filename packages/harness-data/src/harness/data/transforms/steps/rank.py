@@ -1,5 +1,6 @@
 """Rank step — compute rank of column values."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "rank"

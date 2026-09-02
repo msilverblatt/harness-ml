@@ -1,8 +1,10 @@
 """Source registry — persists source declarations to sources.yaml."""
 
 from __future__ import annotations
-import yaml
+
 from pathlib import Path
+
+import yaml
 from harness.data.io import atomic_write_text
 from harness.data.sources.protocol import SourceConfig
 

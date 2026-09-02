@@ -6,14 +6,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
 from harness.studio.event_log import EventLog
-from harness.studio.routes.versions import router as versions_router
-from harness.studio.routes.pipeline import router as pipeline_router
-from harness.studio.routes.diagnostics import router as diagnostics_router
-from harness.studio.routes.predictions import router as predictions_router
 from harness.studio.routes.data import router as data_router
+from harness.studio.routes.diagnostics import router as diagnostics_router
 from harness.studio.routes.monitor import router as monitor_router
+from harness.studio.routes.pipeline import router as pipeline_router
+from harness.studio.routes.predictions import router as predictions_router
+from harness.studio.routes.versions import router as versions_router
 
 
 def create_app(workspace_dir: str | Path) -> FastAPI:

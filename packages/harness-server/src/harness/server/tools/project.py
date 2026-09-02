@@ -1,8 +1,7 @@
 from pathlib import Path
 
-from protomcp import action, tool_group
-
 from harness.server.context import initialize_workspace
+from protomcp import action, tool_group
 
 
 @tool_group("project", description="Initialize a Harness ML project.")

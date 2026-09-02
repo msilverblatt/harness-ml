@@ -1,6 +1,5 @@
-from protomcp import action, tool_group
-
 from harness.server.context import require_workspace
+from protomcp import action, tool_group
 
 
 @tool_group("experiment", description="Run hypothesis-driven typed experiments.")

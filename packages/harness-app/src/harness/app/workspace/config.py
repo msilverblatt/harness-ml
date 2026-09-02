@@ -1,10 +1,11 @@
 import shutil
-import yaml
 from pathlib import Path
-from harness.ml.config.project import ProjectConfig
-from harness.ml.config.models import ModelsConfig, SingleModelConfig
-from harness.ml.config.ensemble import EnsembleConfig
+
+import yaml
 from harness.app.workspace.locking import atomic_write_text
+from harness.ml.config.ensemble import EnsembleConfig
+from harness.ml.config.models import ModelsConfig
+from harness.ml.config.project import ProjectConfig
 from harness.ml.features.schema import FeatureSet
 
 

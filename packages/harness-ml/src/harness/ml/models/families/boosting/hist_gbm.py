@@ -34,8 +34,6 @@ class HistGBMModel(BoostingBase):
     ) -> Any:
         # HistGradientBoosting uses validation_fraction / early_stopping natively,
         # not an eval_set kwarg, so we override fit to avoid passing eval_set.
-        import numpy as np
-        import pandas as pd
         from harness.ml.models.protocol import FitResult
 
         task_type = params.pop("_task_type", self.supports_tasks[0])

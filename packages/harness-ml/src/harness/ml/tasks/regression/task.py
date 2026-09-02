@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from harness.ml.tasks.protocol import CalibrationType, Metric, ValidationResult
-from harness.ml.tasks.regression.adaptation import OBJECTIVES
 from harness.ml.tasks.regression.metrics import METRIC_FUNCTIONS
 from harness.ml.tasks.regression.validation import (
     validate_predictions as _validate_predictions,
+)
+from harness.ml.tasks.regression.validation import (
     validate_target as _validate_target,
 )
 

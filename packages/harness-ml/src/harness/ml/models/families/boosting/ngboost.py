@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from harness.ml.models.families.boosting.base import BoostingBase
 from harness.ml.models.protocol import FitResult
 

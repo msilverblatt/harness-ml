@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any, Protocol, runtime_checkable
+
 import pandas as pd
 from pydantic import BaseModel, Field
-from typing import Any, Protocol, runtime_checkable
 
 
 class SourceMetadata(BaseModel):

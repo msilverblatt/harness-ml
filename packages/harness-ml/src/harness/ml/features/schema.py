@@ -1,10 +1,10 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class FeatureType(str, Enum):
+class FeatureType(StrEnum):
     ENTITY = "entity"
     PAIRWISE = "pairwise"
     INSTANCE = "instance"

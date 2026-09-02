@@ -1,5 +1,4 @@
 import pandas as pd
-
 from harness.data.expressions.engine import ExpressionEngine
 from harness.ml.features.pairwise import generate_pairwise_derivatives
 from harness.ml.features.schema import FeatureDefinition, FeatureSet, FeatureType

@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
 from typing import Any
+
 import numpy as np
 import pandas as pd
 from harness.ml.config.models import SingleModelConfig
-from harness.ml.models.registry import ModelRegistry
-from harness.ml.models.protocol import FitResult
 from harness.ml.features.augmentation import augment_symmetric
+from harness.ml.models.protocol import FitResult
+from harness.ml.models.registry import ModelRegistry
 
 
 @dataclass

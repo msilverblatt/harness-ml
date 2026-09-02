@@ -1,5 +1,6 @@
 """Head step — take the first N rows, optionally per group."""
 from __future__ import annotations
+
 import pandas as pd
 
 NAME = "head"

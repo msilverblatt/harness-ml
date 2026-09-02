@@ -157,6 +157,12 @@ Planned capabilities:
 
 ## 7. Engineering quality and compatibility
 
+**Status:** In progress. CI now enforces a zero-warning baseline for critical
+source correctness, import, modernization, and undefined-name lint rules across
+all Python packages. Existing source violations were fixed rather than hidden in
+a baseline file. Formatting, stricter rule families, typing, dependency warning
+removal, and compatibility matrices remain open.
+
 Planned capabilities:
 
 - enforced formatting, linting, and type-checking baselines;

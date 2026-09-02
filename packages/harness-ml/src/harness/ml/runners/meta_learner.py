@@ -3,9 +3,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression, RidgeCV
-
 from harness.ml.config.ensemble import EnsembleConfig
+from sklearn.linear_model import LogisticRegression, RidgeCV
 
 
 @dataclass

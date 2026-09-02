@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
-
 from harness.ml.config.project import CVConfig
+from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
 
 
 def generate_folds(

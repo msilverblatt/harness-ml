@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query, Request
-
 from harness.studio.event_log import EventLog
 
 router = APIRouter()

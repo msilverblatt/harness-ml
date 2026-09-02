@@ -1,5 +1,6 @@
 """Trend step — OLS slope over a rolling window."""
 from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 

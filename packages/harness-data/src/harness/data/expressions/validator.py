@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import re
 from difflib import get_close_matches
-from pydantic import BaseModel, Field
+
 from harness.data.expressions.registry import FunctionRegistry
+from pydantic import BaseModel, Field
 
 
 class ValidationResult(BaseModel):

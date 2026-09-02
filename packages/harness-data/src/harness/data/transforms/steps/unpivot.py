@@ -7,7 +7,6 @@ NAME = "unpivot"
 
 
 def step(df: pd.DataFrame, params: dict) -> pd.DataFrame:
-    id_columns = params.get("id_columns", [])
     unpivot_columns = params.get("unpivot_columns", {})
     if not unpivot_columns:
         raise ValueError("unpivot step requires 'unpivot_columns' dict")

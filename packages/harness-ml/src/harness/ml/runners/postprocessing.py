@@ -1,5 +1,4 @@
 import numpy as np
-
 from harness.ml.config.ensemble import EnsembleConfig
 
 

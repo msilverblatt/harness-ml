@@ -1,10 +1,9 @@
 from dataclasses import asdict
 
-from protomcp import resource
-
 from harness.ml.models.registry import ModelRegistry
 from harness.ml.tasks.registry import TaskRegistry
 from harness.server.context import require_workspace
+from protomcp import resource
 
 
 @resource("harness://data/schema", description="Current clean dataset schema")
