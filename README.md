@@ -38,6 +38,11 @@ harness export ./model.bundle --version v003
 harness predict ./scoring.csv ./predictions.parquet --version v003
 ```
 
+Bundles use a versioned, checksummed container whose manifest can be inspected
+without deserializing model code. Because model payloads use pickle, only load trusted
+artifacts and acknowledge that boundary explicitly with
+`ProductionBundle.load(path, trusted=True)`.
+
 Native feature importance is persisted with each version. Install `harness-ml[explain]`
 and call `ProductionBundle.explain(frame)` for on-demand SHAP attribution.
 

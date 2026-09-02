@@ -87,7 +87,9 @@ jobs:
               EnsembleConfig(method="average"),
           )
           result.production_bundle.save("/tmp/model.bundle")
-          loaded = ProductionBundle.load("/tmp/model.bundle")
+          manifest = ProductionBundle.inspect("/tmp/model.bundle")
+          assert manifest["format_version"] == 1
+          loaded = ProductionBundle.load("/tmp/model.bundle", trusted=True)
           assert len(loaded.predict(frame[["x"]])) == len(frame)
           assert create_app
           PY
