@@ -694,6 +694,7 @@ version = "0.1.0"
 source = { editable = "packages/harness-app" }
 dependencies = [
     { name = "click" },
+    { name = "filelock" },
     { name = "harness-data" },
     { name = "harness-ml" },
     { name = "pydantic" },
@@ -708,6 +709,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
+    { name = "filelock", specifier = ">=3.13" },
     { name = "harness-data", editable = "packages/harness-data" },
     { name = "harness-ml", editable = "packages/harness-ml" },
     { name = "pydantic", specifier = ">=2.0" },
