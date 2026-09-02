@@ -9,7 +9,6 @@
   area, bathrooms, and build year
 - Fold metadata: build-year decade (`era`), excluded from model inputs
 - Clean data fingerprint: `1033915b9393cd8a7ea31f9779ddc2d6df229e6449dc930ff6eceeac5395d891`
-- Workspace (not committed): `/Users/msilverblatt/Projects/harness-dogfood/ames-housing`
 
 ## Session record
 

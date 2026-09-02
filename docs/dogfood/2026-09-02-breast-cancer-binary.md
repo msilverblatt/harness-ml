@@ -7,7 +7,6 @@
 - Dataset: scikit-learn Wisconsin Diagnostic Breast Cancer, 569 rows and 30 predictors
 - Clean data fingerprint: `c27acd8c48c0f13c0d03209c4446f3b7eee63a9c2cbd51180777cd68424510e5`
 - Objective: exercise ingestion, repeated experiments, calibration, export, and prediction
-- Workspace (not committed): `/Users/msilverblatt/Projects/harness-dogfood/breast-cancer`
 
 ## Session record
 
