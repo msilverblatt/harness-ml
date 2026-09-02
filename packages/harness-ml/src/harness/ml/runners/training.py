@@ -14,6 +14,8 @@ class TrainingResult:
     train_predictions: np.ndarray
     test_predictions: np.ndarray
     fit_result: FitResult
+    models: list[Any] = field(default_factory=list)
+    feature_medians: dict[str, float] = field(default_factory=dict)
     fingerprint: str = ""
     from_cache: bool = False
     duration_s: float = 0.0
@@ -54,7 +56,9 @@ def train_single_model(
         )
 
     # Use configured features or all columns
-    feature_cols = model_config.features if model_config.features else list(X_train.columns)
+    feature_cols = (
+        model_config.features if model_config.features else list(X_train.columns)
+    )
 
     # Work with copies
     X_tr = X_train[feature_cols].copy()
@@ -80,11 +84,14 @@ def train_single_model(
     X_tr = X_tr[valid_mask]
     y_tr = y_tr[valid_mask]
 
-    # Fill test NaN with train medians
+    # Fill test NaN with the exact training medians retained for production.
+    feature_medians = {}
     for col in X_tr.columns:
-        if X_tr[col].dtype in ["float64", "float32", "int64"]:
+        if pd.api.types.is_numeric_dtype(X_tr[col]):
             median = X_tr[col].median()
-            X_te[col] = X_te[col].fillna(median)
+            if pd.notna(median):
+                feature_medians[col] = float(median)
+                X_te[col] = X_te[col].fillna(median)
 
     # 4. Class weights (sklearn format)
     sample_weight = None
@@ -114,6 +121,7 @@ def train_single_model(
     all_train_preds = []
     all_test_preds = []
     last_fit_result = None
+    fitted_models = []
 
     for seed in range(n_seeds):
         seed_params = dict(merged_params)
@@ -122,6 +130,7 @@ def train_single_model(
 
         fit_result = model_wrapper.fit(X_tr, y_tr, None, None, seed_params)
         last_fit_result = fit_result
+        fitted_models.append(fit_result.model)
 
         train_preds = model_wrapper.predict(fit_result.model, X_tr)
         test_preds = model_wrapper.predict(fit_result.model, X_te)
@@ -139,5 +148,7 @@ def train_single_model(
         train_predictions=avg_train,
         test_predictions=avg_test,
         fit_result=last_fit_result,
+        models=fitted_models,
+        feature_medians=feature_medians,
         duration_s=duration,
     )

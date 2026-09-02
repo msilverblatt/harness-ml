@@ -12,3 +12,4 @@ class EnsembleConfig(BaseModel):
     clip_floor: float | None = None
     meta_features: list[str] = Field(default_factory=list)
     prior_feature: str | None = None
+    conformal_alpha: float | None = Field(default=None, gt=0, lt=1)

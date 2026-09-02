@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from harness.app.experiments.types import ExperimentType
 from harness.app.workspace.config import ConfigManager
 from harness.app.workspace.versions import VersionMeta, VersionTree
@@ -34,7 +33,7 @@ class WorkspaceManager:
         workspace_dir: Path,
         task_type: str = "binary",
         target_column: str = "target",
-    ) -> "WorkspaceManager":
+    ) -> WorkspaceManager:
         root = Path(workspace_dir)
         root.mkdir(parents=True, exist_ok=True)
         (root / "harness.yaml").write_text(
@@ -100,7 +99,9 @@ class WorkspaceManager:
             self._apply_experiment_params(exp_type, params, staging_config)
             after = _config_state(staging_config)
             if before == after:
-                raise ValueError(f"Experiment '{exp_type.value}' produced no config change")
+                raise ValueError(
+                    f"Experiment '{exp_type.value}' produced no config change"
+                )
 
             project = staging_config.read_project()
             models = staging_config.read_models()
@@ -140,7 +141,9 @@ class WorkspaceManager:
                 diff=_config_diff(before, after),
             )
             try:
-                self._write_run_results(version_id, result, eval_report.model_dump(mode="json"))
+                self._write_run_results(
+                    version_id, result, eval_report.model_dump(mode="json")
+                )
                 self.config.restore_config(
                     self._root / "versions" / version_id / "config"
                 )
@@ -162,12 +165,12 @@ class WorkspaceManager:
     ) -> None:
         allowed = {"improved", "degraded", "inconclusive", "mixed"}
         if verdict not in allowed:
-            raise ValueError(f"Invalid verdict '{verdict}'. Expected one of {sorted(allowed)}")
+            raise ValueError(
+                f"Invalid verdict '{verdict}'. Expected one of {sorted(allowed)}"
+            )
         if not conclusion.strip():
             raise ValueError("Conclusion must not be empty")
-        self.versions.update_version(
-            version_id, conclusion=conclusion, verdict=verdict
-        )
+        self.versions.update_version(version_id, conclusion=conclusion, verdict=verdict)
 
     def switch_version(self, version_id: str) -> None:
         self.versions.set_current(version_id, self.config)
@@ -293,8 +296,11 @@ class WorkspaceManager:
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "metrics.json").write_text(json.dumps(result.metrics, indent=2))
         if result.predictions is not None:
-            result.predictions.to_parquet(
-                run_dir / "predictions.parquet", index=False
+            result.predictions.to_parquet(run_dir / "predictions.parquet", index=False)
+        if result.production_bundle is not None:
+            result.production_bundle.save(run_dir / "model.bundle")
+            (run_dir / "explainability.json").write_text(
+                json.dumps(result.production_bundle.explain(), indent=2)
             )
         (run_dir / "diagnostics.json").write_text(
             json.dumps(
@@ -310,9 +316,7 @@ class WorkspaceManager:
             )
         )
         if eval_report is not None:
-            (run_dir / "eval_report.json").write_text(
-                json.dumps(eval_report, indent=2)
-            )
+            (run_dir / "eval_report.json").write_text(json.dumps(eval_report, indent=2))
 
 
 def _feature_set_from_params(definitions: dict[str, dict]) -> FeatureSet:

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import itertools
 import json
-from dataclasses import asdict
 
+import numpy as np
 import pandas as pd
-from protomcp import action, tool_group
-
 from harness.server.context import require_workspace
+from protomcp import action, tool_group
 
 
 def _read_json(path):
@@ -15,7 +15,9 @@ def _read_json(path):
 
 @tool_group("analyze", description="Analyze and compare experiment results.")
 class AnalyzeTools:
-    @action("diagnostics", description="Read metrics, diagnostics, and evals for a version.")
+    @action(
+        "diagnostics", description="Read metrics, diagnostics, and evals for a version."
+    )
     def diagnostics(self, version: str | None = None) -> dict:
         workspace = require_workspace()
         version_id = version or workspace.versions.get_current()
@@ -47,19 +49,24 @@ class AnalyzeTools:
     @action("explain", description="Return available ensemble/model attribution data.")
     def explain(self, version: str | None = None) -> dict:
         diagnostics = self.diagnostics(version)
-        coefficients = diagnostics["diagnostics"].get("meta_coefficients", {})
+        workspace = require_workspace()
+        run_dir = workspace._root / "versions" / diagnostics["version"] / "run"
+        native = _read_json(run_dir / "explainability.json")
         return {
             "version": diagnostics["version"],
-            "method": "ensemble_coefficients",
-            "coefficients": coefficients,
-            "notice": (
-                "Model-level SHAP artifacts are not available for this version."
-                if not coefficients
-                else "Coefficients describe the fitted ensemble meta-learner."
+            "native_feature_importance": native,
+            "ensemble_coefficients": diagnostics["diagnostics"].get(
+                "meta_coefficients", {}
             ),
         }
 
-    @action("discover", description="Suggest candidate numeric features using target correlation.")
+    @action(
+        "discover",
+        description=(
+            "Rank existing numeric features and automatically search pairwise "
+            "product/difference feature candidates."
+        ),
+    )
     def discover(self, limit: int = 20) -> dict:
         workspace = require_workspace()
         frame = workspace.data.load_clean_data()
@@ -73,7 +80,44 @@ class AnalyzeTools:
         correlations = numeric.corr(numeric_only=True)[target].drop(labels=[target])
         suggestions = [
             {"feature": name, "absolute_correlation": float(value)}
-            for name, value in correlations.abs().sort_values(ascending=False).head(limit).items()
+            for name, value in correlations.abs()
+            .sort_values(ascending=False)
+            .head(limit)
+            .items()
             if pd.notna(value)
         ]
-        return {"target": target, "suggestions": suggestions}
+        search_columns = [
+            item["feature"]
+            for item in suggestions[:8]
+            if item["feature"].isidentifier()
+        ]
+        generated = []
+        target_values = numeric[target]
+        for left, right in itertools.combinations(search_columns, 2):
+            candidates = {
+                f"{left}_x_{right}": (
+                    numeric[left] * numeric[right],
+                    f"{left} * {right}",
+                ),
+                f"{left}_minus_{right}": (
+                    numeric[left] - numeric[right],
+                    f"{left} - {right}",
+                ),
+            }
+            for name, (values, expression) in candidates.items():
+                score = values.replace([np.inf, -np.inf], np.nan).corr(target_values)
+                if pd.notna(score):
+                    generated.append(
+                        {
+                            "name": name,
+                            "expression": expression,
+                            "absolute_correlation": float(abs(score)),
+                        }
+                    )
+        generated.sort(key=lambda item: item["absolute_correlation"], reverse=True)
+        return {
+            "target": target,
+            "suggestions": suggestions,
+            "generated_candidates": generated[:limit],
+            "method": "univariate_and_pairwise_correlation_search",
+        }

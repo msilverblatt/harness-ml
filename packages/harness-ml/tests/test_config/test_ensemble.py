@@ -15,6 +15,7 @@ class TestEnsembleConfig:
         assert cfg.clip_floor is None
         assert cfg.meta_features == []
         assert cfg.prior_feature is None
+        assert cfg.conformal_alpha is None
 
     def test_custom_values(self):
         cfg = EnsembleConfig(
@@ -39,6 +40,11 @@ class TestEnsembleConfig:
         assert cfg.clip_floor == 0.05
         assert cfg.meta_features == ["prior"]
         assert cfg.prior_feature == "base_rate"
+
+    def test_conformal_alpha_validation(self):
+        assert EnsembleConfig(conformal_alpha=0.1).conformal_alpha == 0.1
+        with pytest.raises(ValueError):
+            EnsembleConfig(conformal_alpha=1.0)
 
     def test_all_fields_accessible(self):
         cfg = EnsembleConfig()

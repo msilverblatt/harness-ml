@@ -23,9 +23,23 @@ git switch harness2-development-history
 uv sync --all-packages
 
 uv run --package harness-app harness init my-project
+cd my-project
 uv run --package harness-app harness doctor
-uv run --package harness-server harness-server
+uv run --package harness-app harness serve --studio
+# MCP clients launch packages/harness-server/src/harness/server/main.py via pmcp.
 ```
+
+Successful experiments persist a fitted `model.bundle` containing full-data seed models,
+the provider DAG, ensemble, calibration, and optional conformal interval metadata. Use it
+from the CLI:
+
+```bash
+harness export ./model.bundle --version v003
+harness predict ./scoring.csv ./predictions.parquet --version v003
+```
+
+Native feature importance is persisted with each version. Install `harness-ml[explain]`
+and call `ProductionBundle.explain(frame)` for on-demand SHAP attribution.
 
 Run the test suites:
 

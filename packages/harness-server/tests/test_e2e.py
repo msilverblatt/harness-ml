@@ -69,7 +69,11 @@ def test_full_registered_agent_workflow(tmp_path):
     assert tools["analyze.compare"](versions=["v001", "v002"])["comparisons"]
     diagnostics = tools["analyze.diagnostics"]()
     assert diagnostics["eval_report"]["dimensions"]
-    assert tools["analyze.discover"]()["suggestions"]
+    discovery = tools["analyze.discover"]()
+    assert discovery["suggestions"]
+    assert discovery["generated_candidates"]
+    explanation = tools["analyze.explain"]()
+    assert explanation["native_feature_importance"]["aggregate"]
 
     tools["versions.switch"](version="v001")
     assert tools["versions.list"]()["current"] == "v001"

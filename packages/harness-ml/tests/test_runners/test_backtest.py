@@ -14,12 +14,16 @@ def simple_binary_data():
     """Simple binary data for backtest testing."""
     rng = np.random.RandomState(42)
     n = 100
-    df = pd.DataFrame({
-        "feature_a": rng.randn(n),
-        "feature_b": rng.randn(n),
-        "feature_c": rng.rand(n) * 10,
-    })
-    df["target"] = (0.5 * df["feature_a"] - 0.3 * df["feature_b"] + rng.randn(n) * 0.5 > 0).astype(int)
+    df = pd.DataFrame(
+        {
+            "feature_a": rng.randn(n),
+            "feature_b": rng.randn(n),
+            "feature_c": rng.rand(n) * 10,
+        }
+    )
+    df["target"] = (
+        0.5 * df["feature_a"] - 0.3 * df["feature_b"] + rng.randn(n) * 0.5 > 0
+    ).astype(int)
     return df
 
 
@@ -28,14 +32,20 @@ class TestRunBacktest:
         result = run_backtest(
             data=simple_binary_data,
             project_config=ProjectConfig(
-                task_type="binary", target_column="target",
+                task_type="binary",
+                target_column="target",
                 cv=CVConfig(strategy="kfold", n_folds=3),
                 metrics=["brier", "accuracy"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic",
-                                        features=["feature_a", "feature_b", "feature_c"]),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(
+                        name="lr",
+                        model_type="logistic",
+                        features=["feature_a", "feature_b", "feature_c"],
+                    ),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert isinstance(result, BacktestResult)
@@ -51,16 +61,25 @@ class TestRunBacktest:
         result = run_backtest(
             data=simple_binary_data,
             project_config=ProjectConfig(
-                task_type="binary", target_column="target",
+                task_type="binary",
+                target_column="target",
                 cv=CVConfig(strategy="kfold", n_folds=3),
                 metrics=["brier", "accuracy", "auroc"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic",
-                                        features=["feature_a", "feature_b", "feature_c"]),
-                "rf": SingleModelConfig(name="rf", model_type="random_forest",
-                                        features=["feature_a", "feature_b", "feature_c"]),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(
+                        name="lr",
+                        model_type="logistic",
+                        features=["feature_a", "feature_b", "feature_c"],
+                    ),
+                    "rf": SingleModelConfig(
+                        name="rf",
+                        model_type="random_forest",
+                        features=["feature_a", "feature_b", "feature_c"],
+                    ),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="stacked"),
         )
         assert result.metrics["accuracy"] > 0.5
@@ -69,23 +88,33 @@ class TestRunBacktest:
 
     def test_backtest_with_cache(self, simple_binary_data, tmp_path):
         config = ProjectConfig(
-            task_type="binary", target_column="target",
+            task_type="binary",
+            target_column="target",
             cv=CVConfig(strategy="kfold", n_folds=3),
             metrics=["brier"],
         )
-        models = ModelsConfig(models={
-            "lr": SingleModelConfig(name="lr", model_type="logistic",
-                                    features=["feature_a", "feature_b", "feature_c"]),
-        })
+        models = ModelsConfig(
+            models={
+                "lr": SingleModelConfig(
+                    name="lr",
+                    model_type="logistic",
+                    features=["feature_a", "feature_b", "feature_c"],
+                ),
+            }
+        )
         ensemble = EnsembleConfig(method="average")
 
         # First run -- trains
-        r1 = run_backtest(simple_binary_data, config, models, ensemble, cache_dir=tmp_path)
+        r1 = run_backtest(
+            simple_binary_data, config, models, ensemble, cache_dir=tmp_path
+        )
         assert r1.models_trained == 3
         assert r1.models_cached == 0
 
         # Second run -- should hit cache
-        r2 = run_backtest(simple_binary_data, config, models, ensemble, cache_dir=tmp_path)
+        r2 = run_backtest(
+            simple_binary_data, config, models, ensemble, cache_dir=tmp_path
+        )
         assert r2.models_cached == 3
         assert r2.models_trained == 0
 
@@ -93,21 +122,26 @@ class TestRunBacktest:
         """The implicit feature path must not train on the answer column."""
         rng = np.random.RandomState(7)
         n = 400
-        data = pd.DataFrame({
-            "noise_a": rng.randn(n),
-            "noise_b": rng.randn(n),
-            "target": rng.randint(0, 2, n),
-        })
+        data = pd.DataFrame(
+            {
+                "noise_a": rng.randn(n),
+                "noise_b": rng.randn(n),
+                "target": rng.randint(0, 2, n),
+            }
+        )
         result = run_backtest(
             data=data,
             project_config=ProjectConfig(
-                task_type="binary", target_column="target",
+                task_type="binary",
+                target_column="target",
                 cv=CVConfig(strategy="kfold", n_folds=5),
                 metrics=["accuracy"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic"),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(name="lr", model_type="logistic"),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert result.metrics["accuracy"] < 0.7
@@ -117,22 +151,26 @@ class TestRunBacktest:
             run_backtest(
                 data=simple_binary_data,
                 project_config=ProjectConfig(target_column="target"),
-                models_config=ModelsConfig(models={
-                    "lr": SingleModelConfig(
-                        name="lr", model_type="logistic", features=["target"]
-                    ),
-                }),
+                models_config=ModelsConfig(
+                    models={
+                        "lr": SingleModelConfig(
+                            name="lr", model_type="logistic", features=["target"]
+                        ),
+                    }
+                ),
                 ensemble_config=EnsembleConfig(method="average"),
             )
 
     def test_fold_and_excluded_columns_are_not_default_features(self):
         rng = np.random.RandomState(11)
         n = 200
-        data = pd.DataFrame({
-            "signal": rng.randn(n),
-            "season": np.repeat(np.arange(5), 40),
-            "row_id": np.arange(n),
-        })
+        data = pd.DataFrame(
+            {
+                "signal": rng.randn(n),
+                "season": np.repeat(np.arange(5), 40),
+                "row_id": np.arange(n),
+            }
+        )
         data["target"] = (data["signal"] > 0).astype(int)
         result = run_backtest(
             data=data,
@@ -144,9 +182,11 @@ class TestRunBacktest:
                 exclude_columns=["row_id"],
                 metrics=["accuracy"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic"),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(name="lr", model_type="logistic"),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert result.models_trained == 3
@@ -155,11 +195,13 @@ class TestRunBacktest:
         config = ProjectConfig(
             target_column="target", cv=CVConfig(strategy="kfold", n_folds=3)
         )
-        models = ModelsConfig(models={
-            "lr": SingleModelConfig(name="lr", model_type="logistic")
-        })
+        models = ModelsConfig(
+            models={"lr": SingleModelConfig(name="lr", model_type="logistic")}
+        )
         ensemble = EnsembleConfig(method="average")
-        first = run_backtest(simple_binary_data, config, models, ensemble, cache_dir=tmp_path)
+        first = run_backtest(
+            simple_binary_data, config, models, ensemble, cache_dir=tmp_path
+        )
         assert first.models_trained == 3
 
         changed = simple_binary_data.copy()
@@ -172,16 +214,26 @@ class TestRunBacktest:
         result = run_backtest(
             data=simple_binary_data,
             project_config=ProjectConfig(
-                task_type="binary", target_column="target",
+                task_type="binary",
+                target_column="target",
                 cv=CVConfig(strategy="kfold", n_folds=3),
                 metrics=["brier"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic",
-                                        features=["feature_a", "feature_b", "feature_c"]),
-                "inactive": SingleModelConfig(name="inactive", model_type="logistic",
-                                              features=["feature_a"], active=False),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(
+                        name="lr",
+                        model_type="logistic",
+                        features=["feature_a", "feature_b", "feature_c"],
+                    ),
+                    "inactive": SingleModelConfig(
+                        name="inactive",
+                        model_type="logistic",
+                        features=["feature_a"],
+                        active=False,
+                    ),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         # Only lr should train (3 folds)
@@ -191,16 +243,25 @@ class TestRunBacktest:
         result = run_backtest(
             data=simple_binary_data,
             project_config=ProjectConfig(
-                task_type="binary", target_column="target",
+                task_type="binary",
+                target_column="target",
                 cv=CVConfig(strategy="kfold", n_folds=3),
                 metrics=["brier"],
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic",
-                                        features=["feature_a", "feature_b", "feature_c"]),
-                "bad": SingleModelConfig(name="bad", model_type="nonexistent_model_type",
-                                         features=["feature_a"]),
-            }),
+            models_config=ModelsConfig(
+                models={
+                    "lr": SingleModelConfig(
+                        name="lr",
+                        model_type="logistic",
+                        features=["feature_a", "feature_b", "feature_c"],
+                    ),
+                    "bad": SingleModelConfig(
+                        name="bad",
+                        model_type="nonexistent_model_type",
+                        features=["feature_a"],
+                    ),
+                }
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert result.models_trained > 0  # lr trained
@@ -212,23 +273,29 @@ class TestRunBacktest:
             run_backtest(
                 data=simple_binary_data,
                 project_config=ProjectConfig(target_column="target"),
-                models_config=ModelsConfig(models={
-                    "bad": SingleModelConfig(
-                        name="bad", model_type="does_not_exist", features=["feature_a"]
-                    )
-                }),
+                models_config=ModelsConfig(
+                    models={
+                        "bad": SingleModelConfig(
+                            name="bad",
+                            model_type="does_not_exist",
+                            features=["feature_a"],
+                        )
+                    }
+                ),
                 ensemble_config=EnsembleConfig(method="average"),
             )
 
-    def test_prediction_artifact_preserves_row_and_fold_identity(self, simple_binary_data):
+    def test_prediction_artifact_preserves_row_and_fold_identity(
+        self, simple_binary_data
+    ):
         result = run_backtest(
             data=simple_binary_data,
             project_config=ProjectConfig(
                 target_column="target", cv=CVConfig(n_folds=3)
             ),
-            models_config=ModelsConfig(models={
-                "lr": SingleModelConfig(name="lr", model_type="logistic")
-            }),
+            models_config=ModelsConfig(
+                models={"lr": SingleModelConfig(name="lr", model_type="logistic")}
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert {"row_position", "row_index", "fold_id", "y_true", "y_pred"}.issubset(
@@ -246,13 +313,14 @@ class TestRunBacktest:
         result = run_backtest(
             data=data,
             project_config=ProjectConfig(
-                task_type="multiclass", target_column="target",
+                task_type="multiclass",
+                target_column="target",
                 cv=CVConfig(strategy="stratified_kfold", n_folds=3),
                 metrics=["accuracy"],
             ),
-            models_config=ModelsConfig(models={
-                "rf": SingleModelConfig(name="rf", model_type="random_forest")
-            }),
+            models_config=ModelsConfig(
+                models={"rf": SingleModelConfig(name="rf", model_type="random_forest")}
+            ),
             ensemble_config=EnsembleConfig(method="average"),
         )
         assert result.metrics["accuracy"] > 0.7
@@ -268,22 +336,90 @@ class TestRunBacktest:
         result = run_backtest(
             data=data,
             project_config=ProjectConfig(
-                task_type="regression", target_column="target",
-                cv=CVConfig(n_folds=3), metrics=["r2", "rmse"],
+                task_type="regression",
+                target_column="target",
+                cv=CVConfig(n_folds=3),
+                metrics=["r2", "rmse"],
             ),
-            models_config=ModelsConfig(models={
-                "rf": SingleModelConfig(name="rf", model_type="random_forest")
-            }),
+            models_config=ModelsConfig(
+                models={"rf": SingleModelConfig(name="rf", model_type="random_forest")}
+            ),
             ensemble_config=EnsembleConfig(method="stacked"),
         )
         assert result.metrics["r2"] > 0.8
         assert result.predictions["y_pred"].max() > 1.0
 
+    def test_production_bundle_roundtrip_predicts_without_target(
+        self, simple_binary_data, tmp_path
+    ):
+        result = run_backtest(
+            data=simple_binary_data,
+            project_config=ProjectConfig(
+                target_column="target", cv=CVConfig(n_folds=3)
+            ),
+            models_config=ModelsConfig(
+                models={"lr": SingleModelConfig(name="lr", model_type="logistic")}
+            ),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        bundle = result.production_bundle
+        inference = simple_binary_data.drop(columns=["target"]).iloc[:12]
+        expected = bundle.predict(inference)
+        path = tmp_path / "model.bundle"
+        bundle.save(path)
+        from harness.ml.runners.production import ProductionBundle
+
+        loaded = ProductionBundle.load(path)
+        np.testing.assert_allclose(loaded.predict(inference), expected)
+        assert loaded.explain()["aggregate"]
+
+    def test_optional_shap_explanation(self, simple_binary_data):
+        pytest.importorskip("shap")
+        result = run_backtest(
+            data=simple_binary_data,
+            project_config=ProjectConfig(
+                target_column="target", cv=CVConfig(n_folds=2)
+            ),
+            models_config=ModelsConfig(
+                models={"lr": SingleModelConfig(name="lr", model_type="logistic")}
+            ),
+            ensemble_config=EnsembleConfig(method="average"),
+        )
+        explanation = result.production_bundle.explain(
+            simple_binary_data.drop(columns=["target"]).iloc[:10]
+        )
+        assert explanation["shap"]["lr"]
+
+    def test_regression_conformal_intervals_are_persisted_and_predictable(self):
+        rng = np.random.RandomState(31)
+        n = 140
+        x = rng.randn(n)
+        data = pd.DataFrame({"x": x, "target": 5 + 2 * x + rng.randn(n) * 0.4})
+        result = run_backtest(
+            data=data,
+            project_config=ProjectConfig(
+                task_type="regression",
+                target_column="target",
+                cv=CVConfig(n_folds=4),
+                metrics=["rmse"],
+            ),
+            models_config=ModelsConfig(
+                models={"rf": SingleModelConfig(name="rf", model_type="random_forest")}
+            ),
+            ensemble_config=EnsembleConfig(method="average", conformal_alpha=0.1),
+        )
+        assert {"y_pred_lower", "y_pred_upper"}.issubset(result.predictions.columns)
+        intervals = result.production_bundle.predict_interval(data[["x"]].iloc[:5])
+        assert (intervals["lower"] <= intervals["prediction"]).all()
+        assert (intervals["prediction"] <= intervals["upper"]).all()
+
     def test_no_active_models_raises(self, simple_binary_data):
         with pytest.raises(ValueError, match="No active models"):
             run_backtest(
                 data=simple_binary_data,
-                project_config=ProjectConfig(task_type="binary", target_column="target"),
+                project_config=ProjectConfig(
+                    task_type="binary", target_column="target"
+                ),
                 models_config=ModelsConfig(models={}),
                 ensemble_config=EnsembleConfig(),
             )

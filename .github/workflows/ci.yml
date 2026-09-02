@@ -49,6 +49,49 @@ jobs:
           assert len(payload['resources']) == 5, payload
           PY
 
+  release-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build all distributions
+        run: |
+          for package in harness-data harness-ml harness-app harness-server harness-studio; do
+            uv build --package "$package" --out-dir dist
+          done
+      - name: Test a clean wheel-only installation
+        run: |
+          python -m venv /tmp/harness-release
+          /tmp/harness-release/bin/pip install dist/*.whl
+          /tmp/harness-release/bin/harness --help
+          /tmp/harness-release/bin/harness doctor
+          /tmp/harness-release/bin/python - <<'PY'
+          import numpy as np
+          import pandas as pd
+          from harness.ml.config.ensemble import EnsembleConfig
+          from harness.ml.config.models import ModelsConfig, SingleModelConfig
+          from harness.ml.config.project import CVConfig, ProjectConfig
+          from harness.ml.runners.backtest import run_backtest
+          from harness.ml.runners.production import ProductionBundle
+          from harness.studio.server import create_app
+
+          rng = np.random.RandomState(4)
+          frame = pd.DataFrame({"x": rng.randn(40)})
+          frame["target"] = (frame.x > 0).astype(int)
+          result = run_backtest(
+              frame,
+              ProjectConfig(target_column="target", cv=CVConfig(n_folds=2)),
+              ModelsConfig(models={"lr": SingleModelConfig(name="lr", model_type="logistic")}),
+              EnsembleConfig(method="average"),
+          )
+          result.production_bundle.save("/tmp/model.bundle")
+          loaded = ProductionBundle.load("/tmp/model.bundle")
+          assert len(loaded.predict(frame[["x"]])) == len(frame)
+          assert create_app
+          PY
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
