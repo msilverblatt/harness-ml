@@ -64,6 +64,13 @@ def test_lock_is_exclusive_across_processes(initialized_workspace):
     assert process.exitcode == 0
 
 
+def test_managed_data_mutations_share_workspace_lock(initialized_workspace):
+    workspace = initialized_workspace
+    with WorkspaceLock(workspace._root, "experiment"):
+        with pytest.raises(WorkspaceBusyError, match="experiment"):
+            workspace.data.add_transform({"op": "select", "params": {}})
+
+
 def test_stale_owner_metadata_is_replaced(initialized_workspace):
     root = initialized_workspace._root
     atomic_write_json(
