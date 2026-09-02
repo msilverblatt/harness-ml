@@ -117,13 +117,18 @@ class WorkspaceManager:
                 feature_set=features if features.features else None,
                 cache_dir=self._root / "artifacts" / "predictions",
             )
+            current_data_hash = _data_hash(
+                self._root / "data" / "clean" / "dataset.parquet"
+            )
             parent_meta = self.versions.get_version(parent_id) if parent_id else None
+            parent_metrics = (
+                parent_meta.metrics
+                if parent_meta and parent_meta.data_hash == current_data_hash
+                else None
+            )
             eval_report = EvalRunner.from_yaml(
                 staging_config.config_dir / "evals.yaml"
-            ).run(
-                result.metrics,
-                parent_metrics=parent_meta.metrics if parent_meta else None,
-            )
+            ).run(result.metrics, parent_metrics=parent_metrics)
 
             version_id = self.versions.next_version_id()
             meta = VersionMeta(
@@ -132,7 +137,7 @@ class WorkspaceManager:
                 experiment_type=exp_type.value,
                 hypothesis=hypothesis,
                 timestamp=_utc_now(),
-                data_hash=_data_hash(self._root / "data" / "clean" / "dataset.parquet"),
+                data_hash=current_data_hash,
                 metrics=result.metrics,
             )
             self.versions.create_version(

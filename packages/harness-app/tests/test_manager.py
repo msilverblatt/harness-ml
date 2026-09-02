@@ -151,6 +151,27 @@ class TestRealExperimentWorkflow:
         assert "probability_accuracy" in eval_report["dimensions"]
         assert ws.config.read_models().models["lr"].params["C"] == 0.5
 
+        # Metrics from a parent evaluated on old data are not a valid baseline.
+        refreshed = pd.read_parquet(root / "data" / "clean" / "dataset.parquet")
+        refreshed.loc[len(refreshed)] = [0.25, -0.5, 1]
+        refreshed.to_parquet(
+            root / "data" / "clean" / "dataset.parquet", index=False
+        )
+        ws.run_experiment(
+            "hyperparameter",
+            "Evaluate after a data refresh",
+            {"model_name": "lr", "params": {"C": 0.25}},
+        )
+        refreshed_report = json.loads(
+            (root / "versions" / "v003" / "run" / "eval_report.json").read_text()
+        )
+        assert all(
+            not dimension["comparisons"]
+            for dimension in refreshed_report["dimensions"].values()
+        )
+        with pytest.raises(ValueError, match="different datasets"):
+            ws.versions.compare("v002", "v003")
+
     def test_all_advertised_experiment_types_change_config(self, initialized_workspace):
         ws = initialized_workspace
         root = ws._root
