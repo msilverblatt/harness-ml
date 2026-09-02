@@ -67,13 +67,6 @@ Planned capabilities:
 
 ## 2. Operational reliability
 
-**Status:** In progress. The first milestone serializes workspace mutations,
-publishes versions only after their run artifacts are complete, and uses a commit
-journal for deterministic crash recovery as described in the
-[workspace locking and recovery design](superpowers/specs/2026-09-02-workspace-locking-and-recovery.md).
-Cancellation, deadlines, retry policy, and resource budgets remain follow-up
-milestones.
-
 Harden workspaces and experiments for interruption, concurrency, and expensive
 execution.
 

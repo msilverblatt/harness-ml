@@ -1,10 +1,8 @@
-import shutil
-import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-
+import shutil
+import uuid
 import yaml
-from harness.app.workspace.locking import atomic_write_json, atomic_write_text
 
 
 @dataclass
@@ -25,19 +23,8 @@ class VersionTree:
         self._root = Path(workspace_dir)
         self._versions_dir = self._root / "versions"
 
-    def create_version(
-        self, meta: VersionMeta, config_manager, diff: dict | None = None
-    ) -> str:
+    def create_version(self, meta: VersionMeta, config_manager, diff: dict | None = None) -> str:
         """Atomically create a version directory with metadata and config snapshot."""
-        staging = self.stage_version(meta, config_manager, diff)
-        atomic_write_json(staging / "run" / "state.json", {"status": "complete"})
-        self.publish_version(staging, meta.id)
-        return meta.id
-
-    def stage_version(
-        self, meta: VersionMeta, config_manager, diff: dict | None = None
-    ) -> Path:
-        """Create a hidden version directory that can receive run artifacts."""
         self._versions_dir.mkdir(parents=True, exist_ok=True)
         version_dir = self._versions_dir / meta.id
         if version_dir.exists():
@@ -54,17 +41,11 @@ class VersionTree:
             )
             config_manager.snapshot_config(staging / "config")
             (staging / "run").mkdir()
-            atomic_write_json(staging / "run" / "state.json", {"status": "running"})
+            staging.replace(version_dir)
         except Exception:
             shutil.rmtree(staging, ignore_errors=True)
             raise
-        return staging
-
-    def publish_version(self, staging: Path, version_id: str) -> None:
-        version_dir = self._versions_dir / version_id
-        if version_dir.exists():
-            raise ValueError(f"Version already exists: {version_id}")
-        staging.replace(version_dir)
+        return meta.id
 
     def delete_version(self, version_id: str) -> None:
         version_dir = self._versions_dir / version_id
@@ -86,10 +67,7 @@ class VersionTree:
             setattr(meta, k, v)
         meta_path = self._versions_dir / version_id / "meta.yaml"
         meta_dict = {k: v for k, v in vars(meta).items() if v}
-        atomic_write_text(
-            meta_path,
-            yaml.dump(meta_dict, default_flow_style=False, sort_keys=False),
-        )
+        meta_path.write_text(yaml.dump(meta_dict, default_flow_style=False, sort_keys=False))
 
     def get_current(self) -> str | None:
         pointer = self._root / "current"
@@ -101,8 +79,8 @@ class VersionTree:
         version_dir = self._versions_dir / version_id
         if not version_dir.exists():
             raise ValueError(f"Version not found: {version_id}")
+        (self._root / "current").write_text(version_id)
         config_manager.restore_config(version_dir / "config")
-        atomic_write_text(self._root / "current", version_id)
 
     def list_versions(self) -> list[VersionMeta]:
         if not self._versions_dir.exists():

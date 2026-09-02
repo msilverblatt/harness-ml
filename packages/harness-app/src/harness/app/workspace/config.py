@@ -1,11 +1,9 @@
 import shutil
-from pathlib import Path
-
 import yaml
-from harness.app.workspace.locking import atomic_write_text
-from harness.ml.config.ensemble import EnsembleConfig
-from harness.ml.config.models import ModelsConfig
+from pathlib import Path
 from harness.ml.config.project import ProjectConfig
+from harness.ml.config.models import ModelsConfig, SingleModelConfig
+from harness.ml.config.ensemble import EnsembleConfig
 from harness.ml.features.schema import FeatureSet
 
 
@@ -29,13 +27,8 @@ class ConfigManager:
 
     def write_project(self, config: ProjectConfig):
         self.ensure_dir()
-        atomic_write_text(
-            self._config_dir / "project.yaml",
-            yaml.dump(
-                config.model_dump(exclude_defaults=False),
-                default_flow_style=False,
-                sort_keys=False,
-            ),
+        (self._config_dir / "project.yaml").write_text(
+            yaml.dump(config.model_dump(exclude_defaults=False), default_flow_style=False, sort_keys=False)
         )
 
     def read_models(self) -> ModelsConfig:
@@ -52,11 +45,8 @@ class ConfigManager:
             d = m.model_dump(exclude_defaults=True)
             d.pop("name", None)
             models_dict[name] = d
-        atomic_write_text(
-            self._config_dir / "models.yaml",
-            yaml.dump(
-                {"models": models_dict}, default_flow_style=False, sort_keys=False
-            ),
+        (self._config_dir / "models.yaml").write_text(
+            yaml.dump({"models": models_dict}, default_flow_style=False, sort_keys=False)
         )
 
     def read_ensemble(self) -> EnsembleConfig:
@@ -68,13 +58,8 @@ class ConfigManager:
 
     def write_ensemble(self, config: EnsembleConfig):
         self.ensure_dir()
-        atomic_write_text(
-            self._config_dir / "ensemble.yaml",
-            yaml.dump(
-                {"ensemble": config.model_dump(exclude_defaults=False)},
-                default_flow_style=False,
-                sort_keys=False,
-            ),
+        (self._config_dir / "ensemble.yaml").write_text(
+            yaml.dump({"ensemble": config.model_dump(exclude_defaults=False)}, default_flow_style=False, sort_keys=False)
         )
 
     def read_features(self) -> FeatureSet:
@@ -93,11 +78,8 @@ class ConfigManager:
             if "feature_type" in d:
                 d["type"] = d.pop("feature_type")
             features_dict[name] = d
-        atomic_write_text(
-            self._config_dir / "features.yaml",
-            yaml.dump(
-                {"features": features_dict}, default_flow_style=False, sort_keys=False
-            ),
+        (self._config_dir / "features.yaml").write_text(
+            yaml.dump({"features": features_dict}, default_flow_style=False, sort_keys=False)
         )
 
     def read_evals(self) -> dict:
@@ -109,9 +91,8 @@ class ConfigManager:
     def write_evals(self, config: dict):
         self.ensure_dir()
         payload = config if "evals" in config else {"evals": config}
-        atomic_write_text(
-            self._config_dir / "evals.yaml",
-            yaml.dump(payload, default_flow_style=False, sort_keys=False),
+        (self._config_dir / "evals.yaml").write_text(
+            yaml.dump(payload, default_flow_style=False, sort_keys=False)
         )
 
     def snapshot_config(self, dest_dir: Path):
@@ -123,10 +104,9 @@ class ConfigManager:
 
     def restore_config(self, source_dir: Path):
         self.ensure_dir()
-        source_names = {f.name for f in source_dir.iterdir() if f.is_file()}
-        for source in source_dir.iterdir():
-            if source.is_file():
-                atomic_write_text(self._config_dir / source.name, source.read_text())
-        for existing in self._config_dir.iterdir():
-            if existing.is_file() and existing.name not in source_names:
-                existing.unlink()
+        for f in self._config_dir.iterdir():
+            if f.is_file():
+                f.unlink()
+        for f in source_dir.iterdir():
+            if f.is_file():
+                shutil.copy2(f, self._config_dir / f.name)

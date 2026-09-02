@@ -144,10 +144,6 @@ class TestRealExperimentWorkflow:
         assert (root / "versions" / "v002" / "diff.yaml").exists()
         assert (root / "versions" / "v002" / "run" / "model.bundle").exists()
         assert (root / "versions" / "v002" / "run" / "explainability.json").exists()
-        run_state = json.loads(
-            (root / "versions" / "v002" / "run" / "state.json").read_text()
-        )
-        assert run_state["status"] == "complete"
         eval_report = json.loads(
             (root / "versions" / "v002" / "run" / "eval_report.json").read_text()
         )

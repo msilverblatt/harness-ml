@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import tempfile
-import uuid
-from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.resources import files
 from pathlib import Path
@@ -14,11 +11,6 @@ from typing import Any
 import yaml
 from harness.app.experiments.types import ExperimentType
 from harness.app.workspace.config import ConfigManager
-from harness.app.workspace.locking import (
-    WorkspaceLock,
-    atomic_write_json,
-    atomic_write_text,
-)
 from harness.app.workspace.versions import VersionMeta, VersionTree
 from harness.data.workspace import DataWorkspace
 from harness.ml.config.ensemble import EnsembleConfig
@@ -30,9 +22,8 @@ from harness.ml.runners.backtest import BacktestResult, run_backtest
 
 
 class WorkspaceManager:
-    def __init__(self, workspace_dir: Path, lock_timeout: float = 0):
+    def __init__(self, workspace_dir: Path):
         self._root = Path(workspace_dir)
-        self._lock_timeout = lock_timeout
         self.config = ConfigManager(workspace_dir)
         self.versions = VersionTree(workspace_dir)
         self.data = DataWorkspace(workspace_dir)
@@ -45,26 +36,25 @@ class WorkspaceManager:
     ) -> WorkspaceManager:
         root = Path(workspace_dir)
         root.mkdir(parents=True, exist_ok=True)
+        (root / "harness.yaml").write_text(
+            yaml.dump(
+                {"name": root.name, "created": _utc_now()},
+                default_flow_style=False,
+            )
+        )
+        DataWorkspace(root).init()
         ws = WorkspaceManager(root)
-        with WorkspaceLock(root, "initialize", ws._lock_timeout):
-            atomic_write_text(
-                root / "harness.yaml",
-                yaml.dump(
-                    {"name": root.name, "created": _utc_now()},
-                    default_flow_style=False,
-                ),
-            )
-            DataWorkspace(root).init()
-            ws.config.write_project(
-                ProjectConfig(task_type=task_type, target_column=target_column)
-            )
-            ws.config.write_models(ModelsConfig())
-            ws.config.write_ensemble(EnsembleConfig())
-            ws.config.write_features(FeatureSet())
-            preset = files("harness.ml.evals").joinpath("presets", f"{task_type}.yaml")
-            ws.config.write_evals(yaml.safe_load(preset.read_text()) or {"evals": {}})
-            (root / "versions").mkdir(exist_ok=True)
-            (root / "artifacts").mkdir(exist_ok=True)
+        ws.config.write_project(
+            ProjectConfig(task_type=task_type, target_column=target_column)
+        )
+        ws.config.write_models(ModelsConfig())
+        ws.config.write_ensemble(EnsembleConfig())
+        ws.config.write_features(FeatureSet())
+        preset = files("harness.ml.evals").joinpath("presets", f"{task_type}.yaml")
+        ws.config.write_evals(yaml.safe_load(preset.read_text()) or {"evals": {}})
+        (root / "versions").mkdir(exist_ok=True)
+        (root / "artifacts").mkdir(exist_ok=True)
+        (root / ".harness").mkdir(exist_ok=True)
         return ws
 
     def run_experiment(
@@ -75,18 +65,6 @@ class WorkspaceManager:
         parent: str | None = None,
     ) -> BacktestResult:
         """Apply and run an experiment without mutating live config until success."""
-        with self._mutation("run_experiment"):
-            return self._run_experiment_locked(
-                experiment_type, hypothesis, params, parent
-            )
-
-    def _run_experiment_locked(
-        self,
-        experiment_type: str,
-        hypothesis: str,
-        params: dict,
-        parent: str | None = None,
-    ) -> BacktestResult:
         try:
             exp_type = ExperimentType(experiment_type)
         except ValueError as exc:
@@ -157,35 +135,27 @@ class WorkspaceManager:
                 data_hash=_data_hash(self._root / "data" / "clean" / "dataset.parquet"),
                 metrics=result.metrics,
             )
-            version_staging = self.versions.stage_version(
+            self.versions.create_version(
                 meta,
                 staging_config,
                 diff=_config_diff(before, after),
             )
             try:
                 self._write_run_results(
-                    version_id,
-                    result,
-                    eval_report.model_dump(mode="json"),
-                    run_dir=version_staging / "run",
+                    version_id, result, eval_report.model_dump(mode="json")
                 )
-                atomic_write_json(
-                    version_staging / "run" / "state.json",
-                    {"status": "complete", "completed_at": _utc_now()},
-                )
-                self._begin_commit(version_id, current_before)
-                self.versions.publish_version(version_staging, version_id)
                 self.config.restore_config(
                     self._root / "versions" / version_id / "config"
                 )
-                atomic_write_text(self._root / "current", version_id)
-                self._finish_commit()
-            except BaseException:
-                shutil.rmtree(version_staging, ignore_errors=True)
-                if self._transaction_path.exists():
-                    self._recover_interrupted_mutation()
+                (self._root / "current").write_text(version_id)
+            except Exception:
+                self.versions.delete_version(version_id)
+                if current_before:
+                    self.versions.set_current(current_before, self.config)
                 else:
-                    shutil.rmtree(self._rollback_config_dir, ignore_errors=True)
+                    pointer = self._root / "current"
+                    if pointer.exists():
+                        pointer.unlink()
                 raise
 
             return result
@@ -200,14 +170,10 @@ class WorkspaceManager:
             )
         if not conclusion.strip():
             raise ValueError("Conclusion must not be empty")
-        with self._mutation("conclude_experiment"):
-            self.versions.update_version(
-                version_id, conclusion=conclusion, verdict=verdict
-            )
+        self.versions.update_version(version_id, conclusion=conclusion, verdict=verdict)
 
     def switch_version(self, version_id: str) -> None:
-        with self._mutation("switch_version"):
-            self.versions.set_current(version_id, self.config)
+        self.versions.set_current(version_id, self.config)
 
     def status(self) -> dict:
         current = self.versions.get_current()
@@ -220,87 +186,6 @@ class WorkspaceManager:
             "model_count": len(models.models),
             "version_count": len(self.versions.list_versions()),
         }
-
-    @contextmanager
-    def _mutation(self, operation: str):
-        with WorkspaceLock(self._root, operation, self._lock_timeout):
-            self._recover_interrupted_mutation()
-            self._remove_abandoned_staging()
-            yield
-
-    @property
-    def _transaction_path(self) -> Path:
-        return self._root / ".harness" / "transaction.json"
-
-    @property
-    def _rollback_config_dir(self) -> Path:
-        return self._root / ".harness" / "transaction-rollback-config"
-
-    def _begin_commit(self, candidate: str, previous: str | None) -> None:
-        shutil.rmtree(self._rollback_config_dir, ignore_errors=True)
-        self.config.snapshot_config(self._rollback_config_dir)
-        atomic_write_json(
-            self._transaction_path,
-            {
-                "id": uuid.uuid4().hex,
-                "operation": "publish_experiment",
-                "candidate": candidate,
-                "previous": previous,
-                "started_at": _utc_now(),
-            },
-        )
-
-    def _finish_commit(self) -> None:
-        self._transaction_path.unlink(missing_ok=True)
-        shutil.rmtree(self._rollback_config_dir, ignore_errors=True)
-
-    def _recover_interrupted_mutation(self) -> None:
-        if not self._transaction_path.exists():
-            return
-        try:
-            transaction = json.loads(self._transaction_path.read_text())
-            candidate = transaction["candidate"]
-            previous = transaction.get("previous")
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
-            raise RuntimeError(
-                f"Invalid workspace transaction journal: {self._transaction_path}"
-            ) from error
-
-        current = self.versions.get_current()
-        candidate_dir = self._root / "versions" / candidate
-        if current == candidate:
-            if not candidate_dir.exists():
-                raise RuntimeError(
-                    f"Current version {candidate} is missing during transaction recovery"
-                )
-            self.config.restore_config(candidate_dir / "config")
-            atomic_write_text(self._root / "current", candidate)
-            self._finish_commit()
-            return
-
-        self.versions.delete_version(candidate)
-        if previous:
-            previous_dir = self._root / "versions" / previous
-            if not previous_dir.exists():
-                raise RuntimeError(
-                    f"Previous version {previous} is missing during transaction recovery"
-                )
-            self.config.restore_config(previous_dir / "config")
-            atomic_write_text(self._root / "current", previous)
-        elif self._rollback_config_dir.exists():
-            self.config.restore_config(self._rollback_config_dir)
-            (self._root / "current").unlink(missing_ok=True)
-        self._finish_commit()
-
-    def _remove_abandoned_staging(self) -> None:
-        for path in self._root.glob(".experiment-*"):
-            if path.is_dir():
-                shutil.rmtree(path, ignore_errors=True)
-        versions_dir = self._root / "versions"
-        if versions_dir.exists():
-            for path in versions_dir.glob(".*.tmp"):
-                if path.is_dir():
-                    shutil.rmtree(path, ignore_errors=True)
 
     def _apply_experiment_params(
         self,
@@ -405,13 +290,9 @@ class WorkspaceManager:
         raise AssertionError(f"Unhandled experiment type: {experiment_type}")
 
     def _write_run_results(
-        self,
-        version_id: str,
-        result: BacktestResult,
-        eval_report: dict | None = None,
-        run_dir: Path | None = None,
+        self, version_id: str, result: BacktestResult, eval_report: dict | None = None
     ) -> None:
-        run_dir = run_dir or self._root / "versions" / version_id / "run"
+        run_dir = self._root / "versions" / version_id / "run"
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "metrics.json").write_text(json.dumps(result.metrics, indent=2))
         if result.predictions is not None:
