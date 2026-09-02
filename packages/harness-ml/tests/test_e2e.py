@@ -47,7 +47,7 @@ class TestE2ETaskTypes:
 
 class TestE2EModels:
     def test_all_models_registered(self):
-        models = ModelRegistry.list_available()
+        models = ModelRegistry.list_registered()
         expected = {
             "logistic",
             "elastic_net",
@@ -59,8 +59,7 @@ class TestE2EModels:
             "hist_gbm",
             "mlp",
         }
-        # mlp may or may not be available depending on torch
-        assert len(models) >= 8
+        assert expected.issubset(set(models))
 
     def test_logistic_learns_binary(self, binary_dataset):
         model = ModelRegistry.get("logistic")
@@ -82,9 +81,9 @@ class TestE2EModels:
         assert metrics["r2"] > 0.5
 
     def test_xgboost_learns_binary(self, binary_dataset):
-        model = ModelRegistry.get("xgboost")
-        if model is None:
+        if "xgboost" not in ModelRegistry.list_available():
             pytest.skip("xgboost not installed")
+        model = ModelRegistry.get("xgboost")
         task = TaskRegistry.get("binary")
         X, y = binary_dataset
         result = model.fit(X, y, None, None, model.default_params("binary"))

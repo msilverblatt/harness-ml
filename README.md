@@ -1,0 +1,54 @@
+# Harness 2
+
+Harness is an agent-first platform for building, evaluating, and iterating on tabular machine-learning systems through typed experiments.
+
+Harness 2 replaces the monolithic v1 runner with five focused Python packages:
+
+- **harness-data** — source ingestion, declarative transforms, and profiling
+- **harness-ml** — task types, model families, cross-validation, caching, ensembles, and evaluation
+- **harness-app** — workspaces, immutable experiment versions, and CLI
+- **harness-server** — MCP interface with 17 tools and 5 resources
+- **harness-studio** — FastAPI and React experiment dashboard
+
+> Harness 2 is currently being productionized on the `harness2-development-history` branch. The stable v1 code remains available on `v1-maintenance` and at the `v1-final` tag until the v2 release gates pass.
+
+## Development quickstart
+
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and Node.js 20+.
+
+```bash
+git clone https://github.com/msilverblatt/harness-ml.git
+cd harness-ml
+git switch harness2-development-history
+uv sync --all-packages
+
+uv run --package harness-app harness init my-project
+uv run --package harness-app harness doctor
+uv run --package harness-server harness-server
+```
+
+Run the test suites:
+
+```bash
+for package in harness-data harness-ml harness-app harness-server harness-studio; do
+  uv run --package "$package" --with pytest pytest "packages/$package/tests"
+done
+
+cd packages/harness-studio/frontend
+npm ci
+npm run build
+```
+
+## Safety and correctness
+
+Harness excludes target and configured metadata columns from implicit model features. Prediction cache keys include dataset, target, fold, feature schema, task, and model configuration fingerprints. Experiments are staged transactionally and only update the current workspace after successful training and artifact creation.
+
+## Documentation
+
+- [Harness 2 design](docs/superpowers/specs/2026-03-23-harness2-design.md)
+- [Productionization and replacement plan](docs/superpowers/plans/2026-03-25-harness2-productionization-and-release.md)
+- [Implementation progress](docs/superpowers/plans/MASTER-PROGRESS.md)
+
+## License
+
+MIT

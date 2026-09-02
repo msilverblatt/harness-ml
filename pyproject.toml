@@ -1,0 +1,15 @@
+[tool.uv.workspace]
+members = [
+    "packages/harness-data",
+    "packages/harness-ml",
+    "packages/harness-app",
+    "packages/harness-server",
+    "packages/harness-studio",
+]
+
+[tool.uv.sources]
+harness-data = { workspace = true }
+harness-ml = { workspace = true }
+harness-app = { workspace = true }
+harness-server = { workspace = true }
+harness-studio = { workspace = true }

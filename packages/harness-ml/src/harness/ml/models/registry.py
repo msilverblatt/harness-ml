@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import pkgutil
 from typing import TYPE_CHECKING
 
@@ -60,7 +61,17 @@ class ModelRegistry:
         return cls._models.get(name)
 
     @classmethod
-    def list_available(cls) -> list[str]:
-        """List all discovered model names."""
+    def list_registered(cls) -> list[str]:
+        """List every discovered wrapper, including optional backends."""
         cls._ensure_loaded()
         return sorted(cls._models.keys())
+
+    @classmethod
+    def list_available(cls) -> list[str]:
+        """List models whose required backend packages are installed."""
+        cls._ensure_loaded()
+        return sorted(
+            name
+            for name, model in cls._models.items()
+            if all(importlib.util.find_spec(package) is not None for package in model.requires_packages)
+        )
