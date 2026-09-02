@@ -7,10 +7,9 @@ from typing import Any
 
 import pandas as pd
 import yaml
-
+from harness.data.runner import PipelineResult, PipelineRunner
 from harness.data.sources.protocol import SourceConfig
 from harness.data.sources.registry import SourceRegistry
-from harness.data.runner import PipelineRunner, PipelineResult
 
 
 class DataWorkspace:
