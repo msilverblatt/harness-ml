@@ -9,3 +9,7 @@ build/
 .coverage
 node_modules/
 catboost_info/
+
+# Separate repositories kept beside the Harness 2 worktree
+/harness-ml/
+/packages/research-loop/
