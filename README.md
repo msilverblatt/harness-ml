@@ -59,6 +59,7 @@ Harness excludes target and configured metadata columns from implicit model feat
 
 ## Documentation
 
+- [Post-v2 roadmap: production hardening, LLM evals, and bounded self-improvement](docs/ROADMAP.md)
 - [Harness 2 design](docs/superpowers/specs/2026-03-23-harness2-design.md)
 - [Productionization and replacement plan](docs/superpowers/plans/2026-03-25-harness2-productionization-and-release.md)
 - [Implementation progress](docs/superpowers/plans/MASTER-PROGRESS.md)
