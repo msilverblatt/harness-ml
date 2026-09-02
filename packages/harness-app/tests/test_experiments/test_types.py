@@ -1,10 +1,10 @@
 from harness.app.experiments.types import ExperimentType, EXPERIMENT_CONFIG_MAP
 
 
-def test_all_eight_experiment_types_exist():
+def test_all_experiment_types_exist():
     expected = {
         "BASELINE", "FEATURE", "MODEL", "HYPERPARAMETER",
-        "ENSEMBLE", "CALIBRATION", "CV_STRATEGY", "FEATURE_SELECTION",
+        "ENSEMBLE", "CALIBRATION", "CV_STRATEGY", "FEATURE_SELECTION", "DATA_REFRESH",
     }
     actual = {member.name for member in ExperimentType}
     assert actual == expected
